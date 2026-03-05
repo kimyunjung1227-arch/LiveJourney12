@@ -923,16 +923,22 @@ const UploadScreen = () => {
             });
           }
 
-          // Supabase에도 게시물 메타데이터 저장 (실패해도 앱 동작에는 영향 없도록 처리)
-          createPostSupabase(sanitizedPost).then((result) => {
-            if (!result?.success) {
-              logger.warn('Supabase 게시물 저장 실패 (무시 가능):', result?.error);
-            } else {
+          // Supabase에 게시물 저장 (https URL만 저장, blob URL 제외)
+          let supabaseSaved = false;
+          try {
+            const result = await createPostSupabase(sanitizedPost);
+            if (result?.success) {
+              supabaseSaved = true;
               logger.log('✅ Supabase 게시물 저장 완료:', { supabasePostId: result.post?.id });
+            } else {
+              logger.warn('Supabase 게시물 저장 실패:', result?.error, result?.code);
             }
-          }).catch((err) => {
-            logger.warn('Supabase 게시물 저장 중 예외 (무시):', err);
-          });
+          } catch (err) {
+            logger.warn('Supabase 게시물 저장 중 예외:', err);
+          }
+          if (!supabaseSaved) {
+            logger.warn('💡 게시물은 이 기기 localStorage에만 저장되었습니다. Supabase 대시보드에서 RLS/정책을 확인해 주세요.');
+          }
 
           setUploadProgress(100);
           setShowSuccessModal(true);

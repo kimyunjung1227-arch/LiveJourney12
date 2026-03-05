@@ -1,17 +1,22 @@
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
 
+// blob: URL은 새로고침 시 사라지므로 Supabase에는 https URL만 저장
+const onlyPersistentUrls = (arr) => {
+  if (!Array.isArray(arr)) return [];
+  return arr.filter((url) => typeof url === 'string' && url.trim().startsWith('https://'));
+};
+
 // Supabase posts 테이블에 게시물 저장 (user_id는 public.users 연동 전까지 null로 저장해 FK 오류 방지)
 export const createPostSupabase = async (post) => {
   try {
     if (!post) return { success: false, error: 'no_post' };
 
-    // public.users에 로그인 사용자가 없으면 FK(23503) 발생 → 업로드 실패 방지를 위해 user_id는 null로 저장
     const payload = {
       user_id: null,
       content: post.note || post.content || '',
-      images: Array.isArray(post.images) ? post.images : [],
-      videos: Array.isArray(post.videos) ? post.videos : [],
+      images: onlyPersistentUrls(post.images),
+      videos: onlyPersistentUrls(post.videos),
       location: post.location || null,
       detailed_location: post.detailedLocation || null,
       place_name: post.placeName || null,
@@ -39,14 +44,15 @@ export const createPostSupabase = async (post) => {
     return { success: true, post: data };
   } catch (error) {
     logger.error('Supabase createPost 실패:', {
-      code: error.code,
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
+      code: error?.code,
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
     });
     return {
       success: false,
-      error: error.message || error.code || 'unknown_error',
+      error: error?.message || error?.code || 'unknown_error',
+      code: error?.code,
     };
   }
 };
