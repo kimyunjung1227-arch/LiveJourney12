@@ -1,20 +1,14 @@
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
 
-// 간단한 UUID 형식 검사 (Supabase user_id 컬럼이 uuid 타입인 경우 대비)
-const isValidUuid = (value) => {
-  if (!value || typeof value !== 'string') return false;
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim());
-};
-
-// Supabase posts 테이블에 게시물 저장
+// Supabase posts 테이블에 게시물 저장 (user_id는 public.users 연동 전까지 null로 저장해 FK 오류 방지)
 export const createPostSupabase = async (post) => {
   try {
     if (!post) return { success: false, error: 'no_post' };
 
+    // public.users에 로그인 사용자가 없으면 FK(23503) 발생 → 업로드 실패 방지를 위해 user_id는 null로 저장
     const payload = {
-      // user_id 컬럼이 uuid 타입이기 때문에, uuid가 아니면 null로 저장
-      user_id: isValidUuid(post.userId) ? post.userId : null,
+      user_id: null,
       content: post.note || post.content || '',
       images: Array.isArray(post.images) ? post.images : [],
       videos: Array.isArray(post.videos) ? post.videos : [],
@@ -37,19 +31,6 @@ export const createPostSupabase = async (post) => {
       .insert(payload)
       .select('*')
       .single();
-
-    // user_id가 public.users에 없으면 FK 오류(23503) → user_id 없이 재시도
-    if (error && error.code === '23503' && payload.user_id) {
-      const fallbackPayload = { ...payload, user_id: null };
-      const retry = await supabase
-        .from('posts')
-        .insert(fallbackPayload)
-        .select('*')
-        .single();
-      if (!retry.error) {
-        return { success: true, post: retry.data };
-      }
-    }
 
     if (error) {
       throw error;

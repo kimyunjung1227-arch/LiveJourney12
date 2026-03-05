@@ -120,6 +120,8 @@ const UploadScreen = () => {
   const [showBadgeModal, setShowBadgeModal] = useState(false);
   const [earnedBadge, setEarnedBadge] = useState(null);
   const [badgeAnimationKey, setBadgeAnimationKey] = useState(0);
+  const setBadgeAnimationKeyRef = useRef(setBadgeAnimationKey);
+  setBadgeAnimationKeyRef.current = setBadgeAnimationKey;
   const reanalysisTimerRef = useRef(null);
 
   // 업로드 가이드는 한 번 보고 나면 5번 업로드 동안은 다시 나오지 않도록 제어
@@ -655,7 +657,9 @@ const UploadScreen = () => {
 
               setEarnedBadge(badge);
               setShowBadgeModal(true);
-              setBadgeAnimationKey(prev => prev + 1); // 애니메이션 트리거
+              if (typeof setBadgeAnimationKeyRef.current === 'function') {
+                setBadgeAnimationKeyRef.current(prev => prev + 1);
+              }
               logger.log('   🎉 뱃지 모달 표시');
 
               // 경험치 시스템 제거됨
