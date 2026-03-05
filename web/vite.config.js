@@ -4,8 +4,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   publicDir: 'public',
-  // GitHub Pages 프로젝트 경로에 맞게 설정
-  base: '/livejourney.co.kr/',
+  // GitHub Pages 배포용 base 설정은 제거 (Vercel에서는 루트 사용)
+  // base: '/livejourney.co.kr/',
   server: {
     host: '0.0.0.0',
     port: 3000,
