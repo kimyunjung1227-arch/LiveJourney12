@@ -16,11 +16,16 @@ const loadKakaoMapAPI = () => {
       return;
     }
 
-    // API 키 설정 (환경변수 또는 기본값)
-    const apiKey = import.meta.env.VITE_KAKAO_MAP_API_KEY || 'cc3234f026f2f64c40c0edcff5b96306';
-    
+    // API 키 설정 (환경변수 필수)
+    const apiKey = import.meta.env.VITE_KAKAO_MAP_API_KEY;
+
+    if (!apiKey) {
+      logger.error('❌ VITE_KAKAO_MAP_API_KEY 가 설정되어 있지 않습니다.');
+      reject(new Error('Kakao Map API 키가 없습니다. .env 및 Vercel 환경변수를 확인해주세요.'));
+      return;
+    }
+
     logger.log('📡 Kakao Map API 로드 시작...');
-    logger.debug('🔑 API Key:', apiKey);
     
     const script = document.createElement('script');
     script.type = 'text/javascript';

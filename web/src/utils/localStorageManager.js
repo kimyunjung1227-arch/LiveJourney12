@@ -79,6 +79,48 @@ export const limitPostsCount = (maxCount = 100) => {
   }
 };
 
+// 과거 테스트/목업 게시물 정리
+// - Supabase 연동 이전에 사용하던 userId(예: 'test_user_001') 등을 가진 게시물을 정리
+// - 현재는 Supabase OAuth 사용자(UUID 형식)만 남기고 나머지는 삭제
+const isValidUuid = (value) => {
+  if (typeof value !== 'string') return false;
+  // 간단한 UUID v4 패턴 검사
+  return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
+};
+
+export const cleanLegacyUploadedPosts = () => {
+  try {
+    const raw = localStorage.getItem('uploadedPosts');
+    if (!raw) return false;
+
+    const posts = JSON.parse(raw || '[]');
+    if (!Array.isArray(posts) || posts.length === 0) return false;
+
+    const cleaned = posts.filter((post) => {
+      const uid =
+        post.userId ||
+        (typeof post.user === 'string' ? post.user : post.user?.id) ||
+        null;
+
+      // 사용자 정보가 없거나 UUID 형식이 아니면 과거 목업/테스트 데이터로 간주하고 제거
+      if (!uid) return false;
+      if (!isValidUuid(String(uid))) return false;
+      return true;
+    });
+
+    if (cleaned.length !== posts.length) {
+      localStorage.setItem('uploadedPosts', JSON.stringify(cleaned));
+      logger.log(`🧹 legacy uploadedPosts 정리: ${posts.length}개 → ${cleaned.length}개`);
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    logger.error('legacy uploadedPosts 정리 실패:', error);
+    return false;
+  }
+};
+
 // 과거에 사용하던 목업 데이터 정리용 함수들
 // 현재는 실제 사용자 데이터만 사용하지만,
 // safeSetItem 내부에서 호출하므로 안전하게 no-op 수준으로 구현

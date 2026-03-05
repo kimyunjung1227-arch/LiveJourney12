@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import { initStatusBar } from './utils/statusBar'
 import SosAlertBanner from './components/SosAlertBanner'
+import { cleanLegacyUploadedPosts } from './utils/localStorageManager'
 
 // Pages (코드 스플리팅을 위해 lazy 로드)
 const WelcomeScreen = lazy(() => import('./pages/WelcomeScreen'))
@@ -54,8 +55,10 @@ const ChatWriteScreen = lazy(() => import('./pages/ChatWriteScreen'))
 function App() {
   // StatusBar 초기화 (앱 시작 시 한 번만)
   useEffect(() => {
-    initStatusBar();
-  }, []);
+    initStatusBar()
+    // Supabase 연동 이전에 남아 있던 테스트/목업 게시물 정리
+    cleanLegacyUploadedPosts()
+  }, [])
 
   // 개발 환경에서는 basename 없이, 프로덕션에서는 BASE_URL 사용
   const basename = import.meta.env.PROD ? import.meta.env.BASE_URL : undefined;
