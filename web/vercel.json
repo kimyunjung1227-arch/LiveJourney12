@@ -1,0 +1,11 @@
+{
+  // Vercel에서 새로고침 / 직접 URL 입력 시에도
+  // 항상 SPA의 index.html을 반환하도록 설정
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/"
+    }
+  ]
+}
+
