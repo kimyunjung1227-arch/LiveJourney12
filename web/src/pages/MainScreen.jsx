@@ -412,6 +412,38 @@ const MainScreen = () => {
         loadInterestPlaces();
     }, [fetchPosts, loadInterestPlaces]);
 
+    // 상세에서 좋아요 반영 시 메인 목록의 해당 게시물 좋아요 수 동기화
+    useEffect(() => {
+        const onPostLikeUpdated = (e) => {
+            const { postId, likesCount } = e.detail || {};
+            if (!postId || typeof likesCount !== 'number') return;
+            const id = String(postId);
+            const updateLikes = (p) => (p && String(p.id) === id ? { ...p, likes: likesCount } : p);
+            setRealtimeData((prev) => prev.map(updateLikes));
+            setCrowdedData((prev) => prev.map(updateLikes));
+            setRecommendedData((prev) => prev.map(updateLikes));
+            setAllPostsForRecommend((prev) => (Array.isArray(prev) ? prev.map(updateLikes) : prev));
+        };
+        window.addEventListener('postLikeUpdated', onPostLikeUpdated);
+        return () => window.removeEventListener('postLikeUpdated', onPostLikeUpdated);
+    }, []);
+
+    // 상세에서 댓글 반영 시 메인 목록의 해당 게시물 댓글 수 동기화
+    useEffect(() => {
+        const onPostCommentsUpdated = (e) => {
+            const { postId, comments } = e.detail || {};
+            if (!postId || !Array.isArray(comments)) return;
+            const id = String(postId);
+            const updateComments = (p) => (p && String(p.id) === id ? { ...p, comments } : p);
+            setRealtimeData((prev) => prev.map(updateComments));
+            setCrowdedData((prev) => prev.map(updateComments));
+            setRecommendedData((prev) => prev.map(updateComments));
+            setAllPostsForRecommend((prev) => (Array.isArray(prev) ? prev.map(updateComments) : prev));
+        };
+        window.addEventListener('postCommentsUpdated', onPostCommentsUpdated);
+        return () => window.removeEventListener('postCommentsUpdated', onPostCommentsUpdated);
+    }, []);
+
     // 관리자가 게시물 삭제 시 메인에서 즉시 제거 후 DB 기준으로 다시 불러오기
     useEffect(() => {
         const onAdminDeletedPost = (e) => {

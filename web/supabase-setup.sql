@@ -13,6 +13,9 @@ ALTER TABLE public.posts ALTER COLUMN user_id DROP NOT NULL;
 -- user_id FK 제거 (23503: auth.users와 연동 시 public.users 미사용)
 ALTER TABLE public.posts DROP CONSTRAINT IF EXISTS posts_user_id_fkey;
 
+-- 댓글 저장용 컬럼 (없으면 추가)
+ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]'::jsonb;
+
 -- --------------------------------------------------------------
 -- 2) posts RLS — 기존 정책 제거 후 재생성
 -- --------------------------------------------------------------

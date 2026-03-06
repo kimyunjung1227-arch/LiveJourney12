@@ -4,7 +4,7 @@ import { Swiper, SwiperSlide } from 'swiper/react';
 import BottomNavigation from '../components/BottomNavigation';
 import { getPost } from '../api/posts';
 import { getDisplayImageUrl } from '../api/upload';
-import { updatePostLikesSupabase } from '../api/postsSupabase';
+import { updatePostLikesSupabase, fetchPostByIdSupabase, addCommentToPostSupabase } from '../api/postsSupabase';
 import { useAuth } from '../contexts/AuthContext';
 import { getWeatherByRegion } from '../api/weather';
 import { getTimeAgo } from '../utils/dateUtils';
@@ -175,23 +175,23 @@ const PostDetailScreen = () => {
     return passedPost ? [passedPost] : [];
   }, [allPosts, passedPost]);
 
-  // 미디어 배열 (이미지 + 동영상), 표시용 풀 URL로 변환
+  // 미디어 배열 (이미지 + 동영상), 표시용 풀 URL로 변환 (문자열/배열/객체 혼합 지원)
+  const toUrl = (v) => (typeof v === 'string' ? v : (v?.url ?? v?.src ?? v?.href ?? ''));
   const mediaItems = useMemo(() => {
-    const rawImages = post?.images?.length
+    const rawImages = Array.isArray(post?.images)
       ? post.images
-      : (post?.image ? [post.image] : post?.thumbnail ? [post.thumbnail] : []);
-    const rawVideos = post?.videos || [];
-    return [
-      ...rawImages.map(img => ({ type: 'image', url: getDisplayImageUrl(img) })),
-      ...rawVideos.map(vid => ({ type: 'video', url: getDisplayImageUrl(vid) }))
-    ];
+      : post?.images ? [post.images] : post?.image ? [post.image] : post?.thumbnail ? [post.thumbnail] : [];
+    const rawVideos = Array.isArray(post?.videos) ? post.videos : post?.videos ? [post.videos] : [];
+    const imgUrls = rawImages.map(toUrl).filter(Boolean).map((img) => ({ type: 'image', url: getDisplayImageUrl(img) }));
+    const vidUrls = rawVideos.map(toUrl).filter(Boolean).map((vid) => ({ type: 'video', url: getDisplayImageUrl(vid) }));
+    return [...imgUrls, ...vidUrls];
   }, [post]);
 
   const images = useMemo(() => {
-    const raw = post?.images?.length
+    const rawImages = Array.isArray(post?.images)
       ? post.images
-      : (post?.image ? [post.image] : post?.thumbnail ? [post.thumbnail] : []);
-    return raw.map(getDisplayImageUrl);
+      : post?.images ? [post.images] : post?.image ? [post.image] : post?.thumbnail ? [post.thumbnail] : [];
+    return rawImages.map(toUrl).filter(Boolean).map(getDisplayImageUrl);
   }, [post]);
 
   // Q&A 포맷 변환 (useCallback)
@@ -318,6 +318,21 @@ const PostDetailScreen = () => {
     }
   }, [post?.id, post?.userMarked, post?.accuracyCount]);
 
+  // 상세 진입 시 Supabase에서 최신 데이터 조회 (좋아요 수·미디어 유지, 재진입 시 초기화 방지)
+  useEffect(() => {
+    if (!postId || typeof postId !== 'string') return;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId.trim());
+    if (!isUuid) return;
+    let cancelled = false;
+    fetchPostByIdSupabase(postId).then((fresh) => {
+      if (cancelled || !fresh) return;
+      setPost((prev) => (prev ? { ...prev, ...fresh } : fresh));
+      setLikeCount(fresh.likes ?? fresh.likeCount ?? 0);
+      if (Array.isArray(fresh.comments) && fresh.comments.length >= 0) setComments(fresh.comments);
+    });
+    return () => { cancelled = true; };
+  }, [postId]);
+
   // 정보가 정확해요 버튼 클릭 (다른 사용자가 누르면 작성자 신뢰지수 상승)
   const handleAccuracyClick = useCallback(async () => {
     if (!post?.id) return;
@@ -371,7 +386,10 @@ const PostDetailScreen = () => {
       // Supabase 게시물: DB에 좋아요 수 반영 후 화면은 낙관적 업데이트 유지
       const delta = optimisticLiked ? 1 : -1;
       updatePostLikesSupabase(post.id, delta).then((res) => {
-        if (res?.success && typeof res.likesCount === 'number') setLikeCount(res.likesCount);
+        if (res?.success && typeof res.likesCount === 'number') {
+          setLikeCount(res.likesCount);
+          window.dispatchEvent(new CustomEvent('postLikeUpdated', { detail: { postId: post.id, likesCount: res.likesCount } }));
+        }
       });
       setLiked(optimisticLiked);
     }
@@ -417,47 +435,44 @@ const PostDetailScreen = () => {
     }
   }, [currentImageIndex, images.length, mediaItems.length]);
 
-  // 댓글 추가 핸들러
-  const handleAddComment = useCallback(() => {
+  // 댓글 추가 핸들러 (DB 기준: Supabase UUID면 DB 저장, 로컬 게시물이면 localStorage)
+  const handleAddComment = useCallback(async () => {
     if (!post || !commentText.trim()) return;
 
-    const username = user?.username || '익명';
+    const username = user?.username || user?.email?.split('@')[0] || '익명';
     const text = commentText.trim();
+    const userId = user?.id || null;
+    const newComment = {
+      id: `comment-${Date.now()}`,
+      user: username,
+      userId,
+      content: text,
+      timestamp: new Date().toISOString(),
+      avatar: user?.profileImage || null
+    };
 
-    // uploadedPosts에 존재하는지 먼저 확인
-    const uploadedPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-    const existsInStorage = uploadedPosts.some((p) => p.id === post.id);
-
-    if (existsInStorage) {
-      // 기존 로컬 업로드 게시물: util을 통해 댓글 + 저장까지 처리
-      const newComments = addComment(post.id, text, username);
-      if (Array.isArray(newComments) && newComments.length > 0) {
-        setComments(newComments);
+    const isSupabasePost = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(post.id || '').trim());
+    if (isSupabasePost) {
+      const res = await addCommentToPostSupabase(post.id, newComment);
+      if (res?.success && Array.isArray(res.comments)) {
+        setComments(res.comments);
+        window.dispatchEvent(new CustomEvent('postCommentsUpdated', { detail: { postId: post.id, comments: res.comments } }));
       } else {
-        // 방어적으로 현재 UI에만 추가
-        const newComment = {
-          id: `comment-${Date.now()}`,
-          user: username,
-          content: text,
-          timestamp: new Date().toISOString(),
-          avatar: user?.profileImage || null
-        };
         setComments((prev) => [...prev, newComment]);
       }
     } else {
-      // 서버/목업 기반 게시물: 로컬 state에서만 댓글 추가 (화면상 반영)
-      const newComment = {
-        id: `comment-${Date.now()}`,
-        user: username,
-        content: text,
-        timestamp: new Date().toISOString(),
-        avatar: user?.profileImage || null
-      };
-      setComments((prev) => [...prev, newComment]);
+      const uploadedPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+      const existsInStorage = uploadedPosts.some((p) => p.id === post.id);
+      if (existsInStorage) {
+        const newComments = addComment(post.id, text, username, userId);
+        if (Array.isArray(newComments) && newComments.length > 0) setComments(newComments);
+        else setComments((prev) => [...prev, newComment]);
+      } else {
+        setComments((prev) => [...prev, newComment]);
+      }
     }
 
     setCommentText('');
-    console.log('💬 댓글 추가:', text);
   }, [post, commentText, user]);
 
   // 게시물 변경 (상하/좌우 스와이프 모두 지원)

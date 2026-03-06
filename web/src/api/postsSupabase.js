@@ -31,6 +31,7 @@ export const createPostSupabase = async (post) => {
       category: post.category || null,
       category_name: post.categoryName || null,
       likes_count: post.likes || 0,
+      comments: Array.isArray(post.comments) ? post.comments : [],
       captured_at: post.photoDate ? new Date(post.photoDate) : null,
       created_at: post.createdAt ? new Date(post.createdAt) : new Date(),
     };
@@ -152,6 +153,92 @@ export const updatePostLikesSupabase = async (postId, delta) => {
   } catch (e) {
     logger.warn('updatePostLikesSupabase 예외:', e?.message);
     return { success: false };
+  }
+};
+
+// Supabase에서 단일 게시물 조회 (상세 화면 진입 시 최신 좋아요·미디어 반영용)
+const mapRowToPost = (row) => {
+  if (!row) return null;
+  const uid = row.user_id;
+  const userObj =
+    uid != null
+      ? { id: uid, username: row.author_username || null, profileImage: row.author_avatar_url || null }
+      : uid;
+  return {
+    id: row.id,
+    userId: uid,
+    user: userObj,
+    images: Array.isArray(row.images) ? row.images : (row.images ? [row.images] : []),
+    videos: Array.isArray(row.videos) ? row.videos : (row.videos ? [row.videos] : []),
+    location: row.location || '',
+    detailedLocation: row.detailed_location || '',
+    placeName: row.place_name || '',
+    region: row.region || '',
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    note: row.content || '',
+    content: row.content || '',
+    timestamp: row.created_at ? new Date(row.created_at).getTime() : null,
+    createdAt: row.created_at || null,
+    photoDate: row.captured_at || row.created_at || null,
+    likes: row.likes_count ?? 0,
+    likeCount: row.likes_count ?? 0,
+    comments: Array.isArray(row.comments) ? row.comments : [],
+    category: row.category || null,
+    categoryName: row.category_name || null,
+    thumbnail: (Array.isArray(row.images) && row.images[0]) || row.images || null,
+    weather: row.weather || null,
+  };
+};
+
+export const fetchPostByIdSupabase = async (postId) => {
+  if (!postId || typeof postId !== 'string') return null;
+  const trimmed = postId.trim();
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
+  if (!isUuid) return null;
+  try {
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('id', trimmed)
+      .single();
+    if (error || !data) return null;
+    return mapRowToPost(data);
+  } catch (e) {
+    logger.warn('fetchPostByIdSupabase 예외:', e?.message);
+    return null;
+  }
+};
+
+// Supabase 게시물에 댓글 추가 (DB 기준 추적)
+export const addCommentToPostSupabase = async (postId, commentPayload) => {
+  if (!postId || typeof postId !== 'string' || !commentPayload) return { success: false, comments: [] };
+  const trimmed = postId.trim();
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
+  if (!isUuid) return { success: false, comments: [] };
+  try {
+    const { data: row, error: fetchErr } = await supabase
+      .from('posts')
+      .select('comments')
+      .eq('id', trimmed)
+      .single();
+    if (fetchErr || row == null) {
+      logger.warn('addCommentToPostSupabase: fetch 실패', fetchErr?.message);
+      return { success: false, comments: [] };
+    }
+    const current = Array.isArray(row.comments) ? row.comments : (row.comments ? [row.comments] : []);
+    const next = [...current, { ...commentPayload, createdAt: commentPayload.timestamp || new Date().toISOString() }];
+    const { error: updateErr } = await supabase
+      .from('posts')
+      .update({ comments: next })
+      .eq('id', trimmed);
+    if (updateErr) {
+      logger.warn('addCommentToPostSupabase: update 실패', updateErr.message);
+      return { success: false, comments: current };
+    }
+    return { success: true, comments: next };
+  } catch (e) {
+    logger.warn('addCommentToPostSupabase 예외:', e?.message);
+    return { success: false, comments: [] };
   }
 };
 
