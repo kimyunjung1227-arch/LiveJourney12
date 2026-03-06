@@ -107,10 +107,14 @@ web/
 환경 변수 파일(`.env`)을 생성하여 API 키를 설정할 수 있습니다:
 
 ```env
-# .env 파일 생성 (선택사항)
+# .env 파일 생성 (선택사항) — Vercel 배포 시에도 동일 키를 Environment Variables에 추가
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_anon_key
 VITE_KAKAO_MAP_API_KEY=your_kakao_map_api_key
+VITE_KMA_API_KEY=your_kma_api_key
 VITE_API_URL=http://localhost:5000
 ```
+- **VITE_KMA_API_KEY**: 기상청 API (공공데이터포털 data.go.kr → 기상청_초단기실황) 발급 후 입력 시 업로드/검색/지역별 날씨 표시 가능
 
 **참고**: 
 - 환경 변수 없이도 기본값으로 동작합니다

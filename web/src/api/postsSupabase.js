@@ -44,11 +44,17 @@ export const createPostSupabase = async (post) => {
     return { success: true, post: data };
   } catch (error) {
     const code = error?.code;
-    const msg = error?.message || '';
-    logger.error('Supabase createPost 실패:', { code, message: msg, details: error?.details, hint: error?.hint });
+    const msg = (error?.message || '').toLowerCase();
+    logger.error('Supabase createPost 실패:', {
+      code: error?.code,
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+      status: error?.status ?? error?.statusCode,
+    });
 
     // 23502: user_id NOT NULL 제약
-    if (code === '23502' && msg.includes('user_id')) {
+    if (code === '23502' && (error?.message || '').includes('user_id')) {
       return {
         success: false,
         error: 'user_id_not_null',
@@ -57,14 +63,15 @@ export const createPostSupabase = async (post) => {
       };
     }
 
-    // 403 / 42501: RLS 정책으로 차단 → posts 테이블에 INSERT 허용 정책 추가 필요
-    const status = error?.status || error?.statusCode;
-    if (code === '42501' || status === 403) {
+    // 403 / 42501 또는 메시지에 RLS 언급: 정책으로 차단
+    const status = error?.status ?? error?.statusCode;
+    const isRls = code === '42501' || status === 403 || msg.includes('row-level security') || msg.includes('violates');
+    if (isRls) {
       return {
         success: false,
         error: 'rls_forbidden',
         code: code || 403,
-        hint: 'Supabase Table Editor → posts → RLS에서 "INSERT 허용" 정책을 추가하거나, RLS를 비활성화해 주세요.',
+        hint: 'Supabase SQL Editor에서 web/supabase-posts-한번에-수정.sql 내용 실행하세요.',
       };
     }
 
@@ -73,6 +80,30 @@ export const createPostSupabase = async (post) => {
       error: error?.message || error?.code || 'unknown_error',
       code: error?.code,
     };
+  }
+};
+
+// Supabase posts 테이블에서 게시물 삭제 (프로필에서 사진 삭제 시 호출)
+export const deletePostSupabase = async (postId) => {
+  if (!postId || typeof postId !== 'string') return { success: false, error: 'no_post_id' };
+  const trimmed = postId.trim();
+  // Supabase UUID 형식일 때만 삭제 시도 (backend-123 같은 클라이언트 id는 무시)
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
+  if (!isUuid) {
+    logger.debug('deletePostSupabase: UUID 아님, Supabase 삭제 스킵', trimmed);
+    return { success: true };
+  }
+  try {
+    const { error } = await supabase.from('posts').delete().eq('id', trimmed);
+    if (error) {
+      logger.warn('Supabase deletePost 실패:', error.message);
+      return { success: false, error: error.message };
+    }
+    logger.log('✅ Supabase 게시물 삭제 완료:', trimmed);
+    return { success: true };
+  } catch (e) {
+    logger.warn('Supabase deletePost 예외:', e?.message);
+    return { success: false, error: e?.message };
   }
 };
 

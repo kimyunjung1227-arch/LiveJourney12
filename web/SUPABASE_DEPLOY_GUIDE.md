@@ -191,9 +191,11 @@ git push origin master   # 또는 사용하는 브랜치 이름
    - **Root Directory**: `web`
    - **Build Command**: `npm run build`
    - **Output Directory**: `dist`
-4. **Environment Variables** 섹션에 다음 추가:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
+4. **Environment Variables** 섹션에 다음을 모두 추가:
+   - `VITE_SUPABASE_URL` — Supabase 프로젝트 URL
+   - `VITE_SUPABASE_ANON_KEY` — Supabase anon public 키
+   - `VITE_KMA_API_KEY` — 기상청 API 키 (날씨 기능용, [공공데이터포털](https://www.data.go.kr)에서 발급)
+   - `VITE_KAKAO_MAP_API_KEY` — 카카오맵 JavaScript 키 (지도 기능용)
 5. Deploy 클릭 → 빌드 완료 후 제공된 도메인으로 접속.
 
 > ⚠️ 빌드가 로컬에서 실패한다면, Node 버전 업데이트나 의존성 정리를 먼저 수행한 뒤 다시 시도하세요.

@@ -934,7 +934,19 @@ const UploadScreen = () => {
             const result = await createPostSupabase(sanitizedPost);
             if (result?.success) {
               supabaseSaved = true;
-              logger.log('✅ Supabase 게시물 저장 완료:', { supabasePostId: result.post?.id });
+              const supabasePostId = result.post?.id;
+              logger.log('✅ Supabase 게시물 저장 완료:', { supabasePostId });
+              // localStorage에 저장된 게시물 id를 Supabase id로 갱신 (삭제 시 Supabase에서도 삭제하기 위함)
+              if (supabasePostId) {
+                try {
+                  const current = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+                  const idx = current.findIndex((p) => p.id === sanitizedPost.id);
+                  if (idx !== -1) {
+                    current[idx].id = supabasePostId;
+                    localStorage.setItem('uploadedPosts', JSON.stringify(current));
+                  }
+                } catch (_) {}
+              }
             } else {
               logger.warn('Supabase 게시물 저장 실패:', result?.error, result?.code);
               if (result?.error === 'user_id_not_null') {
@@ -950,9 +962,9 @@ const UploadScreen = () => {
               if (result?.error === 'rls_forbidden') {
                 logger.warn('💡 해결: posts 테이블 RLS 정책 확인 →', result?.hint);
                 alert(
-                  'Supabase 게시물 저장이 거부되었습니다 (403).\n\n' +
-                  'Supabase 대시보드 → Table Editor → posts → RLS에서\n' +
-                  'INSERT 허용 정책을 추가하거나, 테이블 RLS를 비활성화해 주세요.'
+                  'Supabase 게시물 저장이 거부되었습니다.\n\n' +
+                  '해결: Supabase 대시보드 → SQL Editor → New query\n' +
+                  '프로젝트 내 web/supabase-posts-한번에-수정.sql 파일 내용을 붙여넣고 Run 하세요.'
                 );
               }
             }

@@ -14,6 +14,7 @@ import { logger } from '../utils/logger';
 import { getDisplayImageUrl } from '../api/upload';
 import api from '../api/axios';
 import { cleanLegacyUploadedPosts } from '../utils/localStorageManager';
+import { deletePostSupabase } from '../api/postsSupabase';
 
 // HTML 문자열(template literal)로 src/alt를 주입할 때 속성 안전 처리
 const escapeHtmlAttr = (value) => {
@@ -920,7 +921,7 @@ const ProfileScreen = () => {
     clearLongPressTimer();
   }, [clearLongPressTimer]);
 
-  const deleteSelectedPhotos = () => {
+  const deleteSelectedPhotos = async () => {
     if (selectedPhotos.length === 0) {
       alert('삭제할 사진을 선택해주세요.');
       return;
@@ -928,6 +929,13 @@ const ProfileScreen = () => {
 
     if (!confirm(`선택한 ${selectedPhotos.length}개의 사진을 삭제하시겠습니까?`)) {
       return;
+    }
+
+    // Supabase에서도 해당 게시물 삭제 (UUID인 경우만)
+    try {
+      await Promise.all(selectedPhotos.map((id) => deletePostSupabase(id)));
+    } catch (e) {
+      logger.warn('Supabase 게시물 삭제 중 일부 실패:', e);
     }
 
     // localStorage에서 선택된 사진 삭제

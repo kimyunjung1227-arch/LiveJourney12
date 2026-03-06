@@ -7,6 +7,7 @@ import { filterRecentPosts } from '../utils/timeUtils';
 import { getRecommendedRegions } from '../utils/recommendationEngine';
 import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
+import { fetchPostsSupabase } from '../api/postsSupabase';
 import { logger } from '../utils/logger';
 
 // HTML 속성에 넣을 URL/텍스트 이스케이프 (핀 img src가 깨지지 않도록)
@@ -808,10 +809,19 @@ const MapScreen = () => {
       }
 
       const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-      const allPosts = getCombinedPosts(Array.isArray(localPosts) ? localPosts : []);
+      const supabasePosts = await fetchPostsSupabase();
+      const combined = [
+        ...(Array.isArray(supabasePosts) ? supabasePosts : []),
+        ...(Array.isArray(localPosts) ? localPosts : [])
+      ];
+      const byId = new Map();
+      combined.forEach((p) => {
+        if (p && p.id && !byId.has(p.id)) byId.set(p.id, p);
+      });
+      const allPosts = getCombinedPosts(Array.from(byId.values()));
 
       let validPosts = allPosts.filter(post => {
-        return post.coordinates || post.location || post.detailedLocation;
+        return post.coordinates || post.location || post.detailedLocation || post.region || post.placeName;
       });
 
       // 필터 적용 (중복 선택 가능)
@@ -1400,13 +1410,17 @@ const MapScreen = () => {
     const processChunk = (chunk, chunkIndex) => {
       chunk.forEach((post, index) => {
         const globalIndex = chunkIndex * CHUNK_SIZE + index;
-        // 상세/업로드 기준 좌표만 사용 — coordinates 없는 게시물은 핀 미표시 (위치 정확도)
+        let coords = null;
         const raw = post.coordinates;
-        if (!raw || (raw.lat == null && raw.latitude == null) || (raw.lng == null && raw.longitude == null)) return;
-        const coords = { lat: Number(raw.lat ?? raw.latitude), lng: Number(raw.lng ?? raw.longitude) };
-        const lat = Number(coords.lat ?? coords.latitude);
-        const lng = Number(coords.lng ?? coords.longitude);
-        if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+        if (raw && (raw.lat != null || raw.latitude != null) && (raw.lng != null || raw.longitude != null)) {
+          coords = { lat: Number(raw.lat ?? raw.latitude), lng: Number(raw.lng ?? raw.longitude) };
+        } else {
+          const locStr = post.detailedLocation || post.location || post.region || post.placeName || '';
+          if (locStr) coords = getCoordsByRegion(locStr);
+        }
+        if (!coords || Number.isNaN(coords.lat) || Number.isNaN(coords.lng)) return;
+        const lat = coords.lat;
+        const lng = coords.lng;
 
         const position = new window.kakao.maps.LatLng(lat, lng);
         bounds.extend(position);
