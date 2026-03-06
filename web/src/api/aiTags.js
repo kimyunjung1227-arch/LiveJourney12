@@ -41,7 +41,7 @@ const generateAITagsViaSupabase = async (imageFile, location = '', exifData = nu
         success: true,
         tags: data.tags,
         caption: data.caption || null,
-        method: data.method || 'supabase-edge-openai',
+        method: data.method || 'supabase-edge-gemini',
       };
     }
     return null;
@@ -52,9 +52,11 @@ const generateAITagsViaSupabase = async (imageFile, location = '', exifData = nu
 };
 
 /**
- * 기존 백엔드 API 호출 (선택)
+ * 기존 백엔드 API 호출 (로컬 개발 시에만, 배포 환경에서는 호출 안 함 → CORS/ERR_CONNECTION_REFUSED 방지)
  */
 const generateAITagsViaBackend = async (imageFile, location = '', exifData = null) => {
+  const isLocal = typeof window !== 'undefined' && (window.location?.hostname === 'localhost' || window.location?.hostname === '127.0.0.1');
+  if (!isLocal) return null;
   const formData = new FormData();
   formData.append('image', imageFile);
   formData.append('location', location);

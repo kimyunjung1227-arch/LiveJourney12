@@ -947,6 +947,14 @@ const UploadScreen = () => {
                   sql
                 );
               }
+              if (result?.error === 'rls_forbidden') {
+                logger.warn('💡 해결: posts 테이블 RLS 정책 확인 →', result?.hint);
+                alert(
+                  'Supabase 게시물 저장이 거부되었습니다 (403).\n\n' +
+                  'Supabase 대시보드 → Table Editor → posts → RLS에서\n' +
+                  'INSERT 허용 정책을 추가하거나, 테이블 RLS를 비활성화해 주세요.'
+                );
+              }
             }
           } catch (err) {
             logger.warn('Supabase 게시물 저장 중 예외:', err);
