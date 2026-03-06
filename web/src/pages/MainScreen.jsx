@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { getUnreadCount } from '../utils/notifications';
 import { getTimeAgo, filterRecentPosts, filterActivePosts48 } from '../utils/timeUtils';
@@ -18,6 +18,7 @@ import { getWeatherByRegion } from '../api/weather';
 
 const MainScreen = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [selectedTag, setSelectedTag] = useState(null);
     const [popularTags, setPopularTags] = useState([]);
 
@@ -411,6 +412,17 @@ const MainScreen = () => {
         setUnreadNotificationCount(getUnreadCount());
         loadInterestPlaces();
     }, [fetchPosts, loadInterestPlaces]);
+
+    // 메인 화면으로 돌아올 때마다 목록 재조회 (좋아요·댓글 DB 반영 확인)
+    const prevPathRef = useRef('');
+    useEffect(() => {
+        if (location.pathname === '/') {
+            if (prevPathRef.current !== '/') fetchPosts();
+            prevPathRef.current = '/';
+        } else {
+            prevPathRef.current = location.pathname;
+        }
+    }, [location.pathname, fetchPosts]);
 
     // 상세에서 좋아요 반영 시 메인 목록의 해당 게시물 좋아요 수 동기화
     useEffect(() => {

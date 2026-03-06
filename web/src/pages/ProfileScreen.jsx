@@ -26,14 +26,14 @@ const escapeHtmlAttr = (value) => {
     .replace(/>/g, '&gt;');
 };
 
-/** 게시물에서 지도 핀/썸네일에 쓸 이미지 URL 하나 반환 */
+/** 게시물에서 지도 핀/썸네일에 쓸 이미지 URL 하나 반환 (동영상만 있으면 빈 문자열 → 플레이스홀더 사용) */
 const getPostPinImageUrl = (post) => {
   if (!post) return '';
-  const raw =
-    (post.images && Array.isArray(post.images) && post.images.length > 0)
-      ? post.images[0]
-      : (post.thumbnail ?? post.image ?? post.imageUrl ?? '');
+  const hasImage = post.images && Array.isArray(post.images) && post.images.length > 0;
+  const raw = hasImage ? post.images[0] : (post.thumbnail ?? post.image ?? post.imageUrl ?? '');
   const str = typeof raw === 'string' ? raw : (raw?.url ?? raw?.src ?? '');
+  if (!str) return '';
+  if (/\.(mp4|webm|mov)(\?|$)/i.test(str)) return '';
   return getDisplayImageUrl(str);
 };
 

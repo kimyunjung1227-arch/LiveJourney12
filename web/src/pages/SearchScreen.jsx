@@ -6,6 +6,7 @@ import { getTimeAgo, filterActivePosts48 } from '../utils/timeUtils';
 import { logger } from '../utils/logger';
 import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
+import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getWeatherByRegion } from '../api/weather';
 import PostThumbnail from '../components/PostThumbnail';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
@@ -209,7 +210,7 @@ const SearchScreen = () => {
         name,
         category: type,
         categoryLabel: labels[type] || '명소',
-        image: p.images?.[0] || p.image,
+        image: p.images?.[0] || p.thumbnail || p.image,
         shortDesc,
         detailedLocation: p.detailedLocation || p.placeName || shortDesc,
         time: getTimeAgo(p.timestamp || p.createdAt),
@@ -536,11 +537,17 @@ const SearchScreen = () => {
     }
   }, [searchParams]);
 
-  // 전체 게시물, 최근 검색어, 검색 횟수, 관심 지역 로드
+  // 전체 게시물 (Supabase + 로컬), 최근 검색어, 검색 횟수, 관심 지역 로드
   useEffect(() => {
-    const loadAllPosts = () => {
+    const loadAllPosts = async () => {
       const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-      setAllPosts(filterActivePosts48(getCombinedPosts(Array.isArray(localPosts) ? localPosts : [])));
+      const supabasePosts = await fetchPostsSupabase();
+      const byId = new Map();
+      [...(Array.isArray(supabasePosts) ? supabasePosts : []), ...(Array.isArray(localPosts) ? localPosts : [])].forEach((p) => {
+        if (p && p.id && !byId.has(p.id)) byId.set(p.id, p);
+      });
+      const combined = getCombinedPosts(Array.from(byId.values()));
+      setAllPosts(filterActivePosts48(combined));
     };
 
     loadAllPosts();

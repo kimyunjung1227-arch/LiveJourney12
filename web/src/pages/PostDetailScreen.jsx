@@ -318,7 +318,25 @@ const PostDetailScreen = () => {
     }
   }, [post?.id, post?.userMarked, post?.accuracyCount]);
 
-  // 상세 진입 시 Supabase에서 최신 데이터 조회 (좋아요 수·미디어 유지, 재진입 시 초기화 방지)
+  // Supabase 게시물 최신 데이터 조회 (좋아요·댓글 DB 기준으로 항상 반영)
+  const refreshPostFromSupabase = useCallback(() => {
+    if (!postId || typeof postId !== 'string') return;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId.trim());
+    if (!isUuid) return;
+    fetchPostByIdSupabase(postId).then((fresh) => {
+      if (!fresh) return;
+      setPost((prev) => ({
+        ...(prev || {}),
+        ...fresh,
+        likes: fresh.likes ?? fresh.likeCount ?? prev?.likes,
+        likeCount: fresh.likeCount ?? fresh.likes ?? prev?.likeCount,
+        comments: Array.isArray(fresh.comments) ? fresh.comments : (prev?.comments ?? [])
+      }));
+      setLikeCount(fresh.likes ?? fresh.likeCount ?? 0);
+      if (Array.isArray(fresh.comments)) setComments(fresh.comments);
+    });
+  }, [postId]);
+
   useEffect(() => {
     if (!postId || typeof postId !== 'string') return;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId.trim());
@@ -326,12 +344,27 @@ const PostDetailScreen = () => {
     let cancelled = false;
     fetchPostByIdSupabase(postId).then((fresh) => {
       if (cancelled || !fresh) return;
-      setPost((prev) => (prev ? { ...prev, ...fresh } : fresh));
+      setPost((prev) => ({
+        ...(prev || {}),
+        ...fresh,
+        likes: fresh.likes ?? fresh.likeCount ?? prev?.likes,
+        likeCount: fresh.likeCount ?? fresh.likes ?? prev?.likeCount,
+        comments: Array.isArray(fresh.comments) ? fresh.comments : (prev?.comments ?? [])
+      }));
       setLikeCount(fresh.likes ?? fresh.likeCount ?? 0);
-      if (Array.isArray(fresh.comments) && fresh.comments.length >= 0) setComments(fresh.comments);
+      if (Array.isArray(fresh.comments)) setComments(fresh.comments);
     });
     return () => { cancelled = true; };
   }, [postId]);
+
+  // 탭 포커스 시 최신 좋아요·댓글 다시 불러오기
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && postId) refreshPostFromSupabase();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [postId, refreshPostFromSupabase]);
 
   // 정보가 정확해요 버튼 클릭 (다른 사용자가 누르면 작성자 신뢰지수 상승)
   const handleAccuracyClick = useCallback(async () => {

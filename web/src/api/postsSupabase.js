@@ -218,7 +218,7 @@ export const addCommentToPostSupabase = async (postId, commentPayload) => {
   try {
     const { data: row, error: fetchErr } = await supabase
       .from('posts')
-      .select('comments')
+      .select('*')
       .eq('id', trimmed)
       .single();
     if (fetchErr || row == null) {
