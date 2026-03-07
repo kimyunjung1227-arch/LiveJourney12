@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { getAvailableBadges, getEarnedBadgesForDisplay, calculateUserStats, getBadgeDisplayName } from '../utils/badgeSystem';
+import { getMergedMyPostsForStats } from '../api/postsSupabase';
 import { logger } from '../utils/logger';
 
 const BadgeListScreen = () => {
@@ -11,26 +12,21 @@ const BadgeListScreen = () => {
   const [badges, setBadges] = useState([]);
   const [earnedBadges, setEarnedBadges] = useState([]);
 
-  // 뱃지 데이터 로드 및 업데이트
-  const loadBadges = () => {
+  // 뱃지 데이터 로드 (Supabase+로컬 병합 게시물로 통계 계산 → 로그아웃 후 재로그인해도 진행률 유지)
+  const loadBadges = async () => {
     logger.log('🔄 뱃지 목록 로드 시작');
-
-    // 사용자 통계 계산
-    const uploadedPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
     const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
     const currentUserId = savedUser?.id || 'test_user_001';
-    const myPosts = uploadedPosts.filter(p => p.userId === currentUserId);
+    const myPosts = await getMergedMyPostsForStats(currentUserId);
     const stats = calculateUserStats(myPosts, savedUser);
-
     const allBadges = getAvailableBadges(stats);
     const earned = getEarnedBadgesForDisplay();
-
     logger.log('📋 로드된 뱃지:', {
       전체: allBadges.length,
       획득: earned.length,
+      게시물수: myPosts.length,
       진행률있는뱃지: allBadges.filter(b => b.progress > 0 && !b.isEarned).length
     });
-
     setBadges(allBadges);
     setEarnedBadges(earned);
   };

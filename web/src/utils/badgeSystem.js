@@ -2,9 +2,11 @@
  * 라이브저니 뱃지 시스템 v5.0
  * 7 카테고리: 온보딩, 지역 가이드, 실시간 정보, 도움 지수, 정확한 정보, 친절한 여행자, 기여도, 신뢰지수
  * - [지역명] 뱃지: regionAware + opts.region 저장 → getBadgeDisplayName으로 "[지역명] 가이드" 등 표기
+ * - Supabase user_badges 연동: 로그아웃 후 재로그인해도 획득 뱃지·활동 통계 유지
  */
 import { logger } from './logger';
 import { getTrustScore } from './trustIndex';
+import { fetchUserBadgesSupabase, saveUserBadgeSupabase } from '../api/userBadgesSupabase';
 
 /** [지역명] 뱃지일 때 표시명 반환. 그 외는 name 그대로 */
 export const getBadgeDisplayName = (badge) => {
@@ -243,8 +245,8 @@ export const checkNewBadges = (stats) => {
 };
 
 /**
- * 뱃지 획득 처리
- * @param {object} opts - { region } 지역 뱃지일 때 획득 지역명 (예: stats.topRegionName)
+ * 뱃지 획득 처리 (Supabase + localStorage 둘 다 저장 → 로그아웃 후에도 유지)
+ * @param {object} opts - { region, userId } 지역 뱃지일 때 region, Supabase 저장용 userId
  */
 export const awardBadge = (badge, opts = {}) => {
   logger.log(`🎁 뱃지 획득 처리 시작: ${badge.name}`);
@@ -264,13 +266,18 @@ export const awardBadge = (badge, opts = {}) => {
     };
 
     earnedBadges.push(newBadge);
-    
+
+    // Supabase에 저장 (userId 있으면 → 재로그인 시에도 유지)
+    const userId = opts?.userId || (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('user') || '{}')?.id);
+    if (userId) {
+      saveUserBadgeSupabase(userId, newBadge).catch(() => {});
+    }
+
     // localStorage 저장
     try {
       localStorage.setItem('earnedBadges', JSON.stringify(earnedBadges));
       logger.log(`✅ 뱃지 저장 완료: ${badge.name} (${badge.category} 카테고리)`);
-      
-      // 저장 확인
+
       const verify = JSON.parse(localStorage.getItem('earnedBadges') || '[]');
       if (verify.some(b => b.name === badge.name)) {
         logger.log(`✅ 뱃지 저장 확인됨: ${badge.name}`);
@@ -282,15 +289,42 @@ export const awardBadge = (badge, opts = {}) => {
       logger.error(`❌ localStorage 저장 오류:`, saveError);
       return false;
     }
-    
-    // 뱃지 획득 이벤트 발생
+
     window.dispatchEvent(new CustomEvent('badgeEarned', { detail: newBadge }));
     window.dispatchEvent(new Event('badgeProgressUpdated'));
-    
+
     return true;
   } catch (error) {
     logger.error(`❌ 뱃지 획득 처리 오류:`, error);
     return false;
+  }
+};
+
+/**
+ * Supabase에서 해당 사용자 뱃지 목록 불러와 localStorage와 동기화 (로그인 시 호출 권장)
+ * @param {string} userId - Supabase auth user id (UUID)
+ */
+export const syncEarnedBadgesFromSupabase = async (userId) => {
+  if (!userId) return;
+  try {
+    const rows = await fetchUserBadgesSupabase(userId);
+    if (!rows || rows.length === 0) return;
+    const earned = rows.map((r) => {
+      const badge = BADGES[r.badge_name];
+      return {
+        ...(badge || { name: r.badge_name }),
+        name: r.badge_name,
+        earnedAt: r.earned_at,
+        ...(r.region && { region: r.region }),
+      };
+    });
+    localStorage.setItem('earnedBadges', JSON.stringify(earned));
+    logger.log('✅ Supabase 뱃지 동기화:', earned.length, '개');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('badgeProgressUpdated'));
+    }
+  } catch (e) {
+    logger.warn('syncEarnedBadgesFromSupabase 실패:', e?.message);
   }
 };
 

@@ -10,7 +10,7 @@ import { checkNewBadges, awardBadge, hasSeenBadge, markBadgeAsSeen, calculateUse
 import { checkAndNotifyInterestPlace } from '../utils/interestPlaces';
 import { analyzeImageForTags } from '../utils/aiImageAnalyzer';
 import { getWeatherByRegion } from '../api/weather';
-import { createPostSupabase } from '../api/postsSupabase';
+import { createPostSupabase, getMergedMyPostsForStats } from '../api/postsSupabase';
 import { getCurrentTimestamp, getTimeAgo } from '../utils/timeUtils';
 import { getBadgeCongratulationMessage, getBadgeDifficultyEffects } from '../utils/badgeMessages';
 import { logger } from '../utils/logger';
@@ -619,38 +619,31 @@ const UploadScreen = () => {
     }
   }, [formData.tags]);
 
-  const checkAndAwardBadge = useCallback(() => {
+  const checkAndAwardBadge = useCallback(async () => {
     logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     logger.log('🏆 뱃지 체크 및 획득 시작');
     logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     try {
-      // 사용자 통계 계산
-      const uploadedPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
       const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
       const currentUser = user || savedUser;
       const currentUserId = currentUser?.id || savedUser?.id || 'test_user_001';
 
-      // 내 게시물만 필터링
-      const myPosts = uploadedPosts.filter(p => p.userId === currentUserId);
-
+      // Supabase+로컬 병합으로 내 게시물 로드 (로그아웃 후 재로그인해도 활동 쌓임)
+      const myPosts = await getMergedMyPostsForStats(currentUserId);
       logger.log(`📊 사용자 통계 계산 중... (총 ${myPosts.length}개 게시물)`);
 
-      // 통계 계산
       const stats = calculateUserStats(myPosts, currentUser);
-
       logger.debug('📈 계산된 통계:', {
         totalPosts: stats.totalPosts,
         totalLikes: stats.totalLikes,
         visitedRegions: stats.visitedRegions
       });
 
-      // 뱃지 체크 (통계 전달!)
       const newBadges = checkNewBadges(stats);
       logger.log(`📋 발견된 새 뱃지: ${newBadges.length}개`);
 
       if (newBadges.length > 0) {
-        // 모든 새 뱃지 획득 처리
         let awardedCount = 0;
 
         newBadges.forEach((badge, index) => {
@@ -658,7 +651,7 @@ const UploadScreen = () => {
           logger.debug(`   난이도: ${badge.difficulty}`);
           logger.debug(`   설명: ${badge.description}`);
 
-          const awarded = awardBadge(badge, { region: stats?.topRegionName });
+          const awarded = awardBadge(badge, { region: stats?.topRegionName, userId: currentUserId });
           if (awarded) {
             awardedCount++;
             logger.log(`   ✅ 뱃지 획득 성공: ${badge.name}`);

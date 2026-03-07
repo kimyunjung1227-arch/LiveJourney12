@@ -298,6 +298,19 @@ export const fetchPostsByUserIdSupabase = async (userId) => {
   }
 };
 
+/** 뱃지/활동 통계용: Supabase + localStorage 병합된 '내 게시물' (로그아웃 후 재로그인해도 활동 쌓임) */
+export const getMergedMyPostsForStats = async (userId) => {
+  const fromSupabase = await fetchPostsByUserIdSupabase(userId);
+  const local = JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('uploadedPosts') || '[]' : '[]');
+  const localMine = (local || []).filter((p) => (p.userId || p.user?.id) === userId);
+  const byId = new Map();
+  fromSupabase.forEach((p) => byId.set(p.id, p));
+  localMine.forEach((p) => {
+    if (!byId.has(p.id)) byId.set(p.id, p);
+  });
+  return [...byId.values()].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+};
+
 // Supabase에서 게시물 목록 읽기
 export const fetchPostsSupabase = async () => {
   try {

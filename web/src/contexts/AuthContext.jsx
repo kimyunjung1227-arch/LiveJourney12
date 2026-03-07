@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useMemo } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
+import { syncEarnedBadgesFromSupabase } from '../utils/badgeSystem';
 
 const AuthContext = createContext(null);
 
@@ -66,6 +67,13 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('user');
     }
   }, [appUser]);
+
+  // 로그인 시 Supabase에서 뱃지 목록 동기화 (로그아웃 후 재로그인해도 획득 뱃지 유지)
+  useEffect(() => {
+    if (appUser?.id) {
+      syncEarnedBadgesFromSupabase(appUser.id);
+    }
+  }, [appUser?.id]);
 
   const loginWithProvider = async (provider) => {
     try {

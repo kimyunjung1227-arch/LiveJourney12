@@ -114,6 +114,27 @@ CREATE POLICY allow_authenticated_post_delete ON public.posts
 CREATE POLICY allow_post_likes_update ON public.posts
   FOR UPDATE USING (true) WITH CHECK (true);
 
+-- --------------------------------------------------------------
+-- 5) user_badges — 뱃지 획득 기록 (로그아웃/재로그인 후에도 유지)
+-- --------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.user_badges (
+  user_id UUID NOT NULL,
+  badge_name TEXT NOT NULL,
+  earned_at TIMESTAMPTZ DEFAULT NOW(),
+  region TEXT,
+  PRIMARY KEY (user_id, badge_name)
+);
+
+ALTER TABLE public.user_badges ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS user_badges_select_own ON public.user_badges;
+CREATE POLICY user_badges_select_own ON public.user_badges
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS user_badges_insert_own ON public.user_badges;
+CREATE POLICY user_badges_insert_own ON public.user_badges
+  FOR INSERT WITH CHECK (true);
+
 -- ============================================================
 -- 관리자 추가 방법 (둘 중 하나 선택)
 -- ============================================================

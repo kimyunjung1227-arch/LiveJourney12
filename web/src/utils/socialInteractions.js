@@ -128,7 +128,7 @@ export const toggleLike = (postId) => {
         if (newBadges.length > 0) {
           const badge = newBadges[0];
           console.log(`🎁 뱃지 획득 시도: ${badge.name}`);
-          const awarded = awardBadge(badge, { region: stats?.topRegionName });
+          const awarded = awardBadge(badge, { region: stats?.topRegionName, userId: currentUser?.id });
 
           if (awarded) {
             console.log(`✅ 뱃지 획득 성공: ${badge.name}`);
@@ -297,7 +297,7 @@ export const toggleAccuracyFeedback = async (postId) => {
       const score = getTrustScore();
       const badgeId = getTrustBadgeIdForScore(score);
       if (badgeId && BADGES[badgeId] && !getEarnedBadges().some((b) => b.name === badgeId)) {
-        const awarded = awardBadge(BADGES[badgeId], {});
+        const awarded = awardBadge(BADGES[badgeId], { userId: currentUser?.id });
         if (awarded) {
           window.dispatchEvent(new CustomEvent('badgeEarned', { detail: BADGES[badgeId] }));
         }
