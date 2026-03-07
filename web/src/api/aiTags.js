@@ -4,63 +4,73 @@
  * 2순위: 기존 백엔드 /upload/analyze-tags
  * 실패 시: null 반환 → 로컬 이미지/위치 기반 태그로 폴백
  *
- * ⚠️ Edge Function OOM 방지: 5MB+ 원본은 리사이즈 후 전송 (최대 1024px, JPEG 0.7)
+ * ⚠️ Edge Function 502 방지: 400KB 초과 또는 긴 변 1024 초과 시 리사이즈 (최대 1024px, JPEG ~0.65, 목표 ~450KB)
  */
 import api from './axios';
 import { logger } from '../utils/logger';
 import { supabase } from '../utils/supabaseClient';
 
 const MAX_WIDTH_AI = 1024;
-const JPEG_QUALITY = 0.7;
-const MAX_SIZE_BEFORE_RESIZE = 800 * 1024;
+const JPEG_QUALITY = 0.65;
+/** Edge Function 502 방지: 이 크기 초과 시 무조건 리사이즈 (base64 시 ~533KB) */
+const MAX_SIZE_BEFORE_RESIZE = 400 * 1024;
+/** 리사이즈 후 목표 최대 크기 (이하면 품질 유지, 초과 시 품질 추가 하락) */
+const TARGET_MAX_BYTES = 450 * 1024;
 
-/** 이미지를 AI 분석용으로 리사이즈·압축 (Edge Function OOM 방지, 1MB 미만 목표) */
+/** 이미지를 AI 분석용으로 리사이즈·압축 (Edge Function 502 방지, 항상 안전한 크기로 전송) */
 const resizeImageForAI = (file) => {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     if (!file || !file.type.startsWith('image/')) {
       resolve(file);
       return;
     }
-    if (file.size <= MAX_SIZE_BEFORE_RESIZE) {
-      resolve(file);
-      return;
-    }
+    const shouldResizeBySize = file.size > MAX_SIZE_BEFORE_RESIZE;
+
+    const doResize = (width, height, quality = JPEG_QUALITY) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(file);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(file);
+            return;
+          }
+          const resized = new File([blob], file.name, { type: 'image/jpeg' });
+          if (resized.size > TARGET_MAX_BYTES && quality > 0.45) {
+            doResize(width, height, quality - 0.1);
+            return;
+          }
+          logger.log('📐 AI용 이미지 리사이즈:', `${(file.size / 1024).toFixed(0)}KB → ${(resized.size / 1024).toFixed(0)}KB`);
+          resolve(resized);
+        },
+        'image/jpeg',
+        quality
+      );
+    };
+
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
         let { width, height } = img;
-        if (width <= MAX_WIDTH_AI && height <= MAX_WIDTH_AI && file.size <= MAX_SIZE_BEFORE_RESIZE) {
+        const needsScale = width > MAX_WIDTH_AI || height > MAX_WIDTH_AI;
+        if (!shouldResizeBySize && !needsScale) {
           resolve(file);
           return;
         }
-        if (width > MAX_WIDTH_AI || height > MAX_WIDTH_AI) {
+        if (needsScale) {
           const scale = MAX_WIDTH_AI / Math.max(width, height);
           width = Math.round(width * scale);
           height = Math.round(height * scale);
         }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(file);
-          return;
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              resolve(file);
-              return;
-            }
-            const resized = new File([blob], file.name, { type: 'image/jpeg' });
-            logger.log('📐 AI용 이미지 리사이즈:', `${(file.size / 1024).toFixed(0)}KB → ${(resized.size / 1024).toFixed(0)}KB`);
-            resolve(resized);
-          },
-          'image/jpeg',
-          JPEG_QUALITY
-        );
+        doResize(width, height);
       };
       img.onerror = () => resolve(file);
       img.src = e.target?.result ?? '';

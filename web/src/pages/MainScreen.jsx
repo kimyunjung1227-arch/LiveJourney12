@@ -896,6 +896,17 @@ const MainScreen = () => {
                                                 {weather.temperature && <span>{weather.temperature}</span>}
                                             </div>
                                         )}
+                                        {/* 좋아요·댓글 — 이미지 우하단 반투명 pill (앱 디자인 통일) */}
+                                        <div style={{ position: 'absolute', bottom: '8px', right: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(15,23,42,0.6)', color: '#fff', padding: '4px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600 }}>
+                                                <span className="material-symbols-outlined" style={{ fontSize: '14px', fontVariationSettings: "'FILL' 1" }}>favorite</span>
+                                                {likeCount}
+                                            </span>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(15,23,42,0.6)', color: '#fff', padding: '4px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600 }}>
+                                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>chat_bubble</span>
+                                                {commentCount}
+                                            </span>
+                                        </div>
                                     </div>
                                     {/* 사진 정보 하단 — 여백만 사용, 하나의 피드 느낌 */}
                                     <div style={{ padding: '6px 14px 10px', minHeight: '100px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -912,10 +923,6 @@ const MainScreen = () => {
                                                 {post.content || post.note}
                                             </div>
                                         )}
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px', fontSize: '12px', color: '#6b7280' }}>
-                                            <span>♥ {likeCount}</span>
-                                            <span>💬 {commentCount}</span>
-                                        </div>
                                     </div>
                                 </div>
                             );
@@ -982,7 +989,17 @@ const MainScreen = () => {
                                             ) : (
                                                 <img src={getDisplayImageUrl(post.image || post.thumbnail)} alt={post.location} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '12px' }} />
                                             )}
-                                            <div style={{ position: 'absolute', bottom: '6px', right: '6px', background: 'rgba(255,255,255,0.9)', padding: '3px 6px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, color: '#333' }}>♥ {Number(post.likes ?? post.likeCount ?? 0) || 0}</div>
+                                            {/* 좋아요·댓글 — 이미지 우하단 반투명 pill */}
+                                            <div style={{ position: 'absolute', bottom: '6px', right: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(15,23,42,0.6)', color: '#fff', padding: '3px 7px', borderRadius: '9999px', fontSize: '10px', fontWeight: 600 }}>
+                                                    <span className="material-symbols-outlined" style={{ fontSize: '12px', fontVariationSettings: "'FILL' 1" }}>favorite</span>
+                                                    {Number(post.likes ?? post.likeCount ?? 0) || 0}
+                                                </span>
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(15,23,42,0.6)', color: '#fff', padding: '3px 7px', borderRadius: '9999px', fontSize: '10px', fontWeight: 600 }}>
+                                                    <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>chat_bubble</span>
+                                                    {Array.isArray(post.comments) ? post.comments.length : 0}
+                                                </span>
+                                            </div>
                                         </div>
                                         <div style={{ padding: '8px 4px 6px' }}>
                                             <div style={{ fontSize: '12px', fontWeight: 600, color: '#333', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.content || post.note || post.location || ''}</div>
@@ -1078,11 +1095,17 @@ const MainScreen = () => {
                                             ) : (
                                                 <div style={{ width: '100%', height: '100%', background: '#e5e7eb', borderRadius: '12px' }} />
                                             )}
-                                            {((Number(post.likes ?? post.likeCount ?? 0) || 0) > 0) && (
-                                                <span style={{ position: 'absolute', bottom: '6px', right: '8px', fontSize: '10px', fontWeight: 600, color: '#fff', background: 'rgba(0,0,0,0.5)', padding: '2px 6px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                                                    ♥ {Number(post.likes ?? post.likeCount ?? 0) || 0}
+                                            {/* 좋아요·댓글 — 이미지 우하단 반투명 pill (앱 디자인 통일) */}
+                                            <div style={{ position: 'absolute', bottom: '6px', right: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(15,23,42,0.6)', color: '#fff', padding: '3px 7px', borderRadius: '9999px', fontSize: '10px', fontWeight: 600 }}>
+                                                    <span className="material-symbols-outlined" style={{ fontSize: '12px', fontVariationSettings: "'FILL' 1" }}>favorite</span>
+                                                    {Number(post.likes ?? post.likeCount ?? 0) || 0}
                                                 </span>
-                                            )}
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(15,23,42,0.6)', color: '#fff', padding: '3px 7px', borderRadius: '9999px', fontSize: '10px', fontWeight: 600 }}>
+                                                    <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>chat_bubble</span>
+                                                    {Array.isArray(post.comments) ? post.comments.length : 0}
+                                                </span>
+                                            </div>
                                         </div>
                                         <div style={{ padding: '4px 8px 8px' }}>
                                             {/* 지역/장소 정보 먼저 노출 */}
