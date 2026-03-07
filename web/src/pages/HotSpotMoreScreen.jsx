@@ -200,8 +200,15 @@ const HotSpotMoreScreen = () => {
               const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
               const commentCount = Array.isArray(post.comments) ? post.comments.length : 0;
               const uploadCount = Math.min(99, commentCount + 1);
+              const viewingCount = Math.max(1, Math.min(99, (likeCount + commentCount * 2) % 30 + 3));
               const avatars = getAvatarUrls(post);
               const regionLabel = post.region || post.location || '장소';
+              const locationShort = (post.location || post.region || '')
+                .trim()
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .join(' ') || regionLabel;
               const title = post.location || post.placeName || post.detailedLocation || '핫플레이스';
               const desc = post.content || post.note || '지금 많은 사람들이 찾고 있어요';
 
@@ -211,7 +218,7 @@ const HotSpotMoreScreen = () => {
                   onClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts: list } })}
                   className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700 shadow-md active:scale-[0.99] transition-transform cursor-pointer"
                 >
-                  {/* 카드 상단: 블러 배경 + 위치 뱃지 */}
+                  {/* 카드 상단: 블러 배경 + 사진 왼쪽 위치(가볍게) + 우상단 뱃지 */}
                   <div className="relative h-32 overflow-hidden">
                     {post.thumbnailIsVideo && post.firstVideoUrl ? (
                       <video
@@ -231,7 +238,11 @@ const HotSpotMoreScreen = () => {
                       <div className="absolute inset-0 bg-slate-200 dark:bg-slate-700" />
                     )}
                     <div className="absolute inset-0 bg-black/20" />
-                    <div className="absolute top-3 left-3 inline-flex items-center gap-1.5 bg-black/50 text-white px-2.5 py-1.5 rounded-lg text-xs font-medium">
+                    {/* 사진 왼쪽 위치 정보 가볍게 (구미 봉곡동 스타일) */}
+                    <div className="absolute left-2 top-1/2 -translate-y-1/2 text-white/90 text-xs font-medium drop-shadow-sm whitespace-nowrap">
+                      {locationShort}
+                    </div>
+                    <div className="absolute top-3 right-3 inline-flex items-center gap-1.5 bg-black/50 text-white px-2.5 py-1.5 rounded-lg text-xs font-medium">
                       <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
                       {regionLabel}
                     </div>
@@ -254,7 +265,13 @@ const HotSpotMoreScreen = () => {
                     </div>
                     <p className="text-sm text-text-sub dark:text-slate-400 mt-1 line-clamp-2">{desc}</p>
 
-                    {/* 카드 하단: 아바타 + N명이 사진 올림 / 보고 있어요, 좋아요 */}
+                    {/* 현재 N명이 이 사진을 보고 있어요 */}
+                    <div className="flex items-center gap-1.5 mt-2 text-xs text-slate-500 dark:text-slate-400">
+                      <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+                      <span>현재 <strong className="text-text-main dark:text-slate-300">{viewingCount}명</strong>이 이 사진을 보고 있어요</span>
+                    </div>
+
+                    {/* 카드 하단: 아바타 + N명이 사진 올림, 좋아요 */}
                     <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100 dark:border-slate-700">
                       <div className="flex items-center gap-2 min-w-0">
                         <div className="flex -space-x-2">
