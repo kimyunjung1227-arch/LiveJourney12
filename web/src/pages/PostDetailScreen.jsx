@@ -136,7 +136,6 @@ const PostDetailScreen = () => {
   const [representativeBadge, setRepresentativeBadge] = useState(null);
   const [userBadges, setUserBadges] = useState([]);
   const [showHeartAnimation, setShowHeartAnimation] = useState(false);
-  const [isCommentSectionOpen, setIsCommentSectionOpen] = useState(true);
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editCommentText, setEditCommentText] = useState('');
   const [isEditingPost, setIsEditingPost] = useState(false);
@@ -251,7 +250,26 @@ const PostDetailScreen = () => {
     try {
       setLoading(true);
 
-      // 먼저 localStorage에서 찾기 (Mock 데이터 또는 로컬 업로드)
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(postId || '').trim());
+
+      // Supabase UUID면 먼저 DB에서 조회 (새로고침 시에도 댓글 유지)
+      if (isUuid) {
+        const fresh = await fetchPostByIdSupabase(postId);
+        if (fresh) {
+          logger.log('✅ Supabase에서 게시물·댓글 로드:', fresh.id);
+          setPost(fresh);
+          setComments(Array.isArray(fresh.comments) ? fresh.comments : []);
+          setLikeCount(fresh.likes ?? fresh.likeCount ?? 0);
+          setLiked(isPostLiked(fresh.id));
+          setIsFavorited(isInterestPlace(fresh.location || fresh.placeName));
+          setAccuracyMarked(hasUserMarkedAccurate(fresh.id));
+          setAccuracyCount(getPostAccuracyCount(fresh.id));
+          setLoading(false);
+          return;
+        }
+      }
+
+      // localStorage에서 찾기 (로컬 전용 게시물)
       const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
       const localPost = localPosts.find(p =>
         p.id === postId ||
@@ -275,7 +293,7 @@ const PostDetailScreen = () => {
         return;
       }
 
-      // localStorage에 없으면 API 호출 (네트워크 오류는 조용히 처리)
+      // REST API fallback
       logger.log('🔍 API에서 게시물 조회 중:', postId);
       const response = await getPost(postId);
       if (response.success && response.post) {
@@ -1462,23 +1480,14 @@ const PostDetailScreen = () => {
                 </span>
               </button>
 
-              {/* 댓글 */}
+              {/* 댓글 (클릭 시 댓글창으로 스크롤, 항상 열려 있음) */}
               <button
                 onClick={() => {
-                  setIsCommentSectionOpen((prev) => {
-                    const next = !prev;
-                    if (next) {
-                      // 열릴 때만 스크롤 + 포커스
-                      setTimeout(() => {
-                        const input = document.getElementById('comment-input');
-                        if (input) {
-                          input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                          input.focus();
-                        }
-                      }, 50);
-                    }
-                    return next;
-                  });
+                  const input = document.getElementById('comment-input');
+                  if (input) {
+                    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => input.focus(), 300);
+                  }
                 }}
                 className="flex items-center gap-2"
               >
@@ -1496,9 +1505,8 @@ const PostDetailScreen = () => {
             </button>
           </div>
 
-          {/* 댓글 섹션 - 댓글 버튼을 눌렀을 때만 표시 */}
-          {isCommentSectionOpen && (
-            <div className="flex flex-col gap-3 px-4 py-3 bg-white dark:bg-gray-900">
+          {/* 댓글 섹션 - 항상 열린 상태 */}
+          <div id="comment-section" className="flex flex-col gap-3 px-4 py-3 bg-white dark:bg-gray-900">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-[#181410] dark:text-white">
                   댓글 & 질문 {comments.length > 0 && `(${comments.length})`}
@@ -1544,7 +1552,7 @@ const PostDetailScreen = () => {
                                 </div>
                               </div>
                             ) : (
-                              <p className="text-sm text-gray-800 dark:text-gray-300 mt-1">{comment.content}</p>
+                              <p className="text-sm text-gray-800 dark:text-gray-300 mt-1">{comment.content ?? comment.text ?? ''}</p>
                             )}
                             {!isEditing && canEditComment && (
                               <div className="flex gap-2 mt-2">
@@ -1555,7 +1563,7 @@ const PostDetailScreen = () => {
                           </div>
                           {!isEditing && (
                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                              {getTimeAgo(comment.timestamp || comment.createdAt)}
+                              {getTimeAgo(comment.timestamp ?? comment.createdAt ?? null)}
                             </p>
                           )}
                         </div>
@@ -1594,7 +1602,6 @@ const PostDetailScreen = () => {
                 <div ref={nextPostSentinelRef} style={{ height: 1, width: '100%', visibility: 'hidden' }} aria-hidden="true" />
               )}
             </div>
-          )}
         </main>
       </div>
 

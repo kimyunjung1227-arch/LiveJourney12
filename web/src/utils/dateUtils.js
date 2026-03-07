@@ -8,13 +8,15 @@
  * @returns {string} - 변환된 시간 문자열
  */
 export const getTimeAgo = (date) => {
+  if (date == null || date === '') return '방금 전';
   const now = new Date();
   const postDate = new Date(date);
+  if (Number.isNaN(postDate.getTime())) return '방금 전';
   const diffMs = now - postDate;
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
-  
+  if (Number.isNaN(diffMins) || diffMs < 0) return '방금 전';
   if (diffMins < 1) return '방금 전';
   if (diffMins < 60) return `${diffMins}분 전`;
   if (diffHours < 24) return `${diffHours}시간 전`;
