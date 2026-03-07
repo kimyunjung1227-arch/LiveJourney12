@@ -8,6 +8,7 @@ import { follow, unfollow, isFollowing, getFollowerCount, getFollowingCount } fr
 import { logger } from '../utils/logger';
 import { getDisplayImageUrl } from '../api/upload';
 import { getPosts } from '../api/posts';
+import { fetchPostsByUserIdSupabase } from '../api/postsSupabase';
 import { getTrustScore, getTrustGrade } from '../utils/trustIndex';
 import api from '../api/axios';
 
@@ -127,7 +128,7 @@ const UserProfileScreen = () => {
       setRepresentativeBadge(null);
     }
 
-    // 해당 사용자의 게시물: localStorage + API
+    // 해당 사용자의 게시물: Supabase(다른 사용자 사진 포함) + localStorage + 기존 API
     const getPostUserId = (post) => {
       let uid = post.userId;
       if (!uid && typeof post.user === 'string') uid = post.user;
@@ -138,12 +139,25 @@ const UserProfileScreen = () => {
     const localPosts = uploadedPosts.filter(post => getPostUserId(post) === String(userId));
 
     const merge = async () => {
-      let merged = [...localPosts];
+      const byId = new Map();
+      // 1) Supabase에서 해당 사용자 게시물 조회 (다른 사용자 프로필에서도 사진 나오도록)
+      try {
+        const supabasePosts = await fetchPostsByUserIdSupabase(userId);
+        (supabasePosts || []).forEach(p => { if (p && p.id) byId.set(p.id, p); });
+        // Supabase에서 가져온 게시물이 있으면 작성자 정보로 사용자 정보 보강 (다른 사용자 이름/프로필 사진 표시)
+        if (supabasePosts && supabasePosts.length > 0) {
+          const first = supabasePosts[0];
+          const u = first.user && typeof first.user === 'object' ? first.user : {};
+          setUser(prev => ({ ...(prev || {}), id: String(userId), username: u.username || prev?.username || '사용자', profileImage: u.profileImage ?? prev?.profileImage ?? null }));
+        }
+      } catch (_) { /* Supabase 실패 시 로컬/API만 사용 */ }
+      // 2) 로컬 게시물 병합 (같은 id면 유지, 없으면 추가)
+      localPosts.forEach(p => { if (p && (p.id || p._id) && !byId.has(p.id || p._id)) byId.set(p.id || p._id, p); });
+      // 3) 기존 REST API(있으면) 병합
       try {
         const res = await getPosts({ limit: 100 });
         if (res && res.posts && Array.isArray(res.posts)) {
           const apiForUser = res.posts.filter(post => getPostUserId(post) === String(userId));
-          const localIds = new Set(merged.map(p => p.id || p._id));
           apiForUser.forEach(apiPost => {
             const id = apiPost.id || apiPost._id;
             const normalized = {
@@ -154,12 +168,12 @@ const UserProfileScreen = () => {
               createdAt: apiPost.createdAt || apiPost.timestamp,
               timestamp: apiPost.timestamp || apiPost.createdAt
             };
-            const idx = merged.findIndex(p => (p.id || p._id) === id);
-            if (idx >= 0) merged[idx] = { ...merged[idx], ...normalized };
-            else if (!localIds.has(id)) { merged.push(normalized); localIds.add(id); }
+            if (!byId.has(id)) byId.set(id, normalized);
+            else byId.set(id, { ...byId.get(id), ...normalized });
           });
         }
-      } catch (_) { /* API 없으면 localStorage만 사용 */ }
+      } catch (_) { /* API 없으면 무시 */ }
+      const merged = [...byId.values()].sort((a, b) => (b.timestamp || b.createdAt || 0) - (a.timestamp || a.createdAt || 0));
       setUserPosts(merged);
       setStats({ posts: merged.length });
       const postsWithMedia = merged.filter(
