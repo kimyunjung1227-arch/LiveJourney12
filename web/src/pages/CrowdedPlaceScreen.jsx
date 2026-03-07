@@ -1,21 +1,49 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
-import { filterActivePosts48 } from '../utils/timeUtils';
+import { filterActivePosts48, getTimeAgo } from '../utils/timeUtils';
 import './MainScreen.css';
 
 import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
 import { fetchPostsSupabase } from '../api/postsSupabase';
-import { computeHotPlaces, loadSearchEvents } from '../utils/hotPlaceIndex';
-import PostThumbnail from '../components/PostThumbnail';
 
 const CrowdedPlaceScreen = () => {
     const navigate = useNavigate();
     const [crowdedData, setCrowdedData] = useState([]);
-    const [activeFilter, setActiveFilter] = useState('전체');
+    const [refreshKey, setRefreshKey] = useState(0);
     const contentRef = useRef(null);
+
+    useEffect(() => {
+        const handler = () => setRefreshKey((k) => k + 1);
+        window.addEventListener('adminDeletedPost', handler);
+        return () => window.removeEventListener('adminDeletedPost', handler);
+    }, []);
+
+    useEffect(() => {
+        const onLike = (e) => {
+            const { postId, likesCount } = e.detail || {};
+            if (!postId || typeof likesCount !== 'number') return;
+            const id = String(postId);
+            setCrowdedData((prev) =>
+                prev.map((p) => (p && String(p.id) === id ? { ...p, likes: likesCount, likeCount: likesCount } : p))
+            );
+        };
+        const onComments = (e) => {
+            const { postId, comments: nextComments } = e.detail || {};
+            if (!postId || !Array.isArray(nextComments)) return;
+            const id = String(postId);
+            setCrowdedData((prev) =>
+                prev.map((p) => (p && String(p.id) === id ? { ...p, comments: nextComments } : p))
+            );
+        };
+        window.addEventListener('postLikeUpdated', onLike);
+        window.addEventListener('postCommentsUpdated', onComments);
+        return () => {
+            window.removeEventListener('postLikeUpdated', onLike);
+            window.removeEventListener('postCommentsUpdated', onComments);
+        };
+    }, []);
 
     useEffect(() => {
         const loadData = async () => {
@@ -26,39 +54,50 @@ const CrowdedPlaceScreen = () => {
                 if (p && p.id && !byId.has(p.id)) byId.set(p.id, p);
             });
             const allPosts = getCombinedPosts(Array.from(byId.values()));
-            const recentPosts = filterActivePosts48(allPosts); // 48시간 이내만 핫플 후보
-            const searchEvents = loadSearchEvents(60 * 24); // 최근 24시간 검색 로그
+            const posts = filterActivePosts48(allPosts);
 
-            const hotPlaces = computeHotPlaces(recentPosts, searchEvents);
-
-            const formatted = hotPlaces.map((place) => {
-                const sample = place.samplePost || {};
-                const description =
-                    sample.content ||
-                    sample.note ||
-                    (place.verified ? '실시간 인증된 장소예요' : '지금 사람들이 모이는 중이에요');
-
+            const transformPost = (post) => {
+                const firstImage = post.images?.[0] || post.image || post.thumbnail || '';
+                const firstVideo = post.videos?.[0] || '';
+                const likesNum = Number(post.likes ?? post.likeCount ?? 0) || 0;
+                const commentsArr = Array.isArray(post.comments) ? post.comments : [];
+                const timeStr = getTimeAgo(post.timestamp || post.createdAt || post.time);
                 return {
-                    id: place.key,
-                    image: place.image || '',
-                    location: place.key,
-                    description,
-                    likes: Math.round(place.score * 100),
-                    score: place.score,
-                    rising: place.rising,
-                    verified: place.verified,
-                    center: place.center,
-                    kind: place.kind || '기타',
-                    viewerCount: place.viewerCount || place.counts?.users || 0,
-                    samplePostId: sample.id,
-                    samplePost: sample
+                    ...post,
+                    id: post.id,
+                    image: getDisplayImageUrl(firstImage || firstVideo || ''),
+                    thumbnailIsVideo: !firstImage && !!firstVideo,
+                    firstVideoUrl: firstVideo ? getDisplayImageUrl(firstVideo) : null,
+                    location: post.location,
+                    time: timeStr,
+                    content: post.note || post.content || `${post.location || '장소'}의 모습`,
+                    likes: likesNum,
+                    likeCount: likesNum,
+                    comments: commentsArr,
                 };
-            });
+            };
 
-            setCrowdedData(formatted);
+            const transformed = posts.map(transformPost);
+            const hotPosts = transformed
+                .filter((p) => {
+                    const hasLikes = (p.likes || 0) > 0;
+                    const isRecent = p.time && (p.time.includes('방금') || p.time.includes('분 전') || p.time.includes('시간 전'));
+                    return hasLikes || isRecent;
+                })
+                .sort((a, b) => {
+                    if (b.likes !== a.likes) return b.likes - a.likes;
+                    if (a.time && a.time.includes('방금')) return -1;
+                    if (b.time && b.time.includes('방금')) return 1;
+                    if (a.time && a.time.includes('분 전') && !(b.time && b.time.includes('분 전'))) return -1;
+                    if (b.time && b.time.includes('분 전') && !(a.time && a.time.includes('분 전'))) return 1;
+                    return 0;
+                })
+                .slice(0, 100);
+
+            setCrowdedData(hotPosts.length > 0 ? hotPosts : transformed.slice(0, 50));
         };
         loadData();
-    }, []);
+    }, [refreshKey]);
 
     return (
         <div className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col">
@@ -95,113 +134,83 @@ const CrowdedPlaceScreen = () => {
                     </p>
                 </section>
 
-                {/* 카테고리 태그 바 (디자인용) */}
-                <div className="flex gap-2 overflow-x-auto px-5 py-3 scrollbar-hide">
-                    {['전체', '카페', '맛집', '포토존', '액티비티'].map((label) => {
-                        const isActive = activeFilter === label;
-                        return (
-                            <button
-                                key={label}
-                                type="button"
-                                onClick={() => setActiveFilter(label)}
-                                className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-                                    isActive
-                                        ? 'bg-primary text-white shadow-md shadow-primary/20'
-                                        : 'bg-slate-100 dark:bg-slate-800 text-text-sub dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                                }`}
-                            >
-                                {label}
-                            </button>
-                        );
-                    })}
-                </div>
-
-                {/* 핫플 카드 리스트 */}
+                {/* 실시간 핫플 피드 — 메인 화면과 동일한 게시물 목록 */}
                 {crowdedData.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 px-6 text-center text-slate-400 dark:text-slate-500">
-                        <span className="material-symbols-outlined text-5xl mb-3">groups</span>
-                        <p className="text-sm mb-1">아직 붐비는 곳 정보가 없어요</p>
+                        <span className="material-symbols-outlined text-5xl mb-3">local_fire_department</span>
+                        <p className="text-sm mb-1">아직 실시간 핫플 게시물이 없어요</p>
                         <p className="text-xs text-slate-400 dark:text-slate-500">
-                            사람들이 많이 모이는 여행지가 생기면 이곳에 먼저 알려드릴게요.
+                            좋아요가 쌓이거나 최근 게시물이 생기면 이곳에 표시돼요.
                         </p>
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-4 px-5 pb-24">
-                        {crowdedData
-                            .filter((post) => activeFilter === '전체' || post.kind === activeFilter)
-                            .map((post) => {
-                            const samplePost = post.samplePost || { image: post.image, images: post.image ? [post.image] : [], videos: [] };
-                            const statusText = post.description;
+                    <div
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                            gap: '7px',
+                            padding: '0 20px 100px'
+                        }}
+                    >
+                        {crowdedData.map((post) => {
+                            const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
+                            const commentCount = Array.isArray(post.comments) ? post.comments.length : 0;
                             return (
-                                <button
+                                <div
                                     key={post.id}
-                                    type="button"
-                                    onClick={() => {
-                                        if (post.samplePostId) {
-                                            navigate(`/post/${post.samplePostId}`, {
-                                                state: { post: post.samplePost }
-                                            });
-                                        }
+                                    onClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } })}
+                                    style={{
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        overflow: 'hidden',
+                                        borderRadius: '14px',
+                                        background: '#fff'
                                     }}
-                                    className="group flex flex-col bg-white dark:bg-slate-800 rounded-2xl shadow-soft border border-slate-100 dark:border-slate-700 overflow-hidden text-left"
                                 >
-                                    <div className="relative w-full aspect-[16/9] bg-slate-200 overflow-hidden">
-                                        <PostThumbnail
-                                            post={samplePost}
-                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                        />
-                                        {post.rising && (
-                                            <div className="absolute top-4 right-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur px-3 py-1.5 rounded-full text-xs font-bold text-primary shadow-sm">
-                                                HOT
+                                    <div style={{ width: '100%', paddingBottom: '125%', height: 0, position: 'relative', background: '#e5e7eb', borderRadius: '14px', overflow: 'hidden', marginBottom: '4px' }}>
+                                        {post.thumbnailIsVideo && post.firstVideoUrl ? (
+                                            <video
+                                                src={post.firstVideoUrl}
+                                                muted
+                                                playsInline
+                                                preload="metadata"
+                                                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '14px' }}
+                                            />
+                                        ) : post.image ? (
+                                            <img
+                                                src={post.image}
+                                                alt={post.location}
+                                                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '14px' }}
+                                            />
+                                        ) : (
+                                            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1', borderRadius: '14px' }}>
+                                                <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>image</span>
                                             </div>
                                         )}
-                                        <div className="absolute bottom-4 left-4">
-                                            <div className="bg-black/45 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-lg flex items-center gap-1.5">
-                                                <span className="material-symbols-outlined text-sm">location_on</span>
-                                                <span className="truncate max-w-[200px]">{post.location}</span>
-                                            </div>
+                                        <div style={{ position: 'absolute', bottom: '6px', right: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(15,23,42,0.6)', color: '#fff', padding: '3px 7px', borderRadius: '9999px', fontSize: '10px', fontWeight: 600 }}>
+                                                <span className="material-symbols-outlined" style={{ fontSize: '12px', fontVariationSettings: "'FILL' 1" }}>favorite</span>
+                                                {likeCount}
+                                            </span>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(15,23,42,0.6)', color: '#fff', padding: '3px 7px', borderRadius: '9999px', fontSize: '10px', fontWeight: 600 }}>
+                                                <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>chat_bubble</span>
+                                                {commentCount}
+                                            </span>
                                         </div>
                                     </div>
-
-                                    <div className="p-5">
-                                        <div className="flex items-start justify-between gap-2 mb-2">
-                                            <div className="min-w-0">
-                                                <h3 className="text-base sm:text-lg font-bold text-text-main dark:text-white truncate mb-0.5">
-                                                    {post.location}
-                                                </h3>
-                                                <p className="text-xs text-text-sub dark:text-slate-400 line-clamp-2">
-                                                    {statusText}
-                                                </p>
-                                            </div>
-                                                <span className="text-slate-400 hover:text-primary transition-colors flex-shrink-0">
-                                                    <span className="material-symbols-outlined text-[20px]">bookmark</span>
-                                                </span>
+                                    <div style={{ padding: '6px 4px 10px' }}>
+                                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {post.location || '어딘가의 지금'}
                                         </div>
-
-                                        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                                            <div className="flex items-center gap-1.5 min-w-0">
-                                                <div className="flex -space-x-2 overflow-hidden">
-                                                    <div className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-[10px]">
-                                                        👤
-                                                    </div>
-                                                    <div className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-[10px]">
-                                                        👤
-                                                    </div>
-                                                    <div className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-[10px]">
-                                                        👤
-                                                    </div>
-                                                </div>
-                                                <span className="text-[11px] text-text-sub dark:text-slate-500 truncate">
-                                                    지금 {post.viewerCount}명이 이 장소를 보고 있어요
-                                                </span>
+                                        {(post.content || post.note) && (
+                                            <div style={{ fontSize: '12px', color: '#4b5563', marginTop: '4px', lineHeight: 1.35, height: '2.6em', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                                                {post.content || post.note}
                                             </div>
-                                            <div className="flex items-center gap-1 text-slate-400 flex-shrink-0">
-                                                <span className="material-symbols-outlined text-base">favorite</span>
-                                                <span className="text-[11px]">{post.likes}</span>
-                                            </div>
-                                        </div>
+                                        )}
+                                        <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>{post.time}</div>
                                     </div>
-                                </button>
+                                </div>
                             );
                         })}
                     </div>

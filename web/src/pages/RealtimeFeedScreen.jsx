@@ -40,6 +40,8 @@ const RealtimeFeedScreen = () => {
       const formattedWithRaw = posts.map(post => {
         const firstImage = post.images?.[0] || post.image || post.thumbnail || '';
         const firstVideo = post.videos?.[0] || '';
+        const likesNum = Number(post.likes ?? post.likeCount ?? 0) || 0;
+        const commentsArr = Array.isArray(post.comments) ? post.comments : [];
         return {
           ...post,
           id: post.id,
@@ -49,8 +51,9 @@ const RealtimeFeedScreen = () => {
           location: post.location,
           time: post.timeLabel || getTimeAgo(post.timestamp || post.createdAt || post.time),
           content: post.note || post.content || `${post.location}의 모습`,
-          likes: post.likes || 0,
-          comments: post.comments ?? [],
+          likes: likesNum,
+          likeCount: likesNum,
+          comments: commentsArr,
         };
       });
 
@@ -92,6 +95,32 @@ const RealtimeFeedScreen = () => {
     const handler = () => setRefreshKey((k) => k + 1);
     window.addEventListener('adminDeletedPost', handler);
     return () => window.removeEventListener('adminDeletedPost', handler);
+  }, []);
+
+  // 상세에서 좋아요/댓글 변경 시 목록 수치 동기화 (메인과 동일하게)
+  useEffect(() => {
+    const onLike = (e) => {
+      const { postId, likesCount } = e.detail || {};
+      if (!postId || typeof likesCount !== 'number') return;
+      const id = String(postId);
+      setRealtimeData((prev) =>
+        prev.map((p) => (p && String(p.id) === id ? { ...p, likes: likesCount, likeCount: likesCount } : p))
+      );
+    };
+    const onComments = (e) => {
+      const { postId, comments: nextComments } = e.detail || {};
+      if (!postId || !Array.isArray(nextComments)) return;
+      const id = String(postId);
+      setRealtimeData((prev) =>
+        prev.map((p) => (p && String(p.id) === id ? { ...p, comments: nextComments } : p))
+      );
+    };
+    window.addEventListener('postLikeUpdated', onLike);
+    window.addEventListener('postCommentsUpdated', onComments);
+    return () => {
+      window.removeEventListener('postLikeUpdated', onLike);
+      window.removeEventListener('postCommentsUpdated', onComments);
+    };
   }, []);
 
   // 데이터가 바뀌면 처음부터 다시 8개 노출
@@ -214,6 +243,7 @@ const RealtimeFeedScreen = () => {
               const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
               const weather = post.weather || weatherByRegion[regionKey] || null;
               const hasWeather = weather && (weather.icon || weather.temperature);
+              const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
               const commentCount = Array.isArray(post.comments) ? post.comments.length : 0;
               return (
                 <div
@@ -247,13 +277,19 @@ const RealtimeFeedScreen = () => {
                         <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>image</span>
                       </div>
                     )}
-                    <div style={{ position: 'absolute', bottom: '4px', right: '4px', background: 'rgba(15,23,42,0.7)', padding: '2px 6px', borderRadius: '999px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '2px', color: '#f9fafb' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>favorite</span>
-                      <span>{post.likes}</span>
+                    <div style={{ position: 'absolute', bottom: '4px', right: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(15,23,42,0.6)', color: '#fff', padding: '2px 6px', borderRadius: '9999px', fontSize: '10px', fontWeight: 600 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '12px', fontVariationSettings: "'FILL' 1" }}>favorite</span>
+                        {likeCount}
+                      </span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(15,23,42,0.6)', color: '#fff', padding: '2px 6px', borderRadius: '9999px', fontSize: '10px', fontWeight: 600 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>chat_bubble</span>
+                        {commentCount}
+                      </span>
                     </div>
                   </div>
 
-                  {/* 하단: 여백만 사용 */}
+                  {/* 하단: 제목·설명·업로드 시각만 (좋아요/댓글은 이미지 위 pill로만 표시) */}
                   <div style={{ padding: '6px 14px 10px', minHeight: '92px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                     <div style={{ fontSize: '13px', fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>
                       {post.location || '어딘가의 지금'}
@@ -265,7 +301,6 @@ const RealtimeFeedScreen = () => {
                     )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', flexShrink: 0, fontSize: '11px', color: '#6b7280' }}>
                       <span>{post.time}</span>
-                      <span>♥ {post.likes ?? 0} · 💬 {commentCount}</span>
                       {hasWeather && (weather.icon || weather.temperature) && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                           {weather.icon && <span>{weather.icon}</span>}
