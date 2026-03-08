@@ -6,8 +6,9 @@ import './MainScreen.css';
 
 import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
-import { fetchPostsSupabase } from '../api/postsSupabase';
+import { fetchPostsSupabase, updatePostLikesSupabase } from '../api/postsSupabase';
 import { rankHotspotPosts } from '../utils/hotnessEngine';
+import { toggleLike, isPostLiked, toggleBookmark, isPostBookmarked } from '../utils/socialInteractions';
 
 const FILTERS = [
     { id: '전체', label: '전체', icon: null },
@@ -46,7 +47,35 @@ const CrowdedPlaceScreen = () => {
     const [crowdedData, setCrowdedData] = useState([]);
     const [activeFilter, setActiveFilter] = useState('전체');
     const [refreshKey, setRefreshKey] = useState(0);
+    const [bookmarkRefresh, setBookmarkRefresh] = useState(0);
     const contentRef = useRef(null);
+
+    const handleLike = (e, post) => {
+        e.stopPropagation();
+        const wasLiked = isPostLiked(post.id);
+        const result = toggleLike(post.id);
+        if (result.existsInStorage) {
+            setCrowdedData((prev) =>
+                prev.map((p) => (p && p.id === post.id ? { ...p, likes: result.newCount, likeCount: result.newCount } : p))
+            );
+        } else {
+            const delta = wasLiked ? -1 : 1;
+            updatePostLikesSupabase(post.id, delta).then((res) => {
+                if (res?.success && typeof res.likesCount === 'number') {
+                    setCrowdedData((prev) =>
+                        prev.map((p) => (p && p.id === post.id ? { ...p, likes: res.likesCount, likeCount: res.likesCount } : p))
+                    );
+                    window.dispatchEvent(new CustomEvent('postLikeUpdated', { detail: { postId: post.id, likesCount: res.likesCount } }));
+                }
+            });
+        }
+    };
+
+    const handleBookmark = (e, post) => {
+        e.stopPropagation();
+        toggleBookmark(post);
+        setBookmarkRefresh((k) => k + 1);
+    };
 
     useEffect(() => {
         const handler = () => setRefreshKey((k) => k + 1);
@@ -201,8 +230,8 @@ const CrowdedPlaceScreen = () => {
                             const impactLabel = post._impactLabel;
                             const avatars = getAvatarUrls(post);
                             const regionLabel = post.region || post.location || '장소';
-                            const locationShort = (post.location || post.region || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).join(' ') || regionLabel;
                             const title = post.location || post.placeName || post.detailedLocation || '핫플레이스';
+                            const isBookmarked = bookmarkRefresh >= 0 && isPostBookmarked(post.id);
                             const desc = post.content || post.note || `${post.location || '장소'}의 모습`;
                             return (
                                 <div
@@ -233,9 +262,6 @@ const CrowdedPlaceScreen = () => {
                                             </div>
                                         )}
                                         <div className="absolute inset-0 bg-black/10 pointer-events-none" />
-                                        <div className="absolute left-2 top-1/2 -translate-y-1/2 text-white/90 text-xs font-medium drop-shadow-sm whitespace-nowrap z-10" style={rank != null && rank <= 3 ? { top: '58%' } : undefined}>
-                                            {locationShort}
-                                        </div>
                                         <div className="absolute top-3 right-3 inline-flex items-center gap-1.5 bg-black/50 text-white px-2.5 py-1.5 rounded-lg text-xs font-medium z-10">
                                             <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
                                             {regionLabel}
@@ -260,35 +286,37 @@ const CrowdedPlaceScreen = () => {
                                                 <h3 className="text-lg font-bold text-text-main dark:text-white truncate">{title}</h3>
                                                 <p className="text-sm text-text-sub dark:text-slate-400 mt-0.5 line-clamp-2">{desc}</p>
                                             </div>
-                                            <button type="button" className="text-slate-400 hover:text-primary transition-colors p-1 flex-shrink-0" onClick={(e) => { e.stopPropagation(); }} aria-label="저장">
-                                                <span className="material-symbols-outlined">bookmark</span>
+                                            <button type="button" className="text-slate-400 hover:text-primary transition-colors p-1 flex-shrink-0" onClick={(e) => handleBookmark(e, post)} aria-label="저장">
+                                                <span className="material-symbols-outlined" style={isBookmarked ? { fontVariationSettings: "'FILL' 1" } : undefined}>bookmark</span>
                                             </button>
                                         </div>
-                                        <div className="flex items-center gap-1.5 mt-2 text-xs text-slate-500 dark:text-slate-400">
-                                            <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
-                                            <span>현재 <strong className="text-text-main dark:text-slate-300">{viewingCount}명</strong>이 이 사진을 보고 있어요</span>
-                                        </div>
-                                        <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100 dark:border-slate-700">
-                                            <div className="flex items-center gap-2 min-w-0">
+                                        <div className="mt-2 flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+                                                <span>현재 <strong className="text-text-main dark:text-slate-300">{viewingCount}명</strong>이 이 사진을 보고 있어요</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
                                                 <div className="flex -space-x-2">
                                                     {avatars.length > 0 ? (
                                                         avatars.map((url, i) => (
-                                                            <div key={i} className="w-7 h-7 rounded-full border-2 border-white dark:border-slate-800 bg-slate-200 bg-cover bg-center flex-shrink-0" style={{ backgroundImage: `url(${url})` }} />
+                                                            <div key={i} className="w-6 h-6 rounded-full border-2 border-white dark:border-slate-800 bg-slate-200 bg-cover bg-center flex-shrink-0" style={{ backgroundImage: `url(${url})` }} />
                                                         ))
                                                     ) : (
                                                         [0, 1, 2].map((i) => (
-                                                            <div key={i} className="w-7 h-7 rounded-full border-2 border-white dark:border-slate-800 bg-primary/20 flex items-center justify-center text-primary text-[10px] font-bold flex-shrink-0">
+                                                            <div key={i} className="w-6 h-6 rounded-full border-2 border-white dark:border-slate-800 bg-primary/20 flex items-center justify-center text-primary text-[9px] font-bold flex-shrink-0">
                                                                 {String(post.location || '?').charAt(0)}
                                                             </div>
                                                         ))
                                                     )}
                                                 </div>
-                                                <span className="text-xs text-text-sub dark:text-slate-400 truncate">지금 {uploadCount}명이 사진을 올렸어요</span>
+                                                <span className="text-text-sub dark:text-slate-400">지금 {uploadCount}명이 사진을 올렸어요</span>
                                             </div>
-                                            <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 flex-shrink-0">
-                                                <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>favorite</span>
+                                        </div>
+                                        <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 flex justify-end">
+                                            <button type="button" className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 hover:text-primary transition-colors" onClick={(e) => handleLike(e, post)} aria-label="좋아요">
+                                                <span className="material-symbols-outlined text-lg" style={isPostLiked(post.id) ? { fontVariationSettings: "'FILL' 1" } : undefined}>favorite</span>
                                                 <span className="text-sm font-semibold">{likeCount}</span>
-                                            </div>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
