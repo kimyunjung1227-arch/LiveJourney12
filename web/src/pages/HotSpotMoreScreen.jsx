@@ -178,7 +178,7 @@ const HotSpotMoreScreen = () => {
           <span className="material-symbols-outlined text-2xl">arrow_back</span>
         </button>
         <h1 className="flex-1 text-center text-lg font-bold text-text-main dark:text-white">
-          실시간 급상승 핫플 더보기
+          실시간 급상승 핫플
         </h1>
         <div className="w-10" />
       </header>

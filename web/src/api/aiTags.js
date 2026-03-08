@@ -26,35 +26,6 @@ const resizeImageForAI = (file) => {
     }
     const shouldResizeBySize = file.size > MAX_SIZE_BEFORE_RESIZE;
 
-    const doResize = (width, height, quality = JPEG_QUALITY) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        resolve(file);
-        return;
-      }
-      ctx.drawImage(img, 0, 0, width, height);
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            resolve(file);
-            return;
-          }
-          const resized = new File([blob], file.name, { type: 'image/jpeg' });
-          if (resized.size > TARGET_MAX_BYTES && quality > 0.45) {
-            doResize(width, height, quality - 0.1);
-            return;
-          }
-          logger.log('📐 AI용 이미지 리사이즈:', `${(file.size / 1024).toFixed(0)}KB → ${(resized.size / 1024).toFixed(0)}KB`);
-          resolve(resized);
-        },
-        'image/jpeg',
-        quality
-      );
-    };
-
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
@@ -70,7 +41,36 @@ const resizeImageForAI = (file) => {
           width = Math.round(width * scale);
           height = Math.round(height * scale);
         }
-        doResize(width, height);
+
+        const doResize = (image, w, h, quality = JPEG_QUALITY) => {
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(file);
+            return;
+          }
+          ctx.drawImage(image, 0, 0, w, h);
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                resolve(file);
+                return;
+              }
+              const resized = new File([blob], file.name, { type: 'image/jpeg' });
+              if (resized.size > TARGET_MAX_BYTES && quality > 0.45) {
+                doResize(image, w, h, quality - 0.1);
+                return;
+              }
+              logger.log('📐 AI용 이미지 리사이즈:', `${(file.size / 1024).toFixed(0)}KB → ${(resized.size / 1024).toFixed(0)}KB`);
+              resolve(resized);
+            },
+            'image/jpeg',
+            quality
+          );
+        };
+        doResize(img, width, height);
       };
       img.onerror = () => resolve(file);
       img.src = e.target?.result ?? '';
@@ -100,9 +100,21 @@ const generateAITagsViaSupabase = async (imageFile, location = '', exifData = nu
   try {
     const resized = await resizeImageForAI(imageFile);
     const imageBase64 = await fileToBase64(resized);
-    const mimeType = resized.type || 'image/jpeg';
+    const base64Str = typeof imageBase64 === 'string' ? imageBase64.replace(/\s/g, '') : '';
+    if (!base64Str || base64Str.length < 100) {
+      logger.warn('AI 태그: 리사이즈 후 base64 유효하지 않음');
+      return null;
+    }
+    const mimeType = (resized.type || 'image/jpeg').split(';')[0].trim() || 'image/jpeg';
+    const locationStr = typeof location === 'string' ? location : (location && location.name) ? String(location.name) : '';
+    const body = {
+      imageBase64: base64Str,
+      mimeType,
+      location: locationStr,
+      exifData: exifData && typeof exifData === 'object' ? exifData : undefined,
+    };
     const { data, error } = await supabase.functions.invoke('analyze-tags', {
-      body: { imageBase64, mimeType, location, exifData: exifData || undefined },
+      body,
     });
     if (error) {
       logger.warn('Supabase AI 태그 Edge Function 오류:', error.message);
