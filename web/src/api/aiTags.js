@@ -10,12 +10,13 @@ import api from './axios';
 import { logger } from '../utils/logger';
 import { supabase } from '../utils/supabaseClient';
 
-const MAX_WIDTH_AI = 1024;
-const JPEG_QUALITY = 0.65;
-/** Edge Function 502 방지: 이 크기 초과 시 무조건 리사이즈 (base64 시 ~533KB) */
-const MAX_SIZE_BEFORE_RESIZE = 400 * 1024;
-/** 리사이즈 후 목표 최대 크기 (이하면 품질 유지, 초과 시 품질 추가 하락) */
-const TARGET_MAX_BYTES = 450 * 1024;
+/** 502 방지: 해상도·용량을 보수적으로 (768px, 300KB 이하 권장) */
+const MAX_WIDTH_AI = 768;
+const JPEG_QUALITY = 0.6;
+/** 이 크기 초과 시 무조건 리사이즈 */
+const MAX_SIZE_BEFORE_RESIZE = 250 * 1024;
+/** 리사이즈 후 목표 최대 크기 (초과 시 품질 추가 하락) */
+const TARGET_MAX_BYTES = 300 * 1024;
 
 /** 이미지를 AI 분석용으로 리사이즈·압축 (Edge Function 502 방지, 항상 안전한 크기로 전송) */
 const resizeImageForAI = (file) => {
@@ -32,14 +33,18 @@ const resizeImageForAI = (file) => {
       img.onload = () => {
         let { width, height } = img;
         const needsScale = width > MAX_WIDTH_AI || height > MAX_WIDTH_AI;
-        if (!shouldResizeBySize && !needsScale) {
+        const shouldResize = shouldResizeBySize || needsScale;
+        if (!shouldResize) {
           resolve(file);
           return;
         }
-        if (needsScale) {
-          const scale = MAX_WIDTH_AI / Math.max(width, height);
-          width = Math.round(width * scale);
-          height = Math.round(height * scale);
+        if (needsScale || shouldResizeBySize) {
+          const maxSide = Math.max(width, height);
+          if (maxSide > MAX_WIDTH_AI) {
+            const scale = MAX_WIDTH_AI / maxSide;
+            width = Math.round(width * scale);
+            height = Math.round(height * scale);
+          }
         }
 
         const doResize = (image, w, h, quality = JPEG_QUALITY) => {
@@ -59,8 +64,8 @@ const resizeImageForAI = (file) => {
                 return;
               }
               const resized = new File([blob], file.name, { type: 'image/jpeg' });
-              if (resized.size > TARGET_MAX_BYTES && quality > 0.45) {
-                doResize(image, w, h, quality - 0.1);
+              if (resized.size > TARGET_MAX_BYTES && quality > 0.35) {
+                doResize(image, w, h, quality - 0.08);
                 return;
               }
               logger.log('📐 AI용 이미지 리사이즈:', `${(file.size / 1024).toFixed(0)}KB → ${(resized.size / 1024).toFixed(0)}KB`);
@@ -119,6 +124,9 @@ const generateAITagsViaSupabase = async (imageFile, location = '', exifData = nu
     if (error) {
       logger.warn('Supabase AI 태그 Edge Function 오류:', error.message);
       return null;
+    }
+    if (data && !data.success && data.detail) {
+      logger.warn('AI 태그 서버 응답:', data.message || 'error', data.detail?.slice?.(0, 200));
     }
     if (data && (data.success || data.category)) {
       const hasTags = Array.isArray(data.tags) && data.tags.length > 0;

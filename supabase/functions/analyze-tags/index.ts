@@ -12,6 +12,10 @@ const cors: Record<string, string> = {
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
 const GEMINI_MODEL = 'gemini-1.5-flash';
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+/** 502 방지: base64가 너무 크면 메모리/타임아웃 위험 (약 400KB 상한) */
+const MAX_BASE64_LENGTH = 550000;
+/** Gemini 호출 타임아웃 (ms) - Supabase 기본 60초 전에 종료 */
+const GEMINI_TIMEOUT_MS = 50000;
 
 interface RequestBody {
   imageBase64?: string;
@@ -99,6 +103,17 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }
       );
     }
+    const base64Clean = imageBase64.replace(/\s/g, '');
+    if (base64Clean.length > MAX_BASE64_LENGTH) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: 'image too large',
+          detail: `base64 length ${base64Clean.length} exceeds ${MAX_BASE64_LENGTH}. Resize image on client.`,
+        }),
+        { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const locationText = location ? `촬영/위치: ${location}.` : '';
     const exifText = exifData && typeof exifData === 'object'
@@ -116,40 +131,71 @@ Deno.serve(async (req) => {
       locationText +
       exifText;
 
-    const response = await fetch(GEMINI_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                inlineData: {
-                  mimeType: mimeType || 'image/jpeg',
-                  data: imageBase64,
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
+
+    let response: Response;
+    try {
+      response = await fetch(GEMINI_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: mimeType || 'image/jpeg',
+                    data: base64Clean,
+                  },
                 },
-              },
-              { text: prompt },
-            ],
+                { text: prompt },
+              ],
+            },
+          ],
+          generationConfig: {
+            maxOutputTokens: 500,
+            temperature: 0.4,
           },
-        ],
-        generationConfig: {
-          maxOutputTokens: 500,
-          temperature: 0.4,
-        },
-      }),
-    });
+        }),
+        signal: controller.signal,
+      });
+    } catch (fetchErr: unknown) {
+      clearTimeout(timeoutId);
+      const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+      const isTimeout = errMsg.includes('abort') || errMsg.includes('timeout');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: isTimeout ? 'Gemini request timeout' : 'Gemini request failed',
+          detail: errMsg,
+        }),
+        { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
+      );
+    }
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const err = await response.text();
       return new Response(
-        JSON.stringify({ success: false, message: 'Gemini API error', detail: err }),
-        { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, message: 'Gemini API error', detail: err.slice(0, 500) }),
+        { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
       );
     }
 
-    const data = await response.json();
-    const textPart = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    let data: Record<string, unknown>;
+    try {
+      data = (await response.json()) as Record<string, unknown>;
+    } catch (parseErr: unknown) {
+      const errMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+      return new Response(
+        JSON.stringify({ success: false, message: 'Invalid Gemini response', detail: errMsg }),
+        { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const candidates = data?.candidates as Array<{ content?: { parts?: Array<{ text?: string }> } }> | undefined;
+    const textPart = candidates?.[0]?.content?.parts?.[0]?.text;
     const content = typeof textPart === 'string' ? textPart : '';
     const tags = parseTagsFromContent(content);
     const { category, categoryName, categoryIcon } = parseCategoryFromContent(content);
