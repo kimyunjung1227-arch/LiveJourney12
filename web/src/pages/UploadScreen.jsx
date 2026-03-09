@@ -1539,8 +1539,8 @@ const UploadScreen = () => {
                 <p className="text-base font-semibold text-gray-800 mb-3">설명 (선택)</p>
                 <div className="relative">
                   <textarea
-                    className="form-textarea w-full rounded-xl border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft p-4 text-base font-normal placeholder:text-gray-400 resize-none leading-relaxed min-h-[100px]"
-                    placeholder="이 순간의 느낌이나 생각을 적어보세요"
+                    className="form-textarea w-full rounded-none border border-gray-300 bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft p-4 text-base font-normal text-gray-900 placeholder:text-gray-600 resize-none leading-relaxed min-h-[100px]"
+                    placeholder="이 순간의 느낌이나 생각을 또렷하게 남겨주세요"
                     rows="3"
                     value={formData.note}
                     onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}

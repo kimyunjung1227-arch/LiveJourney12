@@ -1314,7 +1314,7 @@ const PostDetailScreen = () => {
 
         <main className="flex flex-col bg-white dark:bg-gray-900" style={{ minHeight: 'auto' }}>
           <div className="px-4 pt-4 pb-3">
-            {/* 📍 위치 정보 (왼쪽 고정) + 게시물 수정 버튼 (우측 가볍게) */}
+            {/* 📍 위치 정보 (왼쪽) + 카테고리/수정 버튼 (우측) */}
             <div className="flex items-start gap-3 mb-4">
               <span className="material-symbols-outlined text-gray-500 dark:text-gray-400 text-2xl flex-shrink-0" aria-hidden="true">location_on</span>
               <div className="flex-1 min-w-0 flex flex-col">
@@ -1322,24 +1322,30 @@ const PostDetailScreen = () => {
                   <p className="text-base font-bold text-zinc-900 dark:text-zinc-100 truncate flex-1 min-w-0">
                     {verifiedLocation || detailedLocationText || locationText}
                   </p>
-                  {isPostAuthor && !isEditingPost && (
-                    <button type="button" onClick={handleStartEditPost} className="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">수정</button>
-                  )}
-                </div>
-                <div className="flex items-center flex-wrap gap-2 mb-2">
-                  {categoryName && (
-                    <span
-                      title={categoryName}
-                      className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 text-lg"
-                      aria-label={categoryName}
-                    >
-                      {categoryName.includes('개화') && '🌸'}
-                      {categoryName.includes('맛집') && '🍜'}
-                      {categoryName.includes('야경') && '🌙'}
-                      {categoryName.includes('시즌') && '🍂'}
-                      {!categoryName.includes('개화') && !categoryName.includes('맛집') && !categoryName.includes('야경') && !categoryName.includes('시즌') && '🏞️'}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {categoryName && (
+                      <span
+                        title={categoryName}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 text-lg"
+                        aria-label={categoryName}
+                      >
+                        {categoryName.includes('개화') && '🌸'}
+                        {categoryName.includes('맛집') && '🍜'}
+                        {categoryName.includes('야경') && '🌙'}
+                        {categoryName.includes('시즌') && '🍂'}
+                        {!categoryName.includes('개화') && !categoryName.includes('맛집') && !categoryName.includes('야경') && !categoryName.includes('시즌') && '🏞️'}
+                      </span>
+                    )}
+                    {isPostAuthor && !isEditingPost && (
+                      <button
+                        type="button"
+                        onClick={handleStartEditPost}
+                        className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                      >
+                        수정
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {/* 지역명이 두 번 반복되어 보이는 것을 막기 위해, 하단의 locationText 한 줄은 숨김 처리 */}
                 {addressText && (
