@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { getUnreadCount } from '../utils/notifications';
-import { getTimeAgo, filterRecentPosts, filterActivePosts48 } from '../utils/timeUtils';
+import { getTimeAgo, filterRecentPosts, isOlderThanTwoDays } from '../utils/timeUtils';
 import { getInterestPlaces, toggleInterestPlace } from '../utils/interestPlaces';
 import { getRegionDefaultImage } from '../utils/regionDefaultImages';
 import { logger } from '../utils/logger';
@@ -124,7 +124,9 @@ const MainScreen = () => {
         const combinedFiltered = combined.filter((p) => p && p.id && !deletedIds.has(String(p.id)));
         const allPosts = getCombinedPosts(combinedFiltered);
 
-        const posts = filterActivePosts48(allPosts); // 피드는 48시간 이내만 노출
+        // 메인 피드 기준: 기본적으로 최근 7일 이내 게시물만 사용하되,
+        // 48시간이 지난 게시물은 완전히 숨기지 않고 노출 우선순위만 낮춰서 사용한다.
+        const posts = filterRecentPosts(allPosts, 7);
 
         // 촬영 시간 라벨 포맷터 (가볍게: "2/10 14:30")
         const formatCaptureLabel = (post) => {
@@ -317,12 +319,18 @@ const MainScreen = () => {
         const transformedAll = posts.map(transformPost);
 
         // "지금 여기는": 최신순 정렬 후 상위 20개
+        // 48시간이 지난 게시물은 점수에서 큰 패널티를 줘서 하단으로 보내되, 완전히 제외하지는 않는다.
         const byLatest = [...transformedAll].sort((a, b) => {
             const tA = a.timestamp || a.createdAt || a.time || 0;
             const tB = b.timestamp || b.createdAt || b.time || 0;
             const dateA = typeof tA === 'number' ? tA : new Date(tA).getTime();
             const dateB = typeof tB === 'number' ? tB : new Date(tB).getTime();
-            return dateB - dateA;
+            const isOldA = isOlderThanTwoDays(a.timestamp || a.createdAt || a.time);
+            const isOldB = isOlderThanTwoDays(b.timestamp || b.createdAt || b.time);
+            const penaltyMs = 1000 * 60 * 60 * 24 * 2; // 48시간 상당 패널티
+            const scoreA = dateA - (isOldA ? penaltyMs : 0);
+            const scoreB = dateB - (isOldB ? penaltyMs : 0);
+            return scoreB - scoreA;
         });
         setRealtimeData(byLatest.slice(0, 20));
 
