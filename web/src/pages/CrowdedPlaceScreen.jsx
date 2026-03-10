@@ -273,14 +273,10 @@ const CrowdedPlaceScreen = () => {
                                             <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
                                             {regionLabel}
                                         </div>
-                                        <div className="absolute bottom-3 right-3 flex items-center gap-2 z-10">
-                                            <span className="inline-flex items-center gap-1.5 bg-black/45 text-white px-2.5 py-1 rounded-full text-xs font-semibold">
-                                                <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>favorite</span>
-                                                {likeCount}
-                                            </span>
-                                            <span className="inline-flex items-center gap-1.5 bg-black/45 text-white px-2.5 py-1 rounded-full text-xs font-semibold">
-                                                <span className="material-symbols-outlined text-sm">chat_bubble</span>
-                                                {commentCount}
+                                        <div className="absolute bottom-3 right-3 flex items-center justify-center z-10">
+                                            <span className="inline-flex items-center gap-1 bg-white/95 text-slate-900 px-2.5 py-1.5 rounded-full text-xs font-semibold shadow-md">
+                                                <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 0", color: '#ef4444' }}>favorite</span>
+                                                <span>{likeCount}</span>
                                             </span>
                                         </div>
                                     </div>

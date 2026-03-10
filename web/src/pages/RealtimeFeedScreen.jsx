@@ -277,14 +277,10 @@ const RealtimeFeedScreen = () => {
                         <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>image</span>
                       </div>
                     )}
-                    <div style={{ position: 'absolute', bottom: '4px', right: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(15,23,42,0.6)', color: '#fff', padding: '2px 6px', borderRadius: '9999px', fontSize: '10px', fontWeight: 600 }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '12px', fontVariationSettings: "'FILL' 1" }}>favorite</span>
-                        {likeCount}
-                      </span>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(15,23,42,0.6)', color: '#fff', padding: '2px 6px', borderRadius: '9999px', fontSize: '10px', fontWeight: 600 }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>chat_bubble</span>
-                        {commentCount}
+                    <div style={{ position: 'absolute', bottom: '8px', right: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.96)', color: '#111827', padding: '4px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600, boxShadow: '0 2px 6px rgba(15,23,42,0.18)' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#ef4444', fontVariationSettings: "'FILL' 0" }}>favorite</span>
+                        <span>{likeCount}</span>
                       </span>
                     </div>
                   </div>

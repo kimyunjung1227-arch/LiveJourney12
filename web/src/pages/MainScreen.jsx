@@ -916,8 +916,15 @@ const MainScreen = () => {
                                                 {weather.temperature && <span>{weather.temperature}</span>}
                                             </div>
                                         )}
+                                        {/* 좋아요 하트 - 이미지 우하단 */}
+                                        <div style={{ position: 'absolute', bottom: '10px', right: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.96)', color: '#111827', padding: '4px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600, boxShadow: '0 2px 6px rgba(15,23,42,0.18)' }}>
+                                                <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#ef4444', fontVariationSettings: "'FILL' 0" }}>favorite</span>
+                                                <span>{likeCount}</span>
+                                            </span>
+                                        </div>
                                     </div>
-                                    {/* 사진 정보 하단 — 설명 아래에 좋아요/댓글 가로 배치 */}
+                                    {/* 사진 정보 하단 — 설명만 표시 */}
                                     <div style={{ padding: '6px 14px 10px', minHeight: '100px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', flexShrink: 0 }}>
                                             <div style={{ color: '#111827', fontSize: '14px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
@@ -932,16 +939,6 @@ const MainScreen = () => {
                                                 {post.content || post.note}
                                             </div>
                                         )}
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px' }}>
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#111827', fontSize: '12px', fontWeight: 600 }}>
-                                                <span className="material-symbols-outlined" style={{ fontSize: '16px', fontVariationSettings: "'FILL' 1" }}>favorite</span>
-                                                {likeCount}
-                                            </span>
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#6b7280', fontSize: '12px', fontWeight: 600 }}>
-                                                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>chat_bubble</span>
-                                                {commentCount}
-                                            </span>
-                                        </div>
                                     </div>
                                 </div>
                             );
