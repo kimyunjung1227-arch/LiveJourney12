@@ -206,8 +206,8 @@ const RealtimeFeedScreen = () => {
           style={{
             flex: 1,
             textAlign: 'center',
-            fontSize: 16,
-            fontWeight: 600,
+            fontSize: 18,
+            fontWeight: 700,
             color: '#1f2937'
           }}
         >

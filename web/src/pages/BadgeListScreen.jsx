@@ -85,10 +85,27 @@ const BadgeListScreen = () => {
     })
     .filter(badge => !badge.hidden) // 히든 뱃지는 기본적으로 숨김
     .sort((a, b) => {
-      const categoryOrder = { '온보딩': 1, '지역 가이드': 2, '실시간 정보': 3, '도움 지수': 4, '정확한 정보': 5, '친절한 여행자': 6, '기여도': 7, '신뢰지수': 8 };
+      // 1) 획득한 뱃지를 항상 위에 배치
+      if (a.isEarned !== b.isEarned) {
+        return a.isEarned ? -1 : 1;
+      }
+
+      // 2) 카테고리 순서
+      const categoryOrder = {
+        '온보딩': 1,
+        '지역 가이드': 2,
+        '실시간 정보': 3,
+        '도움 지수': 4,
+        '정확한 정보': 5,
+        '친절한 여행자': 6,
+        '기여도': 7,
+        '신뢰지수': 8
+      };
       const orderA = categoryOrder[a.category] || 999;
       const orderB = categoryOrder[b.category] || 999;
       if (orderA !== orderB) return orderA - orderB;
+
+      // 3) 난이도 순
       return (a.difficulty || 1) - (b.difficulty || 1);
     });
 

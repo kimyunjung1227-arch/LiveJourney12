@@ -916,19 +916,8 @@ const MainScreen = () => {
                                                 {weather.temperature && <span>{weather.temperature}</span>}
                                             </div>
                                         )}
-                                        {/* 좋아요·댓글 — 이미지 우하단 반투명 pill (앱 디자인 통일) */}
-                                        <div style={{ position: 'absolute', bottom: '8px', right: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(15,23,42,0.6)', color: '#fff', padding: '4px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600 }}>
-                                                <span className="material-symbols-outlined" style={{ fontSize: '14px', fontVariationSettings: "'FILL' 1" }}>favorite</span>
-                                                {likeCount}
-                                            </span>
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(15,23,42,0.6)', color: '#fff', padding: '4px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600 }}>
-                                                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>chat_bubble</span>
-                                                {commentCount}
-                                            </span>
-                                        </div>
                                     </div>
-                                    {/* 사진 정보 하단 — 여백만 사용, 하나의 피드 느낌 */}
+                                    {/* 사진 정보 하단 — 설명 왼쪽, 좋아요/댓글은 설명 우측에 배치 */}
                                     <div style={{ padding: '6px 14px 10px', minHeight: '100px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', flexShrink: 0 }}>
                                             <div style={{ color: '#111827', fontSize: '14px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
@@ -939,8 +928,20 @@ const MainScreen = () => {
                                             </span>
                                         </div>
                                         {(post.content || post.note) && (
-                                            <div style={{ color: '#4b5563', fontSize: '13px', lineHeight: 1.45, marginTop: '6px', height: '2.9em', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                                                {post.content || post.note}
+                                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginTop: '6px' }}>
+                                                <div style={{ color: '#4b5563', fontSize: '13px', lineHeight: 1.45, height: '2.9em', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', flex: 1, minWidth: 0 }}>
+                                                    {post.content || post.note}
+                                                </div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end', flexShrink: 0 }}>
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(15,23,42,0.06)', color: '#111827', padding: '2px 6px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600 }}>
+                                                        <span className="material-symbols-outlined" style={{ fontSize: '14px', fontVariationSettings: "'FILL' 1" }}>favorite</span>
+                                                        {likeCount}
+                                                    </span>
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(15,23,42,0.04)', color: '#111827', padding: '2px 6px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600 }}>
+                                                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>chat_bubble</span>
+                                                        {commentCount}
+                                                    </span>
+                                                </div>
                                             </div>
                                         )}
                                     </div>

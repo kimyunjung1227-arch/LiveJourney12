@@ -10,6 +10,11 @@ const NOTIFICATION_TYPES = {
     iconBg: 'bg-primary/10',
     iconColor: 'text-primary'
   },
+  interest: {
+    icon: 'place',
+    iconBg: 'bg-teal-100 dark:bg-teal-900/20',
+    iconColor: 'text-teal-600'
+  },
   like: {
     icon: 'favorite',
     iconBg: 'bg-red-100 dark:bg-red-900/20',

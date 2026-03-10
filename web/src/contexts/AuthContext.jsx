@@ -103,8 +103,31 @@ export const AuthProvider = ({ children }) => {
     logger.log('🚪 로그아웃 - 앱 초기화 시작');
     logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    // 기존 로직과 동일하게 localStorage/sessionStorage 초기화
+    // 기존 로직과 동일하게 localStorage/sessionStorage 초기화하되,
+    // 뱃지 정보는 로그아웃 후에도 유지되도록 예외 처리
+    const preservedKeys = ['earnedBadges'];
+    const preservedValues = {};
+    preservedKeys.forEach((key) => {
+      try {
+        const value = localStorage.getItem(key);
+        if (value !== null) {
+          preservedValues[key] = value;
+        }
+      } catch {
+        // ignore
+      }
+    });
+
     localStorage.clear();
+
+    Object.entries(preservedValues).forEach(([key, value]) => {
+      try {
+        localStorage.setItem(key, value);
+      } catch {
+        // ignore
+      }
+    });
+
     sessionStorage.clear();
     sessionStorage.setItem('justLoggedOut', 'true');
     logger.log('✅ 스토리지 초기화 완료');

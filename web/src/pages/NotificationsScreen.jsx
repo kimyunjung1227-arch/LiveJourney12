@@ -17,7 +17,7 @@ const NotificationIcon = ({ type }) => {
 
 const NotificationsScreen = () => {
   const navigate = useNavigate();
-  const [filter, setFilter] = useState('all'); // 'all', 'unread'
+  const [filter, setFilter] = useState('all'); // 'all', 'interest'
   const [showMarkAllReadModal, setShowMarkAllReadModal] = useState(false);
   const [allNotifications, setAllNotifications] = useState([]);
 
@@ -43,8 +43,8 @@ const NotificationsScreen = () => {
   };
 
   // 필터링된 알림
-  const filteredNotifications = filter === 'unread'
-    ? allNotifications.filter(n => !n.read)
+  const filteredNotifications = filter === 'interest'
+    ? allNotifications.filter(n => n.type === 'interest')
     : allNotifications;
 
   const handleNotificationClick = (notification) => {
@@ -119,10 +119,10 @@ const NotificationsScreen = () => {
 
         {/* 필터 탭 */}
         <div className="screen-body">
-          <div className="flex gap-2 border-b border-border-light dark:border-border-dark px-4 py-3 bg-surface-light dark:bg-surface-dark">
+          <div className="flex gap-2 border-b border-border-light dark:border-border-dark px-4 py-3 bg-surface-light/60 dark:bg-surface-dark/80 backdrop-blur">
             <button
               onClick={() => setFilter('all')}
-              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${filter === 'all'
+              className={`flex-1 py-2 px-4 rounded-full text-sm font-semibold transition-colors ${filter === 'all'
                   ? 'bg-primary text-white'
                   : 'bg-background-light dark:bg-background-dark text-text-secondary-light dark:text-text-secondary-dark hover:bg-primary/10'
                 }`}
@@ -130,13 +130,13 @@ const NotificationsScreen = () => {
               전체 ({allNotifications.length})
             </button>
             <button
-              onClick={() => setFilter('unread')}
-              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${filter === 'unread'
+              onClick={() => setFilter('interest')}
+              className={`flex-1 py-2 px-4 rounded-full text-sm font-semibold transition-colors ${filter === 'interest'
                   ? 'bg-primary text-white'
                   : 'bg-background-light dark:bg-background-dark text-text-secondary-light dark:text-text-secondary-dark hover:bg-primary/10'
                 }`}
             >
-              안 읽음 ({allNotifications.filter(n => !n.read).length})
+              관심지역 소식 ({allNotifications.filter(n => n.type === 'interest').length})
             </button>
           </div>
 
@@ -175,7 +175,7 @@ const NotificationsScreen = () => {
                   <div
                     key={notification.id}
                     onClick={() => handleNotificationClick(notification)}
-                    className={`flex gap-4 px-4 py-4 cursor-pointer hover:bg-surface-subtle-light dark:hover:bg-surface-subtle-dark transition-colors ${!notification.read ? 'bg-primary/5 dark:bg-primary/10' : ''
+                    className={`flex gap-4 px-4 py-4 cursor-pointer hover:bg-surface-subtle-light dark:hover:bg-surface-subtle-dark transition-colors ${!notification.read ? 'bg-primary/5 dark:bg-primary/10' : 'bg-white dark:bg-gray-900'
                       }`}
                   >
                     <div className={`flex size-12 shrink-0 items-center justify-center rounded-full ${notification.iconBg || 'bg-primary/10'
@@ -184,17 +184,17 @@ const NotificationsScreen = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className="text-sm font-bold text-content-light dark:text-content-dark">
+                        <h3 className="text-sm font-semibold text-content-light dark:text-content-dark">
                           {notification.title}
                         </h3>
                         {!notification.read && (
                           <span className="flex size-2 shrink-0 rounded-full bg-primary mt-1.5"></span>
                         )}
                       </div>
-                      <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-1 line-clamp-2">
+                      <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-1 line-clamp-2">
                         {notification.message}
                       </p>
-                      <p className="text-xs text-subtle-light dark:text-subtle-dark mt-2">
+                      <p className="text-[11px] text-subtle-light dark:text-subtle-dark mt-2">
                         {notification.time}
                       </p>
                     </div>

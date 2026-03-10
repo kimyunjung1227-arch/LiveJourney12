@@ -436,7 +436,7 @@ const UserProfileScreen = () => {
           >
             <span className="material-symbols-outlined text-2xl">arrow_back</span>
           </button>
-          <h1 className="text-text-primary-light dark:text-text-primary-dark text-base font-semibold">프로필</h1>
+          <h1 className="text-text-primary-light dark:text-text-primary-dark text-lg font-bold">프로필</h1>
           <div className="w-12"></div>
         </header>
 
