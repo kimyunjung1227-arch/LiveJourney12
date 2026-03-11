@@ -280,7 +280,7 @@ const CrowdedPlaceScreen = () => {
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="p-3 pb-2">
+                                        <div className="p-3 pb-2">
                                         {impactLabel && (
                                             <p className="text-xs text-primary font-medium mb-1">{impactLabel}</p>
                                         )}
@@ -293,10 +293,10 @@ const CrowdedPlaceScreen = () => {
                                                 <span className="material-symbols-outlined" style={isBookmarked ? { fontVariationSettings: "'FILL' 1" } : undefined}>bookmark</span>
                                             </button>
                                         </div>
-                                        {/* 하단 설명 시트: 한 줄 메시지로 통합, 순차적으로 문구 변경 */}
+                                        {/* 하단: 업로더 + 가벼운 실시간 설명 */}
                                         <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
                                             <div className="flex items-center gap-1.5 min-w-0">
-                                                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+                                                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
                                                 <span className="truncate">
                                                     {feedbackIndex === 0 && (
                                                         <>현재 <strong className="text-text-main dark:text-slate-300">{viewingCount}명</strong>이 이 사진을 보고 있어요</>
@@ -309,20 +309,14 @@ const CrowdedPlaceScreen = () => {
                                                     )}
                                                 </span>
                                             </div>
-                                            <button
-                                                type="button"
-                                                className="flex items-center gap-1 text-slate-500 dark:text-slate-400 hover:text-primary transition-colors flex-shrink-0"
-                                                onClick={(e) => handleLike(e, post)}
-                                                aria-label="좋아요"
-                                            >
-                                                <span
-                                                    className="material-symbols-outlined text-base"
-                                                    style={isPostLiked(post.id) ? { fontVariationSettings: "'FILL' 1" } : undefined}
-                                                >
-                                                    favorite
+                                            <div className="flex items-center gap-1 flex-shrink-0 text-[11px] text-slate-500 dark:text-slate-400">
+                                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold text-slate-600 dark:text-slate-200">
+                                                    {(post.user?.username || post.userName || '여행자').charAt(0)}
                                                 </span>
-                                                <span className="text-sm font-semibold">{likeCount}</span>
-                                            </button>
+                                                <span className="max-w-[80px] truncate">
+                                                    {post.user?.username || post.userName || '여행자'}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

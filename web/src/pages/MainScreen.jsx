@@ -1185,9 +1185,12 @@ const MainScreen = () => {
                                 })}
                             </div>
                             <div
-                                style={{ display: 'flex', gap: '10px', padding: '0 0 16px 0', overflowX: 'auto', scrollbarWidth: 'none', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', cursor: 'grab' }}
-                                className="hide-scrollbar"
-                                onMouseDown={handleDragStart}
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                                    gap: '10px',
+                                    padding: '0 0 16px 0'
+                                }}
                             >
                                 {recommendedData.map((item, idx) => {
                                     const regionPosts = allPostsForRecommend.filter(p =>
@@ -1206,20 +1209,15 @@ const MainScreen = () => {
                                         <div
                                             key={idx}
                                             onClick={withDragCheck(() => navigate(`/region/${item.regionName}`))}
-                                            style={{ minWidth: '74%', width: '74%', overflow: 'visible', flexShrink: 0, cursor: 'pointer', scrollSnapAlign: 'center', scrollSnapStop: 'always' }}
+                                            style={{ cursor: 'pointer', overflow: 'hidden', borderRadius: '14px', background: '#f9fafb', boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}
                                         >
-                                            <div style={{ width: '100%', height: '200px', display: 'flex', overflow: 'hidden', borderRadius: '14px', marginBottom: '4px', background: '#e5e7eb' }}>
-                                                <div style={{ flex: 1, overflowX: 'auto', display: 'flex', scrollSnapType: 'x mandatory', scrollbarWidth: 'none' }} className="hide-scrollbar">
-                                                    {(displayImages.length ? displayImages : [mainSrc]).map((src, i) => (
-                                                        <img
-                                                            key={i}
-                                                            src={src}
-                                                            alt={item.title}
-                                                            style={{ width: '100%', minWidth: '100%', height: '100%', objectFit: 'cover', scrollSnapAlign: 'start', borderRadius: '14px' }}
-                                                            onError={(e) => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80'; }}
-                                                        />
-                                                    ))}
-                                                </div>
+                                            <div style={{ width: '100%', height: '160px', overflow: 'hidden', borderTopLeftRadius: '14px', borderTopRightRadius: '14px', background: '#e5e7eb' }}>
+                                                <img
+                                                    src={mainSrc}
+                                                    alt={item.title}
+                                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80'; }}
+                                                />
                                             </div>
                                             <div style={{ padding: '6px 14px 10px' }}>
                                                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#06b6d4', marginBottom: '3px' }}>추천</div>

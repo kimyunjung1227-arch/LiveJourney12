@@ -1439,7 +1439,7 @@ const ProfileScreen = () => {
                 const { grade, nextGrade, progressToNext } = getTrustGrade(trustScore, uid ? String(uid) : null);
                 return (
                   <div>
-                    <div className="flex items-center justify-between gap-2 mb-1.5 flex-nowrap min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-1 flex-nowrap min-w-0">
                       <button
                         type="button"
                         onClick={() => { setTrustExplainOpen(false); setShowTrustGradesModal(true); }}
@@ -1447,17 +1447,17 @@ const ProfileScreen = () => {
                       >
                         신뢰지수
                       </button>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-2xl font-bold text-gray-800 dark:text-gray-100">{trustScore}</span>
-                        <span className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark whitespace-nowrap">{grade.icon} {grade.name}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-xl font-bold text-gray-800 dark:text-gray-100">{trustScore}</span>
+                        <span className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark whitespace-nowrap">{grade.icon} {grade.name}</span>
                       </div>
                     </div>
                     {nextGrade && (
                       <>
                         <div className="flex justify-end mb-0.5">
-                          <span className="text-xs text-gray-500 dark:text-gray-400">다음 등급까지 {nextGrade.minScore - trustScore}점</span>
+                          <span className="text-[11px] text-gray-500 dark:text-gray-400">다음 등급까지 {nextGrade.minScore - trustScore}점</span>
                         </div>
-                        <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                           <div
                             className="h-full bg-gray-400 dark:bg-gray-500 rounded-full transition-all duration-300"
                             style={{ width: `${progressToNext}%` }}
