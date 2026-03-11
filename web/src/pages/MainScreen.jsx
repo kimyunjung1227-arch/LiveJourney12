@@ -1091,14 +1091,11 @@ const MainScreen = () => {
                                             minWidth: '42%',
                                             maxWidth: '42%',
                                             flexShrink: 0,
-                                            overflow: 'hidden',
-                                            borderRadius: '16px',
-                                            background: '#ffffff',
-                                            boxShadow: '0 4px 12px rgba(15,23,42,0.06)',
-                                            border: '1px solid #e5e7eb'
+                                            overflow: 'visible',
+                                            background: 'transparent'
                                         }}
                                     >
-                                        <div style={{ width: '100%', aspectRatio: '4/3', overflow: 'hidden', background: '#eee', position: 'relative' }}>
+                                        <div style={{ width: '100%', aspectRatio: '4/3', overflow: 'hidden', background: '#eee', position: 'relative', borderRadius: '14px' }}>
                                             {(Array.isArray(post.videos) && post.videos.length > 0) ? (
                                                 <video
                                                     ref={(el) => {
@@ -1121,7 +1118,7 @@ const MainScreen = () => {
                                                 <div style={{ width: '100%', height: '100%', background: '#e5e7eb' }} />
                                             )}
                                         </div>
-                                        <div style={{ padding: '10px 10px 12px' }}>
+                                        <div style={{ padding: '6px 2px 10px' }}>
                                             <div style={{ fontSize: '13px', fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                 {post.location}
                                             </div>
@@ -1248,13 +1245,11 @@ const MainScreen = () => {
                                                 minWidth: '74%',
                                                 width: '74%',
                                                 cursor: 'pointer',
-                                                overflow: 'hidden',
-                                                borderRadius: '14px',
-                                                background: '#f9fafb',
-                                                boxShadow: '0 2px 8px rgba(15,23,42,0.06)'
+                                                overflow: 'visible',
+                                                background: 'transparent'
                                             }}
                                         >
-                                            <div style={{ width: '100%', height: '160px', overflow: 'hidden', borderTopLeftRadius: '14px', borderTopRightRadius: '14px', background: '#e5e7eb' }}>
+                                            <div style={{ width: '100%', height: '160px', overflow: 'hidden', borderRadius: '14px', background: '#e5e7eb' }}>
                                                 <img
                                                     src={mainSrc}
                                                     alt={item.title}
@@ -1262,7 +1257,7 @@ const MainScreen = () => {
                                                     onError={(e) => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80'; }}
                                                 />
                                             </div>
-                                            <div style={{ padding: '6px 14px 10px' }}>
+                                            <div style={{ padding: '6px 2px 10px' }}>
                                                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#06b6d4', marginBottom: '3px' }}>추천</div>
                                                 <div style={{ color: '#111827', fontSize: '14px', fontWeight: 800, marginBottom: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {item.title}
