@@ -400,25 +400,6 @@ const MainScreen = () => {
         setMagazineTopics(loadMagazineTopics());
     }, []);
 
-    // 로컬에 저장된 여행 매거진 불러오기 (최신 3개)
-    useEffect(() => {
-        try {
-            const raw = localStorage.getItem('magazines');
-            if (!raw) {
-                setMagazines([]);
-                return;
-            }
-            const list = JSON.parse(raw);
-            if (!Array.isArray(list)) {
-                setMagazines([]);
-                return;
-            }
-            setMagazines(list.slice(0, 3));
-        } catch {
-            setMagazines([]);
-        }
-    }, []);
-
     const filteredInterestPosts = useMemo(() => {
         if (!selectedInterest) return [];
         const allPosts = [...realtimeData, ...crowdedData, ...recommendedData];
