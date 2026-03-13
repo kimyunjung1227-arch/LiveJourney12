@@ -10,7 +10,8 @@ import { getTrustScore, getTrustGrade, getTrustBadgeIdForScore } from './trustIn
 import { logger } from './logger';
 
 // 좋아요 토글
-export const toggleLike = (postId) => {
+// currentLikes: 현재 화면에서 보이는 좋아요 수 (Supabase 게시물용, 선택 인자)
+export const toggleLike = (postId, currentLikes) => {
   const likes = JSON.parse(localStorage.getItem('likedPosts') || '{}');
   const isLiked = likes[postId] || false;
 
@@ -18,7 +19,7 @@ export const toggleLike = (postId) => {
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
   const userId = currentUser.id;
 
-  // 게시물 정보 가져오기
+  // 게시물 정보 가져오기 (localStorage 기반 게시물)
   const storagePosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
   let post = storagePosts.find(p => p.id === postId);
   let posts = storagePosts;
@@ -26,24 +27,32 @@ export const toggleLike = (postId) => {
   // localStorage 기반 게시물이 아닐 수도 있음 (백엔드에서 불러온 경우)
   const existsInStorage = !!post;
 
+  // 항상 좋아요 상태는 저장
+  likes[postId] = !isLiked;
+  localStorage.setItem('likedPosts', JSON.stringify(likes));
+
+  // Supabase 등 서버 기반 게시물: localStorage에는 없지만, 화면에서 보이는 좋아요 수를 기반으로 계산
   if (!post) {
-    // 업로드된 게시물 목록에 없으면 서버 데이터 기반 게시물로 간주
-    // -> 로컬 좋아요 상태만 저장하고, 카운트는 화면 쪽에서 기존 값 기준으로 증감 처리
-    likes[postId] = !isLiked;
-    localStorage.setItem('likedPosts', JSON.stringify(likes));
+    const baseLikes = typeof currentLikes === 'number' ? currentLikes : 0;
+    const delta = isLiked ? -1 : 1;
+    const newLikeCount = Math.max(0, baseLikes + delta);
+
+    // 좋아요 수 변경 이벤트 전파 (메인/실시간 피드 등에서 동기화)
+    try {
+      window.dispatchEvent(new CustomEvent('postLikeUpdated', { detail: { postId, likesCount: newLikeCount } }));
+    } catch {
+      // window가 없는 환경에서는 무시
+    }
 
     return {
       isLiked: !isLiked,
-      newCount: 0,
+      newCount: newLikeCount,
       existsInStorage: false
     };
   }
 
   const oldLikes = post.likes || 0;
   const isMyPost = post.userId === userId;
-
-  likes[postId] = !isLiked;
-  localStorage.setItem('likedPosts', JSON.stringify(likes));
 
   // 게시물의 좋아요 수 업데이트
   const updatedPosts = posts.map(p => {

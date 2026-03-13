@@ -54,21 +54,24 @@ const CrowdedPlaceScreen = () => {
     const handleLike = (e, post) => {
         e.stopPropagation();
         const wasLiked = isPostLiked(post.id);
-        const result = toggleLike(post.id);
+        const baseLikes = typeof post.likes === 'number'
+            ? post.likes
+            : (typeof post.likeCount === 'number' ? post.likeCount : 0);
+        const result = toggleLike(post.id, baseLikes);
         if (result.existsInStorage) {
             setCrowdedData((prev) =>
                 prev.map((p) => (p && p.id === post.id ? { ...p, likes: result.newCount, likeCount: result.newCount } : p))
             );
         } else {
             const delta = wasLiked ? -1 : 1;
-            updatePostLikesSupabase(post.id, delta).then((res) => {
-                if (res?.success && typeof res.likesCount === 'number') {
-                    setCrowdedData((prev) =>
-                        prev.map((p) => (p && p.id === post.id ? { ...p, likes: res.likesCount, likeCount: res.likesCount } : p))
-                    );
-                    window.dispatchEvent(new CustomEvent('postLikeUpdated', { detail: { postId: post.id, likesCount: res.likesCount } }));
-                }
-            });
+            updatePostLikesSupabase(post.id, delta);
+            setCrowdedData((prev) =>
+                prev.map((p) =>
+                    (p && p.id === post.id
+                        ? { ...p, likes: result.newCount, likeCount: result.newCount }
+                        : p)
+                )
+            );
         }
     };
 

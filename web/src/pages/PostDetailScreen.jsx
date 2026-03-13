@@ -436,21 +436,16 @@ const PostDetailScreen = () => {
       return Math.max(0, base + (optimisticLiked ? 1 : -1));
     });
 
-    const result = toggleLike(post.id);
+    const result = toggleLike(post.id, likeCount);
 
     // localStorage 기반 게시물이면 util에서 계산한 카운트를 신뢰
     if (result.existsInStorage) {
       setLiked(result.isLiked);
       setLikeCount(result.newCount);
     } else {
-      // Supabase 게시물: DB에 좋아요 수 반영 후 화면은 낙관적 업데이트 유지
+      // Supabase 게시물: DB에 좋아요 수 반영 (실패해도 화면/이벤트는 이미 로컬 기준으로 처리됨)
       const delta = optimisticLiked ? 1 : -1;
-      updatePostLikesSupabase(post.id, delta).then((res) => {
-        if (res?.success && typeof res.likesCount === 'number') {
-          setLikeCount(res.likesCount);
-          window.dispatchEvent(new CustomEvent('postLikeUpdated', { detail: { postId: post.id, likesCount: res.likesCount } }));
-        }
-      });
+      updatePostLikesSupabase(post.id, delta);
       setLiked(optimisticLiked);
     }
 
