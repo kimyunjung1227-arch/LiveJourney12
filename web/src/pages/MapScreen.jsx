@@ -2953,161 +2953,163 @@ const MapScreen = () => {
           <div style={{ width: '16px', flexShrink: 0 }} aria-hidden="true" />
         </div>
 
-        {/* 경로 모드 토글 버튼 및 초기화 아이콘 */}
-        <div style={{
-          position: 'absolute',
-          left: '16px',
-          bottom: isSheetHidden ? '100px' : `${Math.max(sheetHeight + 20, 100)}px`,
-          zIndex: 30,
-          transition: 'all 0.3s ease-out',
-          pointerEvents: 'auto',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        }}>
-          <button
-            onClick={toggleRouteMode}
-            style={{
-              padding: '10px 16px',
-              borderRadius: '24px',
-              border: isRouteMode ? '2px solid #00BCD4' : '2px solid transparent',
-              background: isRouteMode ? '#00BCD4' : 'white',
-              color: isRouteMode ? 'white' : '#333',
-              boxShadow: isRouteMode ? '0 4px 12px rgba(0, 188, 212, 0.4)' : '0 2px 8px rgba(0,0,0,0.15)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '600',
-              transition: 'all 0.3s ease',
-              transform: isRouteMode ? 'scale(1.05)' : 'scale(1)',
-              position: 'relative'
-            }}
-            onMouseEnter={(e) => {
-              if (!isRouteMode) {
-                e.currentTarget.style.background = '#f5f5f5';
-                e.currentTarget.style.transform = 'scale(1.02)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isRouteMode) {
-                e.currentTarget.style.background = 'white';
-                e.currentTarget.style.transform = 'scale(1)';
-              }
-            }}
-            onMouseDown={(e) => {
-              e.currentTarget.style.transform = 'scale(0.98)';
-            }}
-            onMouseUp={(e) => {
-              e.currentTarget.style.transform = isRouteMode ? 'scale(1.05)' : 'scale(1)';
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ 
-              fontSize: '20px',
-              animation: isRouteMode ? 'pulse 2s infinite' : 'none'
-            }}>
-              route
-            </span>
-            {isRouteMode ? '경로 모드' : '경로 만들기'}
-            {isRouteMode && selectedRoutePins.length > 0 && (
-              <span style={{
-                marginLeft: '4px',
-                padding: '2px 6px',
-                borderRadius: '10px',
-                background: isRouteMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.1)',
-              fontSize: '12px',
-                fontWeight: '700'
+        {/* 경로 모드 토글 버튼 및 초기화 아이콘 - 시트가 내려갔을 때는 숨김 */}
+        {!isSheetHidden && (
+          <div style={{
+            position: 'absolute',
+            left: '16px',
+            bottom: `${Math.max(sheetHeight + 20, 100)}px`,
+            zIndex: 30,
+            transition: 'all 0.3s ease-out',
+            pointerEvents: 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <button
+              onClick={toggleRouteMode}
+              style={{
+                padding: '10px 16px',
+                borderRadius: '24px',
+                border: isRouteMode ? '2px solid #00BCD4' : '2px solid transparent',
+                background: isRouteMode ? '#00BCD4' : 'white',
+                color: isRouteMode ? 'white' : '#333',
+                boxShadow: isRouteMode ? '0 4px 12px rgba(0, 188, 212, 0.4)' : '0 2px 8px rgba(0,0,0,0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '600',
+                transition: 'all 0.3s ease',
+                transform: isRouteMode ? 'scale(1.05)' : 'scale(1)',
+                position: 'relative'
+              }}
+              onMouseEnter={(e) => {
+                if (!isRouteMode) {
+                  e.currentTarget.style.background = '#f5f5f5';
+                  e.currentTarget.style.transform = 'scale(1.02)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isRouteMode) {
+                  e.currentTarget.style.background = 'white';
+                  e.currentTarget.style.transform = 'scale(1)';
+                }
+              }}
+              onMouseDown={(e) => {
+                e.currentTarget.style.transform = 'scale(0.98)';
+              }}
+              onMouseUp={(e) => {
+                e.currentTarget.style.transform = isRouteMode ? 'scale(1.05)' : 'scale(1)';
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ 
+                fontSize: '20px',
+                animation: isRouteMode ? 'pulse 2s infinite' : 'none'
               }}>
-                {selectedRoutePins.length}
+                route
               </span>
-            )}
-          </button>
-          {/* 최근 저장한 경로 (시간 아이콘) - 켜면 경로, 끄면 바로 내 위치 */}
-          {recentSavedRoutes.length > 0 && (
-            <button
-              onClick={() => {
-                if (showSavedRoutesPanel || savedRoute) {
-                  hideSavedRoute();
-                  setShowSavedRoutesPanel(false);
-                  if (map && currentLocation?.lat != null && currentLocation?.lng != null) {
-                    const moveLatLon = new window.kakao.maps.LatLng(currentLocation.lat, currentLocation.lng);
-                    map.panTo(moveLatLon);
-                    map.setLevel(3);
+              {isRouteMode ? '경로 모드' : '경로 만들기'}
+              {isRouteMode && selectedRoutePins.length > 0 && (
+                <span style={{
+                  marginLeft: '4px',
+                  padding: '2px 6px',
+                  borderRadius: '10px',
+                  background: isRouteMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.1)',
+                  fontSize: '12px',
+                  fontWeight: '700'
+                }}>
+                  {selectedRoutePins.length}
+                </span>
+              )}
+            </button>
+            {/* 최근 저장한 경로 (시간 아이콘) - 켜면 경로, 끄면 바로 내 위치 */}
+            {recentSavedRoutes.length > 0 && (
+              <button
+                onClick={() => {
+                  if (showSavedRoutesPanel || savedRoute) {
+                    hideSavedRoute();
+                    setShowSavedRoutesPanel(false);
+                    if (map && currentLocation?.lat != null && currentLocation?.lng != null) {
+                      const moveLatLon = new window.kakao.maps.LatLng(currentLocation.lat, currentLocation.lng);
+                      map.panTo(moveLatLon);
+                      map.setLevel(3);
+                    } else {
+                      handleCenterLocation();
+                    }
                   } else {
-                    handleCenterLocation();
+                    showRouteOnMap(recentSavedRoutes[0]);
+                    setShowSavedRoutesPanel(true);
                   }
-                } else {
-                  showRouteOnMap(recentSavedRoutes[0]);
-                  setShowSavedRoutesPanel(true);
-                }
-              }}
-              title="최근 저장한 경로"
-              style={{
-                width: '44px',
-                height: '44px',
-                minWidth: '44px',
-                minHeight: '44px',
-                borderRadius: '22px',
-                border: 'none',
-                background: showSavedRoutesPanel || savedRoute ? '#00BCD4' : 'rgba(255, 255, 255, 0.95)',
-                color: showSavedRoutesPanel || savedRoute ? 'white' : '#666',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                backdropFilter: 'blur(10px)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                if (!showSavedRoutesPanel && !savedRoute) {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 1)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!showSavedRoutesPanel && !savedRoute) {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.95)';
-                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-                }
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>schedule</span>
-            </button>
-          )}
-          {/* 초기화 아이콘 버튼 (경로 모드이고 핀이 선택되었을 때만 표시) */}
-          {isRouteMode && selectedRoutePins.length > 0 && (
-            <button
-              onClick={clearRoute}
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '20px',
-                border: 'none',
-                background: 'white',
-                color: '#666',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#f5f5f5';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'white';
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                refresh
-              </span>
-            </button>
-          )}
-        </div>
+                }}
+                title="최근 저장한 경로"
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  minWidth: '44px',
+                  minHeight: '44px',
+                  borderRadius: '22px',
+                  border: 'none',
+                  background: showSavedRoutesPanel || savedRoute ? '#00BCD4' : 'rgba(255, 255, 255, 0.95)',
+                  color: showSavedRoutesPanel || savedRoute ? 'white' : '#666',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  backdropFilter: 'blur(10px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  if (!showSavedRoutesPanel && !savedRoute) {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 1)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!showSavedRoutesPanel && !savedRoute) {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.95)';
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                  }
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>schedule</span>
+              </button>
+            )}
+            {/* 초기화 아이콘 버튼 (경로 모드이고 핀이 선택되었을 때만 표시) */}
+            {isRouteMode && selectedRoutePins.length > 0 && (
+              <button
+                onClick={clearRoute}
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '20px',
+                  border: 'none',
+                  background: 'white',
+                  color: '#666',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#f5f5f5';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'white';
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                  refresh
+                </span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* 저장된 경로 패널 — 최근 2개만, 사이즈 축소 */}
         {showSavedRoutesPanel && !isRouteMode && (
