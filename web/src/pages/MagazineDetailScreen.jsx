@@ -119,14 +119,6 @@ const MagazineDetailScreen = () => {
     );
   }
 
-  const createdDate = magazine.createdAt
-    ? new Date(magazine.createdAt).toLocaleDateString('ko-KR', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
-    : null;
-
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark h-screen overflow-hidden">
       <div className="screen-content flex flex-col h-full">
