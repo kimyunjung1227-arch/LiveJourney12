@@ -13,7 +13,9 @@ const StartScreen = lazy(() => import('./pages/StartScreen'))
 const OnboardingScreen = lazy(() => import('./pages/OnboardingScreen'))
 const AuthCallbackScreen = lazy(() => import('./pages/AuthCallbackScreen'))
 const MainScreen = lazy(() => import('./pages/MainScreen'))
+const MagazineListScreen = lazy(() => import('./pages/MagazineListScreen'))
 const MagazineDetailScreen = lazy(() => import('./pages/MagazineDetailScreen'))
+const MagazineWriteScreen = lazy(() => import('./pages/MagazineWriteScreen'))
 const SearchScreen = lazy(() => import('./pages/SearchScreen'))
 const HashtagScreen = lazy(() => import('./pages/HashtagScreen'))
 const DetailScreen = lazy(() => import('./pages/DetailScreen'))
@@ -91,6 +93,8 @@ function App() {
                 <Route path="/auth/callback" element={<AuthCallbackScreen />} />
                 {/* 로그인 없이도 접근 가능한 페이지 */}
                 <Route path="/main" element={<MainScreen />} />
+                <Route path="/magazine" element={<MagazineListScreen />} />
+                <Route path="/magazine/write" element={<MagazineWriteScreen />} />
                 <Route path="/magazine/:id" element={<MagazineDetailScreen />} />
                 <Route path="/realtime-feed" element={<RealtimeFeedScreen />} />
                 <Route path="/crowded-place" element={<CrowdedPlaceScreen />} />

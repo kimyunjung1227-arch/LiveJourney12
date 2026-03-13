@@ -1,12 +1,26 @@
-import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useMemo } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 
 const MagazineDetailScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { id } = useParams();
   const state = location.state || {};
-  const { magazine } = state;
+
+  const magazine = useMemo(() => {
+    if (state.magazine) return state.magazine;
+    if (!id) return null;
+    try {
+      const raw = localStorage.getItem('magazines');
+      if (!raw) return null;
+      const list = JSON.parse(raw);
+      if (!Array.isArray(list)) return null;
+      return list.find((m) => String(m.id) === String(id)) || null;
+    } catch {
+      return null;
+    }
+  }, [state.magazine, id]);
 
   if (!magazine) {
     return (

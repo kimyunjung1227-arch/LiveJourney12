@@ -624,12 +624,11 @@ const MainScreen = () => {
                     </button>
                 </div>
 
-                {/* 상단 배너 - 배포 전까지는 숨김 */}
-                {false && (() => {
+                {/* 상단 배너 - 여행 매거진 진입 버튼 포함 */}
+                {(() => {
                     const BANNER_SLIDES = [
                         { type: 'hotplace', title: '실시간 핫플 보기', subtitle: '지금 붐비는 스팟을 한눈에', icon: '🌏', bg: '#26C6DA', path: '/realtime-feed' },
-                        { type: 'event', title: '이벤트', subtitle: '참여하고 혜택 받기', icon: '🎁', bg: '#7C3AED', path: '/realtime-feed' },
-                        { type: 'magazine', title: '여행 정보 모음', subtitle: '지역별 꿀팁·가이드', icon: '📚', bg: '#059669', path: '/main' },
+                        { type: 'magazine', title: '여행 매거진', subtitle: '여행 동선·팁 모아보기', icon: '📚', bg: '#059669', path: '/magazine' },
                     ];
                     const BANNER_H = 72;
                     return (
