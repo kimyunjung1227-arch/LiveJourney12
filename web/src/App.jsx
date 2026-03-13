@@ -94,7 +94,16 @@ function App() {
                 {/* 로그인 없이도 접근 가능한 페이지 */}
                 <Route path="/main" element={<MainScreen />} />
                 <Route path="/magazine" element={<MagazineListScreen />} />
-                <Route path="/magazine/write" element={<MagazineWriteScreen />} />
+                <Route
+                  path="/magazine/write"
+                  element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <MagazineWriteScreen />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/magazine/:id" element={<MagazineDetailScreen />} />
                 <Route path="/realtime-feed" element={<RealtimeFeedScreen />} />
                 <Route path="/crowded-place" element={<CrowdedPlaceScreen />} />

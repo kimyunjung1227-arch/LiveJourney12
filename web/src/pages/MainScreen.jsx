@@ -1229,15 +1229,7 @@ const MainScreen = () => {
                             </div>
                             {magazines.length === 0 ? (
                                 <div style={{ padding: '16px 0 4px 0', color: '#94a3b8', fontSize: '13px' }}>
-                                    <p style={{ margin: 0 }}>아직 작성된 매거진이 없어요.</p>
-                                    <button
-                                        type="button"
-                                        onClick={() => navigate('/magazine/write')}
-                                        className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm hover:bg-primary-dark"
-                                    >
-                                        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span>
-                                        <span>첫 매거진 쓰기</span>
-                                    </button>
+                                    <p style={{ margin: 0 }}>준비 중인 여행 매거진입니다. 곧 업데이트될 예정이에요.</p>
                                 </div>
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 4 }}>
