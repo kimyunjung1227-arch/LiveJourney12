@@ -1617,7 +1617,7 @@ const UploadScreen = () => {
                 <p className="text-base font-semibold text-gray-800 mb-3">설명 (선택)</p>
                 <div className="relative">
                   <textarea
-                    className="form-textarea w-full rounded-lg border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft px-4 py-3 text-base font-normal text-gray-900 placeholder:text-gray-600 resize-none leading-relaxed min-h-[90px]"
+                    className="form-textarea w-full rounded-lg border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft px-4 py-3 text-sm font-normal text-gray-900 placeholder:text-[11px] placeholder:whitespace-nowrap resize-none leading-relaxed min-h-[90px]"
                     placeholder="지금 이곳의 생생한 현장 상황을 자유롭게 입력해주세요."
                     rows="3"
                     value={formData.note}

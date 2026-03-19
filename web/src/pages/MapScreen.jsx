@@ -2704,6 +2704,9 @@ const MapScreen = () => {
               cursor: 'pointer'
             }}
           >
+            <span className="material-symbols-outlined" style={{ fontSize: '24px', color: '#666' }}>
+              search
+            </span>
             <span style={{
               flex: 1,
               fontSize: '16px',
@@ -2713,7 +2716,6 @@ const MapScreen = () => {
               {searchQuery || "지역 검색"}
             </span>
           </div>
-          {/* 우측 새로고침 버튼은 텍스트로만 유지 */}
           <button
             onClick={() => {
               if (map) {
@@ -2733,13 +2735,12 @@ const MapScreen = () => {
               cursor: 'pointer',
               flexShrink: 0,
               boxShadow: '0 2px 12px rgba(0,0,0,0.1)',
-              pointerEvents: 'auto',
-              fontSize: 11,
-              fontWeight: 600,
-              color: '#666'
+              pointerEvents: 'auto'
             }}
           >
-            새로고침
+            <span className="material-symbols-outlined" style={{ fontSize: '24px', color: '#666' }}>
+              refresh
+            </span>
           </button>
         </div>
 
@@ -2895,7 +2896,7 @@ const MapScreen = () => {
               flexShrink: 0
             }}
           >
-            개화정보
+            🌸 개화정보
           </button>
           <button
             onClick={() => {
@@ -2923,7 +2924,7 @@ const MapScreen = () => {
               flexShrink: 0
             }}
           >
-            맛집정보
+            🍜 맛집정보
           </button>
           <button
             onClick={() => {
@@ -2951,7 +2952,7 @@ const MapScreen = () => {
               flexShrink: 0
             }}
           >
-            가볼만한 곳
+            🏞️ 가볼만한 곳
           </button>
           <button
             onClick={() => {

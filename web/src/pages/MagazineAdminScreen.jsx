@@ -78,6 +78,7 @@ const MagazineAdminScreen = () => {
     setTopics(next);
     saveMagazineTopics(next);
     handleNew();
+    alert('삭제되었습니다.');
   };
 
   return (

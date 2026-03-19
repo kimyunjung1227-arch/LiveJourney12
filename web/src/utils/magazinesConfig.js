@@ -21,7 +21,9 @@ export const loadMagazineTopics = () => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_TOPICS;
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_TOPICS;
+    if (!Array.isArray(parsed)) return DEFAULT_TOPICS;
+    // 관리자가 모두 삭제한 경우에는 빈 배열을 그대로 반환
+    if (parsed.length === 0) return [];
     return parsed;
   } catch {
     return DEFAULT_TOPICS;
