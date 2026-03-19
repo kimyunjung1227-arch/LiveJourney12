@@ -303,27 +303,46 @@ const RegionDetailScreen = () => {
               {region.name}
             </h1>
             <button
-                onClick={handleNotificationToggle}
-                className={`flex size-12 shrink-0 items-center justify-center rounded-full transition-colors ${isNotificationEnabled ? 'bg-white/20 hover:bg-white/30 text-primary' : 'bg-transparent hover:bg-black/20 text-white'}`}
-                title={isNotificationEnabled ? "관심 지역 해제" : "관심 지역 추가"}
-                style={!isNotificationEnabled ? { textShadow: '0 1px 3px rgba(0,0,0,0.6)' } : {}}
+              onClick={handleNotificationToggle}
+              className={`flex size-11 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                isNotificationEnabled
+                  ? 'bg-white text-amber-500 border-amber-200 shadow-sm hover:bg-amber-50'
+                  : 'bg-black/40 text-white border-white/30 hover:bg-black/55'
+              }`}
+              title={isNotificationEnabled ? '관심 지역 해제' : '관심 지역 추가'}
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+            >
+              <span
+                className="material-symbols-outlined"
+                style={{
+                  fontSize: 22,
+                  fontVariationSettings: isNotificationEnabled ? "'FILL' 1" : undefined,
+                }}
               >
-                <span className="material-symbols-outlined text-2xl" style={isNotificationEnabled ? { fontVariationSettings: "'FILL' 1" } : {}}>
-                  {isNotificationEnabled ? 'star' : 'star_outline'}
-                </span>
-              </button>
+                {isNotificationEnabled ? 'star' : 'star_outline'}
+              </span>
+            </button>
           </div>
 
           {/* 날씨 — 투명 배경 위에 반투명 팔레트 */}
           <div className="flex justify-center px-3 pb-2">
-            <div className="flex h-8 shrink-0 items-center justify-center gap-x-1.5 rounded-full bg-black/22 backdrop-blur-sm pl-3 pr-3 shadow-sm">
+            <div className="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-black/60 backdrop-blur-md pl-4 pr-4 shadow-md">
               {weatherInfo.loading ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/80 border-t-transparent"></div>
               ) : (
                 <>
-                  <span className="text-sm">{weatherInfo.icon}</span>
-                  <p className="text-xs font-medium leading-normal text-white" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
-                    {weatherInfo.condition}, {weatherInfo.temperature}
+                  <span className="text-base">{weatherInfo.icon}</span>
+                  <p
+                    className="font-semibold leading-normal text-white"
+                    style={{
+                      fontSize: 13,
+                      textShadow: '0 1px 3px rgba(0,0,0,0.65)',
+                      letterSpacing: '-0.01em',
+                    }}
+                  >
+                    {weatherInfo.condition}
+                    {' · '}
+                    <span style={{ fontSize: 14 }}>{weatherInfo.temperature}</span>
                   </p>
                 </>
               )}
