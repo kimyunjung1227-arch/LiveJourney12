@@ -324,7 +324,7 @@ const RegionDetailScreen = () => {
 
           {/* 날씨 — 투명 배경 위에 반투명 팔레트 */}
           <div className="flex justify-center px-3 pb-2">
-            <div className="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-black/60 backdrop-blur-md pl-4 pr-4 shadow-md">
+            <div className="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-black/28 backdrop-blur-sm pl-4 pr-4 shadow-sm">
               {weatherInfo.loading ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/80 border-t-transparent"></div>
               ) : (
