@@ -283,7 +283,7 @@ const RegionDetailScreen = () => {
           className="flex flex-col sticky top-0 z-[100] shrink-0"
           style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
         >
-          <div className="flex items-center justify-between p-4 pb-2 bg-white dark:bg-background-dark">
+          <div className="flex items-center justify-between px-3 py-3 pb-1 bg-white dark:bg-background-dark">
             <button
               type="button"
               onClick={() => {
@@ -299,7 +299,7 @@ const RegionDetailScreen = () => {
             >
               <span className="material-symbols-outlined text-2xl">arrow_back</span>
             </button>
-            <h1 className="flex-1 text-center text-lg font-bold leading-tight tracking-[-0.015em] text-black dark:text-white">
+            <h1 className="flex-1 text-center text-base font-bold leading-tight tracking-[-0.01em] text-black dark:text-white">
               {region.name}
             </h1>
             <button
@@ -315,14 +315,14 @@ const RegionDetailScreen = () => {
           </div>
 
           {/* 날씨 — 투명 배경 위에 반투명 팔레트 */}
-          <div className="flex justify-center px-4 pb-3">
-            <div className="flex h-9 shrink-0 items-center justify-center gap-x-2 rounded-full bg-black/25 backdrop-blur-sm pl-4 pr-4 shadow-sm">
+          <div className="flex justify-center px-3 pb-2">
+            <div className="flex h-8 shrink-0 items-center justify-center gap-x-1.5 rounded-full bg-black/22 backdrop-blur-sm pl-3 pr-3 shadow-sm">
               {weatherInfo.loading ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/80 border-t-transparent"></div>
               ) : (
                 <>
-                  <span className="text-base">{weatherInfo.icon}</span>
-                  <p className="text-sm font-medium leading-normal text-white" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
+                  <span className="text-sm">{weatherInfo.icon}</span>
+                  <p className="text-xs font-medium leading-normal text-white" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
                     {weatherInfo.condition}, {weatherInfo.temperature}
                   </p>
                 </>
@@ -333,21 +333,21 @@ const RegionDetailScreen = () => {
 
         <div
           ref={bodyRef}
-          className="screen-body relative z-10 bg-background-light dark:bg-background-dark rounded-t-[20px]"
-          style={{ overflowY: 'auto', maxHeight: '58vh' }}
+          className="screen-body relative z-10 bg-background-light dark:bg-background-dark rounded-t-[18px]"
+          style={{ overflowY: 'auto', maxHeight: '62vh' }}
         >
           <main>
 
             {/* 현장 실시간 정보 */}
             <div>
               {/* 제목 + 대표명소 버튼 (우측) */}
-              <div className="flex items-center justify-between px-4 pb-2 pt-5">
-                <h2 className="text-[22px] font-bold leading-tight tracking-[-0.015em] text-text-headings dark:text-gray-100">
+              <div className="flex items-center justify-between px-4 pb-1 pt-4">
+                <h2 className="text-[17px] font-semibold leading-tight tracking-[-0.01em] text-text-headings dark:text-gray-100">
                   {region.name} 현지 실시간 상황
                 </h2>
                 <button
                   onClick={() => setShowLandmarkModal(true)}
-                  className="px-4 py-2 rounded-xl text-sm font-semibold text-primary bg-primary-soft hover:bg-primary/20 transition-colors whitespace-nowrap"
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-primary bg-primary-soft hover:bg-primary/20 transition-colors whitespace-nowrap"
                 >
                   {selectedLandmarks.length > 0
                     ? `${region.name} 대표명소 (${selectedLandmarks.length})`
@@ -357,7 +357,7 @@ const RegionDetailScreen = () => {
               </div>
 
               {/* 필터 버튼 - 슬라이드 가능 (좌·우 여백: 핸드폰에서 잘리지 않도록) */}
-              <div className="pb-3 w-full">
+              <div className="pb-2 w-full">
                 <div
                   ref={filterScrollRef}
                   onMouseDown={handleFilterDrag}
@@ -368,8 +368,8 @@ const RegionDetailScreen = () => {
                     overflowY: 'hidden',
                     width: '100%',
                     scrollSnapType: 'x mandatory',
-                    paddingLeft: 'max(20px, env(safe-area-inset-left, 16px))',
-                    paddingRight: 'max(20px, env(safe-area-inset-right, 16px))'
+                    paddingLeft: 'max(16px, env(safe-area-inset-left, 12px))',
+                    paddingRight: 'max(16px, env(safe-area-inset-right, 12px))'
                   }}
                 >
                   <button
@@ -378,7 +378,7 @@ const RegionDetailScreen = () => {
                       if (!filterHasMovedRef.current) setActiveFilter('all');
                     }}
                     style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${activeFilter === 'all'
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${activeFilter === 'all'
                       ? 'bg-primary text-white'
                       : 'bg-gray-100 dark:bg-gray-800 text-text-secondary-light dark:text-text-secondary-dark hover:bg-gray-200 dark:hover:bg-gray-700'
                       }`}
@@ -391,7 +391,7 @@ const RegionDetailScreen = () => {
                       if (!filterHasMovedRef.current) setActiveFilter('blooming');
                     }}
                     style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${activeFilter === 'blooming'
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${activeFilter === 'blooming'
                       ? 'bg-primary text-white'
                       : 'bg-gray-100 dark:bg-gray-800 text-text-secondary-light dark:text-text-secondary-dark hover:bg-gray-200 dark:hover:bg-gray-700'
                       }`}
@@ -404,7 +404,7 @@ const RegionDetailScreen = () => {
                       if (!filterHasMovedRef.current) setActiveFilter('spots');
                     }}
                     style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${activeFilter === 'spots'
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${activeFilter === 'spots'
                       ? 'bg-primary text-white'
                       : 'bg-gray-100 dark:bg-gray-800 text-text-secondary-light dark:text-text-secondary-dark hover:bg-gray-200 dark:hover:bg-gray-700'
                       }`}
@@ -417,7 +417,7 @@ const RegionDetailScreen = () => {
                       if (!filterHasMovedRef.current) setActiveFilter('food');
                     }}
                     style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${activeFilter === 'food'
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${activeFilter === 'food'
                       ? 'bg-primary text-white'
                       : 'bg-gray-100 dark:bg-gray-800 text-text-secondary-light dark:text-text-secondary-dark hover:bg-gray-200 dark:hover:bg-gray-700'
                       }`}
@@ -445,13 +445,13 @@ const RegionDetailScreen = () => {
                   </button>
                 </div>
               ) : (
-                <div className="px-4 pb-4">
+                <div className="px-4 pb-3">
                   <div
                     style={{
                       display: 'grid',
                       gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                      rowGap: '7px',
-                      columnGap: '7px'
+                      rowGap: '6px',
+                      columnGap: '6px'
                     }}
                   >
                     {realtimePhotos.map((photo) => {
@@ -482,12 +482,12 @@ const RegionDetailScreen = () => {
                           }}
                         >
                           {/* 이미지: 정사각형, 지금 여기는 더보기와 동일 구조 */}
-                          <div style={{ width: '100%', paddingBottom: '125%', height: 0, position: 'relative', background: '#e5e7eb', borderRadius: '14px', overflow: 'hidden', marginBottom: '4px' }}>
+                          <div style={{ width: '100%', paddingBottom: '125%', height: 0, position: 'relative', background: '#e5e7eb', borderRadius: '12px', overflow: 'hidden', marginBottom: '3px' }}>
                             {photo.videos && photo.videos.length > 0 ? (
                               <video
                                 src={getDisplayImageUrl(photo.videos[0])}
                                 className="w-full h-full object-cover"
-                                style={{ position: 'absolute', top: 0, left: 0, borderRadius: '14px' }}
+                                style={{ position: 'absolute', top: 0, left: 0, borderRadius: '12px' }}
                                 autoPlay
                                 loop
                                 muted
@@ -499,7 +499,7 @@ const RegionDetailScreen = () => {
                                   <img
                                     src={getDisplayImageUrl(photo.image)}
                                     alt={photo.location || region.name}
-                                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '14px' }}
+                                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '12px' }}
                                   />
                                 ) : (
                                   <div
@@ -524,12 +524,12 @@ const RegionDetailScreen = () => {
                             <div
                               style={{
                                 position: 'absolute',
-                                bottom: '4px',
-                                right: '4px',
+                                bottom: '3px',
+                                right: '3px',
                                 background: 'rgba(255,255,255,0.9)',
-                                padding: '2px 6px',
+                                padding: '2px 5px',
                                 borderRadius: '999px',
-                                fontSize: '11px',
+                                fontSize: '10px',
                                 fontWeight: 600,
                                 display: 'flex',
                                 alignItems: 'center',
@@ -537,7 +537,7 @@ const RegionDetailScreen = () => {
                                 color: '#1f2937'
                               }}
                             >
-                              <span className={`material-symbols-outlined text-base ${isLiked ? 'text-red-500' : 'text-gray-600'}`}>
+                              <span className={`material-symbols-outlined text-[15px] ${isLiked ? 'text-red-500' : 'text-gray-600'}`}>
                                 favorite
                               </span>
                               <span>{likeCount}</span>
@@ -547,8 +547,8 @@ const RegionDetailScreen = () => {
                           {/* 하단 정보 영역: "지금 여기는" 더보기와 동일 구조 */}
                           <div
                             style={{
-                              padding: '6px 14px 10px',
-                              minHeight: '92px',
+                              padding: '5px 10px 8px',
+                              minHeight: '82px',
                               display: 'flex',
                               flexDirection: 'column',
                               overflow: 'hidden'
@@ -556,7 +556,7 @@ const RegionDetailScreen = () => {
                           >
                             <div
                               style={{
-                                fontSize: '13px',
+                                fontSize: '12px',
                                 fontWeight: 700,
                                 color: '#111827',
                                 overflow: 'hidden',
@@ -589,9 +589,9 @@ const RegionDetailScreen = () => {
                                 display: 'flex',
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
-                                marginTop: '4px',
+                                marginTop: '3px',
                                 flexShrink: 0,
-                                fontSize: '11px',
+                                fontSize: '10px',
                                 color: '#6b7280'
                               }}
                             >

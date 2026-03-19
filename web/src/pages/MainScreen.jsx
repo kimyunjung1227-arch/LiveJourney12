@@ -871,10 +871,11 @@ const MainScreen = () => {
                                                 {weather.temperature && <span>{weather.temperature}</span>}
                                             </div>
                                         )}
-                                        {/* 좋아요 하트 - 이미지 우하단 */}
+                                        {/* 좋아요 하트 - 이미지 우하단 (아이콘 + 숫자) */}
                                         <div style={{ position: 'absolute', bottom: '10px', right: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.96)', color: '#111827', padding: '4px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600, boxShadow: '0 2px 6px rgba(15,23,42,0.18)' }}>
-                                                <span>좋아요 {likeCount}</span>
+                                                <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#f97373' }}>favorite</span>
+                                                <span>{likeCount}</span>
                                             </span>
                                         </div>
                                     </div>
