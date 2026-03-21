@@ -354,6 +354,7 @@ const MainScreen = () => {
                         height={280}
                         mediaItems={buildMediaItemsFromPost(post)}
                         instanceId={`main-rt-${post.id}`}
+                        playPriority={0}
                         style={{ width: '100%', height: '100%' }}
                       />
                       <LinearGradient colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.9)']} style={styles.cardGradient} />
@@ -388,6 +389,7 @@ const MainScreen = () => {
                           height={120}
                           mediaItems={buildMediaItemsFromPost(post)}
                           instanceId={`main-hot-${post.id}`}
+                          playPriority={1}
                           style={{ width: '100%', height: '100%' }}
                         />
                         <View style={styles.surgeBadge}>
@@ -457,6 +459,7 @@ const MainScreen = () => {
                           height={240}
                           mediaItems={feed}
                           instanceId={`main-rec-${item.regionName}-${idx}`}
+                          playPriority={2}
                           style={{ width: '100%', height: '100%' }}
                         />
                         <View style={styles.recommendBadge}><Text style={styles.recommendBadgeText}>추천</Text></View>

@@ -4,7 +4,6 @@ import {
     View,
     Text,
     StyleSheet,
-    ActivityIndicator,
     FlatList,
     TouchableOpacity,
     Image,
@@ -17,13 +16,18 @@ import { COLORS, SPACING } from '../constants/styles';
 import { filterRecentPosts, getTimeAgo } from '../utils/timeUtils';
 import { ScreenLayout, ScreenContent, ScreenHeader, ScreenBody } from '../components/ScreenLayout';
 import { isPostLiked } from '../utils/socialInteractions';
+import { guessWeatherRegionKey, getWeatherByRegion } from '../utils/weatherApi';
+import { buildMediaItemsFromPost, getMapThumbnailUri } from '../utils/postMedia';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const PostItem = ({ item, index, onPress }) => {
     const [isLiked, setIsLiked] = useState(false);
-    const imageUrl = item.imageUrl || item.images?.[0] || item.image;
+    const thumb = getMapThumbnailUri(item);
+    const hasVideoOnly = !thumb && buildMediaItemsFromPost(item).some((m) => m.type === 'video');
     const likeCount = item.likes || item.likeCount || 0;
+    const desc = (item.note || item.content || '').trim() || `${item.detailedLocation || item.placeName || item.location || '여행지'}의 모습`;
+    const w = item.weather;
 
     useEffect(() => {
         const checkLike = async () => {
@@ -40,12 +44,16 @@ const PostItem = ({ item, index, onPress }) => {
             activeOpacity={0.9}
         >
             <View style={styles.postImageContainer}>
-                {imageUrl ? (
+                {thumb ? (
                     <Image
-                        source={{ uri: imageUrl }}
+                        source={{ uri: thumb }}
                         style={styles.postImage}
                         resizeMode="cover"
                     />
+                ) : hasVideoOnly ? (
+                    <View style={[styles.postImage, styles.videoThumbPlaceholder]}>
+                        <Ionicons name="videocam" size={40} color={COLORS.textSubtle} />
+                    </View>
                 ) : (
                     <View style={[styles.postImage, styles.postImagePlaceholder]}>
                         <Ionicons name="image-outline" size={32} color={COLORS.textSubtle} />
@@ -61,17 +69,21 @@ const PostItem = ({ item, index, onPress }) => {
                 </View>
             </View>
             <View style={styles.postTextContainer}>
-                <View style={styles.locationRow}>
-                    <Text style={styles.locationText} numberOfLines={1}>
-                        {item.detailedLocation || item.placeName || item.location || '여행지'}
-                    </Text>
-                    {item.time && (
-                        <Text style={styles.timeText}>{item.time}</Text>
-                    )}
-                </View>
-                <Text style={styles.noteText} numberOfLines={2}>
-                    {item.note || item.content}
+                <Text style={styles.locationTitle} numberOfLines={1}>
+                    {item.detailedLocation || item.placeName || item.location || '여행지'}
                 </Text>
+                <Text style={styles.noteText} numberOfLines={2}>
+                    {desc}
+                </Text>
+                <View style={styles.metaRow}>
+                    <Text style={styles.timeText}>{item.time}</Text>
+                    {w ? (
+                        <View style={styles.weatherInline}>
+                            <Text style={styles.weatherIcon}>{w.icon}</Text>
+                            <Text style={styles.weatherTemp}>{w.temperature}</Text>
+                        </View>
+                    ) : null}
+                </View>
             </View>
         </TouchableOpacity>
     );
@@ -81,7 +93,6 @@ const RealtimeFeedScreen = () => {
     const navigation = useNavigation();
     const [displayedItems, setDisplayedItems] = useState([]);
     const [currentUserCount, setCurrentUserCount] = useState(0);
-    const [isLoading, setIsLoading] = useState(false);
     const [allData, setAllData] = useState([]);
     const pageRef = useRef(0);
 
@@ -91,7 +102,6 @@ const RealtimeFeedScreen = () => {
             let posts = postsJson ? JSON.parse(postsJson) : [];
             posts = filterRecentPosts(posts, 2);
 
-            // 사용자 수 계산
             const uniqueUserIds = new Set();
             posts.forEach(post => {
                 const userId = post.userId || (typeof post.user === 'string' ? post.user : post.user?.id) || post.user;
@@ -99,25 +109,41 @@ const RealtimeFeedScreen = () => {
             });
             setCurrentUserCount(uniqueUserIds.size);
 
-            const formatted = posts.map((post) => ({
-                id: post.id,
-                images: post.images || [],
-                image: post.images?.[0] || '',
-                location: post.location,
-                detailedLocation: post.detailedLocation || post.placeName || post.location,
-                time: post.timeLabel || getTimeAgo(post.timestamp || post.createdAt || post.time),
-                note: post.note || post.content,
-                likes: post.likes || post.likeCount || 0,
-                timestamp: post.timestamp || post.createdAt || post.time,
-                // ... 필요한 필드
-            }));
+            const weatherByKey = {};
+            const keys = new Set();
+            posts.forEach((post) => {
+                const loc = post.detailedLocation || post.placeName || post.location || '';
+                keys.add(guessWeatherRegionKey(loc));
+            });
+            await Promise.all(
+                [...keys].map(async (k) => {
+                    const r = await getWeatherByRegion(k);
+                    if (r.success) weatherByKey[k] = r.weather;
+                })
+            );
+
+            const formatted = posts.map((post) => {
+                const loc = post.detailedLocation || post.placeName || post.location || '';
+                const wk = guessWeatherRegionKey(loc);
+                return {
+                    id: post.id,
+                    images: post.images || [],
+                    videos: post.videos || [],
+                    image: post.images?.[0] || post.image || '',
+                    thumbnail: post.thumbnail,
+                    location: post.location,
+                    detailedLocation: post.detailedLocation || post.placeName || post.location,
+                    time: post.timeLabel || getTimeAgo(post.timestamp || post.createdAt || post.time),
+                    note: post.note || post.content,
+                    likes: post.likes || post.likeCount || 0,
+                    timestamp: post.timestamp || post.createdAt || post.time,
+                    weather: weatherByKey[wk],
+                };
+            });
 
             setAllData(formatted);
-
-            // 초기 데이터 로드 (첫 페이지)
             setDisplayedItems(formatted.slice(0, 12));
             pageRef.current = 1;
-
         } catch (error) {
             console.error('데이터 로드 실패:', error);
         }
@@ -141,7 +167,7 @@ const RealtimeFeedScreen = () => {
         navigation.navigate('PostDetail', {
             postId: item.id,
             post: item,
-            allPosts: allData, // 전체 데이터 전달
+            allPosts: allData,
         });
     }, [navigation, allData]);
 
@@ -158,7 +184,7 @@ const RealtimeFeedScreen = () => {
                             <Ionicons name="arrow-back" size={24} color={COLORS.textPrimaryLight} />
                         </TouchableOpacity>
                         <View style={styles.headerTitleContainer}>
-                            <Text style={styles.headerTitle}>지금 여기는!</Text>
+                            <Text style={styles.headerTitle}>지금 여기는</Text>
                             {currentUserCount > 0 && (
                                 <Text style={styles.headerSubtitle}>현재 {currentUserCount}명이 활동 중</Text>
                             )}
@@ -213,16 +239,25 @@ const styles = StyleSheet.create({
     emptyTitle: { fontSize: 16, color: '#6B7280', marginTop: SPACING.md },
 
     postItem: { width: (SCREEN_WIDTH - SPACING.md * 3) / 2, marginBottom: SPACING.md },
-    postImageContainer: { width: '100%', aspectRatio: 4 / 5, borderRadius: 12, overflow: 'hidden', marginBottom: 12, backgroundColor: COLORS.borderLight, position: 'relative' },
+    postImageContainer: { width: '100%', aspectRatio: 4 / 5, borderRadius: 12, overflow: 'hidden', marginBottom: 8, backgroundColor: COLORS.borderLight, position: 'relative' },
     postImage: { width: '100%', height: '100%' },
     postImagePlaceholder: { backgroundColor: COLORS.borderLight, justifyContent: 'center', alignItems: 'center' },
+    videoThumbPlaceholder: { backgroundColor: '#e8eaed', justifyContent: 'center', alignItems: 'center' },
     likeBadge: { position: 'absolute', bottom: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
     likeCount: { fontSize: 14, fontWeight: '600', color: '#374151' },
-    postTextContainer: { gap: SPACING.xs },
-    locationRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
-    locationText: { fontSize: 16, fontWeight: 'bold', color: COLORS.text, flex: 1 },
-    timeText: { fontSize: 12, color: COLORS.textSecondary },
-    noteText: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 20 },
+    postTextContainer: { gap: 2 },
+    locationTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.text },
+    noteText: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 19, marginTop: 1 },
+    metaRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginTop: 4,
+    },
+    timeText: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '500' },
+    weatherInline: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    weatherIcon: { fontSize: 13 },
+    weatherTemp: { fontSize: 12, fontWeight: '700', color: COLORS.text },
 });
 
 export default RealtimeFeedScreen;

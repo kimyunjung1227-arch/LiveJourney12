@@ -17,7 +17,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, SPACING, TYPOGRAPHY } from '../constants/styles';
+import { COLORS, SPACING } from '../constants/styles';
 import { filterRecentPosts, getTimeAgo } from '../utils/timeUtils';
 import { isPostLiked } from '../utils/socialInteractions';
 import { toggleInterestPlace, isInterestPlace } from '../utils/interestPlaces';
@@ -25,14 +25,22 @@ import { ScreenLayout, ScreenContent, ScreenHeader, ScreenBody } from '../compon
 import { getLandmarksByRegion, isPostMatchingLandmarks } from '../utils/regionLandmarks';
 import { getRegionDefaultImage } from '../utils/regionDefaultImages';
 import { getCombinedPosts } from '../utils/mockData';
+import { buildMediaItemsFromPost, getMapThumbnailUri } from '../utils/postMedia';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// PostItem 컴포넌트 (RegionDetailScreen 전용)
-const PostItem = ({ item, index, onPress, onTagPress }) => {
+const FEED_CARD_WIDTH = (SCREEN_WIDTH - SPACING.md * 3) / 2;
+
+/** 지금 여기는 더보기와 동일: 장소명 → 설명 → 시간·날씨 */
+const RegionFeedPostItem = ({ item, index, onPress, regionName, cardWeather }) => {
   const [isLiked, setIsLiked] = useState(false);
-  const imageUrl = item.imageUrl || item.images?.[0] || item.image;
+  const thumb = getMapThumbnailUri(item);
+  const hasVideoOnly = !thumb && buildMediaItemsFromPost(item).some((m) => m.type === 'video');
   const likeCount = item.likes || item.likeCount || 0;
+  const loc = item.detailedLocation || item.placeName || item.location || '여행지';
+  const desc = (item.note || item.content || '').trim() || `${regionName || loc}의 모습`;
+  const timeLabel = item.timeLabel || item.time || getTimeAgo(item.timestamp || item.createdAt || item.time);
+  const w = cardWeather && !cardWeather.loading ? { icon: cardWeather.icon, temperature: cardWeather.temperature } : null;
 
   useEffect(() => {
     const checkLike = async () => {
@@ -48,21 +56,18 @@ const PostItem = ({ item, index, onPress, onTagPress }) => {
       onPress={() => onPress(item, index)}
       activeOpacity={0.9}
     >
-      {/* 이미지 */}
       <View style={regionStyles.postImageContainer}>
-        {imageUrl ? (
-          <Image
-            source={{ uri: imageUrl }}
-            style={regionStyles.postImage}
-            resizeMode="cover"
-          />
+        {thumb ? (
+          <Image source={{ uri: thumb }} style={regionStyles.postImage} resizeMode="cover" />
+        ) : hasVideoOnly ? (
+          <View style={[regionStyles.postImage, regionStyles.videoThumbPlaceholder]}>
+            <Ionicons name="videocam" size={36} color={COLORS.textSubtle} />
+          </View>
         ) : (
           <View style={[regionStyles.postImage, regionStyles.postImagePlaceholder]}>
             <Ionicons name="image-outline" size={32} color={COLORS.textSubtle} />
           </View>
         )}
-
-        {/* 우측 하단 하트 아이콘 */}
         <View style={regionStyles.likeBadge}>
           <Ionicons
             name={isLiked ? 'heart' : 'heart-outline'}
@@ -72,34 +77,22 @@ const PostItem = ({ item, index, onPress, onTagPress }) => {
           <Text style={regionStyles.likeCount}>{likeCount}</Text>
         </View>
       </View>
-
-      {/* 이미지 밖 하단 텍스트 */}
       <View style={regionStyles.postTextContainer}>
-        <View style={regionStyles.locationRow}>
-          <Text style={regionStyles.locationText} numberOfLines={1}>
-            {item.detailedLocation || item.placeName || item.location || '여행지'}
-          </Text>
-          {item.time && (
-            <Text style={regionStyles.timeText}>{item.timeLabel || item.time}</Text>
-          )}
+        <Text style={regionStyles.locationTitle} numberOfLines={1}>
+          {loc}
+        </Text>
+        <Text style={regionStyles.noteText} numberOfLines={2}>
+          {desc}
+        </Text>
+        <View style={regionStyles.metaRow}>
+          <Text style={regionStyles.timeText}>{timeLabel}</Text>
+          {w ? (
+            <View style={regionStyles.weatherInline}>
+              <Text style={regionStyles.weatherIcon}>{w.icon}</Text>
+              <Text style={regionStyles.weatherTemp}>{w.temperature}</Text>
+            </View>
+          ) : null}
         </View>
-        {item.tags && item.tags.length > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={regionStyles.tagsScroll}
-            contentContainerStyle={regionStyles.tagsScrollContent}
-          >
-            {item.tags.slice(0, 5).map((tag, tagIndex) => {
-              const t = typeof tag === 'string' ? tag.replace(/^#+/, '') : (tag.display || tag.name);
-              return (
-                <View key={tagIndex} style={regionStyles.tagBadge}>
-                  <Text style={regionStyles.tagText}>#{t}</Text>
-                </View>
-              );
-            })}
-          </ScrollView>
-        )}
       </View>
     </TouchableOpacity>
   );
@@ -367,13 +360,18 @@ const RegionDetailScreen = () => {
             <View style={styles.postGrid}>
               {facetedPhotos.length > 0 ? (
                 facetedPhotos.slice(0, 12).map((post, idx) => (
-                  <TouchableOpacity
+                  <RegionFeedPostItem
                     key={post.id || idx}
-                    style={styles.postItemSmall}
-                    onPress={() => handlePostPress(post, idx, facetedPhotos)}
-                  >
-                    <Image source={{ uri: post.image || post.imageUrl || (post.images && post.images[0]) }} style={styles.postImageSmall} />
-                  </TouchableOpacity>
+                    item={post}
+                    index={idx}
+                    onPress={(p, i) => handlePostPress(p, i, facetedPhotos)}
+                    regionName={region.name}
+                    cardWeather={{
+                      loading: weatherInfo.loading,
+                      icon: weatherInfo.icon,
+                      temperature: weatherInfo.temperature,
+                    }}
+                  />
                 ))
               ) : (
                 <View style={styles.emptyFeed}>
@@ -447,28 +445,57 @@ const styles = StyleSheet.create({
 
   // Feed
   feedSection: { marginBottom: 40 },
-  postGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 2, paddingHorizontal: 2 },
-  postItemSmall: { width: (SCREEN_WIDTH - 6) / 3, aspectRatio: 1, backgroundColor: '#eee' },
-  postImageSmall: { width: '100%', height: '100%' },
+  postGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md,
+    rowGap: SPACING.md,
+  },
   emptyFeed: { width: '100%', padding: 40, alignItems: 'center' },
   emptyFeedText: { color: COLORS.textSubtle, fontSize: 14 },
 });
 
 const regionStyles = StyleSheet.create({
-  postItem: { width: (SCREEN_WIDTH - 48) / 2, marginBottom: 16 },
-  postImageContainer: { width: '100%', aspectRatio: 1, borderRadius: 12, overflow: 'hidden', marginBottom: 8, position: 'relative' },
+  postItem: { width: FEED_CARD_WIDTH, marginBottom: 0 },
+  postImageContainer: {
+    width: '100%',
+    aspectRatio: 4 / 5,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 8,
+    position: 'relative',
+    backgroundColor: COLORS.borderLight,
+  },
   postImage: { width: '100%', height: '100%' },
   postImagePlaceholder: { backgroundColor: '#eee', justifyContent: 'center', alignItems: 'center' },
-  likeBadge: { position: 'absolute', bottom: 8, right: 8, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
-  likeCount: { fontSize: 12, fontWeight: '600', marginLeft: 4 },
-  postTextContainer: { gap: 4 },
-  locationRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  locationText: { fontSize: 14, fontWeight: 'bold', color: COLORS.text },
-  timeText: { fontSize: 11, color: COLORS.textSubtle },
-  tagsScroll: { marginTop: 4 },
-  tagsScrollContent: { gap: 4 },
-  tagBadge: { backgroundColor: COLORS.primary + '1A', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
-  tagText: { fontSize: 10, color: COLORS.primary, fontWeight: '600' },
+  videoThumbPlaceholder: { backgroundColor: '#e8eaed', justifyContent: 'center', alignItems: 'center' },
+  likeBadge: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  likeCount: { fontSize: 14, fontWeight: '600', color: '#374151' },
+  postTextContainer: { gap: 2 },
+  locationTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.text },
+  noteText: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 19, marginTop: 1 },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  timeText: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '500' },
+  weatherInline: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  weatherIcon: { fontSize: 13 },
+  weatherTemp: { fontSize: 12, fontWeight: '700', color: COLORS.text },
 });
 
 export default RegionDetailScreen;

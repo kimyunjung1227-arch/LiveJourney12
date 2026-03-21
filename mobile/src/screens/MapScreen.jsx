@@ -31,7 +31,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { COLORS, SPACING, TYPOGRAPHY } from '../constants/styles';
 import { getCoordinatesByLocation } from '../utils/regionLocationMapping';
-import { getMapThumbnailUri } from '../utils/postMedia';
+import { getMapThumbnailUri, postHasVideoWithoutThumbnail } from '../utils/postMedia';
 
 const inferPostCoordinates = (post) => {
   if (post?.coordinates?.lat != null && post?.coordinates?.lng != null) {
@@ -378,6 +378,7 @@ const MapScreen = () => {
       id: post.id || index,
       title: post.placeName || post.detailedLocation || post.location || '여행지',
       image: getMapThumbnailUri(post) || post.image || '',
+      needsVideoPlaceholder: postHasVideoWithoutThumbnail(post),
       lat: post.coordinates?.lat,
       lng: post.coordinates?.lng,
       post: post
@@ -668,6 +669,7 @@ const MapScreen = () => {
       id: post.id || index,
       title: post.placeName || post.detailedLocation || post.location || '여행지',
       image: getMapThumbnailUri(post) || post.image || '',
+      needsVideoPlaceholder: postHasVideoWithoutThumbnail(post),
       lat: post.coordinates?.lat,
       lng: post.coordinates?.lng,
       post: post
@@ -1007,6 +1009,10 @@ const MapScreen = () => {
                         resizeMode="cover"
                       />
                     </View>
+                  ) : pin.needsVideoPlaceholder ? (
+                    <View style={[styles.customMarker, styles.markerVideoPlaceholder]}>
+                      <Ionicons name="videocam" size={22} color="#fff" />
+                    </View>
                   ) : (
                     <View style={styles.defaultMarker}>
                       <Ionicons name="location" size={24} color={COLORS.primary} />
@@ -1135,31 +1141,35 @@ const MapScreen = () => {
         </ScrollView>
       </View>
 
-      {/* 경로 모드 토글 버튼 */}
+      {/* 경로 모드: 취소 + 안내 / 일반: 경로 만들기 */}
       <View style={[
         styles.routeModeButtonContainer,
-        { bottom: isRouteMode ? (selectedRoutePins.length >= 2 ? 200 : 120) : (isSheetHidden ? 120 : sheetHeight + 16 + BOTTOM_TAB_HEIGHT) }
+        { bottom: isRouteMode ? (selectedRoutePins.length >= 2 ? 168 : 132) : (isSheetHidden ? 120 : sheetHeight + 16 + BOTTOM_TAB_HEIGHT) }
       ]}>
-        <TouchableOpacity
-          style={[
-            styles.routeModeButton,
-            isRouteMode && styles.routeModeButtonActive
-          ]}
-          onPress={toggleRouteMode}
-          activeOpacity={0.8}
-        >
-          <Ionicons 
-            name="map" 
-            size={20} 
-            color={isRouteMode ? COLORS.textWhite : COLORS.text} 
-          />
-          <Text style={[
-            styles.routeModeButtonText,
-            isRouteMode && styles.routeModeButtonTextActive
-          ]}>
-            {isRouteMode ? '경로 모드' : '경로 만들기'}
-          </Text>
-        </TouchableOpacity>
+        {isRouteMode ? (
+          <View style={styles.routeModeTopRow}>
+            <TouchableOpacity
+              style={styles.routeCancelButton}
+              onPress={() => toggleRouteMode()}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.routeCancelButtonText}>취소</Text>
+            </TouchableOpacity>
+            <View style={styles.routeModeStatusPill}>
+              <Ionicons name="map" size={18} color={COLORS.primary} />
+              <Text style={styles.routeModeStatusText}>경로 모드</Text>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.routeModeButton}
+            onPress={toggleRouteMode}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="map" size={20} color={COLORS.text} />
+            <Text style={styles.routeModeButtonText}>경로 만들기</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* 선택된 핀 개수 배지 (경로 모드일 때만 표시) */}
@@ -1178,46 +1188,37 @@ const MapScreen = () => {
         </View>
       )}
 
-      {/* 경로 관리 버튼들 (경로 모드일 때만 표시) */}
+      {/* 경로 모드 하단: 저장·공유 가운데 정렬 */}
       {isRouteMode && (
-        <View style={[
-          styles.routeControlsContainer,
-          { bottom: BOTTOM_TAB_HEIGHT + 16, right: 16, left: 'auto' }
-        ]}>
-          <View style={styles.routeControls}>
-            {selectedRoutePins.length > 0 && (
+        <View style={[styles.routeBottomActionBar, { bottom: BOTTOM_TAB_HEIGHT + 8 }]}>
+          {selectedRoutePins.length >= 2 ? (
+            <View style={styles.routeCenterActions}>
               <TouchableOpacity
-                style={styles.routeControlButton}
-                onPress={clearRoute}
-                activeOpacity={0.8}
+                style={[styles.routeBottomBtn, styles.routeBottomBtnPrimary]}
+                onPress={saveRoute}
+                activeOpacity={0.85}
               >
-                <Text style={styles.routeControlButtonText}>초기화</Text>
+                <Text style={styles.routeBottomBtnTextPrimary}>저장</Text>
               </TouchableOpacity>
-            )}
-            {selectedRoutePins.length >= 2 && (
-              <View style={styles.routeActionButtons}>
-                <TouchableOpacity
-                  style={[styles.routeControlButton, styles.routeControlButtonPrimary]}
-                  onPress={saveRoute}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.routeControlButtonText, styles.routeControlButtonTextPrimary]}>
-                    저장
-                  </Text>
+              <TouchableOpacity
+                style={[styles.routeBottomBtn, styles.routeBottomBtnSuccess]}
+                onPress={shareRoute}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="share" size={18} color="#fff" />
+                <Text style={styles.routeBottomBtnTextLight}>공유</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.routeBottomHintBlock}>
+              <Text style={styles.routeBottomHint}>지도에서 핀을 눌러 2곳 이상 선택하세요</Text>
+              {selectedRoutePins.length === 1 ? (
+                <TouchableOpacity onPress={clearRoute} style={styles.routeClearOneTap}>
+                  <Text style={styles.routeClearOneTapText}>선택 해제</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.routeControlButton, styles.routeControlButtonSuccess]}
-                  onPress={shareRoute}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="share" size={16} color={COLORS.textWhite} />
-                  <Text style={[styles.routeControlButtonText, styles.routeControlButtonTextSuccess]}>
-                    공유
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
+              ) : null}
+            </View>
+          )}
         </View>
       )}
 
@@ -1339,6 +1340,10 @@ const MapScreen = () => {
                       style={styles.pinCardImage}
                       resizeMode="cover"
                     />
+                  ) : pin.needsVideoPlaceholder ? (
+                    <View style={[styles.pinCardImage, styles.pinCardVideoPlaceholder]}>
+                      <Ionicons name="videocam" size={28} color="#fff" />
+                    </View>
                   ) : (
                     <View style={[styles.pinCardImage, styles.pinCardImagePlaceholder]}>
                       <Ionicons name="image-outline" size={24} color={COLORS.textSubtle} />
@@ -1870,6 +1875,11 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  markerVideoPlaceholder: {
+    backgroundColor: '#374151',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   defaultMarker: {
     width: 40,
     height: 40,
@@ -2112,6 +2122,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  pinCardVideoPlaceholder: {
+    backgroundColor: '#4b5563',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   pinCardInfo: {
     padding: 6,
     backgroundColor: 'white',
@@ -2271,11 +2286,53 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  // 경로 모드 버튼
+  // 경로 모드 UI
   routeModeButtonContainer: {
     position: 'absolute',
     left: 16,
     zIndex: 30,
+  },
+  routeModeTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  routeCancelButton: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 24,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  routeCancelButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  routeModeStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 24,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  routeModeStatusText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
   routeModeButton: {
     flexDirection: 'row',
@@ -2292,67 +2349,79 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
-  routeModeButtonActive: {
-    backgroundColor: COLORS.primary,
-  },
   routeModeButtonText: {
     fontSize: 14,
     fontWeight: '600',
     color: COLORS.text,
   },
-  routeModeButtonTextActive: {
-    color: COLORS.textWhite,
-  },
-  // 경로 관리 컨트롤
-  routeControlsContainer: {
+  routeBottomActionBar: {
     position: 'absolute',
-    right: 16,
+    left: 0,
+    right: 0,
     zIndex: 30,
+    alignItems: 'center',
+    paddingHorizontal: 24,
   },
-  routeControls: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 12,
+  routeCenterActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+  },
+  routeBottomBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 14,
+    minWidth: 120,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
-    elevation: 3,
-    gap: 8,
-    alignItems: 'flex-end',
+    elevation: 4,
   },
-  routeActionButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  routeControlButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#f5f5f5',
-    alignItems: 'center',
-    minWidth: 60,
-  },
-  routeControlButtonPrimary: {
+  routeBottomBtnPrimary: {
     backgroundColor: COLORS.primary,
   },
-  routeControlButtonSuccess: {
+  routeBottomBtnSuccess: {
     backgroundColor: '#4CAF50',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
   },
-  routeControlButtonText: {
+  routeBottomBtnTextPrimary: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  routeBottomBtnTextLight: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  routeBottomHintBlock: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  routeBottomHint: {
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.text,
+    color: '#64748b',
+    textAlign: 'center',
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
-  routeControlButtonTextPrimary: {
-    color: COLORS.textWhite,
+  routeClearOneTap: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
   },
-  routeControlButtonTextSuccess: {
-    color: COLORS.textWhite,
+  routeClearOneTapText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
   // 선택된 핀 개수 배지
   pinCountBadge: {

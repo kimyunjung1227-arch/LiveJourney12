@@ -6,10 +6,18 @@ import { useFeedVideo } from '../contexts/FeedVideoContext';
 import { COLORS } from '../constants/styles';
 
 /**
- * 메인 피드 가로 캐러셀 — 이미지·동영상 혼합, 앱 전체에서 동시에 1개 동영상만 재생(FeedVideoContext)
+ * 메인 피드 가로 캐러셀 — 이미지·동영상 혼합, 전역 1개 재생(FeedVideoContext)
+ * playPriority: 작을수록 우선 (지금 여기는 0, 핫플 1, 추천 2)
  */
-export default function MainHorizontalMedia({ width, height, mediaItems, instanceId, style }) {
-  const { activePlayerId, requestPlay, release } = useFeedVideo();
+export default function MainHorizontalMedia({
+  width,
+  height,
+  mediaItems,
+  instanceId,
+  style,
+  playPriority = 100,
+}) {
+  const { activePlayerId, playGeneration, requestPlay, release } = useFeedVideo();
   const [page, setPage] = useState(0);
   const list = useMemo(() => (Array.isArray(mediaItems) && mediaItems.length > 0 ? mediaItems : []), [mediaItems]);
   const lastVideoIdRef = useRef(null);
@@ -27,9 +35,9 @@ export default function MainHorizontalMedia({ width, height, mediaItems, instanc
     if (cur?.type === 'video') {
       const id = `${instanceId}-p${page}`;
       lastVideoIdRef.current = id;
-      requestPlay(id);
+      requestPlay(id, playPriority);
     }
-  }, [page, list, instanceId, requestPlay, release]);
+  }, [page, list, instanceId, playPriority, requestPlay, release, playGeneration]);
 
   useEffect(() => {
     return () => {
@@ -69,24 +77,38 @@ export default function MainHorizontalMedia({ width, height, mediaItems, instanc
         const shouldPlay = isVideo && activePlayerId === playerId;
 
         return (
-          <View key={`${playerId}-${item.uri}`} style={{ width, height, backgroundColor: '#111' }}>
+          <View key={`${playerId}-${item.uri}`} style={{ width, height, backgroundColor: '#1a1a1a' }}>
             {isVideo ? (
-              <Video
-                source={{ uri: item.uri }}
-                style={StyleSheet.absoluteFill}
-                resizeMode={ResizeMode.COVER}
-                isLooping
-                shouldPlay={shouldPlay}
-                isMuted
-                useNativeControls={false}
-              />
+              <>
+                {item.posterUri ? (
+                  <Image
+                    source={{ uri: item.posterUri }}
+                    style={[StyleSheet.absoluteFill, { opacity: shouldPlay ? 0 : 1 }]}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View
+                    style={[StyleSheet.absoluteFill, styles.videoPosterFallback, shouldPlay && styles.posterHidden]}
+                    pointerEvents="none"
+                  >
+                    <Ionicons name="videocam" size={36} color="rgba(255,255,255,0.85)" />
+                  </View>
+                )}
+                <Video
+                  source={{ uri: item.uri }}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode={ResizeMode.COVER}
+                  isLooping
+                  shouldPlay={shouldPlay}
+                  isMuted
+                  useNativeControls={false}
+                />
+                <View style={styles.videoHint} pointerEvents="none">
+                  <Ionicons name="videocam" size={14} color="#fff" />
+                </View>
+              </>
             ) : (
               <Image source={{ uri: item.uri }} style={{ width, height }} resizeMode="cover" />
-            )}
-            {isVideo && (
-              <View style={styles.videoHint} pointerEvents="none">
-                <Ionicons name="videocam" size={14} color="#fff" />
-              </View>
             )}
           </View>
         );
@@ -103,6 +125,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   placeholderText: { fontSize: 12, color: COLORS.textSubtle, fontWeight: '600' },
+  videoPosterFallback: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#2d2d2d',
+  },
+  posterHidden: {
+    opacity: 0,
+  },
   videoHint: {
     position: 'absolute',
     top: 8,

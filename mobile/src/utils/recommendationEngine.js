@@ -1,8 +1,7 @@
 import { filterRecentPosts } from './timeUtils';
+import { buildMediaItemsFromPost } from './postMedia';
 
-const isVideoUri = (u) => typeof u === 'string' && /\.(mp4|mov|m4v|webm)(\?|$)/i.test(u);
-
-/** 추천 여행지 카드용: 해당 지역 게시물의 사진·동영상 피드 */
+/** 추천 여행지 카드용: 해당 지역 게시물의 사진·동영상 피드(posterUri 포함) */
 export const buildRegionMediaFeedItems = (posts, regionName, maxItems = 10) => {
     if (!regionName || !Array.isArray(posts)) return [];
     const match = (post) => {
@@ -21,25 +20,16 @@ export const buildRegionMediaFeedItems = (posts, regionName, maxItems = 10) => {
         .sort((a, b) => (b.timestamp || b.createdAt || 0) - (a.timestamp || a.createdAt || 0));
     const out = [];
     const seen = new Set();
-    const add = (type, uri) => {
-        if (!uri || seen.has(uri)) return;
-        seen.add(uri);
-        out.push({ type, uri });
-    };
     for (const p of regionPosts) {
-        for (const u of p.images || []) {
-            if (u) add(isVideoUri(u) ? 'video' : 'image', u);
+        for (const m of buildMediaItemsFromPost(p)) {
+            const key = `${m.type}:${m.uri}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            out.push(m);
+            if (out.length >= maxItems) return out;
         }
-        for (const u of p.videos || []) {
-            if (u) add('video', u);
-        }
-        if (!(p.images || []).length && !(p.videos || []).length) {
-            const f = p.image || p.thumbnail;
-            if (f) add(isVideoUri(f) ? 'video' : 'image', f);
-        }
-        if (out.length >= maxItems) break;
     }
-    return out.slice(0, maxItems);
+    return out;
 };
 
 const calculateRegionStats = (posts, regionName) => {

@@ -5,36 +5,69 @@ export const isVideoUri = (uri) => {
 };
 
 /**
- * 게시물에서 카드/캐러셀용 미디어 슬롯 (이미지·동영상 순서 유지, 중복 제거)
+ * 게시물에서 카드/캐러셀용 미디어 슬롯 (이미지·동영상 순서 유지, 동영상은 posterUri에 직전 정지 이미지·썸네일)
  * @param {object} post
- * @returns {{ type: 'image'|'video', uri: string }[]}
+ * @returns {{ type: 'image'|'video', uri: string, posterUri?: string }[]}
  */
 export const buildMediaItemsFromPost = (post) => {
   if (!post) return [];
   const items = [];
   const seen = new Set();
-  const push = (type, uri) => {
-    if (!uri || seen.has(uri)) return;
-    seen.add(uri);
-    items.push({ type, uri });
+  let lastImageUri = null;
+
+  const markSeen = (prefix, uri) => {
+    const k = `${prefix}:${uri}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  };
+
+  const pushImage = (uri) => {
+    if (!uri || isVideoUri(uri) || !markSeen('i', uri)) return;
+    lastImageUri = uri;
+    items.push({ type: 'image', uri });
+  };
+
+  const pushVideo = (uri) => {
+    if (!uri || !isVideoUri(uri) || !markSeen('v', uri)) return;
+    const thumb = post.thumbnail && !isVideoUri(post.thumbnail) ? post.thumbnail : null;
+    const posterUri = lastImageUri || thumb || undefined;
+    items.push({ type: 'video', uri, posterUri });
   };
 
   for (const u of post.images || []) {
-    if (u) push(isVideoUri(u) ? 'video' : 'image', u);
+    if (!u) continue;
+    if (isVideoUri(u)) pushVideo(u);
+    else pushImage(u);
   }
   for (const u of post.videos || []) {
-    if (u) push('video', u);
+    if (u) pushVideo(u);
   }
 
   const fallback = post.image || post.thumbnail || post.imageUrl;
-  if (fallback) push(isVideoUri(fallback) ? 'video' : 'image', fallback);
+  if (fallback) {
+    if (isVideoUri(fallback)) pushVideo(fallback);
+    else pushImage(fallback);
+  }
 
   return items;
 };
 
-/** 지도 핀·썸네일: 가능하면 사진 URL만 (동영상 URL은 Image가 실패할 수 있음) */
+/** 지도 핀·썸네일: 정지 이미지 우선, 동영상만 있으면 posterUri·업로드 썸네일 */
 export const getMapThumbnailUri = (post) => {
   const items = buildMediaItemsFromPost(post);
   const img = items.find((m) => m.type === 'image');
-  return img?.uri || '';
+  if (img) return img.uri;
+  const vidWithPoster = items.find((m) => m.type === 'video' && m.posterUri);
+  if (vidWithPoster?.posterUri) return vidWithPoster.posterUri;
+  const t = post.thumbnail;
+  if (t && typeof t === 'string' && !isVideoUri(t)) return t;
+  return '';
+};
+
+/** 썸네일 없이 동영상만 있는지 (플레이스홀더 표시용) */
+export const postHasVideoWithoutThumbnail = (post) => {
+  const items = buildMediaItemsFromPost(post);
+  const hasVideo = items.some((m) => m.type === 'video');
+  return hasVideo && !getMapThumbnailUri(post);
 };
