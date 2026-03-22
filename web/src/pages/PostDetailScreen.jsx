@@ -1358,13 +1358,13 @@ const PostDetailScreen = () => {
               <button
                 type="button"
                 onClick={() => setIsVideoMuted((prev) => !prev)}
-                className="absolute right-3 bottom-4 z-20 flex items-center gap-1.5 px-3 py-2 rounded-full bg-black/55 text-white text-[13px] font-bold backdrop-blur-sm shadow-sm"
+                className="absolute right-3 bottom-4 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm shadow-sm"
+                title={isVideoMuted ? '소리 켜기' : '소리 끄기'}
                 aria-label={isVideoMuted ? '소리 켜기' : '소리 끄기'}
               >
-                <span className="material-symbols-outlined text-[18px] leading-none">
+                <span className="material-symbols-outlined text-[24px] leading-none">
                   {isVideoMuted ? 'volume_off' : 'volume_up'}
                 </span>
-                {isVideoMuted ? '소리 켜기' : '소리 끄기'}
               </button>
             )}
           </div>
@@ -1412,51 +1412,73 @@ const PostDetailScreen = () => {
                 </div>
               </div>
 
-              {/* 촬영 시각 + 날씨 — 회색 메타 바 (모바일 weatherMetaBar 대응) */}
-              <div className="flex items-center justify-between flex-wrap gap-2 py-2.5 px-3 mb-2 rounded-[10px] border border-slate-300/40 bg-slate-100/95 dark:bg-slate-800/90 dark:border-slate-600/45">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="material-symbols-outlined text-[17px] text-slate-600 dark:text-slate-400 shrink-0">schedule</span>
+            {/* 촬영·날씨 + 설명 — 한 정보 구역(구분선으로 붙임) / 수정 모드는 메타만 분리 */}
+            {!isEditingPost ? (
+              <div className="mb-3 rounded-[10px] border border-slate-300/40 bg-slate-100/95 px-3 py-2.5 dark:border-slate-600/45 dark:bg-slate-800/90">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="material-symbols-outlined shrink-0 text-[17px] text-slate-600 dark:text-slate-400">schedule</span>
+                    <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-200">
+                      {captureLabel || post?.time || (post?.createdAt ? getTimeAgo(post.createdAt) : '방금 전')}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    {weatherInfo.loading ? (
+                      <>
+                        <span className="material-symbols-outlined text-[17px] text-slate-600 dark:text-slate-400">wb_sunny</span>
+                        <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-200">로딩중...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-[15px] leading-none">{weatherInfo.icon}</span>
+                        <span className="text-[13px] font-bold text-slate-900 dark:text-slate-100">
+                          {weatherInfo.temperature
+                            ? `${weatherInfo.condition}, ${weatherInfo.temperature}`
+                            : weatherInfo.condition}
+                          {post?.weather ? (
+                            <span className="text-xs font-normal text-slate-500 dark:text-slate-400"> (업로드 당시)</span>
+                          ) : null}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-2 flex gap-2 border-t border-slate-300/35 pt-2 dark:border-slate-600/50">
+                  <span className="material-symbols-outlined mt-0.5 shrink-0 text-2xl text-gray-500 dark:text-gray-400">edit_note</span>
+                  <div className="min-w-0 flex-1">
+                    {(post?.note || post?.content) ? (
+                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                        {post.note || post.content}
+                      </p>
+                    ) : (
+                      <p className="text-sm italic text-gray-400 dark:text-gray-500">작성자가 남긴 노트가 없습니다</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[10px] border border-slate-300/40 bg-slate-100/95 px-3 py-2.5 dark:border-slate-600/45 dark:bg-slate-800/90">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <span className="material-symbols-outlined shrink-0 text-[17px] text-slate-600 dark:text-slate-400">schedule</span>
                   <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-200">
                     {captureLabel || post?.time || (post?.createdAt ? getTimeAgo(post.createdAt) : '방금 전')}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                <div className="flex flex-wrap items-center justify-end gap-1.5">
                   {weatherInfo.loading ? (
-                    <>
-                      <span className="material-symbols-outlined text-[17px] text-slate-600 dark:text-slate-400">wb_sunny</span>
-                      <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-200">로딩중...</span>
-                    </>
+                    <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-200">날씨 로딩…</span>
                   ) : (
                     <>
                       <span className="text-[15px] leading-none">{weatherInfo.icon}</span>
                       <span className="text-[13px] font-bold text-slate-900 dark:text-slate-100">
-                        {weatherInfo.temperature
-                          ? `${weatherInfo.condition}, ${weatherInfo.temperature}`
-                          : weatherInfo.condition}
-                        {post?.weather ? (
-                          <span className="text-xs font-normal text-slate-500 dark:text-slate-400"> (업로드 당시)</span>
-                        ) : null}
+                        {weatherInfo.temperature ? `${weatherInfo.condition}, ${weatherInfo.temperature}` : weatherInfo.condition}
                       </span>
                     </>
                   )}
                 </div>
               </div>
+            )}
 
-              {fromMap && allPins && mapState && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (post?.id) recordConversion(post.id, CONVERSION_TYPES.MAP);
-                    navigate('/map', { state: { mapState, selectedPinId } });
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 mb-3 w-full sm:w-auto bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-sm font-semibold"
-                >
-                  <span className="material-symbols-outlined text-lg">map</span>
-                  <span>지도에서 주변 보기</span>
-                </button>
-              )}
-
-            {/* 📝 작성자 노트 (또는 수정 폼) */}
             {isEditingPost ? (
               <div className="flex flex-col gap-3 mb-3 p-3 bg-gray-50 dark:bg-gray-800/80 rounded-xl border border-gray-200 dark:border-gray-600">
                 <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">위치</label>
@@ -1511,22 +1533,21 @@ const PostDetailScreen = () => {
                   <button type="button" onClick={handleCancelEditPost} className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300">취소</button>
                 </div>
               </div>
-            ) : (
-              <div className="flex items-start gap-3 mt-0.5 mb-3">
-                <span className="material-symbols-outlined text-gray-500 dark:text-gray-400 text-2xl flex-shrink-0">edit_note</span>
-                <div className="flex-1">
-                  {(post?.note || post?.content) ? (
-                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
-                      {post.note || post.content}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-gray-400 dark:text-gray-500 italic">
-                      작성자가 남긴 노트가 없습니다
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
+            ) : null}
+
+              {fromMap && allPins && mapState && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (post?.id) recordConversion(post.id, CONVERSION_TYPES.MAP);
+                    navigate('/map', { state: { mapState, selectedPinId } });
+                  }}
+                  className="mb-3 flex w-full items-center gap-2 rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 sm:w-auto"
+                >
+                  <span className="material-symbols-outlined text-lg">map</span>
+                  <span>지도에서 주변 보기</span>
+                </button>
+              )}
 
               {/* 🏷️ 해시태그 */}
               <div className="flex items-start gap-3">

@@ -9,6 +9,14 @@ import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getWeatherByRegion } from '../api/weather';
+import { getGridCoverDisplay } from '../utils/postMedia';
+import {
+  feedGridImageBox,
+  feedGridInfoBox,
+  feedGridTitleStyle,
+  feedGridDescStyle,
+  feedGridMetaRow,
+} from '../utils/feedGridCardStyles';
 
 const RealtimeFeedScreen = () => {
   const navigate = useNavigate();
@@ -37,17 +45,14 @@ const RealtimeFeedScreen = () => {
       });
       setCurrentUserCount(uniqueUserIds.size);
 
-      const formattedWithRaw = posts.map(post => {
-        const firstImage = post.images?.[0] || post.image || post.thumbnail || '';
-        const firstVideo = post.videos?.[0] || '';
+      const formattedWithRaw = posts.map((post) => {
         const likesNum = Number(post.likes ?? post.likeCount ?? 0) || 0;
         const commentsArr = Array.isArray(post.comments) ? post.comments : [];
+        const gridCover = getGridCoverDisplay(post, getDisplayImageUrl);
         return {
           ...post,
           id: post.id,
-          image: getDisplayImageUrl(firstImage || firstVideo || ''),
-          thumbnailIsVideo: !firstImage && !!firstVideo,
-          firstVideoUrl: firstVideo ? getDisplayImageUrl(firstVideo) : null,
+          gridCover,
           location: post.location,
           time: post.timeLabel || getTimeAgo(post.timestamp || post.createdAt || post.time),
           content: post.note || post.content || `${post.location}의 모습`,
@@ -256,20 +261,19 @@ const RealtimeFeedScreen = () => {
                     flexDirection: 'column'
                   }}
                 >
-                  {/* 이미지: 정사각형, 라운드로 분리 */}
-                  <div style={{ width: '100%', paddingBottom: '125%', height: 0, position: 'relative', background: '#e5e7eb', borderRadius: '14px', overflow: 'hidden', marginBottom: '4px' }}>
-                    {post.thumbnailIsVideo && post.firstVideoUrl ? (
+                  <div style={feedGridImageBox}>
+                    {post.gridCover?.mode === 'img' && post.gridCover.src ? (
+                      <img
+                        src={post.gridCover.src}
+                        alt={post.location}
+                        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '14px' }}
+                      />
+                    ) : post.gridCover?.mode === 'video' && post.gridCover.src ? (
                       <video
-                        src={post.firstVideoUrl}
+                        src={post.gridCover.src}
                         muted
                         playsInline
                         preload="metadata"
-                        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '14px' }}
-                      />
-                    ) : post.image ? (
-                      <img
-                        src={post.image}
-                        alt={post.location}
                         style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '14px' }}
                       />
                     ) : (
@@ -285,17 +289,16 @@ const RealtimeFeedScreen = () => {
                     </div>
                   </div>
 
-                  {/* 하단: 제목·설명·업로드 시각만 (좋아요/댓글은 이미지 위 pill로만 표시) */}
-                  <div style={{ padding: '6px 14px 10px', minHeight: '92px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  <div style={feedGridInfoBox}>
+                    <div style={feedGridTitleStyle}>
                       {post.location || '어딘가의 지금'}
                     </div>
                     {(post.content || post.note) && (
-                      <div style={{ fontSize: '12px', color: '#4b5563', marginTop: '4px', lineHeight: 1.4, height: '2.8em', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                      <div style={feedGridDescStyle}>
                         {post.content || post.note}
                       </div>
                     )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', flexShrink: 0, fontSize: '11px', color: '#6b7280' }}>
+                    <div style={feedGridMetaRow}>
                       <span>{post.time}</span>
                       {hasWeather && (weather.icon || weather.temperature) && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>

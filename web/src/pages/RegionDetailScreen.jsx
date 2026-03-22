@@ -11,6 +11,14 @@ import { getDisplayImageUrl } from '../api/upload';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getRegionDefaultImage } from '../utils/regionDefaultImages';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
+import { getGridCoverDisplay } from '../utils/postMedia';
+import {
+  feedGridImageBox,
+  feedGridInfoBox,
+  feedGridTitleStyle,
+  feedGridDescStyle,
+  feedGridMetaRow,
+} from '../utils/feedGridCardStyles';
 
 const RegionDetailScreen = () => {
   const navigate = useNavigate();
@@ -466,8 +474,8 @@ const RegionDetailScreen = () => {
                     style={{
                       display: 'grid',
                       gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                      rowGap: '6px',
-                      columnGap: '6px'
+                      rowGap: '7px',
+                      columnGap: '7px'
                     }}
                   >
                     {realtimePhotos.map((photo) => {
@@ -476,6 +484,7 @@ const RegionDetailScreen = () => {
                       const likedPosts = JSON.parse(localStorage.getItem('likedPosts') || '{}');
                       const isLiked = likedPosts[photo.id] || false;
                       const likeCount = photo.likes || photo.likeCount || 0;
+                      const gridCover = getGridCoverDisplay(photo, getDisplayImageUrl);
 
                       return (
                         <div
@@ -497,120 +506,68 @@ const RegionDetailScreen = () => {
                             flexDirection: 'column'
                           }}
                         >
-                          {/* 이미지: 정사각형, 지금 여기는 더보기와 동일 구조 */}
-                          <div style={{ width: '100%', paddingBottom: '125%', height: 0, position: 'relative', background: '#e5e7eb', borderRadius: '12px', overflow: 'hidden', marginBottom: '3px' }}>
-                            {photo.videos && photo.videos.length > 0 ? (
+                          <div style={feedGridImageBox}>
+                            {gridCover.mode === 'img' && gridCover.src ? (
+                              <img
+                                src={gridCover.src}
+                                alt={photo.location || region.name}
+                                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '14px' }}
+                              />
+                            ) : gridCover.mode === 'video' && gridCover.src ? (
                               <video
-                                src={getDisplayImageUrl(photo.videos[0])}
-                                className="w-full h-full object-cover"
-                                style={{ position: 'absolute', top: 0, left: 0, borderRadius: '12px' }}
-                                autoPlay
-                                loop
+                                src={gridCover.src}
                                 muted
                                 playsInline
+                                preload="metadata"
+                                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '14px' }}
                               />
                             ) : (
-                              <>
-                                {photo.image ? (
-                                  <img
-                                    src={getDisplayImageUrl(photo.image)}
-                                    alt={photo.location || region.name}
-                                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '12px' }}
-                                  />
-                                ) : (
-                                  <div
-                                    style={{
-                                      position: 'absolute',
-                                      top: 0,
-                                      left: 0,
-                                      width: '100%',
-                                      height: '100%',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      color: '#cbd5e1',
-                                      borderRadius: '14px'
-                                    }}
-                                  >
-                                    <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>image</span>
-                                  </div>
-                                )}
-                              </>
-                            )}
-                            <div
-                              style={{
-                                position: 'absolute',
-                                bottom: '3px',
-                                right: '3px',
-                                background: 'rgba(255,255,255,0.9)',
-                                padding: '2px 5px',
-                                borderRadius: '999px',
-                                fontSize: '10px',
-                                fontWeight: 600,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                color: '#1f2937'
-                              }}
-                            >
-                              <span className={`material-symbols-outlined text-[15px] ${isLiked ? 'text-red-500' : 'text-gray-600'}`}>
-                                favorite
-                              </span>
-                              <span>{likeCount}</span>
-                            </div>
-                          </div>
-
-                          {/* 하단 정보 영역: "지금 여기는" 더보기와 동일 구조 */}
-                          <div
-                            style={{
-                              padding: '5px 10px 8px',
-                              minHeight: '82px',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              overflow: 'hidden'
-                            }}
-                          >
-                            <div
-                              style={{
-                                fontSize: '12px',
-                                fontWeight: 700,
-                                color: '#111827',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                                flexShrink: 0
-                              }}
-                            >
-                              📍 {photo.detailedLocation || photo.placeName || photo.location || region.name}
-                            </div>
-                            {(photo.note || photo.content) && (
                               <div
                                 style={{
-                                  fontSize: '12px',
-                                  color: '#4b5563',
-                                  marginTop: '4px',
-                                  lineHeight: 1.4,
-                                  height: '2.8em',
-                                  overflow: 'hidden',
-                                  display: '-webkit-box',
-                                  WebkitLineClamp: 2,
-                                  WebkitBoxOrient: 'vertical'
+                                  position: 'absolute',
+                                  top: 0,
+                                  left: 0,
+                                  width: '100%',
+                                  height: '100%',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#cbd5e1',
+                                  borderRadius: '14px'
                                 }}
                               >
-                                {photo.note || photo.content}
+                                <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>image</span>
                               </div>
                             )}
                             <div
                               style={{
+                                position: 'absolute',
+                                bottom: '8px',
+                                right: '8px',
                                 display: 'flex',
-                                justifyContent: 'space-between',
                                 alignItems: 'center',
-                                marginTop: '3px',
-                                flexShrink: 0,
-                                fontSize: '10px',
-                                color: '#6b7280'
+                                justifyContent: 'center'
                               }}
                             >
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.96)', color: '#111827', padding: '4px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600, boxShadow: '0 2px 6px rgba(15,23,42,0.18)' }}>
+                                <span className={`material-symbols-outlined text-[16px] ${isLiked ? 'text-red-500' : 'text-gray-600'}`} style={isLiked ? { fontVariationSettings: "'FILL' 1" } : {}}>
+                                  favorite
+                                </span>
+                                <span>{likeCount}</span>
+                              </span>
+                            </div>
+                          </div>
+
+                          <div style={feedGridInfoBox}>
+                            <div style={feedGridTitleStyle}>
+                              {photo.detailedLocation || photo.placeName || photo.location || region.name}
+                            </div>
+                            {(photo.note || photo.content) && (
+                              <div style={feedGridDescStyle}>
+                                {photo.note || photo.content}
+                              </div>
+                            )}
+                            <div style={feedGridMetaRow}>
                               <span>{photo.time}</span>
                               {hasWeather && (
                                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>

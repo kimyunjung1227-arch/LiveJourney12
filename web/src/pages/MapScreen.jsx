@@ -9,6 +9,8 @@ import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { logger } from '../utils/logger';
+import { getMapThumbnailUri } from '../utils/postMedia';
+import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 
 // HTML 속성에 넣을 URL/텍스트 이스케이프 (핀 img src가 깨지지 않도록)
 const escapeHtmlAttr = (value) => {
@@ -20,24 +22,11 @@ const escapeHtmlAttr = (value) => {
     .replace(/>/g, '&gt;');
 };
 
-const isVideoUrl = (u) => typeof u === 'string' && /\.(mp4|mov|m4v|webm)(\?|$)/i.test(u);
-
-/** 게시물에서 지도 핀/썸네일에 쓸 이미지 URL (동영상 URL 제외 — img 태그 호환) */
+/** 지도 핀: 정지 썸네일 우선(동영상 선행 시 poster·업로드 썸네일) */
 const getPostPinImageUrl = (post) => {
-  if (!post) return '';
-  const candidates = [];
-  if (Array.isArray(post.images)) candidates.push(...post.images);
-  if (post.thumbnail) candidates.push(post.thumbnail);
-  if (post.image) candidates.push(post.image);
-  if (post.imageUrl) candidates.push(post.imageUrl);
-  const normalized = candidates
-    .map((u) => (typeof u === 'string' ? u : (u?.url ?? u?.src ?? '')))
-    .filter(Boolean);
-  const firstImage = normalized.find((u) => !isVideoUrl(u));
-  const raw = firstImage ?? normalized[0] ?? '';
-  return getDisplayImageUrl(typeof raw === 'string' ? raw : (raw?.url ?? raw?.src ?? ''));
+  const raw = getMapThumbnailUri(post);
+  return raw ? getDisplayImageUrl(raw) : '';
 };
-import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 
 // 완성된 단어 → 추천 타입 매핑 (지도 검색 시 단어 기반 추천)
 const KEYWORD_TO_RECOMMENDATION_TYPE = {
@@ -2345,7 +2334,7 @@ const MapScreen = () => {
         location: pin.post.location || pin.post.detailedLocation || '여행지',
         lat: pin.lat,
         lng: pin.lng,
-        image: getDisplayImageUrl(pin.post.images?.[0] || pin.post.imageUrl || pin.post.image || pin.post.thumbnail)
+        image: getPostPinImageUrl(pin.post)
       })),
       createdAt: new Date().toISOString()
     };
@@ -3535,9 +3524,9 @@ const MapScreen = () => {
                       e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
                     }}
                   >
-                    {(pin.image || pin.post?.images?.[0] || pin.post?.thumbnail) && (
+                    {(pin.image || getPostPinImageUrl(pin.post)) && (
                       <img
-                        src={pin.image || getDisplayImageUrl(pin.post?.images?.[0] ?? pin.post?.thumbnail ?? pin.post?.image ?? pin.post?.imageUrl)}
+                        src={pin.image || getPostPinImageUrl(pin.post)}
                         alt={pin.title}
                         style={{
                           width: '100%',
@@ -3609,7 +3598,7 @@ const MapScreen = () => {
           >
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 12 }}>
               <img
-                src={getDisplayImageUrl(pinDetailView.post.images?.[0] ?? pinDetailView.post.thumbnail ?? pinDetailView.post.image ?? pinDetailView.post.imageUrl)}
+                src={getPostPinImageUrl(pinDetailView.post)}
                 alt=""
                 style={{ width: 72, height: 72, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }}
                 onError={(e) => { e.target.style.display = 'none'; }}
@@ -3743,7 +3732,7 @@ const MapScreen = () => {
                 background: '#f5f5f5'
               }}>
                 <img
-                  src={getDisplayImageUrl(selectedPost.post.images?.[0] ?? selectedPost.post.thumbnail ?? selectedPost.post.image ?? selectedPost.post.imageUrl)}
+                  src={getPostPinImageUrl(selectedPost.post)}
                   alt={selectedPost.post.location || '여행지'}
                   style={{
                     width: '100%',
