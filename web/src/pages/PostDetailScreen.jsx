@@ -1049,19 +1049,6 @@ const PostDetailScreen = () => {
     return `${month}/${day} ${hours}:${minutes} 촬영`;
   }, [photoDate, post]);
   const categoryName = useMemo(() => post?.categoryName || null, [post]);
-  /** 제목 우측 부제 (참고 UI: "구 / 카테고리") */
-  const headerSubtitle = useMemo(() => {
-    if (!post) return '';
-    const bits = [];
-    if (post.region) bits.push(post.region);
-    else {
-      const loc = String(locationText || '').trim();
-      const first = loc.split(/\s+/)[0];
-      if (first && first !== '여행지') bits.push(first);
-    }
-    if (categoryName) bits.push(categoryName);
-    return bits.join(' / ');
-  }, [post, locationText, categoryName]);
   // EXIF에서 검증된 위치 정보
   const verifiedLocation = useMemo(() => post?.verifiedLocation || post?.exifData?.gpsCoordinates ? locationText : null, [post, locationText]);
   const hasExifData = useMemo(() => !!(post?.exifData || post?.photoDate || post?.verifiedLocation), [post]);
@@ -1215,7 +1202,7 @@ const PostDetailScreen = () => {
 
         <div className="flex w-full bg-transparent dark:bg-transparent" style={{ marginTop: 0 }}>
           <div
-            className="image-swipe-area relative flex w-full gap-1 overflow-hidden rounded-b-2xl bg-white shadow-md dark:bg-gray-900"
+            className="image-swipe-area relative flex w-full gap-1 overflow-hidden bg-white shadow-md dark:bg-gray-900"
             style={{ height: '60vh', minHeight: '330px', marginTop: '-64px' }}
           >
             {/* 프로필 - 사진 위 오버레이 */}
@@ -1380,11 +1367,11 @@ const PostDetailScreen = () => {
               <button
                 type="button"
                 onClick={() => setIsVideoMuted((prev) => !prev)}
-                className="absolute right-3 bottom-4 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm shadow-sm"
+                className="absolute bottom-4 right-3 z-20 flex h-10 items-center justify-center rounded-full bg-black/50 px-3.5 text-white shadow-md backdrop-blur-sm"
                 title={isVideoMuted ? '소리 켜기' : '소리 끄기'}
                 aria-label={isVideoMuted ? '소리 켜기' : '소리 끄기'}
               >
-                <span className="material-symbols-outlined text-[24px] leading-none">
+                <span className="material-symbols-outlined text-[22px] leading-none">
                   {isVideoMuted ? 'volume_off' : 'volume_up'}
                 </span>
               </button>
@@ -1393,112 +1380,111 @@ const PostDetailScreen = () => {
         </div>
 
         <main className="flex flex-col bg-white dark:bg-gray-900" style={{ minHeight: 'auto' }}>
-          <div className="px-4 pt-4 pb-3">
-            {/* 정보 구역: 테두리 카드 없이 참고 UI(제목↔부제, 메타, 본문) */}
-            <div className="flex items-start justify-between gap-3">
-                <h2 className="min-w-0 flex-1 text-xl font-bold leading-snug text-zinc-900 dark:text-zinc-50">
-                  {verifiedLocation || detailedLocationText || locationText}
-                </h2>
-                <div className="flex shrink-0 flex-col items-end gap-1.5">
-                  {headerSubtitle ? (
-                    <span className="max-w-[10rem] text-right text-xs font-normal leading-tight text-gray-500 dark:text-gray-400">
-                      {headerSubtitle}
+          <div className="px-4 pt-3 pb-3">
+            {/* 정보 구역 — 앱 상세와 동일: 아이콘 열 + 위치/시간·날씨/설명/태그 */}
+            <div className="space-y-1">
+              <div className="flex items-start gap-3">
+                <span className="material-symbols-outlined mt-0.5 w-7 shrink-0 text-center text-2xl text-gray-500 dark:text-gray-400" aria-hidden="true">location_on</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-base font-bold text-zinc-900 dark:text-zinc-100">
+                      {verifiedLocation || detailedLocationText || locationText}
+                    </p>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {categoryName && (
+                        <span
+                          title={categoryName}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-lg dark:bg-gray-800"
+                          aria-label={categoryName}
+                        >
+                          {categoryName.includes('개화') && '🌸'}
+                          {categoryName.includes('맛집') && '🍜'}
+                          {categoryName.includes('야경') && '🌙'}
+                          {categoryName.includes('시즌') && '🍂'}
+                          {!categoryName.includes('개화') && !categoryName.includes('맛집') && !categoryName.includes('야경') && !categoryName.includes('시즌') && '🏞️'}
+                        </span>
+                      )}
+                      {infoThumbUrl && (
+                        <img
+                          src={infoThumbUrl}
+                          alt=""
+                          className="h-10 w-10 rounded border border-gray-200 object-cover dark:border-gray-600"
+                        />
+                      )}
+                      {isPostAuthor && !isEditingPost && (
+                        <button
+                          type="button"
+                          onClick={handleStartEditPost}
+                          className="text-xs text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                        >
+                          수정
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {addressText && (
+                    <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">{addressText}</p>
+                  )}
+                </div>
+              </div>
+
+              {!isEditingPost ? (
+                <div className="flex items-start gap-3 pt-0.5">
+                  <span className="material-symbols-outlined mt-0.5 w-7 shrink-0 text-center text-xl text-gray-500 dark:text-gray-400">schedule</span>
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5 text-sm">
+                    <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                      {captureLabel || post?.time || (post?.createdAt ? getTimeAgo(post.createdAt) : '방금 전')}
                     </span>
-                  ) : null}
-                  <div className="flex items-center gap-2">
-                    {categoryName && (
-                      <span
-                        title={categoryName}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-base dark:bg-gray-800"
-                        aria-label={categoryName}
-                      >
-                        {categoryName.includes('개화') && '🌸'}
-                        {categoryName.includes('맛집') && '🍜'}
-                        {categoryName.includes('야경') && '🌙'}
-                        {categoryName.includes('시즌') && '🍂'}
-                        {!categoryName.includes('개화') && !categoryName.includes('맛집') && !categoryName.includes('야경') && !categoryName.includes('시즌') && '🏞️'}
+                    {weatherInfo.loading ? (
+                      <span className="text-zinc-500">날씨 로딩…</span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-zinc-700 dark:text-zinc-300">
+                        <span className="text-base leading-none">{weatherInfo.icon}</span>
+                        <span className="font-medium">
+                          {weatherInfo.temperature
+                            ? `${weatherInfo.condition}, ${weatherInfo.temperature}`
+                            : weatherInfo.condition}
+                          {post?.weather ? (
+                            <span className="ml-1 text-xs font-normal text-zinc-500">(업로드 당시)</span>
+                          ) : null}
+                        </span>
                       </span>
-                    )}
-                    {infoThumbUrl && (
-                      <img
-                        src={infoThumbUrl}
-                        alt=""
-                        className="h-9 w-9 rounded-md object-cover ring-1 ring-black/5 dark:ring-white/10"
-                      />
-                    )}
-                    {isPostAuthor && !isEditingPost && (
-                      <button
-                        type="button"
-                        onClick={handleStartEditPost}
-                        className="text-xs text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-                      >
-                        수정
-                      </button>
                     )}
                   </div>
                 </div>
-              </div>
-              {addressText && (
-                <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">{addressText}</p>
-              )}
-
-              {/* 촬영·날씨 (별점 자리에 해당하는 보조 정보 한 줄) */}
-              {!isEditingPost ? (
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  <span className="text-gray-600 dark:text-gray-300">
-                    {captureLabel || post?.time || (post?.createdAt ? getTimeAgo(post.createdAt) : '방금 전')}
-                  </span>
-                  {weatherInfo.loading ? (
-                    <>
-                      <span className="mx-1.5 text-gray-300 dark:text-gray-600">·</span>
-                      <span>날씨 로딩…</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="mx-1.5 text-gray-300 dark:text-gray-600">·</span>
-                      <span className="mr-1">{weatherInfo.icon}</span>
-                      <span className="font-medium text-gray-700 dark:text-gray-300">
-                        {weatherInfo.temperature
-                          ? `${weatherInfo.condition}, ${weatherInfo.temperature}`
-                          : weatherInfo.condition}
-                        {post?.weather ? (
-                          <span className="ml-1 text-xs font-normal text-gray-400">(업로드 당시)</span>
-                        ) : null}
-                      </span>
-                    </>
-                  )}
-                </p>
               ) : (
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  <span className="text-gray-600 dark:text-gray-300">
-                    {captureLabel || post?.time || (post?.createdAt ? getTimeAgo(post.createdAt) : '방금 전')}
-                  </span>
-                  {weatherInfo.loading ? (
-                    <>
-                      <span className="mx-1.5 text-gray-300 dark:text-gray-600">·</span>
-                      <span>날씨 로딩…</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="mx-1.5 text-gray-300 dark:text-gray-600">·</span>
-                      <span className="mr-1">{weatherInfo.icon}</span>
-                      <span className="font-medium text-gray-700 dark:text-gray-300">
-                        {weatherInfo.temperature ? `${weatherInfo.condition}, ${weatherInfo.temperature}` : weatherInfo.condition}
+                <div className="flex items-start gap-3 pt-0.5">
+                  <span className="material-symbols-outlined mt-0.5 w-7 shrink-0 text-center text-xl text-gray-500 dark:text-gray-400">schedule</span>
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5 text-sm">
+                    <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                      {captureLabel || post?.time || (post?.createdAt ? getTimeAgo(post.createdAt) : '방금 전')}
+                    </span>
+                    {weatherInfo.loading ? (
+                      <span className="text-zinc-500">날씨 로딩…</span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-zinc-700 dark:text-zinc-300">
+                        <span className="text-base leading-none">{weatherInfo.icon}</span>
+                        <span className="font-medium">
+                          {weatherInfo.temperature ? `${weatherInfo.condition}, ${weatherInfo.temperature}` : weatherInfo.condition}
+                        </span>
                       </span>
-                    </>
-                  )}
-                </p>
+                    )}
+                  </div>
+                </div>
               )}
 
               {!isEditingPost && (
-                <div className="mt-3">
-                  {(post?.note || post?.content) ? (
-                    <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-gray-800 dark:text-gray-200">
-                      {post.note || post.content}
-                    </p>
-                  ) : (
-                    <p className="text-[15px] leading-relaxed text-gray-400 dark:text-gray-500">작성자가 남긴 노트가 없습니다</p>
-                  )}
+                <div className="flex items-start gap-3 pt-0.5">
+                  <span className="material-symbols-outlined mt-0.5 w-7 shrink-0 text-center text-2xl text-gray-500 dark:text-gray-400">edit_note</span>
+                  <div className="min-w-0 flex-1">
+                    {(post?.note || post?.content) ? (
+                      <p className="whitespace-pre-wrap text-sm leading-snug text-gray-800 dark:text-gray-200">
+                        {post.note || post.content}
+                      </p>
+                    ) : (
+                      <p className="text-sm italic text-gray-400 dark:text-gray-500">작성자가 남긴 노트가 없습니다</p>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1565,52 +1551,56 @@ const PostDetailScreen = () => {
                     if (post?.id) recordConversion(post.id, CONVERSION_TYPES.MAP);
                     navigate('/map', { state: { mapState, selectedPinId } });
                   }}
-                  className="mt-3 flex w-full items-center gap-2 rounded-lg bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 sm:w-auto"
+                  className="mt-2 flex w-full items-center gap-2 rounded-lg bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 sm:w-auto"
                 >
                   <span className="material-symbols-outlined text-lg">map</span>
                   <span>지도에서 주변 보기</span>
                 </button>
               )}
 
-              <div className="mt-3">
-                {(() => {
-                  const getText = (t) =>
-                    (typeof t === 'string'
-                      ? (t || '').replace(/^#+/, '')
-                      : String(t?.name ?? t?.label ?? '')).trim();
-                  const seen = new Set();
-                  const merged = [];
-                  [...(post?.tags || []), ...(post?.aiLabels || [])].forEach((t) => {
-                    const raw = getText(t);
-                    const key = raw.toLowerCase();
-                    if (!key || seen.has(key)) return;
-                    seen.add(key);
-                    merged.push(raw);
-                  });
-                  return merged.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {merged.map((tagText, index) => {
-                        const korean = tagTranslations[tagText.toLowerCase()] || tagText;
-                        return (
-                          <button
-                            key={`tag-${index}`}
-                            type="button"
-                            onClick={() => {
-                              const raw = (tagText || '').replace(/^#+/, '').trim();
-                              navigate(`/hashtags?tag=${encodeURIComponent(raw)}`);
-                            }}
-                            className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                          >
-                            #{korean}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-400 dark:text-gray-500">태그가 없습니다</p>
-                  );
-                })()}
+              <div className="flex items-start gap-3 pt-1">
+                <span className="material-symbols-outlined mt-0.5 w-7 shrink-0 text-center text-2xl text-gray-500 dark:text-gray-400">tag</span>
+                <div className="min-w-0 flex-1">
+                  {(() => {
+                    const getText = (t) =>
+                      (typeof t === 'string'
+                        ? (t || '').replace(/^#+/, '')
+                        : String(t?.name ?? t?.label ?? '')).trim();
+                    const seen = new Set();
+                    const merged = [];
+                    [...(post?.tags || []), ...(post?.aiLabels || [])].forEach((t) => {
+                      const raw = getText(t);
+                      const key = raw.toLowerCase();
+                      if (!key || seen.has(key)) return;
+                      seen.add(key);
+                      merged.push(raw);
+                    });
+                    return merged.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {merged.map((tagText, index) => {
+                          const korean = tagTranslations[tagText.toLowerCase()] || tagText;
+                          return (
+                            <button
+                              key={`tag-${index}`}
+                              type="button"
+                              onClick={() => {
+                                const raw = (tagText || '').replace(/^#+/, '').trim();
+                                navigate(`/hashtags?tag=${encodeURIComponent(raw)}`);
+                              }}
+                              className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                            >
+                              #{korean}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-400 dark:text-gray-500">태그가 없습니다</p>
+                    );
+                  })()}
+                </div>
               </div>
+            </div>
           </div>
 
           {/* 정보가 정확해요 - 다른 사용자들이 정보 정확도 평가 */}
