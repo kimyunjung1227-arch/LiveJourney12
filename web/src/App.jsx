@@ -113,6 +113,7 @@ function App() {
                 <Route path="/search" element={<SearchScreen />} />
                 <Route path="/hashtags" element={<HashtagScreen />} />
                 <Route path="/detail" element={<DetailScreen />} />
+                <Route path="/post/:id/edit" element={<UploadScreen />} />
                 <Route path="/post/:id" element={<PostDetailScreen />} />
                 <Route path="/region/:regionName" element={<RegionDetailScreen />} />
                 <Route path="/upload" element={<UploadScreen />} />

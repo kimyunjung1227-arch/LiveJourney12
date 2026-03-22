@@ -3,8 +3,8 @@ import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import BottomNavigation from '../components/BottomNavigation';
 import { getPost } from '../api/posts';
-import { getDisplayImageUrl, uploadImage } from '../api/upload';
-import { updatePostLikesSupabase, fetchPostByIdSupabase, addCommentToPostSupabase, updateCommentsInPostSupabase, updatePostSupabase } from '../api/postsSupabase';
+import { getDisplayImageUrl } from '../api/upload';
+import { updatePostLikesSupabase, fetchPostByIdSupabase, addCommentToPostSupabase, updateCommentsInPostSupabase, deletePostSupabase } from '../api/postsSupabase';
 import { useAuth } from '../contexts/AuthContext';
 import { getWeatherByRegion } from '../api/weather';
 import { getTimeAgo } from '../utils/dateUtils';
@@ -121,7 +121,7 @@ const tagTranslations = {
 const PostDetailScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { postId } = useParams();
+  const { id: postId } = useParams();
   const { user } = useAuth();
   const { post: passedPost, fromMap, selectedPinId, allPins, mapState, allPosts, currentPostIndex } = location.state || {};
 
@@ -141,12 +141,8 @@ const PostDetailScreen = () => {
   const [showHeartAnimation, setShowHeartAnimation] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editCommentText, setEditCommentText] = useState('');
-  const [isEditingPost, setIsEditingPost] = useState(false);
-  const [editPostNote, setEditPostNote] = useState('');
-  const [editPostLocation, setEditPostLocation] = useState('');
-  const [editPostImages, setEditPostImages] = useState([]);
-  const [editPostUploading, setEditPostUploading] = useState(false);
-  const editPostImageInputRef = useRef(null);
+  const [showAuthorPostMenu, setShowAuthorPostMenu] = useState(false);
+  const authorPostMenuRef = useRef(null);
   const [isFollowAuthor, setIsFollowAuthor] = useState(false);
   const [accuracyMarked, setAccuracyMarked] = useState(false);
   const [accuracyCount, setAccuracyCount] = useState(0);
@@ -609,90 +605,43 @@ const PostDetailScreen = () => {
     setEditCommentText('');
   }, []);
 
-  const handleStartEditPost = useCallback(() => {
-    setIsEditingPost(true);
-    setEditPostNote(post?.note || post?.content || '');
-    setEditPostLocation(post?.location || post?.detailedLocation || post?.placeName || '');
-    setEditPostImages(Array.isArray(post?.images) ? [...post.images] : typeof post?.images === 'string' ? [post.images] : []);
-  }, [post]);
+  const handleNavigateToEditPost = useCallback(() => {
+    if (!postId) return;
+    setShowAuthorPostMenu(false);
+    navigate(`/post/${postId}/edit`);
+  }, [navigate, postId]);
 
-  const handleSavePostEdit = useCallback(async () => {
+  const handleDeletePost = useCallback(async () => {
     if (!post || !isPostAuthor) return;
-    if (isSupabasePost) {
-      const res = await updatePostSupabase(post.id, {
-        content: editPostNote.trim(),
-        location: editPostLocation.trim() || null,
-        detailed_location: editPostLocation.trim() || null,
-        place_name: editPostLocation.trim() || null,
-        images: editPostImages
-      });
-      if (res?.success && res.post) {
-        setPost((prev) => ({
-          ...prev,
-          note: res.post.content,
-          content: res.post.content,
-          location: res.post.location,
-          detailedLocation: res.post.detailed_location,
-          placeName: res.post.place_name,
-          images: res.post.images ?? editPostImages
-        }));
-        setIsEditingPost(false);
+    if (!window.confirm('이 게시물을 삭제할까요?')) return;
+    const idStr = String(post.id);
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idStr.trim());
+    if (isUuid) {
+      const res = await deletePostSupabase(idStr);
+      if (!res?.success) {
+        alert(res?.error || '삭제에 실패했습니다. 다시 시도해 주세요.');
+        return;
       }
-    } else {
-      const uploaded = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-      const idx = uploaded.findIndex((p) => p.id === post.id);
-      if (idx !== -1) {
-        uploaded[idx] = {
-          ...uploaded[idx],
-          note: editPostNote.trim(),
-          content: editPostNote.trim(),
-          location: editPostLocation.trim(),
-          detailedLocation: editPostLocation.trim(),
-          placeName: editPostLocation.trim(),
-          images: editPostImages
-        };
-        localStorage.setItem('uploadedPosts', JSON.stringify(uploaded));
-        setPost((prev) => ({
-          ...prev,
-          note: editPostNote.trim(),
-          content: editPostNote.trim(),
-          location: editPostLocation.trim(),
-          detailedLocation: editPostLocation.trim(),
-          placeName: editPostLocation.trim(),
-          images: editPostImages
-        }));
-        window.dispatchEvent(new Event('postsUpdated'));
-      }
-      setIsEditingPost(false);
     }
-  }, [post, isSupabasePost, isPostAuthor, editPostNote, editPostLocation, editPostImages]);
-
-  const handleCancelEditPost = useCallback(() => {
-    setIsEditingPost(false);
-    setEditPostNote('');
-    setEditPostLocation('');
-    setEditPostImages([]);
-  }, []);
-
-  const handleRemoveEditPostImage = useCallback((index) => {
-    setEditPostImages((prev) => prev.filter((_, i) => i !== index));
-  }, []);
-
-  const handleAddEditPostImage = useCallback(async (e) => {
-    const file = e?.target?.files?.[0];
-    if (!file || !file.type.startsWith('image/')) return;
-    setEditPostUploading(true);
     try {
-      const res = await uploadImage(file);
-      const url = res?.url;
-      if (url && (url.startsWith('http') || url.startsWith('https'))) {
-        setEditPostImages((prev) => [...prev, url]);
+      const uploaded = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+      const filtered = uploaded.filter((p) => p && String(p.id) !== idStr);
+      localStorage.setItem('uploadedPosts', JSON.stringify(filtered));
+    } catch (_) {}
+    window.dispatchEvent(new Event('postsUpdated'));
+    navigate(-1);
+  }, [post, isPostAuthor, navigate]);
+
+  useEffect(() => {
+    if (!showAuthorPostMenu) return;
+    const onClose = (e) => {
+      if (authorPostMenuRef.current && !authorPostMenuRef.current.contains(e.target)) {
+        setShowAuthorPostMenu(false);
       }
-    } finally {
-      setEditPostUploading(false);
-      e.target.value = '';
-    }
-  }, []);
+    };
+    document.addEventListener('mousedown', onClose);
+    return () => document.removeEventListener('mousedown', onClose);
+  }, [showAuthorPostMenu]);
 
   // 게시물 변경 (상하/좌우 스와이프 모두 지원)
   const changePost = useCallback((direction) => {
@@ -1252,25 +1201,80 @@ const PostDetailScreen = () => {
                     )}
                   </div>
                 </div>
-                {postUserId && user?.id && String(postUserId) !== String(user.id) && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isFollowAuthor) {
-                        unfollow(postUserId);
-                        setIsFollowAuthor(false);
-                      } else {
-                        follow(postUserId);
-                        setIsFollowAuthor(true);
-                      }
-                    }}
-                    className={`ml-2 shrink-0 py-1.5 px-3 rounded-xl text-xs font-semibold ${
-                      isFollowAuthor ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400' : 'bg-primary text-white hover:opacity-90'
-                    }`}
-                  >
-                    {isFollowAuthor ? '팔로잉' : '팔로우'}
-                  </button>
-                )}
+                <div className="flex items-center gap-1 shrink-0">
+                  {isPostAuthor ? (
+                    <div className="relative" ref={authorPostMenuRef}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowAuthorPostMenu((v) => !v);
+                        }}
+                        className="flex h-9 w-9 items-center justify-center rounded-full text-gray-700 hover:bg-black/5 dark:text-gray-200 dark:hover:bg-white/10"
+                        aria-expanded={showAuthorPostMenu}
+                        aria-haspopup="menu"
+                        aria-label="게시물 메뉴"
+                      >
+                        <span className="material-symbols-outlined text-[22px]">more_vert</span>
+                      </button>
+                      {showAuthorPostMenu && (
+                        <div
+                          className="absolute right-0 top-full z-[100] mt-1 min-w-[200px] overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                          role="menu"
+                        >
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm font-medium text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleNavigateToEditPost();
+                            }}
+                          >
+                            <span>수정하기</span>
+                            <span className="material-symbols-outlined text-[20px] text-gray-500" style={{ fontVariationSettings: "'FILL' 0" }}>
+                              edit
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowAuthorPostMenu(false);
+                              handleDeletePost();
+                            }}
+                          >
+                            <span>삭제하기</span>
+                            <span className="material-symbols-outlined text-[20px] text-red-500" style={{ fontVariationSettings: "'FILL' 0" }}>
+                              delete
+                            </span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                  {postUserId && user?.id && String(postUserId) !== String(user.id) && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isFollowAuthor) {
+                          unfollow(postUserId);
+                          setIsFollowAuthor(false);
+                        } else {
+                          follow(postUserId);
+                          setIsFollowAuthor(true);
+                        }
+                      }}
+                      className={`shrink-0 py-1.5 px-3 rounded-xl text-xs font-semibold ${
+                        isFollowAuthor ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400' : 'bg-primary text-white hover:opacity-90'
+                      }`}
+                    >
+                      {isFollowAuthor ? '팔로잉' : '팔로우'}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1358,11 +1362,11 @@ const PostDetailScreen = () => {
               <button
                 type="button"
                 onClick={() => setIsVideoMuted((prev) => !prev)}
-                className="absolute right-3 bottom-4 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm shadow-sm"
+                className="absolute right-2 bottom-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm shadow-sm"
                 title={isVideoMuted ? '소리 켜기' : '소리 끄기'}
                 aria-label={isVideoMuted ? '소리 켜기' : '소리 끄기'}
               >
-                <span className="material-symbols-outlined text-[24px] leading-none">
+                <span className="material-symbols-outlined text-[18px] leading-none">
                   {isVideoMuted ? 'volume_off' : 'volume_up'}
                 </span>
               </button>
@@ -1387,18 +1391,7 @@ const PostDetailScreen = () => {
                     {categoryName || '—'}
                   </p>
                 </div>
-                <div className="flex h-9 shrink-0 items-end pb-0.5">
-                  {isPostAuthor && !isEditingPost ? (
-                    <button
-                      type="button"
-                      onClick={handleStartEditPost}
-                      className="flex h-9 w-9 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                      aria-label="수정"
-                    >
-                      <span className="material-symbols-outlined text-[22px]">edit</span>
-                    </button>
-                  ) : null}
-                </div>
+                <div className="h-9 w-9 shrink-0" aria-hidden="true" />
               </div>
               {addressText ? (
                 <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{addressText}</p>
@@ -1430,8 +1423,7 @@ const PostDetailScreen = () => {
                 </p>
               </div>
 
-              {!isEditingPost ? (
-                <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+              <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
                   <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">사용자 입력내용</p>
                   {(post?.note || post?.content) ? (
                     <p className="mt-2 whitespace-pre-wrap text-[15px] leading-[1.65] text-zinc-900 dark:text-zinc-100">
@@ -1441,66 +1433,8 @@ const PostDetailScreen = () => {
                     <p className="mt-2 text-[15px] leading-relaxed text-gray-400 dark:text-gray-500">작성자가 남긴 노트가 없습니다</p>
                   )}
                 </div>
-              ) : null}
 
-            {isEditingPost ? (
-              <div className="mt-4 flex flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-800/80">
-                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">위치</label>
-                <input
-                  type="text"
-                  value={editPostLocation}
-                  onChange={(e) => setEditPostLocation(e.target.value)}
-                  placeholder="위치"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-[#181410] dark:text-white text-sm"
-                />
-                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">내용</label>
-                <textarea
-                  value={editPostNote}
-                  onChange={(e) => setEditPostNote(e.target.value)}
-                  placeholder="내용을 입력하세요"
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-[#181410] dark:text-white text-sm resize-none"
-                />
-                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">사진</label>
-                <div className="flex flex-wrap gap-2 items-center">
-                  {editPostImages.map((url, idx) => (
-                    <div key={idx} className="relative group">
-                      <img src={getDisplayImageUrl(url)} alt="" className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-600" />
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveEditPostImage(idx)}
-                        className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center text-sm hover:bg-red-600"
-                        aria-label="삭제"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                  <input
-                    ref={editPostImageInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleAddEditPostImage}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => editPostImageInputRef.current?.click()}
-                    disabled={editPostUploading}
-                    className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-400 dark:text-gray-500 hover:border-primary hover:text-primary transition-colors text-2xl"
-                  >
-                    {editPostUploading ? '…' : '+'}
-                  </button>
-                </div>
-                <div className="flex gap-2">
-                  <button type="button" onClick={handleSavePostEdit} className="px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-white">저장</button>
-                  <button type="button" onClick={handleCancelEditPost} className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300">취소</button>
-                </div>
-              </div>
-            ) : null}
-
-              {!isEditingPost ? (
-                <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+              <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
                   <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">해시태그</p>
                   {(() => {
                     const getText = (t) =>
@@ -1540,7 +1474,6 @@ const PostDetailScreen = () => {
                     );
                   })()}
                 </div>
-              ) : null}
             </div>
 
             {fromMap && allPins && mapState && (
