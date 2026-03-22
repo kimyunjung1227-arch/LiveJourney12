@@ -234,6 +234,15 @@ const PostDetailScreen = () => {
     return null;
   }, [mediaItems, currentImageIndex]);
 
+  /** 정보 구역 위치 행 옆 썸네일(앱 상세와 동일) */
+  const infoThumbUrl = useMemo(() => {
+    const img = mediaItems.find((m) => m.type === 'image');
+    if (img) return img.url;
+    const vid = mediaItems.find((m) => m.type === 'video' && m.posterUrl);
+    if (vid) return vid.posterUrl;
+    return images[0] || null;
+  }, [mediaItems, images]);
+
   // Q&A 포맷 변환 (useCallback)
   const formatQnA = useCallback((questions) => {
     return questions.map((q, idx) => {
@@ -1372,20 +1381,20 @@ const PostDetailScreen = () => {
 
         <main className="flex flex-col bg-white dark:bg-gray-900" style={{ minHeight: 'auto' }}>
           <div className="px-4 pt-4 pb-3">
-            <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm p-4">
-              {/* 📍 위치 — 모바일 상세와 동일: 위치만 첫 블록 */}
-              <div className="flex items-start gap-3 mb-2">
-                <span className="material-symbols-outlined text-gray-500 dark:text-gray-400 text-2xl flex-shrink-0" aria-hidden="true">location_on</span>
-                <div className="flex-1 min-w-0 flex flex-col">
+            <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm p-4 space-y-1">
+              {/* 📍 위치 + 우측 썸네일·카테고리·수정 (앱 상세 레이아웃) */}
+              <div className="flex items-start gap-3">
+                <span className="material-symbols-outlined mt-0.5 w-7 shrink-0 text-center text-2xl text-gray-500 dark:text-gray-400" aria-hidden="true">location_on</span>
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-base font-bold text-zinc-900 dark:text-zinc-100 truncate flex-1 min-w-0">
+                    <p className="truncate text-base font-bold text-zinc-900 dark:text-zinc-100">
                       {verifiedLocation || detailedLocationText || locationText}
                     </p>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex shrink-0 items-center gap-2">
                       {categoryName && (
                         <span
                           title={categoryName}
-                          className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 text-lg"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-lg dark:bg-gray-800"
                           aria-label={categoryName}
                         >
                           {categoryName.includes('개화') && '🌸'}
@@ -1395,11 +1404,18 @@ const PostDetailScreen = () => {
                           {!categoryName.includes('개화') && !categoryName.includes('맛집') && !categoryName.includes('야경') && !categoryName.includes('시즌') && '🏞️'}
                         </span>
                       )}
+                      {infoThumbUrl && (
+                        <img
+                          src={infoThumbUrl}
+                          alt=""
+                          className="h-10 w-10 rounded-md border border-gray-200 object-cover dark:border-gray-600"
+                        />
+                      )}
                       {isPostAuthor && !isEditingPost && (
                         <button
                           type="button"
                           onClick={handleStartEditPost}
-                          className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                          className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                         >
                           수정
                         </button>
@@ -1407,47 +1423,66 @@ const PostDetailScreen = () => {
                     </div>
                   </div>
                   {addressText && (
-                    <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">{addressText}</p>
+                    <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">{addressText}</p>
                   )}
                 </div>
               </div>
 
-            {/* 촬영·날씨 + 설명 — 한 정보 구역(구분선으로 붙임) / 수정 모드는 메타만 분리 */}
-            {!isEditingPost ? (
-              <div className="mb-3 rounded-[10px] border border-slate-300/40 bg-slate-100/95 px-3 py-2.5 dark:border-slate-600/45 dark:bg-slate-800/90">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <span className="material-symbols-outlined shrink-0 text-[17px] text-slate-600 dark:text-slate-400">schedule</span>
-                    <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-200">
+              {/* 시각 + 날씨 — 한 줄(시계 아이콘 + 촬영 시각 + 날씨·기온) */}
+              {!isEditingPost ? (
+                <div className="flex items-start gap-3 pt-0.5">
+                  <span className="material-symbols-outlined mt-0.5 w-7 shrink-0 text-center text-xl text-gray-500 dark:text-gray-400">schedule</span>
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px] text-zinc-600 dark:text-zinc-400">
+                    <span className="font-medium text-zinc-700 dark:text-zinc-300">
                       {captureLabel || post?.time || (post?.createdAt ? getTimeAgo(post.createdAt) : '방금 전')}
                     </span>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-end gap-1.5">
                     {weatherInfo.loading ? (
-                      <>
-                        <span className="material-symbols-outlined text-[17px] text-slate-600 dark:text-slate-400">wb_sunny</span>
-                        <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-200">로딩중...</span>
-                      </>
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-lg text-amber-500">wb_sunny</span>
+                        <span>로딩중...</span>
+                      </span>
                     ) : (
-                      <>
-                        <span className="text-[15px] leading-none">{weatherInfo.icon}</span>
-                        <span className="text-[13px] font-bold text-slate-900 dark:text-slate-100">
+                      <span className="flex items-center gap-1">
+                        <span className="text-base leading-none">{weatherInfo.icon}</span>
+                        <span className="font-semibold text-zinc-800 dark:text-zinc-200">
                           {weatherInfo.temperature
                             ? `${weatherInfo.condition}, ${weatherInfo.temperature}`
                             : weatherInfo.condition}
                           {post?.weather ? (
-                            <span className="text-xs font-normal text-slate-500 dark:text-slate-400"> (업로드 당시)</span>
+                            <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-500">(업로드 당시)</span>
                           ) : null}
                         </span>
-                      </>
+                      </span>
                     )}
                   </div>
                 </div>
-                <div className="mt-2 flex gap-2 border-t border-slate-300/35 pt-2 dark:border-slate-600/50">
-                  <span className="material-symbols-outlined mt-0.5 shrink-0 text-2xl text-gray-500 dark:text-gray-400">edit_note</span>
+              ) : (
+                <div className="flex items-start gap-3 pt-0.5">
+                  <span className="material-symbols-outlined mt-0.5 w-7 shrink-0 text-center text-xl text-gray-500 dark:text-gray-400">schedule</span>
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px] text-zinc-600 dark:text-zinc-400">
+                    <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                      {captureLabel || post?.time || (post?.createdAt ? getTimeAgo(post.createdAt) : '방금 전')}
+                    </span>
+                    {!weatherInfo.loading && (
+                      <span className="flex items-center gap-1">
+                        <span className="text-base leading-none">{weatherInfo.icon}</span>
+                        <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+                          {weatherInfo.temperature ? `${weatherInfo.condition}, ${weatherInfo.temperature}` : weatherInfo.condition}
+                        </span>
+                      </span>
+                    )}
+                    {weatherInfo.loading && <span className="text-xs">날씨 로딩…</span>}
+                  </div>
+                </div>
+              )}
+
+              {/* 설명 — 노트 아이콘 + 본문 (시간·날씨와 바로 이어지게 간격 최소) */}
+              {!isEditingPost && (
+                <div className="flex items-start gap-3 pt-0.5">
+                  <span className="material-symbols-outlined mt-0.5 w-7 shrink-0 text-center text-2xl text-gray-500 dark:text-gray-400">edit_note</span>
                   <div className="min-w-0 flex-1">
                     {(post?.note || post?.content) ? (
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                      <p className="whitespace-pre-wrap text-sm leading-snug text-gray-700 dark:text-gray-300">
                         {post.note || post.content}
                       </p>
                     ) : (
@@ -1455,29 +1490,7 @@ const PostDetailScreen = () => {
                     )}
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[10px] border border-slate-300/40 bg-slate-100/95 px-3 py-2.5 dark:border-slate-600/45 dark:bg-slate-800/90">
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <span className="material-symbols-outlined shrink-0 text-[17px] text-slate-600 dark:text-slate-400">schedule</span>
-                  <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-200">
-                    {captureLabel || post?.time || (post?.createdAt ? getTimeAgo(post.createdAt) : '방금 전')}
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center justify-end gap-1.5">
-                  {weatherInfo.loading ? (
-                    <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-200">날씨 로딩…</span>
-                  ) : (
-                    <>
-                      <span className="text-[15px] leading-none">{weatherInfo.icon}</span>
-                      <span className="text-[13px] font-bold text-slate-900 dark:text-slate-100">
-                        {weatherInfo.temperature ? `${weatherInfo.condition}, ${weatherInfo.temperature}` : weatherInfo.condition}
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
+              )}
 
             {isEditingPost ? (
               <div className="flex flex-col gap-3 mb-3 p-3 bg-gray-50 dark:bg-gray-800/80 rounded-xl border border-gray-200 dark:border-gray-600">
@@ -1550,8 +1563,8 @@ const PostDetailScreen = () => {
               )}
 
               {/* 🏷️ 해시태그 */}
-              <div className="flex items-start gap-3">
-                <span className="material-symbols-outlined text-gray-500 dark:text-gray-400 text-2xl flex-shrink-0">tag</span>
+              <div className="flex items-start gap-3 pt-0.5">
+                <span className="material-symbols-outlined mt-0.5 w-7 shrink-0 text-center text-2xl text-gray-500 dark:text-gray-400">tag</span>
                 <div className="flex-1">
                   {(() => {
                     const getText = (t) =>
