@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { createPost } from '../api/posts';
-import { uploadImage, uploadVideo } from '../api/upload';
+import { uploadImage, uploadVideo, getDisplayImageUrl } from '../api/upload';
 import { useAuth } from '../contexts/AuthContext';
 import { notifyBadge } from '../utils/notifications';
 import { safeSetItem, logLocalStorageStatus } from '../utils/localStorageManager';
@@ -10,7 +10,7 @@ import { checkNewBadges, awardBadge, hasSeenBadge, markBadgeAsSeen, calculateUse
 import { checkAndNotifyInterestPlace } from '../utils/interestPlaces';
 import { analyzeImageForTags } from '../utils/aiImageAnalyzer';
 import { getWeatherByRegion } from '../api/weather';
-import { createPostSupabase, getMergedMyPostsForStats } from '../api/postsSupabase';
+import { createPostSupabase, getMergedMyPostsForStats, updatePostSupabase, fetchPostByIdSupabase } from '../api/postsSupabase';
 import { getCurrentTimestamp, getTimeAgo } from '../utils/timeUtils';
 import { getBadgeCongratulationMessage, getBadgeDifficultyEffects } from '../utils/badgeMessages';
 import { logger } from '../utils/logger';
@@ -124,9 +124,55 @@ const UploadScreen = () => {
   setBadgeAnimationKeyRef.current = setBadgeAnimationKey;
   const reanalysisTimerRef = useRef(null);
 
+  const editingPost = location.state?.editPost;
+  const editReturnTo = location.state?.returnTo;
+
+  const lastEditInitIdRef = useRef(null);
+  useEffect(() => {
+    const ep = location.state?.editPost;
+    if (!ep?.id) return;
+    if (lastEditInitIdRef.current === ep.id) return;
+    lastEditInitIdRef.current = ep.id;
+
+    const imgs = Array.isArray(ep.images) ? [...ep.images] : ep.image ? [ep.image] : [];
+    const vids = Array.isArray(ep.videos) ? [...ep.videos] : [];
+    const locRaw = ep.location || ep.detailedLocation || ep.placeName || '';
+    const loc = typeof locRaw === 'string' ? locRaw : (locRaw?.name || '');
+    const note = ep.note || ep.content || '';
+    const tagList = Array.isArray(ep.tags) ? ep.tags : [];
+    const tagsNormalized = tagList.map((t) => {
+      const s = typeof t === 'string' ? t : String(t?.name ?? t?.label ?? '');
+      const c = s.replace(/^#+/, '').trim();
+      return c ? `#${c}` : '';
+    }).filter(Boolean);
+
+    setFormData((prev) => ({
+      ...prev,
+      images: imgs.map((u) => getDisplayImageUrl(u)),
+      videos: vids.map((u) => getDisplayImageUrl(u)),
+      imageFiles: [],
+      videoFiles: [],
+      location: loc,
+      tags: tagsNormalized.length ? tagsNormalized : prev.tags,
+      note,
+      coordinates: ep.coordinates || prev.coordinates,
+      aiCategory: ep.category || prev.aiCategory,
+      aiCategoryName: ep.categoryName || prev.aiCategoryName,
+      aiCategoryIcon: ep.categoryIcon || prev.aiCategoryIcon,
+      photoDate: ep.photoDate || ep.exifData?.photoDate || null,
+      verifiedLocation: ep.verifiedLocation || null,
+      exifData: ep.exifData || null
+    }));
+    setAutoTags([]);
+  }, [location.state?.editPost]);
+
   // 업로드 가이드는 한 번 보고 나면 5번 업로드 동안은 다시 나오지 않도록 제어
   useEffect(() => {
     try {
+      if (location.state?.editPost) {
+        setShowUploadGuide(false);
+        return;
+      }
       const neverShow = localStorage.getItem('uploadGuideNeverShow');
       if (neverShow === '1') {
         setShowUploadGuide(false);
@@ -147,7 +193,7 @@ const UploadScreen = () => {
       logger.warn('업로드 가이드 카운트 처리 중 오류 (무시):', e);
       setShowUploadGuide(true);
     }
-  }, [logger]);
+  }, [logger, location.state?.editPost]);
 
   const getCurrentLocation = useCallback(async () => {
     if (!navigator.geolocation) return;
@@ -749,6 +795,142 @@ const UploadScreen = () => {
 
     logger.log('Validation passed - proceeding with upload');
 
+    const editPost = location.state?.editPost;
+    const returnPath = location.state?.returnTo || (editPost?.id != null ? `/post/${editPost.id}` : '/main');
+
+    if (editPost) {
+      try {
+        setUploading(true);
+        setUploadProgress(10);
+        const totalFiles = formData.imageFiles.length + formData.videoFiles.length;
+        let uploadedCount = 0;
+        const bumpProgress = () => {
+          uploadedCount += 1;
+          if (totalFiles > 0) {
+            setUploadProgress(20 + (uploadedCount * 40) / totalFiles);
+          } else {
+            setUploadProgress(45);
+          }
+        };
+
+        let imageFileIdx = 0;
+        const finalImages = [];
+        for (const preview of formData.images) {
+          const isBlobPreview = typeof preview === 'string' && preview.startsWith('blob:');
+          if (!isBlobPreview) {
+            finalImages.push(preview);
+          } else if (formData.imageFiles[imageFileIdx]) {
+            const file = formData.imageFiles[imageFileIdx];
+            imageFileIdx += 1;
+            bumpProgress();
+            try {
+              const uploadResult = await uploadImage(file);
+              if (uploadResult.success && uploadResult.url) {
+                finalImages.push(uploadResult.url);
+              } else {
+                finalImages.push(preview);
+              }
+            } catch (_) {
+              finalImages.push(preview);
+            }
+          } else {
+            finalImages.push(preview);
+          }
+        }
+
+        let videoFileIdx = 0;
+        const finalVideos = [];
+        for (const preview of formData.videos) {
+          const isBlobPreview = typeof preview === 'string' && preview.startsWith('blob:');
+          if (!isBlobPreview) {
+            finalVideos.push(preview);
+          } else if (formData.videoFiles[videoFileIdx]) {
+            const file = formData.videoFiles[videoFileIdx];
+            videoFileIdx += 1;
+            bumpProgress();
+            try {
+              const uploadResult = await uploadVideo(file);
+              if (uploadResult.success && uploadResult.url) {
+                finalVideos.push(uploadResult.url);
+              } else {
+                finalVideos.push(preview);
+              }
+            } catch (_) {
+              finalVideos.push(preview);
+            }
+          } else {
+            finalVideos.push(preview);
+          }
+        }
+        const tagPayload = dedupeHashtags(formData.tags)
+          .map((t) => t.replace(/^#+/, '').trim())
+          .filter(Boolean);
+        const region = formData.location?.split(' ')[0] || '기타';
+        const postIdStr = String(editPost.id);
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postIdStr.trim());
+
+        setUploadProgress(75);
+
+        if (isUuid) {
+          const res = await updatePostSupabase(postIdStr, {
+            content: formData.note.trim() || `${formData.location}에서의 여행 기록`,
+            location: formData.location.trim(),
+            detailed_location: formData.location.trim(),
+            place_name: formData.location.trim(),
+            region,
+            images: finalImages,
+            videos: finalVideos,
+            tags: tagPayload
+          });
+          if (!res?.success) {
+            alert('저장에 실패했습니다. 다시 시도해주세요.');
+            return;
+          }
+          const fresh = await fetchPostByIdSupabase(postIdStr);
+          setUploadProgress(100);
+          window.dispatchEvent(new Event('postsUpdated'));
+          navigate(returnPath, { replace: true, state: fresh ? { post: fresh } : undefined });
+        } else {
+          const uploaded = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+          const idx = uploaded.findIndex((p) => p.id === editPost.id);
+          if (idx === -1) {
+            alert('게시물을 찾을 수 없습니다.');
+            return;
+          }
+          const prev = uploaded[idx];
+          const merged = {
+            ...prev,
+            images: finalImages,
+            videos: finalVideos,
+            note: formData.note.trim(),
+            content: formData.note.trim(),
+            location: formData.location.trim(),
+            detailedLocation: formData.location.trim(),
+            placeName: formData.location.trim(),
+            region,
+            tags: formData.tags,
+            category: formData.aiCategory,
+            categoryName: formData.aiCategoryName,
+            thumbnail: finalImages.length > 0 ? finalImages[0] : prev.thumbnail,
+            imageCount: finalImages.length,
+            videoCount: finalVideos.length
+          };
+          uploaded[idx] = merged;
+          localStorage.setItem('uploadedPosts', JSON.stringify(uploaded));
+          setUploadProgress(100);
+          window.dispatchEvent(new Event('postsUpdated'));
+          navigate(returnPath, { replace: true, state: { post: merged } });
+        }
+      } catch (err) {
+        logger.error('게시물 수정 저장 실패:', err);
+        alert('저장에 실패했습니다. 다시 시도해주세요.');
+      } finally {
+        setUploading(false);
+        setUploadProgress(0);
+      }
+      return;
+    }
+
     try {
       setUploading(true);
       setUploadProgress(10);
@@ -1107,7 +1289,7 @@ const UploadScreen = () => {
       setUploading(false);
       setUploadProgress(0);
     }
-  }, [formData, user, navigate, checkAndAwardBadge]);
+  }, [formData, user, navigate, checkAndAwardBadge, location.state]);
 
   return (
     <>
@@ -1272,7 +1454,9 @@ const UploadScreen = () => {
         }}>
           <button
             onClick={() => {
-              if (location.state?.fromMap) {
+              if (editingPost && editReturnTo) {
+                navigate(editReturnTo);
+              } else if (location.state?.fromMap) {
                 navigate('/main');
               } else {
                 navigate(-1);
@@ -1289,7 +1473,7 @@ const UploadScreen = () => {
               color: '#00BCD4',
               fontFamily: "'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
               marginBottom: '2px'
-            }}>지금 현장 상황</h1>
+            }}>{editingPost ? '게시물 수정' : '지금 현장 상황'}</h1>
             <p className="text-xs text-gray-500" style={{ fontSize: '12px' }}>
               {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })}
             </p>
@@ -1651,10 +1835,10 @@ const UploadScreen = () => {
               {uploading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                  <span>업로드 중...</span>
+                  <span>{editingPost ? '저장 중...' : '업로드 중...'}</span>
                 </>
               ) : (
-                <span>업로드하기</span>
+                <span>{editingPost ? '저장하기' : '업로드하기'}</span>
               )}
             </button>
             {((formData.images.length + formData.videos.length) === 0 || !formData.location.trim()) && (
