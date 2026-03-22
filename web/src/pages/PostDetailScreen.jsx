@@ -3,8 +3,8 @@ import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import BottomNavigation from '../components/BottomNavigation';
 import { getPost } from '../api/posts';
-import { getDisplayImageUrl } from '../api/upload';
-import { updatePostLikesSupabase, fetchPostByIdSupabase, addCommentToPostSupabase, updateCommentsInPostSupabase } from '../api/postsSupabase';
+import { getDisplayImageUrl, uploadImage } from '../api/upload';
+import { updatePostLikesSupabase, fetchPostByIdSupabase, addCommentToPostSupabase, updateCommentsInPostSupabase, updatePostSupabase } from '../api/postsSupabase';
 import { useAuth } from '../contexts/AuthContext';
 import { getWeatherByRegion } from '../api/weather';
 import { getTimeAgo } from '../utils/dateUtils';
@@ -141,6 +141,12 @@ const PostDetailScreen = () => {
   const [showHeartAnimation, setShowHeartAnimation] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editCommentText, setEditCommentText] = useState('');
+  const [isEditingPost, setIsEditingPost] = useState(false);
+  const [editPostNote, setEditPostNote] = useState('');
+  const [editPostLocation, setEditPostLocation] = useState('');
+  const [editPostImages, setEditPostImages] = useState([]);
+  const [editPostUploading, setEditPostUploading] = useState(false);
+  const editPostImageInputRef = useRef(null);
   const [isFollowAuthor, setIsFollowAuthor] = useState(false);
   const [accuracyMarked, setAccuracyMarked] = useState(false);
   const [accuracyCount, setAccuracyCount] = useState(0);
@@ -603,10 +609,90 @@ const PostDetailScreen = () => {
     setEditCommentText('');
   }, []);
 
-  const handleNavigateEditPost = useCallback(() => {
-    if (!post || !postId) return;
-    navigate('/upload', { state: { editPost: post, returnTo: `/post/${postId}` } });
-  }, [navigate, post, postId]);
+  const handleStartEditPost = useCallback(() => {
+    setIsEditingPost(true);
+    setEditPostNote(post?.note || post?.content || '');
+    setEditPostLocation(post?.location || post?.detailedLocation || post?.placeName || '');
+    setEditPostImages(Array.isArray(post?.images) ? [...post.images] : typeof post?.images === 'string' ? [post.images] : []);
+  }, [post]);
+
+  const handleSavePostEdit = useCallback(async () => {
+    if (!post || !isPostAuthor) return;
+    if (isSupabasePost) {
+      const res = await updatePostSupabase(post.id, {
+        content: editPostNote.trim(),
+        location: editPostLocation.trim() || null,
+        detailed_location: editPostLocation.trim() || null,
+        place_name: editPostLocation.trim() || null,
+        images: editPostImages
+      });
+      if (res?.success && res.post) {
+        setPost((prev) => ({
+          ...prev,
+          note: res.post.content,
+          content: res.post.content,
+          location: res.post.location,
+          detailedLocation: res.post.detailed_location,
+          placeName: res.post.place_name,
+          images: res.post.images ?? editPostImages
+        }));
+        setIsEditingPost(false);
+      }
+    } else {
+      const uploaded = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+      const idx = uploaded.findIndex((p) => p.id === post.id);
+      if (idx !== -1) {
+        uploaded[idx] = {
+          ...uploaded[idx],
+          note: editPostNote.trim(),
+          content: editPostNote.trim(),
+          location: editPostLocation.trim(),
+          detailedLocation: editPostLocation.trim(),
+          placeName: editPostLocation.trim(),
+          images: editPostImages
+        };
+        localStorage.setItem('uploadedPosts', JSON.stringify(uploaded));
+        setPost((prev) => ({
+          ...prev,
+          note: editPostNote.trim(),
+          content: editPostNote.trim(),
+          location: editPostLocation.trim(),
+          detailedLocation: editPostLocation.trim(),
+          placeName: editPostLocation.trim(),
+          images: editPostImages
+        }));
+        window.dispatchEvent(new Event('postsUpdated'));
+      }
+      setIsEditingPost(false);
+    }
+  }, [post, isSupabasePost, isPostAuthor, editPostNote, editPostLocation, editPostImages]);
+
+  const handleCancelEditPost = useCallback(() => {
+    setIsEditingPost(false);
+    setEditPostNote('');
+    setEditPostLocation('');
+    setEditPostImages([]);
+  }, []);
+
+  const handleRemoveEditPostImage = useCallback((index) => {
+    setEditPostImages((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handleAddEditPostImage = useCallback(async (e) => {
+    const file = e?.target?.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    setEditPostUploading(true);
+    try {
+      const res = await uploadImage(file);
+      const url = res?.url;
+      if (url && (url.startsWith('http') || url.startsWith('https'))) {
+        setEditPostImages((prev) => [...prev, url]);
+      }
+    } finally {
+      setEditPostUploading(false);
+      e.target.value = '';
+    }
+  }, []);
 
   // 게시물 변경 (상하/좌우 스와이프 모두 지원)
   const changePost = useCallback((direction) => {
@@ -1285,25 +1371,27 @@ const PostDetailScreen = () => {
         </div>
 
         <main className="flex flex-col bg-white dark:bg-gray-900" style={{ minHeight: 'auto' }}>
-          <div className="w-full max-w-full pt-4 pb-3 px-4">
-            <div className="w-full max-w-full space-y-4">
-              {/* 1행: 위치 · 카테고리 · 수정(업로드 화면과 동일 UI) */}
-              <div className="flex items-start gap-2 sm:gap-3">
+          <div className="px-4 pt-4 pb-3">
+            <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              {/* 1행: 위치정보 | 카테고리 정보 | 연필 수정 (아이콘 열·썸네일 없음) */}
+              <div className="flex items-end gap-2 sm:gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-base font-bold text-zinc-900 dark:text-zinc-50">
+                  <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">위치정보</p>
+                  <p className="mt-0.5 truncate text-base font-bold text-zinc-900 dark:text-zinc-50">
                     {verifiedLocation || detailedLocationText || locationText}
                   </p>
                 </div>
                 <div className="min-w-0 max-w-[42%] shrink-0 sm:max-w-[38%]">
-                  <p className="truncate text-sm text-zinc-700 dark:text-zinc-200" title={categoryName || ''}>
+                  <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">카테고리 정보</p>
+                  <p className="mt-0.5 truncate text-sm text-gray-500 dark:text-gray-400" title={categoryName || ''}>
                     {categoryName || '—'}
                   </p>
                 </div>
-                <div className="flex h-9 shrink-0 items-start pt-0.5">
-                  {isPostAuthor ? (
+                <div className="flex h-9 shrink-0 items-end pb-0.5">
+                  {isPostAuthor && !isEditingPost ? (
                     <button
                       type="button"
-                      onClick={handleNavigateEditPost}
+                      onClick={handleStartEditPost}
                       className="flex h-9 w-9 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                       aria-label="수정"
                     >
@@ -1313,80 +1401,146 @@ const PostDetailScreen = () => {
                 </div>
               </div>
               {addressText ? (
-                <p className="-mt-2 text-xs text-zinc-600 dark:text-zinc-400">{addressText}</p>
+                <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{addressText}</p>
               ) : null}
 
-              {/* 2행: 날씨 · 촬영 시각 */}
-              <div>
-                <p className="text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
+              {/* 2행: 기온(날씨) · 사진정보(촬영 시각) */}
+              <div className="mt-3">
+                <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">기온 · 사진정보</p>
+                <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
                   {weatherInfo.loading ? (
                     <span>날씨 로딩…</span>
                   ) : (
                     <>
                       <span className="mr-1">{weatherInfo.icon}</span>
-                      <span className="font-medium">
+                      <span className="font-medium text-zinc-800 dark:text-zinc-200">
                         {weatherInfo.temperature
                           ? `${weatherInfo.condition}, ${weatherInfo.temperature}`
                           : weatherInfo.condition}
+                        {post?.weather ? (
+                          <span className="ml-1 text-xs font-normal text-gray-400">(업로드 당시)</span>
+                        ) : null}
                       </span>
                     </>
                   )}
-                  <span className="mx-2 text-zinc-300 dark:text-zinc-600">·</span>
-                  <span className="font-medium">
+                  <span className="mx-2 text-gray-300 dark:text-gray-600">·</span>
+                  <span className="font-medium text-zinc-800 dark:text-zinc-200">
                     {captureLabel || post?.time || (post?.createdAt ? getTimeAgo(post.createdAt) : '방금 전')}
                   </span>
                 </p>
               </div>
 
-              <div>
-                {(post?.note || post?.content) ? (
-                  <p className="whitespace-pre-wrap text-[15px] leading-[1.65] text-zinc-900 dark:text-zinc-100">
-                    {post.note || post.content}
-                  </p>
-                ) : (
-                  <p className="text-[15px] leading-relaxed text-zinc-400 dark:text-zinc-500">작성자가 남긴 노트가 없습니다</p>
-                )}
-              </div>
-
-              <div>
-                {(() => {
-                  const getText = (t) =>
-                    (typeof t === 'string'
-                      ? (t || '').replace(/^#+/, '')
-                      : String(t?.name ?? t?.label ?? '')).trim();
-                  const seen = new Set();
-                  const merged = [];
-                  [...(post?.tags || []), ...(post?.aiLabels || [])].forEach((t) => {
-                    const raw = getText(t);
-                    const key = raw.toLowerCase();
-                    if (!key || seen.has(key)) return;
-                    seen.add(key);
-                    merged.push(raw);
-                  });
-                  return merged.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {merged.map((tagText, index) => {
-                        const korean = tagTranslations[tagText.toLowerCase()] || tagText;
-                        return (
-                          <button
-                            key={`tag-${index}`}
-                            type="button"
-                            onClick={() => {
-                              const raw = (tagText || '').replace(/^#+/, '').trim();
-                              navigate(`/hashtags?tag=${encodeURIComponent(raw)}`);
-                            }}
-                            className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
-                          >
-                            #{korean}
-                          </button>
-                        );
-                      })}
-                    </div>
+              {!isEditingPost ? (
+                <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+                  <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">사용자 입력내용</p>
+                  {(post?.note || post?.content) ? (
+                    <p className="mt-2 whitespace-pre-wrap text-[15px] leading-[1.65] text-zinc-900 dark:text-zinc-100">
+                      {post.note || post.content}
+                    </p>
                   ) : (
-                    <p className="text-sm text-zinc-400 dark:text-zinc-500">태그가 없습니다</p>
-                  );
-                })()}
+                    <p className="mt-2 text-[15px] leading-relaxed text-gray-400 dark:text-gray-500">작성자가 남긴 노트가 없습니다</p>
+                  )}
+                </div>
+              ) : null}
+
+            {isEditingPost ? (
+              <div className="mt-4 flex flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-800/80">
+                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">위치</label>
+                <input
+                  type="text"
+                  value={editPostLocation}
+                  onChange={(e) => setEditPostLocation(e.target.value)}
+                  placeholder="위치"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-[#181410] dark:text-white text-sm"
+                />
+                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">내용</label>
+                <textarea
+                  value={editPostNote}
+                  onChange={(e) => setEditPostNote(e.target.value)}
+                  placeholder="내용을 입력하세요"
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-[#181410] dark:text-white text-sm resize-none"
+                />
+                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">사진</label>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {editPostImages.map((url, idx) => (
+                    <div key={idx} className="relative group">
+                      <img src={getDisplayImageUrl(url)} alt="" className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-600" />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveEditPostImage(idx)}
+                        className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center text-sm hover:bg-red-600"
+                        aria-label="삭제"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  <input
+                    ref={editPostImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAddEditPostImage}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => editPostImageInputRef.current?.click()}
+                    disabled={editPostUploading}
+                    className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-400 dark:text-gray-500 hover:border-primary hover:text-primary transition-colors text-2xl"
+                  >
+                    {editPostUploading ? '…' : '+'}
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={handleSavePostEdit} className="px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-white">저장</button>
+                  <button type="button" onClick={handleCancelEditPost} className="px-4 py-2 rounded-lg text-sm font-semibold bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300">취소</button>
+                </div>
               </div>
+            ) : null}
+
+              {!isEditingPost ? (
+                <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+                  <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">해시태그</p>
+                  {(() => {
+                    const getText = (t) =>
+                      (typeof t === 'string'
+                        ? (t || '').replace(/^#+/, '')
+                        : String(t?.name ?? t?.label ?? '')).trim();
+                    const seen = new Set();
+                    const merged = [];
+                    [...(post?.tags || []), ...(post?.aiLabels || [])].forEach((t) => {
+                      const raw = getText(t);
+                      const key = raw.toLowerCase();
+                      if (!key || seen.has(key)) return;
+                      seen.add(key);
+                      merged.push(raw);
+                    });
+                    return merged.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {merged.map((tagText, index) => {
+                          const korean = tagTranslations[tagText.toLowerCase()] || tagText;
+                          return (
+                            <button
+                              key={`tag-${index}`}
+                              type="button"
+                              onClick={() => {
+                                const raw = (tagText || '').replace(/^#+/, '').trim();
+                                navigate(`/hashtags?tag=${encodeURIComponent(raw)}`);
+                              }}
+                              className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
+                            >
+                              #{korean}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">태그가 없습니다</p>
+                    );
+                  })()}
+                </div>
+              ) : null}
             </div>
 
             {fromMap && allPins && mapState && (
