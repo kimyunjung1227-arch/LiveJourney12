@@ -234,15 +234,6 @@ const PostDetailScreen = () => {
     return null;
   }, [mediaItems, currentImageIndex]);
 
-  /** 정보 구역 위치 행 옆 썸네일(앱 상세와 동일) */
-  const infoThumbUrl = useMemo(() => {
-    const img = mediaItems.find((m) => m.type === 'image');
-    if (img) return img.url;
-    const vid = mediaItems.find((m) => m.type === 'video' && m.posterUrl);
-    if (vid) return vid.posterUrl;
-    return images[0] || null;
-  }, [mediaItems, images]);
-
   // Q&A 포맷 변환 (useCallback)
   const formatQnA = useCallback((questions) => {
     return questions.map((q, idx) => {
@@ -1202,7 +1193,7 @@ const PostDetailScreen = () => {
 
         <div className="flex w-full bg-transparent dark:bg-transparent" style={{ marginTop: 0 }}>
           <div
-            className="image-swipe-area relative flex w-full gap-1 overflow-hidden bg-white shadow-md dark:bg-gray-900"
+            className="image-swipe-area relative flex w-full gap-1 overflow-hidden rounded-b-2xl bg-white shadow-md dark:bg-gray-900"
             style={{ height: '60vh', minHeight: '330px', marginTop: '-64px' }}
           >
             {/* 프로필 - 사진 위 오버레이 */}
@@ -1367,11 +1358,11 @@ const PostDetailScreen = () => {
               <button
                 type="button"
                 onClick={() => setIsVideoMuted((prev) => !prev)}
-                className="absolute bottom-4 right-3 z-20 flex h-10 items-center justify-center rounded-full bg-black/50 px-3.5 text-white shadow-md backdrop-blur-sm"
+                className="absolute right-3 bottom-4 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm shadow-sm"
                 title={isVideoMuted ? '소리 켜기' : '소리 끄기'}
                 aria-label={isVideoMuted ? '소리 켜기' : '소리 끄기'}
               >
-                <span className="material-symbols-outlined text-[22px] leading-none">
+                <span className="material-symbols-outlined text-[24px] leading-none">
                   {isVideoMuted ? 'volume_off' : 'volume_up'}
                 </span>
               </button>
@@ -1380,116 +1371,80 @@ const PostDetailScreen = () => {
         </div>
 
         <main className="flex flex-col bg-white dark:bg-gray-900" style={{ minHeight: 'auto' }}>
-          <div className="px-4 pt-3 pb-3">
-            {/* 정보 구역 — 앱 상세와 동일: 아이콘 열 + 위치/시간·날씨/설명/태그 */}
-            <div className="space-y-1">
-              <div className="flex items-start gap-3">
-                <span className="material-symbols-outlined mt-0.5 w-7 shrink-0 text-center text-2xl text-gray-500 dark:text-gray-400" aria-hidden="true">location_on</span>
+          <div className="px-4 pt-4 pb-3">
+            <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              {/* 1행: 위치정보 | 카테고리 정보 | 연필 수정 (아이콘 열·썸네일 없음) */}
+              <div className="flex items-end gap-2 sm:gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-base font-bold text-zinc-900 dark:text-zinc-100">
-                      {verifiedLocation || detailedLocationText || locationText}
-                    </p>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {categoryName && (
-                        <span
-                          title={categoryName}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-lg dark:bg-gray-800"
-                          aria-label={categoryName}
-                        >
-                          {categoryName.includes('개화') && '🌸'}
-                          {categoryName.includes('맛집') && '🍜'}
-                          {categoryName.includes('야경') && '🌙'}
-                          {categoryName.includes('시즌') && '🍂'}
-                          {!categoryName.includes('개화') && !categoryName.includes('맛집') && !categoryName.includes('야경') && !categoryName.includes('시즌') && '🏞️'}
-                        </span>
-                      )}
-                      {infoThumbUrl && (
-                        <img
-                          src={infoThumbUrl}
-                          alt=""
-                          className="h-10 w-10 rounded border border-gray-200 object-cover dark:border-gray-600"
-                        />
-                      )}
-                      {isPostAuthor && !isEditingPost && (
-                        <button
-                          type="button"
-                          onClick={handleStartEditPost}
-                          className="text-xs text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-                        >
-                          수정
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {addressText && (
-                    <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">{addressText}</p>
-                  )}
+                  <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">위치정보</p>
+                  <p className="mt-0.5 truncate text-base font-bold text-zinc-900 dark:text-zinc-50">
+                    {verifiedLocation || detailedLocationText || locationText}
+                  </p>
                 </div>
+                <div className="min-w-0 max-w-[42%] shrink-0 sm:max-w-[38%]">
+                  <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">카테고리 정보</p>
+                  <p className="mt-0.5 truncate text-sm text-gray-500 dark:text-gray-400" title={categoryName || ''}>
+                    {categoryName || '—'}
+                  </p>
+                </div>
+                <div className="flex h-9 shrink-0 items-end pb-0.5">
+                  {isPostAuthor && !isEditingPost ? (
+                    <button
+                      type="button"
+                      onClick={handleStartEditPost}
+                      className="flex h-9 w-9 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                      aria-label="수정"
+                    >
+                      <span className="material-symbols-outlined text-[22px]">edit</span>
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              {addressText ? (
+                <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{addressText}</p>
+              ) : null}
+
+              {/* 2행: 기온(날씨) · 사진정보(촬영 시각) */}
+              <div className="mt-3">
+                <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">기온 · 사진정보</p>
+                <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+                  {weatherInfo.loading ? (
+                    <span>날씨 로딩…</span>
+                  ) : (
+                    <>
+                      <span className="mr-1">{weatherInfo.icon}</span>
+                      <span className="font-medium text-zinc-800 dark:text-zinc-200">
+                        {weatherInfo.temperature
+                          ? `${weatherInfo.condition}, ${weatherInfo.temperature}`
+                          : weatherInfo.condition}
+                        {post?.weather ? (
+                          <span className="ml-1 text-xs font-normal text-gray-400">(업로드 당시)</span>
+                        ) : null}
+                      </span>
+                    </>
+                  )}
+                  <span className="mx-2 text-gray-300 dark:text-gray-600">·</span>
+                  <span className="font-medium text-zinc-800 dark:text-zinc-200">
+                    {captureLabel || post?.time || (post?.createdAt ? getTimeAgo(post.createdAt) : '방금 전')}
+                  </span>
+                </p>
               </div>
 
               {!isEditingPost ? (
-                <div className="flex items-start gap-3 pt-0.5">
-                  <span className="material-symbols-outlined mt-0.5 w-7 shrink-0 text-center text-xl text-gray-500 dark:text-gray-400">schedule</span>
-                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5 text-sm">
-                    <span className="font-medium text-zinc-700 dark:text-zinc-300">
-                      {captureLabel || post?.time || (post?.createdAt ? getTimeAgo(post.createdAt) : '방금 전')}
-                    </span>
-                    {weatherInfo.loading ? (
-                      <span className="text-zinc-500">날씨 로딩…</span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-zinc-700 dark:text-zinc-300">
-                        <span className="text-base leading-none">{weatherInfo.icon}</span>
-                        <span className="font-medium">
-                          {weatherInfo.temperature
-                            ? `${weatherInfo.condition}, ${weatherInfo.temperature}`
-                            : weatherInfo.condition}
-                          {post?.weather ? (
-                            <span className="ml-1 text-xs font-normal text-zinc-500">(업로드 당시)</span>
-                          ) : null}
-                        </span>
-                      </span>
-                    )}
-                  </div>
+                <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+                  <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">사용자 입력내용</p>
+                  {(post?.note || post?.content) ? (
+                    <p className="mt-2 whitespace-pre-wrap text-[15px] leading-[1.65] text-zinc-900 dark:text-zinc-100">
+                      {post.note || post.content}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-[15px] leading-relaxed text-gray-400 dark:text-gray-500">작성자가 남긴 노트가 없습니다</p>
+                  )}
                 </div>
-              ) : (
-                <div className="flex items-start gap-3 pt-0.5">
-                  <span className="material-symbols-outlined mt-0.5 w-7 shrink-0 text-center text-xl text-gray-500 dark:text-gray-400">schedule</span>
-                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5 text-sm">
-                    <span className="font-medium text-zinc-700 dark:text-zinc-300">
-                      {captureLabel || post?.time || (post?.createdAt ? getTimeAgo(post.createdAt) : '방금 전')}
-                    </span>
-                    {weatherInfo.loading ? (
-                      <span className="text-zinc-500">날씨 로딩…</span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-zinc-700 dark:text-zinc-300">
-                        <span className="text-base leading-none">{weatherInfo.icon}</span>
-                        <span className="font-medium">
-                          {weatherInfo.temperature ? `${weatherInfo.condition}, ${weatherInfo.temperature}` : weatherInfo.condition}
-                        </span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {!isEditingPost && (
-                <div className="flex items-start gap-3 pt-0.5">
-                  <span className="material-symbols-outlined mt-0.5 w-7 shrink-0 text-center text-2xl text-gray-500 dark:text-gray-400">edit_note</span>
-                  <div className="min-w-0 flex-1">
-                    {(post?.note || post?.content) ? (
-                      <p className="whitespace-pre-wrap text-sm leading-snug text-gray-800 dark:text-gray-200">
-                        {post.note || post.content}
-                      </p>
-                    ) : (
-                      <p className="text-sm italic text-gray-400 dark:text-gray-500">작성자가 남긴 노트가 없습니다</p>
-                    )}
-                  </div>
-                </div>
-              )}
+              ) : null}
 
             {isEditingPost ? (
-              <div className="mt-3 flex flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-800/80">
+              <div className="mt-4 flex flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-800/80">
                 <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">위치</label>
                 <input
                   type="text"
@@ -1544,23 +1499,9 @@ const PostDetailScreen = () => {
               </div>
             ) : null}
 
-              {fromMap && allPins && mapState && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (post?.id) recordConversion(post.id, CONVERSION_TYPES.MAP);
-                    navigate('/map', { state: { mapState, selectedPinId } });
-                  }}
-                  className="mt-2 flex w-full items-center gap-2 rounded-lg bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 sm:w-auto"
-                >
-                  <span className="material-symbols-outlined text-lg">map</span>
-                  <span>지도에서 주변 보기</span>
-                </button>
-              )}
-
-              <div className="flex items-start gap-3 pt-1">
-                <span className="material-symbols-outlined mt-0.5 w-7 shrink-0 text-center text-2xl text-gray-500 dark:text-gray-400">tag</span>
-                <div className="min-w-0 flex-1">
+              {!isEditingPost ? (
+                <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+                  <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">해시태그</p>
                   {(() => {
                     const getText = (t) =>
                       (typeof t === 'string'
@@ -1576,7 +1517,7 @@ const PostDetailScreen = () => {
                       merged.push(raw);
                     });
                     return merged.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
+                      <div className="mt-2 flex flex-wrap gap-2">
                         {merged.map((tagText, index) => {
                           const korean = tagTranslations[tagText.toLowerCase()] || tagText;
                           return (
@@ -1587,7 +1528,7 @@ const PostDetailScreen = () => {
                                 const raw = (tagText || '').replace(/^#+/, '').trim();
                                 navigate(`/hashtags?tag=${encodeURIComponent(raw)}`);
                               }}
-                              className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                              className="text-sm font-medium text-sky-700 hover:underline dark:text-sky-400"
                             >
                               #{korean}
                             </button>
@@ -1595,12 +1536,26 @@ const PostDetailScreen = () => {
                         })}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-400 dark:text-gray-500">태그가 없습니다</p>
+                      <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">태그가 없습니다</p>
                     );
                   })()}
                 </div>
-              </div>
+              ) : null}
             </div>
+
+            {fromMap && allPins && mapState && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (post?.id) recordConversion(post.id, CONVERSION_TYPES.MAP);
+                  navigate('/map', { state: { mapState, selectedPinId } });
+                }}
+                className="mt-3 flex w-full items-center gap-2 rounded-lg bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 sm:w-auto"
+              >
+                <span className="material-symbols-outlined text-lg">map</span>
+                <span>지도에서 주변 보기</span>
+              </button>
+            )}
           </div>
 
           {/* 정보가 정확해요 - 다른 사용자들이 정보 정확도 평가 */}
