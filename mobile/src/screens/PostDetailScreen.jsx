@@ -5,21 +5,24 @@ import {
   StyleSheet,
   TextInput,
   ScrollView,
-  SafeAreaView,
   TouchableOpacity,
   Image,
   Dimensions,
   ActivityIndicator,
   PanResponder,
   Animated,
+  FlatList,
 } from 'react-native';
 
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { COLORS, SPACING, TYPOGRAPHY } from '../constants/styles';
+import { COLORS, SPACING } from '../constants/styles';
+import { Video, ResizeMode } from 'expo-av';
 
 import { getTimeAgo } from '../utils/timeUtils';
+import { buildMediaItemsFromPost } from '../utils/postMedia';
+import { guessWeatherRegionKey, getWeatherByRegion } from '../utils/weatherApi';
 import { toggleLike, isPostLiked, addComment } from '../utils/socialInteractions';
 import { toggleInterestPlace, isInterestPlace } from '../utils/interestPlaces';
 import { ScreenLayout, ScreenContent, ScreenHeader, ScreenBody } from '../components/ScreenLayout';
@@ -73,6 +76,9 @@ const PostDetailScreen = () => {
   const [userBadges, setUserBadges] = useState([]);
   const [authorLevelInfo, setAuthorLevelInfo] = useState(null);
   const [isFollowAuthor, setIsFollowAuthor] = useState(false);
+  const [detailVideoMuted, setDetailVideoMuted] = useState(true);
+  const [postWeather, setPostWeather] = useState(null);
+  const mediaFlatListRef = useRef(null);
 
   // 하트 애니메이션 값
   const heartScale = useRef(new Animated.Value(0)).current;
@@ -123,11 +129,13 @@ const PostDetailScreen = () => {
     return passedPost ? [passedPost] : [];
   }, [allPosts, loadedAllPosts, passedPost]);
 
-  // 미디어 배열 (이미지 + 동영상)
   const mediaItems = useMemo(() => {
-    const images = post?.images || (post?.image ? [post.image] : []);
-    const videos = post?.videos || [];
-    return [...images.map(img => ({ type: 'image', url: img })), ...videos.map(vid => ({ type: 'video', url: vid }))];
+    if (!post) return [];
+    return buildMediaItemsFromPost(post).map((m) => ({
+      type: m.type,
+      url: m.uri,
+      posterUri: m.posterUri,
+    }));
   }, [post]);
 
   // 게시물 작성자 ID를 일관된 방식으로 계산 (다른 화면과 동일한 로직)
@@ -490,6 +498,25 @@ const PostDetailScreen = () => {
     }
   }, [post]);
 
+  useEffect(() => {
+    setDetailVideoMuted(true);
+  }, [currentImageIndex, post?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      if (!post) return;
+      const loc = post.detailedLocation || post.placeName || post.location || '';
+      const key = guessWeatherRegionKey(loc);
+      const r = await getWeatherByRegion(key);
+      if (!cancelled && r.success) setPostWeather(r.weather);
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [post?.id, post?.location, post?.detailedLocation, post?.placeName]);
+
   // 팔로우 상태 확인
   useEffect(() => {
     const checkFollowStatus = async () => {
@@ -537,6 +564,14 @@ const PostDetailScreen = () => {
   const userBadge = post?.badge || '여행러버';
   const timeText = post?.time || (post?.timestamp ? getTimeAgo(post.timestamp) : '방금 전');
   const categoryName = post?.categoryName || null;
+
+  const formatPhotoTaken = () => {
+    const ts = post?.timestamp || post?.createdAt || post?.photoDate;
+    if (ts == null) return timeText;
+    const d = new Date(typeof ts === 'number' ? ts : ts);
+    if (Number.isNaN(d.getTime())) return timeText;
+    return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} 촬영`;
+  };
 
   return (
     <ScreenLayout style={{ backgroundColor: COLORS.backgroundLight }}>
@@ -598,32 +633,85 @@ const PostDetailScreen = () => {
           {/* 이미지/비디오 영역 - 웹과 동일한 55vh 높이 */}
           <View style={styles.mediaContainer}>
             <FlatList
+              ref={mediaFlatListRef}
               data={mediaItems}
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
-              keyExtractor={(_, index) => index.toString()}
+              keyExtractor={(_, index) => `m-${index}`}
+              getItemLayout={(_, index) => ({
+                length: SCREEN_WIDTH,
+                offset: SCREEN_WIDTH * index,
+                index,
+              })}
+              onMomentumScrollEnd={(e) => {
+                const offset = e.nativeEvent.contentOffset.x;
+                const index = Math.round(offset / SCREEN_WIDTH);
+                setCurrentImageIndex(Math.max(0, Math.min(index, mediaItems.length - 1)));
+              }}
               onScroll={(e) => {
                 const offset = e.nativeEvent.contentOffset.x;
                 const index = Math.round(offset / SCREEN_WIDTH);
-                setCurrentImageIndex(index);
+                if (index >= 0 && index < mediaItems.length) setCurrentImageIndex(index);
               }}
-              renderItem={({ item: media }) => (
-                <View style={styles.mediaItem}>
-                  {media.type === 'video' ? (
-                    <View style={styles.videoPlaceholder}>
-                      <Ionicons name="play-circle" size={64} color="white" />
-                      <Text style={styles.videoText}>동영상 재생</Text>
-                    </View>
-                  ) : (
-                    <Image
-                      source={{ uri: media.url }}
-                      style={styles.mediaImage}
-                      resizeMode="cover"
-                    />
-                  )}
-                </View>
-              )}
+              scrollEventThrottle={16}
+              renderItem={({ item: media, index }) => {
+                const isVideo = media.type === 'video';
+                const isActive = index === currentImageIndex;
+                const shouldPlay = isVideo && isActive;
+
+                return (
+                  <View style={styles.mediaItem}>
+                    {isVideo ? (
+                      <View style={styles.mediaVideoWrap}>
+                        {media.posterUri ? (
+                          <Image
+                            source={{ uri: media.posterUri }}
+                            style={[styles.mediaImage, styles.videoPosterLayer, shouldPlay && styles.videoPosterHidden]}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={[styles.mediaImage, styles.videoPosterFallback, shouldPlay && styles.videoPosterHidden]}>
+                            <Ionicons name="videocam" size={48} color="rgba(255,255,255,0.85)" />
+                          </View>
+                        )}
+                        <Video
+                          source={{ uri: media.url }}
+                          style={styles.mediaImage}
+                          resizeMode={ResizeMode.COVER}
+                          isLooping
+                          shouldPlay={shouldPlay}
+                          isMuted={detailVideoMuted}
+                          useNativeControls={false}
+                        />
+                        {isActive && (
+                          <TouchableOpacity
+                            style={styles.detailSoundPill}
+                            onPress={() => setDetailVideoMuted((m) => !m)}
+                            activeOpacity={0.85}
+                            accessibilityLabel={detailVideoMuted ? '소리 켜기' : '소리 끄기'}
+                          >
+                            <Ionicons
+                              name={detailVideoMuted ? 'volume-mute' : 'volume-high'}
+                              size={18}
+                              color="#fff"
+                            />
+                            <Text style={styles.detailSoundPillText}>
+                              {detailVideoMuted ? '소리 켜기' : '소리 끄기'}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ) : (
+                      <Image
+                        source={{ uri: media.url }}
+                        style={styles.mediaImage}
+                        resizeMode="cover"
+                      />
+                    )}
+                  </View>
+                );
+              }}
             />
 
             {/* 페이지 인디케이터 - 웹과 동일한 스타일 */}
@@ -633,8 +721,8 @@ const PostDetailScreen = () => {
                   <TouchableOpacity
                     key={index}
                     onPress={() => {
-                      // FlatList scrollToIndex는 복잡하므로 간단히 인덱스만 업데이트
                       setCurrentImageIndex(index);
+                      mediaFlatListRef.current?.scrollToIndex({ index, animated: true });
                     }}
                     activeOpacity={0.7}
                   >
@@ -752,10 +840,9 @@ const PostDetailScreen = () => {
               </View>
             </View>
 
-            {/* 통합 정보 카드 - 웹과 동일: mx-4 mt-2 mb-3 bg-white rounded-2xl shadow-lg */}
+            {/* 통합 정보 카드 — 위치 → 촬영·날씨(회색 박스) → 설명(간격 좁힘) → 태그 */}
             <View style={styles.infoCard}>
-              {/* 📍 위치 정보 */}
-              <View style={styles.infoRow}>
+              <View style={styles.infoRowTight}>
                 <Ionicons name="location" size={24} color={COLORS.primary} style={styles.infoIcon} />
                 <View style={styles.infoContent}>
                   <View style={styles.locationContainer}>
@@ -776,10 +863,32 @@ const PostDetailScreen = () => {
                   {detailedLocationText && detailedLocationText !== locationText && (
                     <Text style={styles.subLocationText}>{locationText}</Text>
                   )}
-                  <View style={styles.timeRow}>
-                    <Ionicons name="time-outline" size={18} color="#6B7280" />
-                    <Text style={styles.timeText}>{timeText}</Text>
+                </View>
+              </View>
+
+              <View style={styles.weatherMetaBar}>
+                <View style={styles.weatherMetaLeft}>
+                  <Ionicons name="time-outline" size={17} color="#475569" />
+                  <Text style={styles.weatherMetaTime}>{formatPhotoTaken()}</Text>
+                </View>
+                {postWeather ? (
+                  <View style={styles.weatherMetaRight}>
+                    <Text style={styles.weatherMetaIcon}>{postWeather.icon}</Text>
+                    <Text style={styles.weatherMetaTemp}>
+                      {postWeather.condition}, {postWeather.temperature}
+                    </Text>
                   </View>
+                ) : null}
+              </View>
+
+              <View style={styles.noteRowTight}>
+                <Ionicons name="create-outline" size={24} color={COLORS.primary} style={styles.infoIcon} />
+                <View style={styles.noteContent}>
+                  {post?.note || post?.content ? (
+                    <Text style={styles.noteText}>{post.note || post.content}</Text>
+                  ) : (
+                    <Text style={styles.emptyNoteText}>작성자가 남긴 노트가 없습니다</Text>
+                  )}
                 </View>
               </View>
 
@@ -820,18 +929,6 @@ const PostDetailScreen = () => {
                   </View>
                 );
               })()}
-
-              {/* 📝 작성자 노트 */}
-              <View style={styles.noteRow}>
-                <Ionicons name="create-outline" size={24} color={COLORS.primary} style={styles.infoIcon} />
-                <View style={styles.noteContent}>
-                  {post?.note || post?.content ? (
-                    <Text style={styles.noteText}>{post.note || post.content}</Text>
-                  ) : (
-                    <Text style={styles.emptyNoteText}>작성자가 남긴 노트가 없습니다</Text>
-                  )}
-                </View>
-              </View>
             </View>
 
             {/* 인터랙션 바 - 웹과 동일: px-4 py-2 bg-white */}
@@ -1039,6 +1136,50 @@ const styles = StyleSheet.create({
   mediaImage: {
     width: '100%',
     height: '100%',
+  },
+  mediaVideoWrap: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+    backgroundColor: '#111',
+  },
+  videoPosterLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  videoPosterHidden: {
+    opacity: 0,
+  },
+  videoPosterFallback: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#2d2d2d',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  detailSoundPill: {
+    position: 'absolute',
+    bottom: 16,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    zIndex: 20,
+  },
+  detailSoundPillText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
   },
   videoPlaceholder: {
     width: '100%',
@@ -1269,6 +1410,74 @@ const styles = StyleSheet.create({
     elevation: 5, // 웹: shadow-lg
     borderWidth: 1,
     borderColor: '#E5E7EB', // 웹: border-gray-200
+  },
+  infoRowTight: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 8,
+  },
+  weatherMetaBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 6,
+    backgroundColor: 'rgba(241, 245, 249, 0.95)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.35)',
+  },
+  weatherMetaLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 1,
+  },
+  weatherMetaTime: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  weatherMetaRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  weatherMetaIcon: {
+    fontSize: 15,
+  },
+  weatherMetaTemp: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  noteRowTight: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 2,
+    marginBottom: 12,
+  },
+  noteContent: {
+    flex: 1,
+  },
+  tagsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
+    marginTop: 0,
+  },
+  emptyTagText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    flex: 1,
+  },
+  emptyNoteText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
   },
   infoRow: {
     flexDirection: 'row',

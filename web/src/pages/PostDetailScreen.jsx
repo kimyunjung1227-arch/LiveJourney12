@@ -15,6 +15,7 @@ import { getTrustScore, getTrustGrade } from '../utils/trustIndex';
 import { follow, unfollow, isFollowing } from '../utils/followSystem';
 import { recordConversion, CONVERSION_TYPES } from '../utils/conversionEvents';
 import { logger } from '../utils/logger';
+import { buildMediaItemsFromPost } from '../utils/postMedia';
 import 'swiper/css';
 
 // 영어 태그를 한국어로 번역
@@ -175,6 +176,7 @@ const PostDetailScreen = () => {
   const miniMapInstance = useRef(null);
   const scrollContentRef = useRef(null);
   const nextPostSentinelRef = useRef(null);
+  const mediaSwiperRef = useRef(null);
 
   // 슬라이드 가능한 게시물 목록
   const slideablePosts = useMemo(() => {
@@ -184,17 +186,41 @@ const PostDetailScreen = () => {
     return passedPost ? [passedPost] : [];
   }, [allPosts, passedPost]);
 
-  // 미디어 배열 (이미지 + 동영상), 표시용 풀 URL로 변환 (문자열/배열/객체 혼합 지원)
+  // 미디어 배열 (이미지 + 동영상 순서 유지, 모바일과 동일 로직) — 표시용 풀 URL
   const toUrl = (v) => (typeof v === 'string' ? v : (v?.url ?? v?.src ?? v?.href ?? ''));
-  const mediaItems = useMemo(() => {
-    const rawImages = Array.isArray(post?.images)
+  const postForMedia = useMemo(() => {
+    if (!post) return null;
+    const rawImages = Array.isArray(post.images)
       ? post.images
-      : post?.images ? [post.images] : post?.image ? [post.image] : post?.thumbnail ? [post.thumbnail] : [];
-    const rawVideos = Array.isArray(post?.videos) ? post.videos : post?.videos ? [post.videos] : [];
-    const imgUrls = rawImages.map(toUrl).filter(Boolean).map((img) => ({ type: 'image', url: getDisplayImageUrl(img) }));
-    const vidUrls = rawVideos.map(toUrl).filter(Boolean).map((vid) => ({ type: 'video', url: getDisplayImageUrl(vid) }));
-    return [...imgUrls, ...vidUrls];
+      : post.images
+        ? [post.images]
+        : post.image
+          ? [post.image]
+          : post.thumbnail
+            ? [post.thumbnail]
+            : [];
+    const rawVideos = Array.isArray(post.videos) ? post.videos : post.videos ? [post.videos] : [];
+    const images = rawImages.map(toUrl).filter(Boolean);
+    const videos = rawVideos.map(toUrl).filter(Boolean);
+    const thumb = post.thumbnail ? toUrl(post.thumbnail) : '';
+    const single = post.image ? toUrl(post.image) : '';
+    return {
+      images,
+      videos,
+      thumbnail: thumb || undefined,
+      image: single || undefined,
+      imageUrl: post.imageUrl ? toUrl(post.imageUrl) : undefined,
+    };
   }, [post]);
+
+  const mediaItems = useMemo(() => {
+    if (!postForMedia) return [];
+    return buildMediaItemsFromPost(postForMedia).map((m) => ({
+      type: m.type,
+      url: getDisplayImageUrl(m.uri),
+      posterUrl: m.posterUri ? getDisplayImageUrl(m.posterUri) : undefined,
+    }));
+  }, [postForMedia]);
 
   const images = useMemo(() => {
     const rawImages = Array.isArray(post?.images)
@@ -1249,6 +1275,10 @@ const PostDetailScreen = () => {
             </div>
 
             <Swiper
+              key={post?.id ?? 'post-media'}
+              onSwiper={(swiper) => {
+                mediaSwiperRef.current = swiper;
+              }}
               onSlideChange={(swiper) => setCurrentImageIndex(swiper.activeIndex)}
               initialSlide={currentImageIndex}
               speed={280}
@@ -1259,12 +1289,13 @@ const PostDetailScreen = () => {
                 ? mediaItems.map((media, index) => (
                     <SwiperSlide key={index}>
                       <div
-                        className="w-full flex-shrink-0 relative"
+                        className="w-full flex-shrink-0 relative bg-black"
                         style={{ height: '60vh', minHeight: '330px' }}
                       >
                         {media.type === 'video' ? (
                           <video
                             src={media.url}
+                            poster={media.posterUrl || undefined}
                             className="w-full h-full object-cover"
                             autoPlay
                             loop
@@ -1301,7 +1332,19 @@ const PostDetailScreen = () => {
                   {(mediaItems.length > 0 ? mediaItems : images).map((_, index) => (
                     <div
                       key={index}
-                      onClick={() => setCurrentImageIndex(index)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setCurrentImageIndex(index);
+                          mediaSwiperRef.current?.slideTo(index);
+                        }
+                      }}
+                      onClick={() => {
+                        setCurrentImageIndex(index);
+                        mediaSwiperRef.current?.slideTo(index);
+                      }}
                       className={`h-1.5 rounded-full transition-all cursor-pointer ${
                         index === currentImageIndex ? 'w-6 bg-white' : 'w-1.5 bg-white/50 hover:bg-white/70'
                       }`}
@@ -1315,8 +1358,12 @@ const PostDetailScreen = () => {
               <button
                 type="button"
                 onClick={() => setIsVideoMuted((prev) => !prev)}
-                className="absolute right-3 bottom-12 z-20 px-3 py-1.5 rounded-full bg-black/45 text-white text-xs font-semibold backdrop-blur-sm"
+                className="absolute right-3 bottom-4 z-20 flex items-center gap-1.5 px-3 py-2 rounded-full bg-black/55 text-white text-[13px] font-bold backdrop-blur-sm shadow-sm"
+                aria-label={isVideoMuted ? '소리 켜기' : '소리 끄기'}
               >
+                <span className="material-symbols-outlined text-[18px] leading-none">
+                  {isVideoMuted ? 'volume_off' : 'volume_up'}
+                </span>
                 {isVideoMuted ? '소리 켜기' : '소리 끄기'}
               </button>
             )}
@@ -1325,85 +1372,93 @@ const PostDetailScreen = () => {
 
         <main className="flex flex-col bg-white dark:bg-gray-900" style={{ minHeight: 'auto' }}>
           <div className="px-4 pt-4 pb-3">
-            {/* 📍 위치 정보 (왼쪽) + 카테고리/수정 버튼 (우측) */}
-            <div className="flex items-start gap-3 mb-4">
-              <span className="material-symbols-outlined text-gray-500 dark:text-gray-400 text-2xl flex-shrink-0" aria-hidden="true">location_on</span>
-              <div className="flex-1 min-w-0 flex flex-col">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <p className="text-base font-bold text-zinc-900 dark:text-zinc-100 truncate flex-1 min-w-0">
-                    {verifiedLocation || detailedLocationText || locationText}
-                  </p>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {categoryName && (
-                      <span
-                        title={categoryName}
-                        className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 text-lg"
-                        aria-label={categoryName}
-                      >
-                        {categoryName.includes('개화') && '🌸'}
-                        {categoryName.includes('맛집') && '🍜'}
-                        {categoryName.includes('야경') && '🌙'}
-                        {categoryName.includes('시즌') && '🍂'}
-                        {!categoryName.includes('개화') && !categoryName.includes('맛집') && !categoryName.includes('야경') && !categoryName.includes('시즌') && '🏞️'}
-                      </span>
-                    )}
-                    {isPostAuthor && !isEditingPost && (
-                      <button
-                        type="button"
-                        onClick={handleStartEditPost}
-                        className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-                      >
-                        수정
-                      </button>
-                    )}
+            <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm p-4">
+              {/* 📍 위치 — 모바일 상세와 동일: 위치만 첫 블록 */}
+              <div className="flex items-start gap-3 mb-2">
+                <span className="material-symbols-outlined text-gray-500 dark:text-gray-400 text-2xl flex-shrink-0" aria-hidden="true">location_on</span>
+                <div className="flex-1 min-w-0 flex flex-col">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-base font-bold text-zinc-900 dark:text-zinc-100 truncate flex-1 min-w-0">
+                      {verifiedLocation || detailedLocationText || locationText}
+                    </p>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {categoryName && (
+                        <span
+                          title={categoryName}
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 text-lg"
+                          aria-label={categoryName}
+                        >
+                          {categoryName.includes('개화') && '🌸'}
+                          {categoryName.includes('맛집') && '🍜'}
+                          {categoryName.includes('야경') && '🌙'}
+                          {categoryName.includes('시즌') && '🍂'}
+                          {!categoryName.includes('개화') && !categoryName.includes('맛집') && !categoryName.includes('야경') && !categoryName.includes('시즌') && '🏞️'}
+                        </span>
+                      )}
+                      {isPostAuthor && !isEditingPost && (
+                        <button
+                          type="button"
+                          onClick={handleStartEditPost}
+                          className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                        >
+                          수정
+                        </button>
+                      )}
+                    </div>
                   </div>
+                  {addressText && (
+                    <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">{addressText}</p>
+                  )}
                 </div>
-                {/* 지역명이 두 번 반복되어 보이는 것을 막기 위해, 하단의 locationText 한 줄은 숨김 처리 */}
-                {addressText && (
-                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-3">{addressText}</p>
-                )}
-                <div className="flex items-center flex-wrap gap-3 text-sm mb-3">
-                  <div className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">
-                    <span className="material-symbols-outlined !text-lg">schedule</span>
-                    <span>
-                      {captureLabel || post?.time || (post?.createdAt ? getTimeAgo(post.createdAt) : '방금 전')}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">
-                    {weatherInfo.loading ? (
-                      <>
-                        <span className="material-symbols-outlined !text-lg">wb_sunny</span>
-                        <span>로딩중...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="!text-lg">{weatherInfo.icon}</span>
-                        <span>{weatherInfo.condition}, {weatherInfo.temperature}</span>
-                        {post?.weather && (
-                          <span className="text-xs text-zinc-400 dark:text-zinc-500">(업로드 당시)</span>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-                {fromMap && allPins && mapState && (
-                  <button
-                    onClick={() => {
-                      if (post?.id) recordConversion(post.id, CONVERSION_TYPES.MAP);
-                      navigate('/map', { state: { mapState, selectedPinId } });
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-sm font-semibold"
-                  >
-                    <span className="material-symbols-outlined text-lg">map</span>
-                    <span>지도에서 주변 보기</span>
-                  </button>
-                )}
               </div>
-            </div>
+
+              {/* 촬영 시각 + 날씨 — 회색 메타 바 (모바일 weatherMetaBar 대응) */}
+              <div className="flex items-center justify-between flex-wrap gap-2 py-2.5 px-3 mb-2 rounded-[10px] border border-slate-300/40 bg-slate-100/95 dark:bg-slate-800/90 dark:border-slate-600/45">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="material-symbols-outlined text-[17px] text-slate-600 dark:text-slate-400 shrink-0">schedule</span>
+                  <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-200">
+                    {captureLabel || post?.time || (post?.createdAt ? getTimeAgo(post.createdAt) : '방금 전')}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                  {weatherInfo.loading ? (
+                    <>
+                      <span className="material-symbols-outlined text-[17px] text-slate-600 dark:text-slate-400">wb_sunny</span>
+                      <span className="text-[13px] font-semibold text-slate-700 dark:text-slate-200">로딩중...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-[15px] leading-none">{weatherInfo.icon}</span>
+                      <span className="text-[13px] font-bold text-slate-900 dark:text-slate-100">
+                        {weatherInfo.temperature
+                          ? `${weatherInfo.condition}, ${weatherInfo.temperature}`
+                          : weatherInfo.condition}
+                        {post?.weather ? (
+                          <span className="text-xs font-normal text-slate-500 dark:text-slate-400"> (업로드 당시)</span>
+                        ) : null}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {fromMap && allPins && mapState && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (post?.id) recordConversion(post.id, CONVERSION_TYPES.MAP);
+                    navigate('/map', { state: { mapState, selectedPinId } });
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 mb-3 w-full sm:w-auto bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-sm font-semibold"
+                >
+                  <span className="material-symbols-outlined text-lg">map</span>
+                  <span>지도에서 주변 보기</span>
+                </button>
+              )}
 
             {/* 📝 작성자 노트 (또는 수정 폼) */}
             {isEditingPost ? (
-              <div className="flex flex-col gap-3 mb-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
+              <div className="flex flex-col gap-3 mb-3 p-3 bg-gray-50 dark:bg-gray-800/80 rounded-xl border border-gray-200 dark:border-gray-600">
                 <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">위치</label>
                 <input
                   type="text"
@@ -1457,7 +1512,7 @@ const PostDetailScreen = () => {
                 </div>
               </div>
             ) : (
-              <div className="flex items-start gap-3 mb-4">
+              <div className="flex items-start gap-3 mt-0.5 mb-3">
                 <span className="material-symbols-outlined text-gray-500 dark:text-gray-400 text-2xl flex-shrink-0">edit_note</span>
                 <div className="flex-1">
                   {(post?.note || post?.content) ? (
@@ -1465,7 +1520,7 @@ const PostDetailScreen = () => {
                       {post.note || post.content}
                     </p>
                   ) : (
-                    <p className="text-sm text-gray-400 dark:text-gray-500">
+                    <p className="text-sm text-gray-400 dark:text-gray-500 italic">
                       작성자가 남긴 노트가 없습니다
                     </p>
                   )}
@@ -1473,8 +1528,8 @@ const PostDetailScreen = () => {
               </div>
             )}
 
-            {/* 🏷️ 해시태그 */}
-              <div className="flex items-start gap-3 mb-4">
+              {/* 🏷️ 해시태그 */}
+              <div className="flex items-start gap-3">
                 <span className="material-symbols-outlined text-gray-500 dark:text-gray-400 text-2xl flex-shrink-0">tag</span>
                 <div className="flex-1">
                   {(() => {
@@ -1520,6 +1575,7 @@ const PostDetailScreen = () => {
                   })()}
                 </div>
               </div>
+            </div>
           </div>
 
           {/* 정보가 정확해요 - 다른 사용자들이 정보 정확도 평가 */}
