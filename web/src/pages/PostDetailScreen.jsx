@@ -1381,30 +1381,44 @@ const PostDetailScreen = () => {
                     </button>
                     {showAuthorPostMenu && (
                       <div
-                        className="absolute right-0 top-full z-[100] mt-1 min-w-[148px] overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                        className="absolute right-0 top-full z-[100] mt-1 w-[min(100vw-2rem,220px)] overflow-hidden rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
                         role="menu"
                       >
                         <button
                           type="button"
                           role="menuitem"
-                          className="flex w-full px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                          className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium text-gray-800 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
                           onClick={() => {
                             setShowAuthorPostMenu(false);
                             handleNavigateToEditPost();
                           }}
                         >
-                          수정하기
+                          <span>수정하기</span>
+                          <span
+                            className="material-symbols-outlined shrink-0 text-[20px] text-gray-500 dark:text-gray-400"
+                            style={{ fontVariationSettings: "'FILL' 0, 'wght' 400" }}
+                            aria-hidden
+                          >
+                            edit
+                          </span>
                         </button>
                         <button
                           type="button"
                           role="menuitem"
-                          className="flex w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                          className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium text-gray-800 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
                           onClick={() => {
                             setShowAuthorPostMenu(false);
                             handleDeletePost();
                           }}
                         >
-                          삭제하기
+                          <span>삭제하기</span>
+                          <span
+                            className="material-symbols-outlined shrink-0 text-[20px] text-gray-500 dark:text-gray-400"
+                            style={{ fontVariationSettings: "'FILL' 0, 'wght' 400" }}
+                            aria-hidden
+                          >
+                            delete
+                          </span>
                         </button>
                       </div>
                     )}
