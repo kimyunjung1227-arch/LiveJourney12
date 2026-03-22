@@ -171,6 +171,10 @@ const PostDetailScreen = () => {
   const scrollContentRef = useRef(null);
   const nextPostSentinelRef = useRef(null);
   const mediaSwiperRef = useRef(null);
+  const authorPostMenuRef = useRef(null);
+  const shareMenuRef = useRef(null);
+  const [showAuthorPostMenu, setShowAuthorPostMenu] = useState(false);
+  const [showShareMenu, setShowShareMenu] = useState(false);
 
   // 슬라이드 가능한 게시물 목록
   const slideablePosts = useMemo(() => {
@@ -608,6 +612,21 @@ const PostDetailScreen = () => {
     navigate(`/post/${postId}/edit`);
   }, [navigate, postId]);
 
+  const handleReportPost = useCallback(() => {
+    if (!post?.id) return;
+    if (!window.confirm('이 게시물을 신고하시겠습니까?')) return;
+    try {
+      const key = 'reportedPosts_v1';
+      const raw = JSON.parse(localStorage.getItem(key) || '[]');
+      const idStr = String(post.id);
+      if (!raw.includes(idStr)) raw.push(idStr);
+      localStorage.setItem(key, JSON.stringify(raw));
+      alert('신고가 접수되었습니다. 검토 후 조치하겠습니다.');
+    } catch {
+      alert('처리 중 오류가 발생했습니다.');
+    }
+  }, [post?.id]);
+
   const handleDeletePost = useCallback(async () => {
     if (!post || !isPostAuthor) return;
     if (!window.confirm('이 게시물을 삭제할까요?')) return;
@@ -975,6 +994,7 @@ const PostDetailScreen = () => {
     return `${month}/${day} ${hours}:${minutes} 촬영`;
   }, [photoDate, post]);
   const categoryName = useMemo(() => post?.categoryName || null, [post]);
+  const categoryIcon = useMemo(() => post?.categoryIcon || null, [post]);
   // EXIF에서 검증된 위치 정보
   const verifiedLocation = useMemo(() => post?.verifiedLocation || post?.exifData?.gpsCoordinates ? locationText : null, [post, locationText]);
   const hasExifData = useMemo(() => !!(post?.exifData || post?.photoDate || post?.verifiedLocation), [post]);
@@ -1011,6 +1031,20 @@ const PostDetailScreen = () => {
       }
     }
   }, [locationText, detailedLocationText]);
+
+  useEffect(() => {
+    if (!showAuthorPostMenu && !showShareMenu) return;
+    const onDoc = (e) => {
+      if (showAuthorPostMenu && authorPostMenuRef.current && !authorPostMenuRef.current.contains(e.target)) {
+        setShowAuthorPostMenu(false);
+      }
+      if (showShareMenu && shareMenuRef.current && !shareMenuRef.current.contains(e.target)) {
+        setShowShareMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [showAuthorPostMenu, showShareMenu]);
 
   // 날씨 정보: 항상 업로드 시점(사용자가 올린 시간) 기준으로 표시. 시간이 지나도 업로드 당시 날씨 유지
   useEffect(() => {
@@ -1321,48 +1355,69 @@ const PostDetailScreen = () => {
         <main className="flex flex-col w-full max-w-full bg-white dark:bg-gray-900" style={{ minHeight: 'auto' }}>
           <div className="w-full max-w-full px-4 pt-4 pb-3">
             <div className="w-full max-w-full space-y-4">
-              {/* 1행: 위치정보 | 카테고리 정보 | 연필 수정 (아이콘 열·썸네일 없음) */}
-              <div className="flex items-end gap-2 sm:gap-3">
+              {/* 위치 + 작성자 메뉴(수정·삭제) */}
+              <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">위치정보</p>
                   <p className="mt-0.5 truncate text-base font-bold text-zinc-900 dark:text-zinc-50">
                     {verifiedLocation || detailedLocationText || locationText}
                   </p>
                 </div>
-                <div className="min-w-0 max-w-[52%] shrink-0 sm:max-w-[46%]">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">카테고리 정보</p>
-                    {isPostAuthor ? (
-                      <div className="flex items-center gap-1.5 shrink-0">
+                {isPostAuthor ? (
+                  <div className="relative shrink-0 pt-0.5" ref={authorPostMenuRef}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowAuthorPostMenu((v) => !v);
+                        setShowShareMenu(false);
+                      }}
+                      className="flex h-9 w-9 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                      aria-label="게시물 메뉴"
+                      aria-expanded={showAuthorPostMenu}
+                      aria-haspopup="menu"
+                    >
+                      <span className="material-symbols-outlined text-[22px]">more_vert</span>
+                    </button>
+                    {showAuthorPostMenu && (
+                      <div
+                        className="absolute right-0 top-full z-[100] mt-1 min-w-[148px] overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                        role="menu"
+                      >
                         <button
                           type="button"
-                          onClick={handleNavigateToEditPost}
-                          className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-sky-600 hover:bg-sky-50 dark:text-sky-400 dark:hover:bg-sky-950/40"
+                          role="menuitem"
+                          className="flex w-full px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                          onClick={() => {
+                            setShowAuthorPostMenu(false);
+                            handleNavigateToEditPost();
+                          }}
                         >
-                          수정
+                          수정하기
                         </button>
                         <button
                           type="button"
-                          onClick={handleDeletePost}
-                          className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-gray-400 hover:bg-gray-100 hover:text-red-500 dark:text-gray-500 dark:hover:bg-gray-800"
+                          role="menuitem"
+                          className="flex w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                          onClick={() => {
+                            setShowAuthorPostMenu(false);
+                            handleDeletePost();
+                          }}
                         >
-                          삭제
+                          삭제하기
                         </button>
                       </div>
-                    ) : null}
+                    )}
                   </div>
-                  <p className="mt-0.5 truncate text-sm text-gray-500 dark:text-gray-400" title={categoryName || ''}>
-                    {categoryName || '—'}
-                  </p>
-                </div>
+                ) : null}
               </div>
               {addressText ? (
                 <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{addressText}</p>
               ) : null}
 
-              {/* 2행: 기온(날씨) · 사진정보(촬영 시각) */}
+              {/* 기온 · 촬영시각 · 카테고리 한 블록 */}
               <div className="mt-3">
-                <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">기온 · 사진정보</p>
+                <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">기온 · 사진정보 · 카테고리</p>
                 <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
                   {weatherInfo.loading ? (
                     <span>날씨 로딩…</span>
@@ -1383,6 +1438,15 @@ const PostDetailScreen = () => {
                   <span className="font-medium text-zinc-800 dark:text-zinc-200">
                     {captureLabel || post?.time || (post?.createdAt ? getTimeAgo(post.createdAt) : '방금 전')}
                   </span>
+                  {(categoryName || categoryIcon) ? (
+                    <>
+                      <span className="mx-2 text-gray-300 dark:text-gray-600">·</span>
+                      <span className="font-medium text-zinc-800 dark:text-zinc-200 inline-flex items-center gap-1 flex-wrap">
+                        {categoryIcon ? <span aria-hidden="true">{categoryIcon}</span> : null}
+                        <span title={categoryName || ''}>{categoryName || '—'}</span>
+                      </span>
+                    </>
+                  ) : null}
                 </p>
               </div>
 
@@ -1527,14 +1591,50 @@ const PostDetailScreen = () => {
                   {isFavorited ? 'bookmark' : 'bookmark_border'}
                 </span>
               </button>
-              <button
-                type="button"
-                onClick={handleShare}
-                className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-                aria-label="공유"
-              >
-                <span className="material-symbols-outlined text-[26px] text-gray-600 dark:text-gray-400">ios_share</span>
-              </button>
+              <div className="relative" ref={shareMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowShareMenu((v) => !v);
+                    setShowAuthorPostMenu(false);
+                  }}
+                  className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+                  aria-label="더 보기"
+                  aria-expanded={showShareMenu}
+                  aria-haspopup="menu"
+                >
+                  <span className="material-symbols-outlined text-[26px] text-gray-600 dark:text-gray-400">more_vert</span>
+                </button>
+                {showShareMenu && (
+                  <div
+                    className="absolute right-0 bottom-full z-[100] mb-1 min-w-[148px] overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                    role="menu"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                      onClick={async () => {
+                        setShowShareMenu(false);
+                        await handleShare();
+                      }}
+                    >
+                      공유
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"
+                      onClick={() => {
+                        setShowShareMenu(false);
+                        handleReportPost();
+                      }}
+                    >
+                      신고하기
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

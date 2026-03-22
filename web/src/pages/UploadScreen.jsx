@@ -342,39 +342,32 @@ const UploadScreen = () => {
       const hasTags = analysisResult.tags && analysisResult.tags.length > 0;
       const hasCategory = analysisResult.category && analysisResult.categoryName;
 
-      if ((analysisResult.success || hasCategory) && (hasTags || hasCategory)) {
-        // 5개로 제한
-        const limitedTags = (analysisResult.tags || []).slice(0, 5);
+      if (analysisResult.success || hasCategory || hasTags) {
+        const limitedTags = (analysisResult.tags || []).slice(0, 8);
 
-        // 현재 등록된 태그 목록 가져오기 (# 제거하여 비교)
-        const existingTags = formData.tags.map(tag =>
+        const existingTags = formData.tags.map((tag) =>
           tag.startsWith('#') ? tag.substring(1).toLowerCase() : tag.toLowerCase()
         );
 
-        // 이미 등록된 태그는 제외하고, 한국어 태그만 필터링
+        /** AI·분석 결과 태그: 날씨만 허용하지 않고, 의미 있는 문자열이면 채택 */
         const filteredTags = limitedTags
-          .filter(tag => {
-            const tagWithoutHash = tag.startsWith('#') ? tag.substring(1) : tag;
-            const tagLower = tagWithoutHash.toLowerCase();
-            // 이미 등록된 태그가 아닌지 확인
-            const notExists = !existingTags.includes(tagLower);
-            // 한국어인지 확인 (한글, 공백, 숫자만 허용)
-            const isKorean = /^[가-힣\s\d]+$/.test(tagWithoutHash);
-            // 날씨 중심 태그만 추천
-            return notExists && isKorean && isWeatherTag(tagWithoutHash);
+          .filter((tag) => {
+            const tagWithoutHash = tag.startsWith('#') ? tag.substring(1) : String(tag);
+            const trimmed = tagWithoutHash.trim();
+            if (!trimmed) return false;
+            const tagLower = trimmed.toLowerCase();
+            if (existingTags.includes(tagLower)) return false;
+            if (trimmed.length > 40) return false;
+            return /^[a-zA-Z0-9가-힣\s\-_]+$/.test(trimmed);
           })
-          .slice(0, 5); // 최대 5개로 제한
+          .slice(0, 8);
 
         const mergedTags = [
-          ...weatherTags.map(tag => `#${normalizeTag(tag)}`),
-          ...filteredTags.map(tag => (tag.startsWith('#') ? tag : `#${tag}`))
+          ...weatherTags.map((tag) => `#${normalizeTag(tag)}`),
+          ...filteredTags.map((tag) => (String(tag).startsWith('#') ? String(tag) : `#${String(tag).replace(/^#+/, '')}`))
         ];
 
-        const dedupedTags = Array.from(
-          new Map(mergedTags.map(tag => [normalizeTag(tag).toLowerCase(), `#${normalizeTag(tag)}`])).values()
-        ).filter(tag => isWeatherTag(tag));
-
-        let hashtagged = dedupedTags.slice(0, 5);
+        let hashtagged = dedupeHashtags(mergedTags).slice(0, 8);
 
         if (hashtagged.length === 0) {
           const currentMonth = new Date().getMonth() + 1;
@@ -385,7 +378,7 @@ const UploadScreen = () => {
               : currentMonth >= 9 && currentMonth <= 11
                 ? ['가을날씨', '쾌청한날씨', '일몰', '황금시간대', '쾌적한온도']
                 : ['겨울날씨', '맑음', '청명한날씨', '일출', '체감온도낮음'];
-          hashtagged = fallbackTags.map(tag => `#${tag}`);
+          hashtagged = fallbackTags.map((tag) => `#${tag}`);
         }
 
         setAutoTags(dedupeHashtags(hashtagged));

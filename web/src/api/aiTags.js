@@ -162,25 +162,51 @@ const generateAITagsViaBackend = async (imageFile, location = '', exifData = nul
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 30000,
   });
-  if (response.data?.success && response.data?.tags?.length > 0) {
+  const d = response.data;
+  const hasTags = Array.isArray(d?.tags) && d.tags.length > 0;
+  const hasCategory = !!(d?.category || d?.categoryName);
+  if (d?.success && (hasTags || hasCategory)) {
     return {
       success: true,
-      tags: response.data.tags,
-      caption: response.data.caption || null,
-      method: response.data.method || 'multimodal-ai',
+      tags: Array.isArray(d?.tags) ? d.tags : [],
+      caption: d.caption || null,
+      method: d.method || 'multimodal-ai',
+      category: d.category || null,
+      categoryName: d.categoryName || null,
+      categoryIcon: d.categoryIcon || null,
     };
   }
   return null;
 };
 
 /**
- * 이미지 파일 → AI 태그 생성 (Supabase Edge Function 우선, 실패 시 백엔드 → null이면 로컬 분석)
+ * 이미지 파일 → AI 태그 생성 (Supabase Edge Function 우선, 실패 시 로컬 백엔드, null이면 로컬 휴리스틱)
  */
 export const generateAITags = async (imageFile, location = '', exifData = null) => {
-  // 현재 환경에서는 Supabase Edge Function / 백엔드 API 대신
-  // 클라이언트 측 로컬 분석(색상·위치·노트 기반)을 기본으로 사용합니다.
-  // → 네트워크 502 오류 없이 항상 태그가 생성되도록 하기 위해,
-  //    여기서는 null을 반환하여 aiImageAnalyzer의 로컬 분석으로 폴백시킵니다.
-  logger.log('🤖 원격 AI 태그 호출 생략 → 로컬 이미지 분석 사용');
+  try {
+    const supa = await generateAITagsViaSupabase(imageFile, location, exifData);
+    const supaOk =
+      supa &&
+      (supa.success ||
+        (Array.isArray(supa.tags) && supa.tags.length > 0) ||
+        supa.category ||
+        supa.categoryName);
+    if (supaOk) {
+      logger.log('🤖 Supabase AI 태그/카테고리 응답 사용');
+      return { ...supa, success: supa.success !== false };
+    }
+  } catch (e) {
+    logger.warn('Supabase AI 태그 호출 실패:', e?.message);
+  }
+  try {
+    const backend = await generateAITagsViaBackend(imageFile, location, exifData);
+    if (backend) {
+      logger.log('🤖 로컬 백엔드 AI 태그 응답 사용');
+      return backend;
+    }
+  } catch (e) {
+    logger.warn('백엔드 AI 태그 호출 실패:', e?.message);
+  }
+  logger.log('🤖 원격 AI 없음 → aiImageAnalyzer 로컬 분석으로 폴백');
   return null;
 };

@@ -317,7 +317,8 @@ export const analyzeImageForTags = async (imageFile, location = '', existingNote
       const aiResult = await generateAITags(imageFile, location, exifData);
       logger.debug('  API 호출 결과:', aiResult);
       
-      if (aiResult && (aiResult.success || aiResult.category) && (Array.isArray(aiResult.tags) ? aiResult.tags.length : 0) >= 0) {
+      const hasRemoteTags = Array.isArray(aiResult?.tags) && aiResult.tags.length > 0;
+      if (aiResult && (aiResult.success || aiResult.category || hasRemoteTags)) {
         const hasTags = Array.isArray(aiResult.tags) && aiResult.tags.length > 0;
         if (hasTags) {
           logger.log('✅ 멀티모달 AI 태그 생성 성공!');

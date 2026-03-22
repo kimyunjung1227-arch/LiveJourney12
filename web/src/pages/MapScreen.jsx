@@ -2899,11 +2899,11 @@ const MapScreen = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: '12px 18px',
-              minHeight: 44,
+              padding: '7px 12px',
+              minHeight: 34,
               background: 'rgba(255, 255, 255, 0.95)',
               backdropFilter: 'blur(10px)',
-              borderRadius: '20px',
+              borderRadius: '16px',
               border: 'none',
               cursor: 'pointer',
               boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
@@ -2923,7 +2923,7 @@ const MapScreen = () => {
             }}
           >
             <span style={{
-              fontSize: '14px',
+              fontSize: '12px',
               fontWeight: '600',
               color: '#00BCD4'
             }}>
@@ -2942,13 +2942,13 @@ const MapScreen = () => {
               );
             }}
             style={{
-              padding: '10px 18px',
-              minHeight: 44,
-              borderRadius: '20px',
+              padding: '6px 12px',
+              minHeight: 34,
+              borderRadius: '16px',
               border: 'none',
               background: selectedFilters.includes('bloom') ? '#00BCD4' : 'rgba(255, 255, 255, 0.95)',
               color: selectedFilters.includes('bloom') ? 'white' : '#666',
-              fontSize: '14px',
+              fontSize: '12px',
               fontWeight: '600',
               cursor: 'pointer',
               whiteSpace: 'nowrap',
@@ -2970,13 +2970,13 @@ const MapScreen = () => {
               );
             }}
             style={{
-              padding: '10px 18px',
-              minHeight: 44,
-              borderRadius: '20px',
+              padding: '6px 12px',
+              minHeight: 34,
+              borderRadius: '16px',
               border: 'none',
               background: selectedFilters.includes('food') ? '#00BCD4' : 'rgba(255, 255, 255, 0.95)',
               color: selectedFilters.includes('food') ? 'white' : '#666',
-              fontSize: '14px',
+              fontSize: '12px',
               fontWeight: '600',
               cursor: 'pointer',
               whiteSpace: 'nowrap',
@@ -2998,13 +2998,13 @@ const MapScreen = () => {
               );
             }}
             style={{
-              padding: '10px 18px',
-              minHeight: 44,
-              borderRadius: '20px',
+              padding: '6px 12px',
+              minHeight: 34,
+              borderRadius: '16px',
               border: 'none',
               background: selectedFilters.includes('scenic') ? '#00BCD4' : 'rgba(255, 255, 255, 0.95)',
               color: selectedFilters.includes('scenic') ? 'white' : '#666',
-              fontSize: '14px',
+              fontSize: '12px',
               fontWeight: '600',
               cursor: 'pointer',
               whiteSpace: 'nowrap',
@@ -3026,13 +3026,13 @@ const MapScreen = () => {
               );
             }}
             style={{
-              padding: '10px 18px',
-              minHeight: 44,
-              borderRadius: '20px',
+              padding: '6px 12px',
+              minHeight: 34,
+              borderRadius: '16px',
               border: 'none',
               background: selectedFilters.includes('waiting') ? '#00BCD4' : 'rgba(255, 255, 255, 0.95)',
               color: selectedFilters.includes('waiting') ? 'white' : '#666',
-              fontSize: '14px',
+              fontSize: '12px',
               fontWeight: '600',
               cursor: 'pointer',
               whiteSpace: 'nowrap',
@@ -3066,67 +3066,45 @@ const MapScreen = () => {
               onClick={toggleRouteMode}
               aria-pressed={isRouteMode}
               style={{
-                padding: '10px 16px',
-                borderRadius: '24px',
-                border: isRouteMode ? '2px solid #00838F' : '2px solid rgba(0,0,0,0.08)',
-                background: isRouteMode ? 'linear-gradient(145deg, #00ACC1 0%, #00838F 100%)' : 'white',
-                color: isRouteMode ? 'white' : '#333',
-                boxShadow: isRouteMode
-                  ? '0 0 0 3px rgba(0, 188, 212, 0.45), 0 4px 14px rgba(0, 131, 143, 0.45)'
-                  : '0 2px 8px rgba(0,0,0,0.15)',
+                padding: '8px 14px',
+                borderRadius: '20px',
+                border: isRouteMode ? '1px solid #0097A7' : '1px solid rgba(0,0,0,0.1)',
+                background: isRouteMode ? '#00BCD4' : '#ffffff',
+                color: isRouteMode ? '#ffffff' : '#333333',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '6px',
                 cursor: 'pointer',
-                fontSize: '14px',
+                fontSize: '13px',
                 fontWeight: '600',
-                transition: 'all 0.3s ease',
-                transform: isRouteMode ? 'scale(1.05)' : 'scale(1)',
+                transition: 'background 0.2s ease, color 0.2s ease, border-color 0.2s ease',
                 position: 'relative'
               }}
               onMouseEnter={(e) => {
                 if (!isRouteMode) {
-                  e.currentTarget.style.background = '#f5f5f5';
-                  e.currentTarget.style.transform = 'scale(1.02)';
+                  e.currentTarget.style.background = '#f3f4f6';
+                } else {
+                  e.currentTarget.style.background = '#00ACC1';
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isRouteMode) {
-                  e.currentTarget.style.background = 'white';
-                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.background = '#ffffff';
+                } else {
+                  e.currentTarget.style.background = '#00BCD4';
                 }
               }}
-              onMouseDown={(e) => {
-                e.currentTarget.style.transform = 'scale(0.98)';
-              }}
-              onMouseUp={(e) => {
-                e.currentTarget.style.transform = isRouteMode ? 'scale(1.05)' : 'scale(1)';
-              }}
             >
-              {isRouteMode ? '경로 모드' : '경로 만들기'}
-              {isRouteMode && (
-                <span
-                  style={{
-                    marginLeft: '2px',
-                    padding: '2px 7px',
-                    borderRadius: '10px',
-                    background: 'rgba(255,255,255,0.35)',
-                    fontSize: '11px',
-                    fontWeight: '800',
-                    letterSpacing: '0.02em'
-                  }}
-                >
-                  ON
-                </span>
-              )}
+              라이브 코스 만들기
               {isRouteMode && selectedRoutePins.length > 0 && (
                 <span style={{
-                  marginLeft: '4px',
-                  padding: '2px 6px',
+                  marginLeft: '2px',
+                  padding: '1px 6px',
                   borderRadius: '10px',
-                  background: isRouteMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.1)',
-                  fontSize: '12px',
+                  background: 'rgba(255,255,255,0.25)',
+                  fontSize: '11px',
                   fontWeight: '700'
                 }}>
                   {selectedRoutePins.length}
