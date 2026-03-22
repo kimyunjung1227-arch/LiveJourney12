@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { View, Image, ScrollView, StyleSheet, Text } from 'react-native';
+import { View, Image, ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { useFeedVideo } from '../contexts/FeedVideoContext';
@@ -19,12 +19,17 @@ export default function MainHorizontalMedia({
 }) {
   const { activePlayerId, playGeneration, requestPlay, release } = useFeedVideo();
   const [page, setPage] = useState(0);
+  const [videoMuted, setVideoMuted] = useState(true);
   const list = useMemo(() => (Array.isArray(mediaItems) && mediaItems.length > 0 ? mediaItems : []), [mediaItems]);
   const lastVideoIdRef = useRef(null);
 
   useEffect(() => {
     setPage((p) => Math.min(p, Math.max(0, list.length - 1)));
   }, [list.length]);
+
+  useEffect(() => {
+    setVideoMuted(true);
+  }, [page]);
 
   useEffect(() => {
     if (lastVideoIdRef.current) {
@@ -100,12 +105,27 @@ export default function MainHorizontalMedia({
                   resizeMode={ResizeMode.COVER}
                   isLooping
                   shouldPlay={shouldPlay}
-                  isMuted
+                  isMuted={videoMuted}
                   useNativeControls={false}
                 />
                 <View style={styles.videoHint} pointerEvents="none">
                   <Ionicons name="videocam" size={14} color="#fff" />
                 </View>
+                {isVideo && (
+                  <TouchableOpacity
+                    style={styles.soundToggle}
+                    onPress={() => setVideoMuted((m) => !m)}
+                    activeOpacity={0.85}
+                    accessibilityLabel={videoMuted ? '소리 켜기' : '소리 끄기'}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons
+                      name={videoMuted ? 'volume-mute' : 'volume-high'}
+                      size={22}
+                      color="#fff"
+                    />
+                  </TouchableOpacity>
+                )}
               </>
             ) : (
               <Image source={{ uri: item.uri }} style={{ width, height }} resizeMode="cover" />
@@ -141,5 +161,16 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 4,
+  },
+  soundToggle: {
+    position: 'absolute',
+    bottom: 14,
+    right: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
