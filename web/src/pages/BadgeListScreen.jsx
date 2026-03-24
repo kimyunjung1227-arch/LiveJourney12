@@ -523,8 +523,8 @@ const BadgeListScreen = () => {
                   }`}
               >
                 {/* 뱃지 아이콘 */}
-                <div className={`relative w-16 h-16 rounded-full flex items-center justify-center ${badge.isEarned ? 'bg-primary/20 shadow-md' : 'bg-gray-200 dark:bg-gray-700 opacity-70'}`}>
-                  <span className={`text-4xl ${badge.isEarned ? '' : 'grayscale opacity-80'}`}>
+                <div className={`relative w-16 h-16 rounded-full flex items-center justify-center ${badge.isEarned ? 'bg-primary/20 shadow-md' : 'bg-gray-200 dark:bg-gray-700'}`}>
+                  <span className="text-4xl">
                     {badge.icon || '🏆'}
                   </span>
                   {badge.isEarned && (
@@ -598,7 +598,7 @@ const BadgeListScreen = () => {
       {/* 뱃지 상세 모달 - 달성 조건 명시 + 획득 시 성취감 피드백 */}
       {selectedBadge && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           onClick={closeModal}
         >
           <div 
@@ -616,7 +616,7 @@ const BadgeListScreen = () => {
 
               {/* 뱃지 아이콘 */}
               <div className={`relative w-24 h-24 rounded-full flex items-center justify-center flex-shrink-0 ${selectedBadge.isEarned ? 'bg-primary/20 shadow-lg' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                <span className={`text-5xl ${selectedBadge.isEarned ? '' : 'grayscale opacity-80'}`}>
+                <span className="text-5xl">
                   {selectedBadge.icon || '🏆'}
                 </span>
                 {selectedBadge.isEarned && (
