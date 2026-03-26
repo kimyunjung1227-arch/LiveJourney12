@@ -11,6 +11,7 @@ import { fetchPostsSupabase } from '../api/postsSupabase';
 import { logger } from '../utils/logger';
 import { getMapThumbnailUri, getFirstVideoUriFromPost } from '../utils/postMedia';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
+import { awardBadge, BADGES } from '../utils/badgeSystem';
 
 // HTML 속성에 넣을 URL/텍스트 이스케이프 (핀 img src가 깨지지 않도록)
 const escapeHtmlAttr = (value) => {
@@ -85,6 +86,22 @@ const getMapAgeVisual = (post) => {
 
 const MAP_PIN_PLACEHOLDER_SVG =
   'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiByeD0iNCIgZmlsbD0iI0YzRjRGNiIvPgo8cGF0aCBkPSJNMjAgMTNDMTcuMjQgMTMgMTUgMTUuMjQgMTUgMThDMTUgMjAuNzYgMTcuMjQgMjMgMjAgMjNDMjIuNzYgMjMgMjUgMjAuNzYgMjUgMThDMjUgMTUuMjQgMjIuNzYgMTMgMjAgMTNaIiBmaWxsPSIjOUI5Q0E1Ii8+Cjwvc3ZnPg==';
+
+const SOS_MISSIONS_KEY = 'sosMissions_v2';
+const MISSION_REWARD_KEY = 'missionReward_v1';
+
+const getSOSMissions = () => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SOS_MISSIONS_KEY) || '[]');
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveSOSMissions = (missions) => {
+  localStorage.setItem(SOS_MISSIONS_KEY, JSON.stringify(missions));
+};
 
 const MapScreen = () => {
   const navigate = useNavigate();
@@ -544,6 +561,11 @@ const MapScreen = () => {
   const [showSOSModal, setShowSOSModal] = useState(false); // 도움 요청 모달 표시 여부
   const [selectedSOSLocation, setSelectedSOSLocation] = useState(null); // 선택된 도움 요청 위치
   const [sosQuestion, setSosQuestion] = useState(''); // 궁금한 내용
+  const [sosLocationSearch, setSosLocationSearch] = useState('');
+  const [missionFeedTick, setMissionFeedTick] = useState(0);
+  const [missionReplyText, setMissionReplyText] = useState('');
+  const [missionReplyPhotoUrl, setMissionReplyPhotoUrl] = useState('');
+  const [activeMissionId, setActiveMissionId] = useState(null);
   const [isSelectingLocation, setIsSelectingLocation] = useState(false); // 지도에서 위치 선택 중인지 여부
   const [showAdModal, setShowAdModal] = useState(false); // 광고 모달 표시 여부
   const [pendingSOSRequest, setPendingSOSRequest] = useState(null); // 광고를 보기 전 대기 중인 도움 요청
@@ -560,6 +582,12 @@ const MapScreen = () => {
   const isRouteModeRef = useRef(false); // 최신 경로 모드 상태 저장용 ref
   const setSelectedPinIdRef = useRef(() => {});
   const setPinDetailViewRef = useRef(() => {});
+  const sosMissions = useMemo(() => getSOSMissions().filter((m) => m && typeof m === 'object'), [missionFeedTick]);
+  const sosLocationSuggestions = useMemo(() => {
+    const q = (sosLocationSearch || '').trim().toLowerCase();
+    if (!q) return [];
+    return recommendedRegions.filter((r) => (r?.name || '').toLowerCase().includes(q)).slice(0, 6);
+  }, [sosLocationSearch, recommendedRegions]);
   // isRouteMode 값이 바뀔 때마다 ref에도 반영 (마커 클릭 핸들러에서 최신 값 사용)
   useEffect(() => {
     isRouteModeRef.current = isRouteMode;
@@ -1831,6 +1859,7 @@ const MapScreen = () => {
   const handleSOSRequest = () => {
     // 도움 요청 모달 열기
     setSelectedSOSLocation(null);
+    setSosLocationSearch('');
     setIsSelectingLocation(false);
     setShowSOSModal(true);
   };
@@ -2159,6 +2188,104 @@ const MapScreen = () => {
     setShowAdModal(true);
   };
 
+  const handleSelectSOSLocationBySearch = (regionName) => {
+    const coords = getCoordsByRegion(regionName);
+    if (!coords) {
+      alert('해당 지역 좌표를 찾지 못했습니다.');
+      return;
+    }
+    const point = { lat: coords.lat, lng: coords.lng };
+    setSelectedSOSLocation(point);
+    setSosLocationSearch(regionName);
+    if (map && window.kakao?.maps) {
+      map.setCenter(new window.kakao.maps.LatLng(coords.lat, coords.lng));
+      updateSOSMarker(map, point);
+    }
+  };
+
+  const handleMissionReplySubmit = (mission) => {
+    if (!missionReplyText.trim()) {
+      alert('정보 내용을 입력해주세요.');
+      return;
+    }
+    const missions = getSOSMissions();
+    const response = {
+      id: `resp-${Date.now()}`,
+      responderId: 'current-user',
+      responderName: '현장 제보자',
+      note: missionReplyText.trim(),
+      photoUrl: missionReplyPhotoUrl.trim(),
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+    const next = missions.map((m) => (m.id === mission.id ? { ...m, responses: [response, ...(Array.isArray(m.responses) ? m.responses : [])] } : m));
+    saveSOSMissions(next);
+    if (response.photoUrl) {
+      const uploaded = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+      const post = {
+        id: `mission-post-${Date.now()}`,
+        userId: 'current-user',
+        user: { id: 'current-user', username: '현장 제보자', profileImage: null },
+        images: [response.photoUrl],
+        videos: [],
+        location: mission.locationName || '근처 지역',
+        detailedLocation: mission.locationName || '근처 지역',
+        placeName: mission.locationName || '근처 지역',
+        region: (mission.locationName || '기타').split(' ')[0] || '기타',
+        coordinates: mission.coordinates || null,
+        tags: ['지금상황', '미션', '현장정보'],
+        category: 'scenic',
+        categories: ['scenic'],
+        note: response.note,
+        timestamp: Date.now(),
+        createdAt: new Date().toISOString(),
+        isLocal: true,
+        likes: 0,
+        missionMeta: { missionId: mission.id, responseId: response.id }
+      };
+      localStorage.setItem('uploadedPosts', JSON.stringify([post, ...(Array.isArray(uploaded) ? uploaded : [])]));
+      window.dispatchEvent(new Event('postsUpdated'));
+      if (map) loadPosts(map);
+    }
+    setMissionReplyText('');
+    setMissionReplyPhotoUrl('');
+    setActiveMissionId(null);
+    setMissionFeedTick((v) => v + 1);
+    alert('현장 정보가 등록되었습니다.');
+  };
+
+  const handleMissionDecision = (mission, response, decision) => {
+    const missions = getSOSMissions();
+    const next = missions.map((m) => {
+      if (m.id !== mission.id) return m;
+      const responses = (Array.isArray(m.responses) ? m.responses : []).map((r) => {
+        if (r.id !== response.id) return r;
+        return { ...r, status: decision, reviewedAt: new Date().toISOString() };
+      });
+      return { ...m, responses, status: decision === 'accepted' ? 'resolved' : m.status };
+    });
+    saveSOSMissions(next);
+    if (decision === 'accepted') {
+      const rewardRaw = JSON.parse(localStorage.getItem(MISSION_REWARD_KEY) || '{}');
+      const prev = rewardRaw[response.responderId] || { accepted: 0, rejected: 0, trustBonus: 0 };
+      rewardRaw[response.responderId] = { ...prev, accepted: (prev.accepted || 0) + 1, trustBonus: (prev.trustBonus || 0) + 120 };
+      localStorage.setItem(MISSION_REWARD_KEY, JSON.stringify(rewardRaw));
+      addNotification({
+        type: 'system',
+        title: '🎯 내 정보가 채택되었어요!',
+        message: '신뢰지수 보상과 뱃지 달성 조건이 반영되었습니다.',
+        link: '/profile'
+      });
+      if (BADGES?.['실시간 답변러']) awardBadge(BADGES['실시간 답변러']);
+    } else {
+      const rewardRaw = JSON.parse(localStorage.getItem(MISSION_REWARD_KEY) || '{}');
+      const prev = rewardRaw[response.responderId] || { accepted: 0, rejected: 0, trustBonus: 0 };
+      rewardRaw[response.responderId] = { ...prev, rejected: (prev.rejected || 0) + 1 };
+      localStorage.setItem(MISSION_REWARD_KEY, JSON.stringify(rewardRaw));
+    }
+    setMissionFeedTick((v) => v + 1);
+  };
+
   // 광고를 본 후 도움 요청 완료
   const handleAdComplete = () => {
     if (!pendingSOSRequest) return;
@@ -2182,12 +2309,25 @@ const MapScreen = () => {
         ? getLocationByCoordinates(pendingSOSRequest.coordinates.lat, pendingSOSRequest.coordinates.lng)
         : '근처 지역';
 
+      const mission = {
+        id: `mission-${Date.now()}`,
+        coordinates: pendingSOSRequest.coordinates,
+        locationName,
+        question: pendingSOSRequest.question,
+        requesterId: 'current-user',
+        status: 'open',
+        responses: [],
+        createdAt: new Date().toISOString()
+      };
+      saveSOSMissions([mission, ...getSOSMissions()]);
+      setMissionFeedTick((v) => v + 1);
+
       // 라이브저니 스타일 알림 생성 (속보형 + 개인화)
       // 속보형: 궁금증을 유발하는 텍스트 스니펫
       const notificationTitle = `[${locationName} 실시간 속보] 📢 "${questionSnippet}"`;
 
       // 개인화된 가치: 따뜻한 메시지 + 실시간성 강조
-      const notificationMessage = `${locationName}에서 지금 상황을 물어보고 있어요. 실시간 정보를 공유해주시면 도움이 될 거예요! 🗺️`;
+      const notificationMessage = `지금 ${locationName}의 최신 정보를 원하는 고객이 있습니다. 지금 해결해주면 신뢰지수/뱃지 혜택을 받을 수 있어요!`;
 
       // 외부 알림 시스템에 저장 (다른 사용자들에게 알림이 가는 것처럼)
       // 실제로는 localStorage에 저장되어 다른 사용자의 메인 화면에서 알림으로 표시됨
@@ -2209,6 +2349,7 @@ const MapScreen = () => {
       setShowAdModal(false);
       setPendingSOSRequest(null);
       setSosQuestion('');
+      setSosLocationSearch('');
       setIsSelectingLocation(false);
       setSelectedSOSLocation(null);
 
@@ -2232,6 +2373,7 @@ const MapScreen = () => {
   const handleSOSModalClose = () => {
     setShowSOSModal(false);
     setSosQuestion('');
+    setSosLocationSearch('');
     setIsSelectingLocation(false);
     setSelectedSOSLocation(null);
 
@@ -4115,6 +4257,52 @@ const MapScreen = () => {
                 }}>
                   {/* 위치 선택 */}
                   <div style={{ marginBottom: '16px' }}>
+                    <div style={{ marginBottom: '10px' }}>
+                      <input
+                        type="text"
+                        value={sosLocationSearch}
+                        onChange={(e) => setSosLocationSearch(e.target.value)}
+                        placeholder="지역 검색으로 위치 설정 (예: 강릉, 부산)"
+                        style={{
+                          width: '100%',
+                          border: '1px solid #e0e0e0',
+                          borderRadius: '12px',
+                          padding: '10px 12px',
+                          fontSize: '13px',
+                          outline: 'none'
+                        }}
+                      />
+                      {sosLocationSuggestions.length > 0 && (
+                        <div style={{
+                          marginTop: '6px',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '10px',
+                          overflow: 'hidden',
+                          background: '#fff'
+                        }}>
+                          {sosLocationSuggestions.map((region) => (
+                            <button
+                              key={`sos-region-${region.id}`}
+                              type="button"
+                              onClick={() => handleSelectSOSLocationBySearch(region.name)}
+                              style={{
+                                width: '100%',
+                                textAlign: 'left',
+                                padding: '9px 12px',
+                                border: 'none',
+                                borderBottom: '1px solid #f3f4f6',
+                                background: '#fff',
+                                cursor: 'pointer',
+                                fontSize: '13px',
+                                color: '#1f2937'
+                              }}
+                            >
+                              {region.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -4232,6 +4420,81 @@ const MapScreen = () => {
                         e.target.style.background = '#fafafa';
                       }}
                     />
+                  </div>
+
+                  <div style={{ marginTop: '16px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+                    <p style={{ margin: '0 0 8px 0', fontSize: '13px', fontWeight: '700', color: '#111827' }}>
+                      실시간 미션 응답
+                    </p>
+                    <p style={{ margin: '0 0 10px 0', fontSize: '11px', color: '#6b7280' }}>
+                      정보 수취자가 채택/거절할 수 있고, 채택 시 정보 제공자는 신뢰 보상을 받습니다.
+                    </p>
+                    <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {sosMissions.length === 0 && (
+                        <div style={{ fontSize: '12px', color: '#9ca3af', textAlign: 'center', padding: '8px' }}>
+                          등록된 미션이 없습니다.
+                        </div>
+                      )}
+                      {sosMissions.map((mission) => {
+                        const responses = Array.isArray(mission.responses) ? mission.responses : [];
+                        return (
+                          <div key={mission.id} style={{ border: '1px solid #e5e7eb', borderRadius: '10px', padding: '8px' }}>
+                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#111827' }}>{mission.locationName || '근처 지역'}</div>
+                            <div style={{ fontSize: '12px', color: '#374151', marginTop: '2px' }}>{mission.question}</div>
+                            <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              {responses.map((resp) => (
+                                <div key={resp.id} style={{ border: '1px solid #f3f4f6', borderRadius: '8px', padding: '6px', background: '#f9fafb' }}>
+                                  <div style={{ fontSize: '11px', color: '#111827' }}>{resp.note}</div>
+                                  {!!resp.photoUrl && <a href={resp.photoUrl} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#0284c7' }}>사진 보기</a>}
+                                  {mission.requesterId === 'current-user' && (
+                                    <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
+                                      <button type="button" onClick={() => handleMissionDecision(mission, resp, 'accepted')} style={{ border: 'none', background: '#059669', color: '#fff', borderRadius: '6px', padding: '4px 8px', fontSize: '10px', cursor: 'pointer' }}>
+                                        가장 도움 됐어요
+                                      </button>
+                                      <button type="button" onClick={() => handleMissionDecision(mission, resp, 'rejected')} style={{ border: 'none', background: '#ef4444', color: '#fff', borderRadius: '6px', padding: '4px 8px', fontSize: '10px', cursor: 'pointer' }}>
+                                        정보 거절
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                            {mission.status === 'open' && (
+                              <div style={{ marginTop: '6px' }}>
+                                {activeMissionId !== mission.id ? (
+                                  <button type="button" onClick={() => setActiveMissionId(mission.id)} style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: '8px', padding: '5px 9px', fontSize: '11px', cursor: 'pointer' }}>
+                                    정보 제공하기
+                                  </button>
+                                ) : (
+                                  <>
+                                    <textarea
+                                      value={missionReplyText}
+                                      onChange={(e) => setMissionReplyText(e.target.value)}
+                                      placeholder="지금 상황 정보를 적어주세요"
+                                      style={{ width: '100%', minHeight: '60px', border: '1px solid #d1d5db', borderRadius: '8px', padding: '8px', fontSize: '11px' }}
+                                    />
+                                    <input
+                                      value={missionReplyPhotoUrl}
+                                      onChange={(e) => setMissionReplyPhotoUrl(e.target.value)}
+                                      placeholder="사진 URL 입력 (필수 아님)"
+                                      style={{ width: '100%', marginTop: '6px', border: '1px solid #d1d5db', borderRadius: '8px', padding: '8px', fontSize: '11px' }}
+                                    />
+                                    <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
+                                      <button type="button" onClick={() => handleMissionReplySubmit(mission)} style={{ border: 'none', background: '#00BCD4', color: '#fff', borderRadius: '7px', padding: '5px 9px', fontSize: '11px', cursor: 'pointer' }}>
+                                        등록
+                                      </button>
+                                      <button type="button" onClick={() => setActiveMissionId(null)} style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: '7px', padding: '5px 9px', fontSize: '11px', cursor: 'pointer' }}>
+                                        취소
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
