@@ -562,7 +562,6 @@ const MapScreen = () => {
   const [pendingSOSRequest, setPendingSOSRequest] = useState(null); // 광고를 보기 전 대기 중인 도움 요청
   const [sosLocationSearch, setSosLocationSearch] = useState('');
   const [minimumTrustGrade, setMinimumTrustGrade] = useState('노마드');
-  const [showMissionBoard, setShowMissionBoard] = useState(false);
   const [missionTick, setMissionTick] = useState(0);
   const [missionResponseText, setMissionResponseText] = useState('');
   const [missionResponsePhotoUrl, setMissionResponsePhotoUrl] = useState('');
@@ -3163,36 +3162,6 @@ const MapScreen = () => {
           <div style={{ width: '16px', flexShrink: 0 }} aria-hidden="true" />
         </div>
 
-        <div style={{
-          position: 'absolute',
-          right: '16px',
-          top: '138px',
-          zIndex: 30,
-          pointerEvents: 'auto'
-        }}>
-          <button
-            type="button"
-            onClick={() => setShowMissionBoard(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              border: 'none',
-              borderRadius: '18px',
-              background: '#111827',
-              color: '#fff',
-              padding: '8px 12px',
-              fontSize: '12px',
-              fontWeight: '700',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.22)',
-              cursor: 'pointer'
-            }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>campaign</span>
-            미션 보드
-          </button>
-        </div>
-
         {/* 경로 모드 토글·초기화 — 시트 접힘과 무관하게 항상 표시 (활성 상태 추적·취소 가능) */}
         <div style={{
             position: 'absolute',
@@ -4449,6 +4418,79 @@ const MapScreen = () => {
                       </select>
                     </div>
                   </div>
+
+                  {/* 미션 응답/선택 - 별도 보드 없이 지금 상황 알아보기 내부에서 처리 */}
+                  <div style={{ marginTop: '16px', borderTop: '1px solid #f3f4f6', paddingTop: '14px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: '700', color: '#111827' }}>실시간 미션</span>
+                      <span style={{ fontSize: '11px', color: '#6b7280' }}>근처 {nearbyMissions.length}개 · 전체 {allMissions.length}개</span>
+                      <label style={{ fontSize: '11px', color: '#4b5563', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <input type="checkbox" checked={hideUntrustedResponses} onChange={(e) => setHideUntrustedResponses(e.target.checked)} />
+                        신뢰 낮은 응답 숨기기
+                      </label>
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '10px' }}>
+                      내 등급 {myTrustGrade} · 포인트 {myMissionReward.trustPoint || 0} · 뱃지 {myMissionBadges.map((b) => `${b.icon}${b.name}`).join(', ') || '없음'}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '260px', overflowY: 'auto' }}>
+                      {allMissions.length === 0 && (
+                        <div style={{ fontSize: '12px', color: '#9ca3af', textAlign: 'center', padding: '10px' }}>
+                          등록된 미션이 아직 없습니다.
+                        </div>
+                      )}
+                      {allMissions.map((mission) => {
+                        const trustScoreMin = mission.minimumTrustScore || 0;
+                        const canRespond = mission.status === 'open';
+                        const responses = (mission.responses || []).filter((r) => !hideUntrustedResponses || Number(r.responderTrustScore || 0) >= trustScoreMin);
+                        const best = (mission.responses || []).find((r) => r.id === mission.bestResponseId);
+                        return (
+                          <div key={mission.id} style={{ border: '1px solid #e5e7eb', borderRadius: '10px', padding: '9px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                              <span style={{ fontSize: '12px', fontWeight: '700', color: '#111827' }}>{mission.locationName}</span>
+                              <span style={{ fontSize: '10px', color: mission.status === 'resolved' ? '#0f766e' : '#2563eb', fontWeight: '700' }}>
+                                {mission.status === 'resolved' ? '해결됨' : '진행중'}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#374151', marginTop: '3px' }}>{mission.question}</div>
+                            <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '4px' }}>응답 기준: {mission.minimumTrustGrade || '노마드'} 이상</div>
+                            {best && <div style={{ marginTop: '6px', fontSize: '11px', color: '#0e7490' }}>베스트: {best.note}</div>}
+                            <div style={{ marginTop: '7px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              {responses.map((resp) => (
+                                <div key={resp.id} style={{ borderRadius: '8px', background: '#f9fafb', border: '1px solid #f3f4f6', padding: '6px' }}>
+                                  <div style={{ fontSize: '10px', color: '#6b7280' }}>{resp.responderName} · {resp.responderTrustGrade} · {resp.responderTrustScore}점</div>
+                                  <div style={{ fontSize: '12px', color: '#111827', marginTop: '2px' }}>{resp.note}</div>
+                                  {!!resp.photoUrl && <a href={resp.photoUrl} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#0284c7' }}>사진 보기</a>}
+                                  {mission.requesterId === 'current-user' && mission.status === 'open' && (
+                                    <button type="button" onClick={() => handlePickBestResponse(mission, resp)} style={{ marginTop: '5px', border: 'none', background: '#00BCD4', color: '#fff', borderRadius: '7px', padding: '5px 8px', fontSize: '10px', cursor: 'pointer' }}>
+                                      가장 도움 됐어요
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                            {canRespond && (
+                              <div style={{ marginTop: '8px', borderTop: '1px dashed #e5e7eb', paddingTop: '7px' }}>
+                                {activeMissionId !== mission.id ? (
+                                  <button type="button" onClick={() => setActiveMissionId(mission.id)} style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: '8px', padding: '6px 10px', fontSize: '11px', cursor: 'pointer' }}>
+                                    응답 작성
+                                  </button>
+                                ) : (
+                                  <>
+                                    <textarea value={missionResponseText} onChange={(e) => setMissionResponseText(e.target.value)} placeholder="현장 정보를 남겨주세요" style={{ width: '100%', minHeight: '68px', borderRadius: '8px', border: '1px solid #d1d5db', padding: '8px', fontSize: '11px' }} />
+                                    <input value={missionResponsePhotoUrl} onChange={(e) => setMissionResponsePhotoUrl(e.target.value)} placeholder="사진 URL (선택)" style={{ width: '100%', marginTop: '6px', borderRadius: '8px', border: '1px solid #d1d5db', padding: '8px', fontSize: '11px' }} />
+                                    <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
+                                      <button type="button" onClick={() => handleMissionResponseSubmit(mission)} style={{ border: 'none', background: '#00BCD4', color: '#fff', borderRadius: '8px', padding: '6px 10px', fontSize: '11px', cursor: 'pointer' }}>등록</button>
+                                      <button type="button" onClick={() => setActiveMissionId(null)} style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: '8px', padding: '6px 10px', fontSize: '11px', cursor: 'pointer' }}>취소</button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
 
                 {/* 하단 버튼 */}
@@ -4773,114 +4815,6 @@ const MapScreen = () => {
                     )}
                   </div>
                 )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showMissionBoard && (
-          <div
-            onClick={() => setShowMissionBoard(false)}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: '68px',
-              background: 'rgba(0,0,0,0.55)',
-              zIndex: 2050,
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              padding: '16px'
-            }}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                width: '100%',
-                maxWidth: '440px',
-                maxHeight: '78vh',
-                overflow: 'hidden',
-                background: '#fff',
-                borderRadius: '18px',
-                display: 'flex',
-                flexDirection: 'column'
-              }}
-            >
-              <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: '16px', color: '#111827' }}>지금 상황 미션 보드</div>
-                  <div style={{ fontSize: '12px', color: '#6b7280' }}>내 등급: {myTrustGrade} · 신뢰지수: {myTrustScore}</div>
-                </div>
-                <button type="button" onClick={() => setShowMissionBoard(false)} style={{ border: 'none', background: '#f3f4f6', borderRadius: 999, width: 30, height: 30, cursor: 'pointer' }}>✕</button>
-              </div>
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid #f3f4f6', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '12px', color: '#4b5563' }}>근처 미션 {nearbyMissions.length}개</span>
-                <label style={{ fontSize: '12px', color: '#4b5563', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <input type="checkbox" checked={hideUntrustedResponses} onChange={(e) => setHideUntrustedResponses(e.target.checked)} />
-                  신뢰 낮은 응답 숨기기
-                </label>
-                <span style={{ fontSize: '12px', color: '#0f766e' }}>획득 포인트 {myMissionReward.trustPoint || 0}</span>
-                <span style={{ fontSize: '12px', color: '#92400e' }}>뱃지 {myMissionBadges.map((b) => `${b.icon}${b.name}`).join(', ') || '없음'}</span>
-              </div>
-              <div style={{ overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {allMissions.length === 0 && <div style={{ fontSize: '13px', color: '#6b7280', padding: '16px', textAlign: 'center' }}>등록된 미션이 아직 없습니다.</div>}
-                {allMissions.map((mission) => {
-                  const canRespond = mission.status === 'open';
-                  const trustScoreMin = mission.minimumTrustScore || 0;
-                  const responses = (mission.responses || []).filter((r) => !hideUntrustedResponses || Number(r.responderTrustScore || 0) >= trustScoreMin);
-                  const best = (mission.responses || []).find((r) => r.id === mission.bestResponseId);
-                  return (
-                    <div key={mission.id} style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '10px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#111827' }}>{mission.locationName}</div>
-                        <div style={{ fontSize: '11px', color: mission.status === 'resolved' ? '#0f766e' : '#2563eb', fontWeight: 700 }}>{mission.status === 'resolved' ? '해결됨' : '진행중'}</div>
-                      </div>
-                      <div style={{ fontSize: '13px', color: '#1f2937', marginTop: '4px' }}>{mission.question}</div>
-                      <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '6px' }}>
-                        응답 신뢰 기준: {mission.minimumTrustGrade || '노마드'} 이상
-                      </div>
-                      {best && (
-                        <div style={{ marginTop: '8px', padding: '8px', borderRadius: '8px', background: '#ecfeff', fontSize: '12px', color: '#155e75' }}>
-                          베스트 정보: {best.note}
-                        </div>
-                      )}
-                      <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {responses.map((resp) => (
-                          <div key={resp.id} style={{ padding: '8px', borderRadius: '8px', background: '#f9fafb', border: '1px solid #f3f4f6' }}>
-                            <div style={{ fontSize: '11px', color: '#6b7280' }}>{resp.responderName} · {resp.responderTrustGrade} · {resp.responderTrustScore}점</div>
-                            <div style={{ fontSize: '13px', color: '#111827', marginTop: '2px' }}>{resp.note}</div>
-                            {!!resp.photoUrl && <a href={resp.photoUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#0284c7' }}>사진 보기</a>}
-                            {mission.requesterId === 'current-user' && mission.status === 'open' && (
-                              <button type="button" onClick={() => handlePickBestResponse(mission, resp)} style={{ marginTop: '6px', border: 'none', background: '#00BCD4', color: '#fff', borderRadius: '8px', padding: '6px 8px', fontSize: '11px', cursor: 'pointer' }}>
-                                가장 도움 됐어요
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      {canRespond && (
-                        <div style={{ marginTop: '8px', borderTop: '1px dashed #e5e7eb', paddingTop: '8px' }}>
-                          {activeMissionId !== mission.id ? (
-                            <button type="button" onClick={() => setActiveMissionId(mission.id)} style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: '8px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer' }}>
-                              응답 작성
-                            </button>
-                          ) : (
-                            <>
-                              <textarea value={missionResponseText} onChange={(e) => setMissionResponseText(e.target.value)} placeholder="현장 정보를 남겨주세요" style={{ width: '100%', minHeight: '72px', borderRadius: '8px', border: '1px solid #d1d5db', padding: '8px', fontSize: '12px' }} />
-                              <input value={missionResponsePhotoUrl} onChange={(e) => setMissionResponsePhotoUrl(e.target.value)} placeholder="사진 URL (선택)" style={{ width: '100%', marginTop: '6px', borderRadius: '8px', border: '1px solid #d1d5db', padding: '8px', fontSize: '12px' }} />
-                              <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
-                                <button type="button" onClick={() => handleMissionResponseSubmit(mission)} style={{ border: 'none', background: '#00BCD4', color: '#fff', borderRadius: '8px', padding: '7px 10px', fontSize: '12px', cursor: 'pointer' }}>등록</button>
-                                <button type="button" onClick={() => setActiveMissionId(null)} style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: '8px', padding: '7px 10px', fontSize: '12px', cursor: 'pointer' }}>취소</button>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
               </div>
             </div>
           </div>
