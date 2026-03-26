@@ -75,13 +75,38 @@ const MyMissionsScreen = () => {
       if (p.id === resp.linkedPostId) return true;
       if (p.thumbnail && resp.photoUrl && p.thumbnail === resp.photoUrl) return true;
       if (Array.isArray(p.images) && resp.photoUrl && p.images.includes(resp.photoUrl)) return true;
+      if (resp.linkedPostId && typeof p.id === 'string' && p.id.includes(resp.linkedPostId)) return true;
       return false;
     });
     const targetId = matched?.id || resp.linkedPostId;
-    if (targetId) {
+    if (matched?.id) {
       navigate(`/post/${targetId}`, {
         state: matched ? { post: matched, allPosts: localPosts } : undefined
       });
+      return;
+    }
+    if (targetId) {
+      const fallbackPost = {
+        id: String(targetId),
+        images: resp.photoUrl ? [resp.photoUrl] : [],
+        videos: [],
+        thumbnail: resp.photoUrl || null,
+        note: resp.note || '현장 정보',
+        content: resp.note || '현장 정보',
+        location: resp.locationName || '근처 지역',
+        detailedLocation: resp.locationName || '근처 지역',
+        placeName: resp.locationName || '근처 지역',
+        tags: [],
+        likes: 0,
+        createdAt: resp.createdAt || new Date().toISOString(),
+        timestamp: resp.createdAt ? new Date(resp.createdAt).getTime() : Date.now(),
+        user: {
+          id: resp.responderId || 'mission-responder',
+          username: resp.responderName || '정보제공자',
+          profileImage: null
+        }
+      };
+      navigate(`/post/${targetId}`, { state: { post: fallbackPost, allPosts: localPosts } });
       return;
     }
     if (resp.photoUrl) window.open(resp.photoUrl, '_blank', 'noopener,noreferrer');
