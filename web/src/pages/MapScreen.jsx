@@ -1868,8 +1868,6 @@ const MapScreen = () => {
 
   const handleSOSRequest = () => {
     // 도움 요청 모달 열기
-    setShowAdModal(false);
-    setPendingSOSRequest(null);
     setSelectedSOSLocation(null);
     setIsSelectingLocation(false);
     setShowSOSModal(true);
@@ -3008,7 +3006,7 @@ const MapScreen = () => {
           {/* 상황 물어보기 버튼 - 가장 앞에 배치 */}
           <button
             onClick={() => {
-              hasDraggedFilterRef.current = false;
+              if (hasDraggedFilterRef.current) { hasDraggedFilterRef.current = false; return; }
               handleSOSRequest();
             }}
             style={{
