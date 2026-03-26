@@ -22,6 +22,25 @@ const MyMissionsScreen = () => {
   }, []);
 
   const handleDecision = (mission, response, decision) => {
+    if (decision === 'accepted') {
+      const current = getSOSMissions().find((m) => m.id === mission.id);
+      const currentResponses = Array.isArray(current?.responses) ? current.responses : [];
+      const samePhotoAccepted = currentResponses.some(
+        (r) => r.id === response.id && r.status === 'accepted'
+      );
+      if (samePhotoAccepted) {
+        alert('이 사진은 이미 채택되었습니다.');
+        return;
+      }
+      const allAcceptedForResponder = getSOSMissions()
+        .flatMap((m) => (Array.isArray(m.responses) ? m.responses : []))
+        .filter((r) => r.responderId === response.responderId && r.status === 'accepted').length;
+      if (allAcceptedForResponder >= 3) {
+        alert('같은 정보제공자는 최대 3회까지만 채택할 수 있어요.');
+        return;
+      }
+    }
+
     updateMissionResponseStatus(mission.id, response.id, decision);
     const rewardRaw = JSON.parse(localStorage.getItem(MISSION_REWARD_KEY) || '{}');
     const prev = rewardRaw[response.responderId] || { accepted: 0, rejected: 0, trustBonus: 0 };
@@ -55,46 +74,61 @@ const MyMissionsScreen = () => {
           <h1 className="text-base font-bold">내가 올린 미션</h1>
           <div className="w-10" />
         </header>
-        <main className="flex-1 overflow-y-auto p-4 space-y-3">
+        <main className="flex-1 overflow-y-auto p-4 space-y-6">
           {missions.length === 0 && (
             <p className="text-sm text-gray-500 text-center py-10">등록된 내 미션이 없습니다.</p>
           )}
           {missions.map((mission) => {
             const responses = Array.isArray(mission.responses) ? mission.responses : [];
             return (
-              <div key={mission.id} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3">
+              <div key={mission.id}>
+                <p className="text-xs text-gray-500">미션제목</p>
                 <p className="text-sm font-semibold">{mission.locationName || '근처 지역'}</p>
+                <p className="text-xs text-gray-500 mt-2">미션 내용</p>
                 <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">{mission.question}</p>
-                <div className="mt-2 space-y-2">
-                  {responses.length === 0 && <p className="text-xs text-gray-500">아직 올라온 응답이 없습니다.</p>}
-                  {responses.map((resp) => (
-                    <div key={resp.id} className="rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-2">
-                      <p className="text-xs text-gray-600 dark:text-gray-300">{resp.note}</p>
-                      {!!resp.photoUrl && (
-                        <a href={resp.photoUrl} target="_blank" rel="noreferrer" className="text-xs text-sky-600">
-                          사진 보기
-                        </a>
-                      )}
-                      <div className="mt-2 flex gap-2">
+                <p className="text-xs text-gray-500 mt-2">정보제공된 사진</p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {responses.filter((r) => !!r.photoUrl).map((resp) => (
+                    <div key={resp.id} className="relative aspect-square rounded-md overflow-hidden bg-gray-200">
+                      <img src={resp.photoUrl} alt="" className="w-full h-full object-cover" />
+                      <div className="absolute inset-x-0 bottom-0 bg-black/45 text-white text-[10px] px-1.5 py-1 truncate">
+                        {resp.note || '현장 정보'}
+                      </div>
+                      <div className="absolute top-1 right-1 flex gap-1">
                         <button
                           type="button"
                           onClick={() => handleDecision(mission, resp, 'accepted')}
-                          className="rounded-md bg-emerald-600 text-white px-2 py-1 text-xs"
+                          className="w-7 h-7 rounded-full bg-white/90 text-emerald-600 flex items-center justify-center"
+                          title="채택"
                         >
-                          가장 도움이 되었어요
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>thumb_up</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDecision(mission, resp, 'rejected')}
-                          className="rounded-md bg-rose-600 text-white px-2 py-1 text-xs"
+                          className="w-7 h-7 rounded-full bg-white/90 text-rose-600 flex items-center justify-center"
+                          title="거절"
                         >
-                          정보 거절
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
                         </button>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
+                {responses.filter((r) => !!r.photoUrl).length === 0 && (
+                  <p className="text-xs text-gray-500 mt-2">정보제공된 사진이 아직 없습니다.</p>
+                )}
+                {responses.filter((r) => !r.photoUrl).length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {responses.filter((r) => !r.photoUrl).map((resp) => (
+                      <p key={resp.id} className="text-xs text-gray-500">- {resp.note}</p>
+                    ))}
+                  </div>
+                )}
+                {responses.length > 0 && (
+                  <p className="mt-2 text-[11px] text-gray-500">사진 {responses.filter((r) => !!r.photoUrl).length}장</p>
+                )}
+                </div>
             );
           })}
         </main>

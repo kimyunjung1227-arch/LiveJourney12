@@ -2786,7 +2786,7 @@ const MapScreen = () => {
         }}>
           {/* 뒤로가기 버튼 - 검색창 왼쪽에 정렬 */}
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/main')}
             style={{
               width: '40px',
               height: '40px',

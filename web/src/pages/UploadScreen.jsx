@@ -140,7 +140,6 @@ const UploadScreen = () => {
     setFormData((prev) => ({
       ...prev,
       location: prev.location || missionContext.missionLocationName || '',
-      note: prev.note || `미션 응답: ${missionContext.missionQuestion || ''}`.trim(),
       coordinates: prev.coordinates || missionContext.missionCoordinates || null
     }));
   }, [missionContext]);
@@ -1718,47 +1717,40 @@ const UploadScreen = () => {
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
                     <input
-                    className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft min-h-[48px] h-12 px-4 text-base font-normal placeholder:text-gray-400"
+                    className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-md border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft min-h-[40px] h-10 px-3 text-sm font-normal placeholder:text-gray-400"
                       placeholder="위치를 입력해 주세요."
                       value={formData.location}
+                      readOnly={!!missionContext}
                       onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
                     />
-                    <button
-                      type="button"
-                      onClick={getCurrentLocation}
-                      disabled={loadingLocation}
-                      style={{
-                        width: '48px',
-                        height: '48px',
-                        borderRadius: '20px',
-                        border: 'none',
-                        background: 'white',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: loadingLocation ? 'not-allowed' : 'pointer',
-                        opacity: loadingLocation ? 0.5 : 1,
-                        transition: 'all 0.2s'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!loadingLocation) {
-                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-                          e.currentTarget.style.transform = 'scale(1.05)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-                        e.currentTarget.style.transform = 'scale(1)';
-                      }}
-                      title="현재 위치 자동 입력"
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#00BCD4' }}>
-                        {loadingLocation ? 'hourglass_empty' : 'my_location'}
-                      </span>
-                    </button>
+                    {!missionContext && (
+                      <button
+                        type="button"
+                        onClick={getCurrentLocation}
+                        disabled={loadingLocation}
+                        style={{
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '10px',
+                          border: 'none',
+                          background: 'white',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: loadingLocation ? 'not-allowed' : 'pointer',
+                          opacity: loadingLocation ? 0.5 : 1,
+                          transition: 'all 0.2s'
+                        }}
+                        title="현재 위치 자동 입력"
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#00BCD4' }}>
+                          {loadingLocation ? 'hourglass_empty' : 'my_location'}
+                        </span>
+                      </button>
+                    )}
                   </div>
-                  {loadingLocation && (
+                  {loadingLocation && !missionContext && (
                     <p className="text-xs text-primary mt-1">위치를 찾고 있어요...</p>
                   )}
                 </div>
@@ -1776,7 +1768,7 @@ const UploadScreen = () => {
                 </div>
                 <div className="flex w-full items-stretch gap-2">
                   <input
-                    className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft min-h-[48px] h-12 px-4 text-base font-normal placeholder:text-gray-400"
+                    className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-md border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft min-h-[40px] h-10 px-3 text-sm font-normal placeholder:text-gray-400"
                     placeholder="#맑음 #화창한날씨"
                     value={tagInput}
                     onChange={(e) => setTagInput(e.target.value)}
@@ -1784,7 +1776,7 @@ const UploadScreen = () => {
                   />
                   <button
                     onClick={addTag}
-                    className="flex shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl min-h-[48px] h-12 px-5 bg-primary text-white text-sm font-semibold hover:bg-primary-dark transition-all"
+                    className="flex shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-md min-h-[40px] h-10 px-4 bg-primary text-white text-xs font-semibold hover:bg-primary-dark transition-all"
                   >
                     <span>추가</span>
                   </button>
@@ -1858,13 +1850,13 @@ const UploadScreen = () => {
                 <p className="text-base font-semibold text-gray-800 mb-3">설명 (선택)</p>
                 <div className="relative">
                   <textarea
-                    className="form-textarea w-full rounded-lg border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft px-4 py-3 text-sm font-normal text-gray-900 placeholder:text-[11px] placeholder:whitespace-nowrap resize-none leading-relaxed min-h-[90px]"
+                    className="form-textarea w-full rounded-md border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft px-4 py-3 text-sm font-normal text-gray-900 placeholder:text-[11px] placeholder:whitespace-nowrap resize-none leading-relaxed min-h-[150px]"
                     placeholder="지금 이곳의 생생한 현장 상황을 자유롭게 입력해주세요."
-                    rows="3"
+                    rows="6"
                     value={formData.note}
                     onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
                     style={{
-                      maxHeight: '140px',
+                      maxHeight: '260px',
                       overflowY: 'auto',
                       lineHeight: '1.5'
                     }}
