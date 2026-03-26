@@ -509,6 +509,37 @@ const UploadScreen = () => {
     }
   }, [formData.location, formData.note, formData.tags]);
 
+  const generateVideoTags = useCallback(async (locationName = '', noteText = '') => {
+    const regionName = locationName?.split(' ')[0] || locationName || '';
+    let weatherTags = [];
+    if (regionName) {
+      try {
+        const weatherResult = await getWeatherByRegion(regionName);
+        if (weatherResult?.success && weatherResult.weather) {
+          weatherTags = buildWeatherTagsFromCondition(
+            weatherResult.weather.condition,
+            weatherResult.weather.temperature
+          );
+        }
+      } catch (e) {
+        logger.warn('동영상 날씨 태그 생성 실패 (무시):', e);
+      }
+    }
+
+    const noteHintTags = [];
+    const note = (noteText || '').toLowerCase();
+    if (note.includes('비')) noteHintTags.push('비');
+    if (note.includes('눈')) noteHintTags.push('눈');
+    if (note.includes('혼잡') || note.includes('붐빔')) noteHintTags.push('혼잡');
+    if (note.includes('바람')) noteHintTags.push('바람');
+
+    const baseVideoTags = ['동영상', '현장영상', '실시간'];
+    const merged = dedupeHashtags(
+      [...baseVideoTags, ...weatherTags, ...noteHintTags].map((t) => `#${normalizeTag(t)}`)
+    ).slice(0, 8);
+    setAutoTags(merged);
+  }, []);
+
   const handleImageSelect = useCallback(async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
@@ -646,9 +677,10 @@ const UploadScreen = () => {
       } else {
         // 동영상만 있는 경우 기본 위치 감지
         if (!missionContext) getCurrentLocation();
+        generateVideoTags(formData.location, formData.note);
       }
     }
-  }, [formData.images.length, formData.videos.length, formData.location, formData.note, getCurrentLocation, analyzeImageAndGenerateTags, missionContext]);
+  }, [formData.images.length, formData.videos.length, formData.location, formData.note, getCurrentLocation, analyzeImageAndGenerateTags, missionContext, generateVideoTags]);
 
 
   useEffect(() => {
@@ -671,6 +703,12 @@ const UploadScreen = () => {
       }
     };
   }, [formData.location, formData.note, formData.imageFiles, analyzeImageAndGenerateTags]);
+
+  useEffect(() => {
+    if (formData.imageFiles.length > 0) return;
+    if (formData.videoFiles.length === 0) return;
+    generateVideoTags(formData.location, formData.note);
+  }, [formData.videoFiles, formData.imageFiles.length, formData.location, formData.note, generateVideoTags]);
 
   // 태그가 변경될 때마다 자동 태그에서 이미 등록된 태그 제거
   useEffect(() => {
@@ -1554,8 +1592,8 @@ const UploadScreen = () => {
           flex: 1,
           overflowY: 'auto',
           overflowX: 'hidden',
-          paddingBottom: '160px',
-          padding: '0 16px 160px 16px',
+          paddingBottom: '148px',
+          padding: '0 16px 148px 16px',
           background: 'transparent',
           WebkitOverflowScrolling: 'touch',
           minHeight: 0
@@ -1850,7 +1888,7 @@ const UploadScreen = () => {
                 <p className="text-base font-semibold text-gray-800 mb-3">설명 (선택)</p>
                 <div className="relative">
                   <textarea
-                    className="form-textarea w-full rounded-xl border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft px-4 py-3 text-sm font-normal text-gray-900 placeholder:text-[11px] placeholder:whitespace-nowrap resize-none leading-relaxed min-h-[150px]"
+                    className="form-textarea w-full rounded-2xl border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft px-4 py-3 text-sm font-normal text-gray-900 placeholder:text-[11px] placeholder:whitespace-nowrap resize-none leading-relaxed min-h-[150px]"
                     placeholder="지금 이곳의 생생한 현장 상황을 자유롭게 입력해주세요."
                     rows="6"
                     value={formData.note}
@@ -1874,9 +1912,9 @@ const UploadScreen = () => {
             position: 'absolute',
             left: 0,
             right: 0,
-            bottom: 80,
-            padding: '6px 16px 10px',
-            background: 'rgba(255,255,255,0.98)',
+            bottom: 68,
+            padding: '6px 16px 8px',
+            background: '#ffffff',
             borderTop: '1px solid rgba(148, 163, 184, 0.2)'
           }}
         >

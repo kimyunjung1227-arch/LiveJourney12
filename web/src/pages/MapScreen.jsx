@@ -546,6 +546,7 @@ const MapScreen = () => {
   const [selectedSOSLocation, setSelectedSOSLocation] = useState(null); // 선택된 도움 요청 위치
   const [sosQuestion, setSosQuestion] = useState(''); // 궁금한 내용
   const [sosLocationSearch, setSosLocationSearch] = useState('');
+  const [sosLocationSuggestions, setSosLocationSuggestions] = useState([]);
   const [missionFeedTick, setMissionFeedTick] = useState(0);
   const [isSelectingLocation, setIsSelectingLocation] = useState(false); // 지도에서 위치 선택 중인지 여부
   const [showAdModal, setShowAdModal] = useState(false); // 광고 모달 표시 여부
@@ -567,11 +568,93 @@ const MapScreen = () => {
     () => getSOSMissions().filter((m) => m && typeof m === 'object' && m.status !== 'resolved'),
     [missionFeedTick]
   );
-  const sosLocationSuggestions = useMemo(() => {
-    const q = (sosLocationSearch || '').trim().toLowerCase();
-    if (!q) return [];
-    return recommendedRegions.filter((r) => (r?.name || '').toLowerCase().includes(q)).slice(0, 6);
-  }, [sosLocationSearch, recommendedRegions]);
+  useEffect(() => {
+    const query = (sosLocationSearch || '').trim();
+    if (!query) {
+      setSosLocationSuggestions([]);
+      return;
+    }
+
+    let cancelled = false;
+    const queryLower = query.toLowerCase();
+    const suggestions = [];
+    const dedupe = new Set();
+
+    recommendedRegions
+      .filter((r) => (r?.name || '').toLowerCase().includes(queryLower))
+      .slice(0, 6)
+      .forEach((r) => {
+        const coords = getCoordsByRegion(r.name);
+        if (!coords) return;
+        const key = `region-${r.name}`;
+        if (dedupe.has(key)) return;
+        dedupe.add(key);
+        suggestions.push({
+          id: key,
+          type: 'region',
+          name: r.name,
+          label: r.name,
+          lat: coords.lat,
+          lng: coords.lng
+        });
+      });
+
+    const matchedPosts = searchInPosts(query)
+      .filter((p) => p?.location || p?.detailedLocation || p?.placeName)
+      .slice(0, 5);
+    matchedPosts.forEach((post) => {
+      const locName = post.placeName || post.detailedLocation || post.location;
+      const coords = post.coordinates || getCoordsByRegion(locName);
+      if (!locName || !coords?.lat || !coords?.lng) return;
+      const key = `post-${locName}`;
+      if (dedupe.has(key)) return;
+      dedupe.add(key);
+      suggestions.push({
+        id: key,
+        type: 'post',
+        name: locName,
+        label: `${locName}${post.location && post.location !== locName ? ` (${post.location})` : ''}`,
+        lat: coords.lat,
+        lng: coords.lng
+      });
+    });
+
+    setSosLocationSuggestions(suggestions.slice(0, 10));
+
+    if (window.kakao?.maps?.services) {
+      const placesService = new window.kakao.maps.services.Places();
+      placesService.keywordSearch(query, (data, status) => {
+        if (cancelled) return;
+        if (status !== window.kakao.maps.services.Status.OK || !Array.isArray(data)) return;
+        setSosLocationSuggestions((prev) => {
+          const next = [...prev];
+          const seen = new Set(next.map((s) => `${s.name}-${s.lat}-${s.lng}`));
+          data.slice(0, 6).forEach((place, idx) => {
+            const lat = parseFloat(place.y);
+            const lng = parseFloat(place.x);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+            const key = `${place.place_name}-${lat}-${lng}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+            next.push({
+              id: `kakao-${idx}-${Date.now()}`,
+              type: 'kakao',
+              name: place.place_name,
+              label: place.place_name,
+              address: place.road_address_name || place.address_name || '',
+              lat,
+              lng
+            });
+          });
+          return next.slice(0, 12);
+        });
+      });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sosLocationSearch, recommendedRegions, searchInPosts]);
   // isRouteMode 값이 바뀔 때마다 ref에도 반영 (마커 클릭 핸들러에서 최신 값 사용)
   useEffect(() => {
     isRouteModeRef.current = isRouteMode;
@@ -2172,17 +2255,18 @@ const MapScreen = () => {
     setShowAdModal(true);
   };
 
-  const handleSelectSOSLocationBySearch = (regionName) => {
-    const coords = getCoordsByRegion(regionName);
-    if (!coords) {
-      alert('해당 지역 좌표를 찾지 못했습니다.');
+  const handleSelectSOSLocationBySearch = (suggestion) => {
+    if (!suggestion?.lat || !suggestion?.lng) {
+      alert('해당 위치 좌표를 찾지 못했습니다.');
       return;
     }
-    const point = { lat: coords.lat, lng: coords.lng };
+    const point = { lat: suggestion.lat, lng: suggestion.lng };
     setSelectedSOSLocation(point);
-    setSosLocationSearch(regionName);
+    setSosLocationSearch(suggestion.label || suggestion.name || '');
+    setSosLocationSuggestions([]);
     if (map && window.kakao?.maps) {
-      map.setCenter(new window.kakao.maps.LatLng(coords.lat, coords.lng));
+      map.setCenter(new window.kakao.maps.LatLng(point.lat, point.lng));
+      map.setLevel(4);
       updateSOSMarker(map, point);
     }
   };
@@ -4252,11 +4336,11 @@ const MapScreen = () => {
                     </div>
                     {sosLocationSuggestions.length > 0 && (
                       <div style={{ marginTop: '6px', border: '1px solid #e5e7eb', borderRadius: '10px', overflow: 'hidden' }}>
-                        {sosLocationSuggestions.map((region) => (
+                        {sosLocationSuggestions.map((suggestion) => (
                           <button
-                            key={`sos-region-${region.id}`}
+                            key={suggestion.id}
                             type="button"
-                            onClick={() => handleSelectSOSLocationBySearch(region.name)}
+                            onClick={() => handleSelectSOSLocationBySearch(suggestion)}
                             style={{
                               width: '100%',
                               border: 'none',
@@ -4268,7 +4352,10 @@ const MapScreen = () => {
                               cursor: 'pointer'
                             }}
                           >
-                            {region.name}
+                            <div style={{ fontWeight: 600, color: '#111827' }}>{suggestion.label || suggestion.name}</div>
+                            {suggestion.address && (
+                              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>{suggestion.address}</div>
+                            )}
                           </button>
                         ))}
                       </div>

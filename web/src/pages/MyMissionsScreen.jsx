@@ -10,6 +10,7 @@ const MISSION_REWARD_KEY = 'missionReward_v1';
 const MyMissionsScreen = () => {
   const navigate = useNavigate();
   const [tick, setTick] = useState(0);
+  const [heartFxResponseId, setHeartFxResponseId] = useState(null);
   const missions = useMemo(
     () => getSOSMissions().filter((m) => m?.requesterId === 'current-user'),
     [tick]
@@ -41,6 +42,10 @@ const MyMissionsScreen = () => {
       }
     }
 
+    if (decision === 'accepted') {
+      setHeartFxResponseId(response.id);
+      setTimeout(() => setHeartFxResponseId(null), 650);
+    }
     decideMissionResponse(mission.id, response.id, decision);
     const rewardRaw = JSON.parse(localStorage.getItem(MISSION_REWARD_KEY) || '{}');
     const prev = rewardRaw[response.responderId] || { accepted: 0, rejected: 0, trustBonus: 0 };
@@ -64,8 +69,26 @@ const MyMissionsScreen = () => {
     setTick((v) => v + 1);
   };
 
+  const handleOpenResponseDetail = (resp) => {
+    const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+    const matched = localPosts.find((p) => p.id === resp.linkedPostId || p.thumbnail === resp.photoUrl);
+    const targetId = matched?.id || resp.linkedPostId;
+    if (targetId) {
+      navigate(`/post/${targetId}`, { state: matched ? { post: matched } : undefined });
+      return;
+    }
+    if (resp.photoUrl) window.open(resp.photoUrl, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark h-[100dvh] overflow-hidden flex flex-col">
+      <style>{`
+        @keyframes heartPop {
+          0% { transform: scale(0.6); opacity: 0; }
+          60% { transform: scale(1.2); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
       <div className="screen-content flex flex-col flex-1 min-h-0 overflow-hidden">
         <header className="flex h-16 items-center justify-between border-b border-border-light bg-white dark:border-border-dark dark:bg-gray-900 px-4">
           <button onClick={() => navigate('/map')} className="flex size-10 items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
@@ -91,10 +114,7 @@ const MyMissionsScreen = () => {
                   {responses.filter((r) => !!r.photoUrl).map((resp) => (
                     <div key={resp.id} className="space-y-1">
                       <div
-                        onClick={() => {
-                          if (resp.linkedPostId) navigate(`/post/${resp.linkedPostId}`);
-                          else if (resp.photoUrl) window.open(resp.photoUrl, '_blank', 'noopener,noreferrer');
-                        }}
+                        onClick={() => handleOpenResponseDetail(resp)}
                         className="relative w-full aspect-square rounded-md overflow-hidden bg-gray-200 cursor-pointer"
                       >
                         <img src={resp.photoUrl} alt="" className="w-full h-full object-cover" />
@@ -111,23 +131,42 @@ const MyMissionsScreen = () => {
                             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
                           </button>
                         )}
+                        {resp.status !== 'accepted' && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDecision(mission, resp, 'accepted');
+                            }}
+                            className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full bg-white/95 border border-rose-200 text-rose-500 flex items-center justify-center shadow-sm"
+                            title="채택"
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>favorite</span>
+                          </button>
+                        )}
+                        {resp.status === 'accepted' && (
+                          <div
+                            className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full bg-rose-500/95 text-white flex items-center justify-center shadow-md"
+                            style={{ animation: heartFxResponseId === resp.id ? 'heartPop 0.5s ease-out' : undefined }}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>favorite</span>
+                          </div>
+                        )}
+                        {heartFxResponseId === resp.id && (
+                          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                            <span
+                              className="material-symbols-outlined text-rose-500"
+                              style={{ fontSize: '36px', animation: 'heartPop 0.6s ease-out' }}
+                            >
+                              favorite
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <p className="text-[10px] text-gray-600 dark:text-gray-300 truncate">{resp.note || '현장 정보'}</p>
                       {resp.status === 'accepted' ? (
-                        <div className="flex items-center gap-1 text-rose-500 text-[11px]">
-                          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>favorite</span>
-                          <span>채택됨</span>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleDecision(mission, resp, 'accepted')}
-                          className="w-7 h-7 rounded-full bg-white border border-rose-200 text-rose-500 flex items-center justify-center"
-                          title="채택"
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>favorite</span>
-                        </button>
-                      )}
+                        <div className="text-[11px] text-rose-500">채택됨</div>
+                      ) : null}
                     </div>
                   ))}
                 </div>
