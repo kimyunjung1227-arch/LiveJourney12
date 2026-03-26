@@ -11,6 +11,19 @@ import { fetchPostsSupabase } from '../api/postsSupabase';
 import { logger } from '../utils/logger';
 import { getMapThumbnailUri, getFirstVideoUriFromPost } from '../utils/postMedia';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
+import { getTrustRawScore, getTrustGrade } from '../utils/trustIndex';
+import {
+  createSOSMission,
+  getSOSMissions,
+  addMissionResponse,
+  createMissionResponsePost,
+  selectMissionBestResponse,
+  getNearbyMissions,
+  getMissionTrustScoreByGrade,
+  getMissionRewards,
+  updateMissionRewards,
+  getMissionBadges
+} from '../utils/missionSystem';
 
 // HTML 속성에 넣을 URL/텍스트 이스케이프 (핀 img src가 깨지지 않도록)
 const escapeHtmlAttr = (value) => {
@@ -547,6 +560,14 @@ const MapScreen = () => {
   const [isSelectingLocation, setIsSelectingLocation] = useState(false); // 지도에서 위치 선택 중인지 여부
   const [showAdModal, setShowAdModal] = useState(false); // 광고 모달 표시 여부
   const [pendingSOSRequest, setPendingSOSRequest] = useState(null); // 광고를 보기 전 대기 중인 도움 요청
+  const [sosLocationSearch, setSosLocationSearch] = useState('');
+  const [minimumTrustGrade, setMinimumTrustGrade] = useState('노마드');
+  const [showMissionBoard, setShowMissionBoard] = useState(false);
+  const [missionTick, setMissionTick] = useState(0);
+  const [missionResponseText, setMissionResponseText] = useState('');
+  const [missionResponsePhotoUrl, setMissionResponsePhotoUrl] = useState('');
+  const [activeMissionId, setActiveMissionId] = useState(null);
+  const [hideUntrustedResponses, setHideUntrustedResponses] = useState(true);
   const sosMarkerRef = useRef(null); // 도움 요청 위치 마커
   const centerMarkerRef = useRef(null); // 지도 중심 고정 마커 (HTML 요소)
   const crosshairRef = useRef(null); // 가운데 표시선 (십자선)
@@ -560,6 +581,19 @@ const MapScreen = () => {
   const isRouteModeRef = useRef(false); // 최신 경로 모드 상태 저장용 ref
   const setSelectedPinIdRef = useRef(() => {});
   const setPinDetailViewRef = useRef(() => {});
+  const myTrustScore = getTrustRawScore();
+  const { grade: myTrustGrade } = getTrustGrade(myTrustScore);
+  const allMissions = useMemo(() => getSOSMissions(), [missionTick]);
+  const nearbyMissions = useMemo(() => getNearbyMissions(allMissions, currentLocation, 8), [allMissions, currentLocation]);
+  const myMissionReward = useMemo(() => getMissionRewards('current-user'), [missionTick]);
+  const myMissionBadges = useMemo(() => getMissionBadges(myMissionReward), [myMissionReward]);
+  const sosLocationSuggestions = useMemo(() => {
+    const q = (sosLocationSearch || '').trim().toLowerCase();
+    if (!q || q.length < 1) return [];
+    return recommendedRegions
+      .filter((r) => r.name.toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [sosLocationSearch, recommendedRegions]);
   // isRouteMode 값이 바뀔 때마다 ref에도 반영 (마커 클릭 핸들러에서 최신 값 사용)
   useEffect(() => {
     isRouteModeRef.current = isRouteMode;
@@ -567,6 +601,11 @@ const MapScreen = () => {
   useEffect(() => {
     setSelectedPinIdRef.current = setSelectedPinId;
     setPinDetailViewRef.current = setPinDetailView;
+  }, []);
+  useEffect(() => {
+    const syncMission = () => setMissionTick((v) => v + 1);
+    window.addEventListener('sosMissionUpdated', syncMission);
+    return () => window.removeEventListener('sosMissionUpdated', syncMission);
   }, []);
 
   // 지도를 열자마자 내 위치로 나오게 하기 위해 지오로케이션 요청
@@ -2148,6 +2187,8 @@ const MapScreen = () => {
       id: `sos-${Date.now()}`,
       coordinates: selectedSOSLocation,
       question: sosQuestion.trim(),
+      minimumTrustGrade,
+      minimumTrustScore: getMissionTrustScoreByGrade(minimumTrustGrade),
       status: 'open',
       createdAt: new Date().toISOString(),
       userId: 'current-user' // TODO: 실제 사용자 ID로 교체
@@ -2157,6 +2198,60 @@ const MapScreen = () => {
     setShowSOSModal(false);
     setPendingSOSRequest(newSOSRequest);
     setShowAdModal(true);
+  };
+
+  const handleSelectSOSLocationBySearch = (regionName) => {
+    const coords = getCoordsByRegion(regionName);
+    if (!coords) {
+      alert('해당 지역 좌표를 찾지 못했습니다.');
+      return;
+    }
+    const locationBySearch = { lat: coords.lat, lng: coords.lng };
+    setSelectedSOSLocation(locationBySearch);
+    setSosLocationSearch(regionName);
+    if (map && window.kakao?.maps) {
+      map.setCenter(new window.kakao.maps.LatLng(coords.lat, coords.lng));
+      updateSOSMarker(map, locationBySearch);
+    }
+  };
+
+  const handleMissionResponseSubmit = (mission) => {
+    if (!missionResponseText.trim()) {
+      alert('답변 내용을 입력해주세요.');
+      return;
+    }
+    const responsePayload = {
+      responderId: 'current-user',
+      responderName: '나',
+      responderTrustScore: myTrustScore,
+      responderTrustGrade: myTrustGrade,
+      note: missionResponseText.trim(),
+      photoUrl: missionResponsePhotoUrl.trim()
+    };
+    addMissionResponse(mission.id, responsePayload);
+    const latestMission = getSOSMissions().find((m) => m.id === mission.id);
+    const latestResponse = latestMission?.responses?.[0];
+    if (latestMission && latestResponse?.photoUrl) {
+      createMissionResponsePost(latestMission, latestResponse, { userId: 'current-user', username: '나' });
+      if (map) loadPosts(map);
+    }
+    updateMissionRewards('current-user', { completed: 1, trustPoint: 40 });
+    setMissionResponseText('');
+    setMissionResponsePhotoUrl('');
+    setActiveMissionId(null);
+    setMissionTick((v) => v + 1);
+    alert('미션 답변이 등록되었습니다.');
+  };
+
+  const handlePickBestResponse = (mission, response) => {
+    if (mission.requesterId !== 'current-user') return;
+    selectMissionBestResponse(mission.id, response.id, 'current-user');
+    updateMissionRewards('current-user', { trustPoint: 20 });
+    if (response.responderId === 'current-user') {
+      updateMissionRewards('current-user', { selectedBest: 1, trustPoint: 120 });
+    }
+    setMissionTick((v) => v + 1);
+    alert('가장 도움이 된 정보를 선택했습니다.');
   };
 
   // 광고를 본 후 도움 요청 완료
@@ -2181,6 +2276,17 @@ const MapScreen = () => {
       const locationName = pendingSOSRequest.coordinates
         ? getLocationByCoordinates(pendingSOSRequest.coordinates.lat, pendingSOSRequest.coordinates.lng)
         : '근처 지역';
+      createSOSMission({
+        title: `${locationName} 지금 상황`,
+        question: pendingSOSRequest.question,
+        coordinates: pendingSOSRequest.coordinates,
+        locationName,
+        requesterId: 'current-user',
+        requesterName: '나',
+        minimumTrustGrade: pendingSOSRequest.minimumTrustGrade || '노마드',
+        minimumTrustScore: pendingSOSRequest.minimumTrustScore || 0,
+        notifyRadiusKm: 8
+      });
 
       // 라이브저니 스타일 알림 생성 (속보형 + 개인화)
       // 속보형: 궁금증을 유발하는 텍스트 스니펫
@@ -2209,8 +2315,11 @@ const MapScreen = () => {
       setShowAdModal(false);
       setPendingSOSRequest(null);
       setSosQuestion('');
+      setMinimumTrustGrade('노마드');
       setIsSelectingLocation(false);
       setSelectedSOSLocation(null);
+      setSosLocationSearch('');
+      setMissionTick((v) => v + 1);
 
       // 마커 제거
       if (sosMarkerRef.current) {
@@ -2219,7 +2328,7 @@ const MapScreen = () => {
       }
 
       // 외부 시스템에서 알림이 전송된 것처럼 메시지 표시
-      alert('도움 요청이 등록되었습니다.\n근처에 있는 분들에게 알림이 전송되었습니다.');
+      alert('도움 요청이 미션으로 등록되었습니다.\n지정한 위치 근처 사용자에게 알림이 전송됩니다.');
     } catch (error) {
       logger.error('도움 요청 저장 실패:', error);
       alert('도움 요청 등록에 실패했습니다. 다시 시도해주세요.');
@@ -2232,6 +2341,8 @@ const MapScreen = () => {
   const handleSOSModalClose = () => {
     setShowSOSModal(false);
     setSosQuestion('');
+    setSosLocationSearch('');
+    setMinimumTrustGrade('노마드');
     setIsSelectingLocation(false);
     setSelectedSOSLocation(null);
 
@@ -3050,6 +3161,36 @@ const MapScreen = () => {
           </button>
           {/* 스크롤 끝 여백 (메인 추천여행지 슬라이드와 동일) */}
           <div style={{ width: '16px', flexShrink: 0 }} aria-hidden="true" />
+        </div>
+
+        <div style={{
+          position: 'absolute',
+          right: '16px',
+          top: '138px',
+          zIndex: 30,
+          pointerEvents: 'auto'
+        }}>
+          <button
+            type="button"
+            onClick={() => setShowMissionBoard(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              border: 'none',
+              borderRadius: '18px',
+              background: '#111827',
+              color: '#fff',
+              padding: '8px 12px',
+              fontSize: '12px',
+              fontWeight: '700',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.22)',
+              cursor: 'pointer'
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>campaign</span>
+            미션 보드
+          </button>
         </div>
 
         {/* 경로 모드 토글·초기화 — 시트 접힘과 무관하게 항상 표시 (활성 상태 추적·취소 가능) */}
@@ -4115,6 +4256,52 @@ const MapScreen = () => {
                 }}>
                   {/* 위치 선택 */}
                   <div style={{ marginBottom: '16px' }}>
+                    <div style={{ marginBottom: '10px' }}>
+                      <input
+                        type="text"
+                        value={sosLocationSearch}
+                        onChange={(e) => setSosLocationSearch(e.target.value)}
+                        placeholder="지역 검색으로 위치 설정 (예: 강릉, 부산)"
+                        style={{
+                          width: '100%',
+                          border: '1px solid #e0e0e0',
+                          borderRadius: '12px',
+                          padding: '10px 12px',
+                          fontSize: '13px',
+                          outline: 'none'
+                        }}
+                      />
+                      {sosLocationSuggestions.length > 0 && (
+                        <div style={{
+                          marginTop: '6px',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '10px',
+                          overflow: 'hidden',
+                          background: '#fff'
+                        }}>
+                          {sosLocationSuggestions.map((region) => (
+                            <button
+                              key={`sos-region-${region.id}`}
+                              type="button"
+                              onClick={() => handleSelectSOSLocationBySearch(region.name)}
+                              style={{
+                                width: '100%',
+                                textAlign: 'left',
+                                padding: '9px 12px',
+                                border: 'none',
+                                borderBottom: '1px solid #f3f4f6',
+                                background: '#fff',
+                                cursor: 'pointer',
+                                fontSize: '13px',
+                                color: '#1f2937'
+                              }}
+                            >
+                              {region.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -4232,6 +4419,35 @@ const MapScreen = () => {
                         e.target.style.background = '#fafafa';
                       }}
                     />
+                    <div style={{ marginTop: '10px' }}>
+                      <span style={{
+                        fontSize: '13px',
+                        color: '#374151',
+                        fontWeight: '600',
+                        display: 'block',
+                        marginBottom: '6px'
+                      }}>
+                        신뢰 필터 기준
+                      </span>
+                      <select
+                        value={minimumTrustGrade}
+                        onChange={(e) => setMinimumTrustGrade(e.target.value)}
+                        style={{
+                          width: '100%',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '10px',
+                          padding: '10px 12px',
+                          fontSize: '13px',
+                          background: '#fff'
+                        }}
+                      >
+                        <option value="노마드">노마드 이상</option>
+                        <option value="트래커">트래커 이상</option>
+                        <option value="가이드">가이드 이상</option>
+                        <option value="마스터">마스터 이상</option>
+                        <option value="앰버서더">앰버서더 이상</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
 
@@ -4557,6 +4773,114 @@ const MapScreen = () => {
                     )}
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showMissionBoard && (
+          <div
+            onClick={() => setShowMissionBoard(false)}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: '68px',
+              background: 'rgba(0,0,0,0.55)',
+              zIndex: 2050,
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              padding: '16px'
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: '100%',
+                maxWidth: '440px',
+                maxHeight: '78vh',
+                overflow: 'hidden',
+                background: '#fff',
+                borderRadius: '18px',
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+            >
+              <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: '16px', color: '#111827' }}>지금 상황 미션 보드</div>
+                  <div style={{ fontSize: '12px', color: '#6b7280' }}>내 등급: {myTrustGrade} · 신뢰지수: {myTrustScore}</div>
+                </div>
+                <button type="button" onClick={() => setShowMissionBoard(false)} style={{ border: 'none', background: '#f3f4f6', borderRadius: 999, width: 30, height: 30, cursor: 'pointer' }}>✕</button>
+              </div>
+              <div style={{ padding: '10px 16px', borderBottom: '1px solid #f3f4f6', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '12px', color: '#4b5563' }}>근처 미션 {nearbyMissions.length}개</span>
+                <label style={{ fontSize: '12px', color: '#4b5563', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <input type="checkbox" checked={hideUntrustedResponses} onChange={(e) => setHideUntrustedResponses(e.target.checked)} />
+                  신뢰 낮은 응답 숨기기
+                </label>
+                <span style={{ fontSize: '12px', color: '#0f766e' }}>획득 포인트 {myMissionReward.trustPoint || 0}</span>
+                <span style={{ fontSize: '12px', color: '#92400e' }}>뱃지 {myMissionBadges.map((b) => `${b.icon}${b.name}`).join(', ') || '없음'}</span>
+              </div>
+              <div style={{ overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {allMissions.length === 0 && <div style={{ fontSize: '13px', color: '#6b7280', padding: '16px', textAlign: 'center' }}>등록된 미션이 아직 없습니다.</div>}
+                {allMissions.map((mission) => {
+                  const canRespond = mission.status === 'open';
+                  const trustScoreMin = mission.minimumTrustScore || 0;
+                  const responses = (mission.responses || []).filter((r) => !hideUntrustedResponses || Number(r.responderTrustScore || 0) >= trustScoreMin);
+                  const best = (mission.responses || []).find((r) => r.id === mission.bestResponseId);
+                  return (
+                    <div key={mission.id} style={{ border: '1px solid #e5e7eb', borderRadius: '12px', padding: '10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#111827' }}>{mission.locationName}</div>
+                        <div style={{ fontSize: '11px', color: mission.status === 'resolved' ? '#0f766e' : '#2563eb', fontWeight: 700 }}>{mission.status === 'resolved' ? '해결됨' : '진행중'}</div>
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#1f2937', marginTop: '4px' }}>{mission.question}</div>
+                      <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '6px' }}>
+                        응답 신뢰 기준: {mission.minimumTrustGrade || '노마드'} 이상
+                      </div>
+                      {best && (
+                        <div style={{ marginTop: '8px', padding: '8px', borderRadius: '8px', background: '#ecfeff', fontSize: '12px', color: '#155e75' }}>
+                          베스트 정보: {best.note}
+                        </div>
+                      )}
+                      <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {responses.map((resp) => (
+                          <div key={resp.id} style={{ padding: '8px', borderRadius: '8px', background: '#f9fafb', border: '1px solid #f3f4f6' }}>
+                            <div style={{ fontSize: '11px', color: '#6b7280' }}>{resp.responderName} · {resp.responderTrustGrade} · {resp.responderTrustScore}점</div>
+                            <div style={{ fontSize: '13px', color: '#111827', marginTop: '2px' }}>{resp.note}</div>
+                            {!!resp.photoUrl && <a href={resp.photoUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#0284c7' }}>사진 보기</a>}
+                            {mission.requesterId === 'current-user' && mission.status === 'open' && (
+                              <button type="button" onClick={() => handlePickBestResponse(mission, resp)} style={{ marginTop: '6px', border: 'none', background: '#00BCD4', color: '#fff', borderRadius: '8px', padding: '6px 8px', fontSize: '11px', cursor: 'pointer' }}>
+                                가장 도움 됐어요
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {canRespond && (
+                        <div style={{ marginTop: '8px', borderTop: '1px dashed #e5e7eb', paddingTop: '8px' }}>
+                          {activeMissionId !== mission.id ? (
+                            <button type="button" onClick={() => setActiveMissionId(mission.id)} style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: '8px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer' }}>
+                              응답 작성
+                            </button>
+                          ) : (
+                            <>
+                              <textarea value={missionResponseText} onChange={(e) => setMissionResponseText(e.target.value)} placeholder="현장 정보를 남겨주세요" style={{ width: '100%', minHeight: '72px', borderRadius: '8px', border: '1px solid #d1d5db', padding: '8px', fontSize: '12px' }} />
+                              <input value={missionResponsePhotoUrl} onChange={(e) => setMissionResponsePhotoUrl(e.target.value)} placeholder="사진 URL (선택)" style={{ width: '100%', marginTop: '6px', borderRadius: '8px', border: '1px solid #d1d5db', padding: '8px', fontSize: '12px' }} />
+                              <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
+                                <button type="button" onClick={() => handleMissionResponseSubmit(mission)} style={{ border: 'none', background: '#00BCD4', color: '#fff', borderRadius: '8px', padding: '7px 10px', fontSize: '12px', cursor: 'pointer' }}>등록</button>
+                                <button type="button" onClick={() => setActiveMissionId(null)} style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: '8px', padding: '7px 10px', fontSize: '12px', cursor: 'pointer' }}>취소</button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
