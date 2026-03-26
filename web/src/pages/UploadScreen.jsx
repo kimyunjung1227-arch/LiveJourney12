@@ -633,22 +633,22 @@ const UploadScreen = () => {
           } else {
             logger.log('ℹ️ EXIF 데이터 없음 - 기본 위치 감지 사용');
             // EXIF 데이터가 없으면 기본 위치 감지 사용
-            getCurrentLocation();
+            if (!missionContext) getCurrentLocation();
           }
         } catch (error) {
           logger.warn('EXIF 추출 실패:', error);
           // EXIF 추출 실패 시 기본 위치 감지 사용
-          getCurrentLocation();
+          if (!missionContext) getCurrentLocation();
         }
 
         // AI 이미지 분석
         analyzeImageAndGenerateTags(firstImageFile, formData.location, formData.note);
       } else {
         // 동영상만 있는 경우 기본 위치 감지
-        getCurrentLocation();
+        if (!missionContext) getCurrentLocation();
       }
     }
-  }, [formData.images.length, formData.videos.length, formData.location, formData.note, getCurrentLocation, analyzeImageAndGenerateTags]);
+  }, [formData.images.length, formData.videos.length, formData.location, formData.note, getCurrentLocation, analyzeImageAndGenerateTags, missionContext]);
 
 
   useEffect(() => {
@@ -1650,7 +1650,7 @@ const UploadScreen = () => {
                     {formData.images.map((image, index) => (
                       <div
                         key={`img-row-${index}`}
-                        className="relative flex-shrink-0 w-24 h-24 rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-600 bg-gray-100"
+                        className="relative flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 bg-gray-100"
                       >
                         <img src={image} alt="" className="w-full h-full object-cover" />
                         <button
@@ -1717,7 +1717,7 @@ const UploadScreen = () => {
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
                     <input
-                    className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-md border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft min-h-[40px] h-10 px-3 text-sm font-normal placeholder:text-gray-400"
+                    className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft min-h-[40px] h-10 px-3 text-sm font-normal placeholder:text-gray-400"
                       placeholder="위치를 입력해 주세요."
                       value={formData.location}
                       readOnly={!!missionContext}
@@ -1768,7 +1768,7 @@ const UploadScreen = () => {
                 </div>
                 <div className="flex w-full items-stretch gap-2">
                   <input
-                    className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-md border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft min-h-[40px] h-10 px-3 text-sm font-normal placeholder:text-gray-400"
+                    className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft min-h-[40px] h-10 px-3 text-sm font-normal placeholder:text-gray-400"
                     placeholder="#맑음 #화창한날씨"
                     value={tagInput}
                     onChange={(e) => setTagInput(e.target.value)}
@@ -1776,7 +1776,7 @@ const UploadScreen = () => {
                   />
                   <button
                     onClick={addTag}
-                    className="flex shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-md min-h-[40px] h-10 px-4 bg-primary text-white text-xs font-semibold hover:bg-primary-dark transition-all"
+                    className="flex shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl min-h-[40px] h-10 px-4 bg-primary text-white text-xs font-semibold hover:bg-primary-dark transition-all"
                   >
                     <span>추가</span>
                   </button>
@@ -1850,7 +1850,7 @@ const UploadScreen = () => {
                 <p className="text-base font-semibold text-gray-800 mb-3">설명 (선택)</p>
                 <div className="relative">
                   <textarea
-                    className="form-textarea w-full rounded-md border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft px-4 py-3 text-sm font-normal text-gray-900 placeholder:text-[11px] placeholder:whitespace-nowrap resize-none leading-relaxed min-h-[150px]"
+                    className="form-textarea w-full rounded-xl border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft px-4 py-3 text-sm font-normal text-gray-900 placeholder:text-[11px] placeholder:whitespace-nowrap resize-none leading-relaxed min-h-[150px]"
                     placeholder="지금 이곳의 생생한 현장 상황을 자유롭게 입력해주세요."
                     rows="6"
                     value={formData.note}

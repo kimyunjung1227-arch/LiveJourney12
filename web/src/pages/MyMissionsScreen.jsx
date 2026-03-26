@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { addNotification } from '../utils/notifications';
 import { awardBadge, BADGES } from '../utils/badgeSystem';
-import { getSOSMissions, updateMissionResponseStatus } from '../utils/sosMissionStore';
+import { getSOSMissions, decideMissionResponse } from '../utils/sosMissionStore';
 
 const MISSION_REWARD_KEY = 'missionReward_v1';
 
@@ -41,7 +41,7 @@ const MyMissionsScreen = () => {
       }
     }
 
-    updateMissionResponseStatus(mission.id, response.id, decision);
+    decideMissionResponse(mission.id, response.id, decision);
     const rewardRaw = JSON.parse(localStorage.getItem(MISSION_REWARD_KEY) || '{}');
     const prev = rewardRaw[response.responderId] || { accepted: 0, rejected: 0, trustBonus: 0 };
     if (decision === 'accepted') {
@@ -89,29 +89,45 @@ const MyMissionsScreen = () => {
                 <p className="text-xs text-gray-500 mt-2">정보제공된 사진</p>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {responses.filter((r) => !!r.photoUrl).map((resp) => (
-                    <div key={resp.id} className="relative aspect-square rounded-md overflow-hidden bg-gray-200">
-                      <img src={resp.photoUrl} alt="" className="w-full h-full object-cover" />
-                      <div className="absolute inset-x-0 bottom-0 bg-black/45 text-white text-[10px] px-1.5 py-1 truncate">
-                        {resp.note || '현장 정보'}
+                    <div key={resp.id} className="space-y-1">
+                      <div
+                        onClick={() => {
+                          if (resp.linkedPostId) navigate(`/post/${resp.linkedPostId}`);
+                          else if (resp.photoUrl) window.open(resp.photoUrl, '_blank', 'noopener,noreferrer');
+                        }}
+                        className="relative w-full aspect-square rounded-md overflow-hidden bg-gray-200 cursor-pointer"
+                      >
+                        <img src={resp.photoUrl} alt="" className="w-full h-full object-cover" />
+                        {resp.status !== 'accepted' && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDecision(mission, resp, 'rejected');
+                            }}
+                            className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/35 text-white flex items-center justify-center"
+                            title="거절"
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
+                          </button>
+                        )}
                       </div>
-                      <div className="absolute top-1 right-1 flex gap-1">
+                      <p className="text-[10px] text-gray-600 dark:text-gray-300 truncate">{resp.note || '현장 정보'}</p>
+                      {resp.status === 'accepted' ? (
+                        <div className="flex items-center gap-1 text-rose-500 text-[11px]">
+                          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>favorite</span>
+                          <span>채택됨</span>
+                        </div>
+                      ) : (
                         <button
                           type="button"
                           onClick={() => handleDecision(mission, resp, 'accepted')}
-                          className="w-7 h-7 rounded-full bg-white/90 text-emerald-600 flex items-center justify-center"
+                          className="w-7 h-7 rounded-full bg-white border border-rose-200 text-rose-500 flex items-center justify-center"
                           title="채택"
                         >
-                          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>thumb_up</span>
+                          <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>favorite</span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDecision(mission, resp, 'rejected')}
-                          className="w-7 h-7 rounded-full bg-white/90 text-rose-600 flex items-center justify-center"
-                          title="거절"
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
-                        </button>
-                      </div>
+                      )}
                     </div>
                   ))}
                 </div>

@@ -40,3 +40,23 @@ export const updateMissionResponseStatus = (missionId, responseId, status) => {
   });
   saveSOSMissions(next);
 };
+
+export const decideMissionResponse = (missionId, responseId, decision) => {
+  const next = getSOSMissions().map((m) => {
+    if (m.id !== missionId) return m;
+    const responses = Array.isArray(m.responses) ? m.responses : [];
+    if (decision === 'rejected') {
+      return { ...m, responses: responses.filter((r) => r.id !== responseId) };
+    }
+    if (decision === 'accepted') {
+      const updatedResponses = responses.map((r) =>
+        r.id === responseId
+          ? { ...r, status: 'accepted', reviewedAt: new Date().toISOString() }
+          : { ...r, status: r.status || 'pending' }
+      );
+      return { ...m, responses: updatedResponses, status: 'resolved', resolvedAt: new Date().toISOString() };
+    }
+    return m;
+  });
+  saveSOSMissions(next);
+};

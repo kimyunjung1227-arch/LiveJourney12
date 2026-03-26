@@ -563,7 +563,10 @@ const MapScreen = () => {
   const isRouteModeRef = useRef(false); // 최신 경로 모드 상태 저장용 ref
   const setSelectedPinIdRef = useRef(() => {});
   const setPinDetailViewRef = useRef(() => {});
-  const sosMissions = useMemo(() => getSOSMissions().filter((m) => m && typeof m === 'object'), [missionFeedTick]);
+  const sosMissions = useMemo(
+    () => getSOSMissions().filter((m) => m && typeof m === 'object' && m.status !== 'resolved'),
+    [missionFeedTick]
+  );
   const sosLocationSuggestions = useMemo(() => {
     const q = (sosLocationSearch || '').trim().toLowerCase();
     if (!q) return [];
