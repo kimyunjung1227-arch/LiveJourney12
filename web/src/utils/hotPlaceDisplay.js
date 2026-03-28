@@ -23,6 +23,58 @@ export function getLocationSubtitle(post, title) {
     return '';
 }
 
+/** 메인·더보기 공통 — 지금 N명이 보고 있어요 (좋아요·댓글 기반) */
+export function computeHotFeedViewingCount(post) {
+    const likeCount = Number(post?.likes ?? post?.likeCount ?? 0) || 0;
+    const commentCount = Array.isArray(post?.comments) ? post.comments.length : 0;
+    return Math.max(2, Math.min(99, (likeCount + commentCount * 2) % 35 + 6));
+}
+
+/** 프로필 썸네일 (소셜 줄용) */
+export function getAvatarUrls(post) {
+    const urls = [];
+    const commenters = Array.isArray(post.comments) ? post.comments : [];
+    commenters.forEach((c) => {
+        const avatar = c.avatar || c.user?.avatar;
+        if (avatar && !urls.includes(avatar)) urls.push(avatar);
+    });
+    const uploaderAvatar = post.user?.avatar || post.avatar;
+    if (uploaderAvatar && !urls.includes(uploaderAvatar)) urls.unshift(uploaderAvatar);
+    return urls.slice(0, 3);
+}
+
+/**
+ * 핫플 카드 1줄: 주소 형태 문자열 (예: 김천 연화지)
+ */
+export function getHotFeedAddressLine(post) {
+    if (!post) return '';
+    const loc = (post.location || '').trim();
+    if (loc) return loc;
+    return (post.placeName || post.detailedLocation || '').trim() || '핫플레이스';
+}
+
+/**
+ * 그 아래 줄 왼쪽: 도시·동 등 행정단위 (detailedLocation 또는 region+토큰 추정)
+ */
+export function getCityDongLine(post) {
+    if (!post) return '';
+    const d = (post.detailedLocation || '').trim();
+    if (d) {
+        const base = d.split('·')[0].split('|')[0].trim();
+        if (base) return base;
+    }
+    const region = (post.region || '').trim();
+    const loc = (post.location || '').trim();
+    const tokens = loc.split(/\s+/).filter(Boolean);
+    if (tokens.length >= 3) {
+        return `${tokens[0]} ${tokens[1]}`;
+    }
+    if (tokens.length === 2) {
+        return `${tokens[0]} ${tokens[1]}`;
+    }
+    return region || '';
+}
+
 /**
  * 사진 카테고리 한글 (명소·카페·맛집 등) — 더보기 피드 2번째 줄용
  */
@@ -45,28 +97,13 @@ export function getPhotoCategoryLabel(post) {
 export function getDongCategoryLine(post) {
     if (!post) return '';
     const cat = getPhotoCategoryLabel(post);
-    const detailed = (post.detailedLocation || '').trim();
-    if (detailed && !detailed.includes('·')) {
-        return `${detailed} · ${cat}`;
-    }
-    const loc = (post.location || '').trim();
-    const tokens = loc.split(/\s+/).filter(Boolean);
-    let area = '';
-    if (tokens.length >= 4) {
-        area = tokens.slice(0, 3).join(' ');
-    } else if (tokens.length === 3) {
-        area = `${tokens[0]} ${tokens[1]}`;
-    } else if (tokens.length === 2) {
-        area = `${tokens[0]} ${tokens[1]}`;
-    } else if (tokens.length === 1) {
-        area = (post.region || '').trim() || tokens[0];
-    }
-    if (!area) area = (post.region || '').trim() || '이 지역';
-    return `${area} · ${cat}`;
+    const cityDong = getCityDongLine(post);
+    if (cityDong && cat) return `${cityDong} · ${cat}`;
+    return cat || cityDong || '';
 }
 
 /**
- * 더보기 피드 3번째 줄: 사진/장소 설명
+ * 더보기 피드 3번째 줄: 사진/장소 설명 (약 2줄 분량)
  */
 export function getPhotoCaptionLine(post) {
     if (!post) return '';
@@ -77,7 +114,7 @@ export function getPhotoCaptionLine(post) {
         raw = (post.note || '').trim();
     }
     if (!raw) return '실시간으로 공유된 장소예요.';
-    return raw.length > 120 ? `${raw.slice(0, 118)}…` : raw;
+    return raw.length > 72 ? `${raw.slice(0, 70)}…` : raw;
 }
 
 /** 이미지 우하단 분위기: 혼잡도 추정 (다른 화면 호환용) */

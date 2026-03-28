@@ -18,19 +18,14 @@ import { rankHotspotPosts } from '../utils/hotnessEngine';
 import { updatePostLikesSupabase } from '../api/postsSupabase';
 import { getWeatherByRegion } from '../api/weather';
 import { loadMagazineTopics } from '../utils/magazinesConfig';
-import { getLocationSubtitle } from '../utils/hotPlaceDisplay';
-
-const getAvatarUrls = (post) => {
-    const urls = [];
-    const commenters = Array.isArray(post.comments) ? post.comments : [];
-    commenters.forEach((c) => {
-        const avatar = c.avatar || c.user?.avatar;
-        if (avatar && !urls.includes(avatar)) urls.push(avatar);
-    });
-    const uploaderAvatar = post.user?.avatar || post.avatar;
-    if (uploaderAvatar && !urls.includes(uploaderAvatar)) urls.unshift(uploaderAvatar);
-    return urls.slice(0, 3);
-};
+import {
+    getHotFeedAddressLine,
+    getCityDongLine,
+    getPhotoCategoryLabel,
+    getPhotoCaptionLine,
+    getAvatarUrls,
+    computeHotFeedViewingCount,
+} from '../utils/hotPlaceDisplay';
 
 /** 이미지 좌상단 카테고리 뱃지 (급상승 / 사람 많음 / 인기 / 실시간) */
 const getHotCategoryLabel = (post) => {
@@ -500,14 +495,14 @@ const MainScreen = () => {
     const hotFeedCardProps = useMemo(() => {
         if (!hotFeedPost) return null;
         const post = hotFeedPost;
-        const title = post.location || post.placeName || post.detailedLocation || '핫플레이스';
+        const title = getHotFeedAddressLine(post);
         const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
         const weather = post.weather || weatherByRegion[regionKey] || null;
         const hasWeather = weather && (weather.icon || weather.temperature);
         const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
         const commentCount = Array.isArray(post.comments) ? post.comments.length : 0;
         const photoCount = Math.max(1, Math.min(99, (likeCount + commentCount * 2) % 28 + 4));
-        const viewingCount = Math.max(2, Math.min(99, (likeCount + commentCount * 2) % 35 + 6));
+        const viewingCount = computeHotFeedViewingCount(post);
         const avatars = getAvatarUrls(post);
         const regionShort = post.region || (post.location || '').trim().split(/\s+/).slice(0, 2).join(' ') || '위치';
         const categoryLabel = getHotCategoryLabel(post);
@@ -528,7 +523,13 @@ const MainScreen = () => {
         } else {
             whyHotLine = tagHint ? `실시간으로 올라온 정보예요. ${tagHint}` : '실시간으로 올라온 핫플 정보예요.';
         }
-        const locationSubtitle = getLocationSubtitle(post, title);
+        const cityDongLine = getCityDongLine(post);
+        const photoCategoryLabel = getPhotoCategoryLabel(post);
+        const photoCaptionLine = getPhotoCaptionLine(post);
+        const loc = (post.location || '').trim();
+        const hasUserCaption = !!(post.note || '').trim()
+            || (!!(post.content || '').trim() && (post.content || '').trim() !== (loc ? `${loc}의 모습` : ''));
+        const captionForCard = hasUserCaption ? photoCaptionLine : whyHotLine;
         return {
             post,
             title,
@@ -542,7 +543,9 @@ const MainScreen = () => {
             regionShort,
             categoryLabel,
             whyHotLine,
-            locationSubtitle,
+            cityDongLine,
+            photoCategoryLabel,
+            captionForCard,
         };
     }, [hotFeedPost, weatherByRegion]);
 
@@ -1151,8 +1154,9 @@ const MainScreen = () => {
                                         avatars,
                                         regionShort,
                                         categoryLabel,
-                                        whyHotLine,
-                                        locationSubtitle,
+                                        cityDongLine,
+                                        photoCategoryLabel,
+                                        captionForCard,
                                     } = hotFeedCardProps;
                                     const socialLines = [
                                         `지금 약 ${viewingCount}명이 이 피드를 보고 있어요`,
@@ -1162,7 +1166,7 @@ const MainScreen = () => {
                                     const socialText = socialLines[hotFeedSocialIdx % 3];
                                     const liked = isPostLiked(post.id);
                                     const slideIdx = crowdedData.length ? hotFeedSlideIndex % crowdedData.length : 0;
-                                    const badgeBg = categoryLabel === '급상승' ? '#ef4444' : categoryLabel === '사람 많음' ? '#ea580c' : categoryLabel === '인기' ? '#7c3aed' : '#64748b';
+                                    const badgeBg = '#26C6DA';
                                     return (
                                     <div
                                         key={`${post.id}-${slideIdx}`}
@@ -1231,10 +1235,15 @@ const MainScreen = () => {
                                         </div>
                                         <div style={{ padding: '10px 2px 4px', background: 'transparent', border: 'none', boxShadow: 'none' }}>
                                             <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{title}</h4>
-                                            {locationSubtitle ? (
-                                                <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#64748b', lineHeight: 1.45, fontWeight: 500 }}>{locationSubtitle}</p>
+                                            {(cityDongLine || photoCategoryLabel) ? (
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                                                    <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500, lineHeight: 1.4, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cityDongLine || regionShort}</span>
+                                                    {photoCategoryLabel ? (
+                                                        <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: '#26C6DA', padding: '3px 9px', borderRadius: 9999, flexShrink: 0 }}>{photoCategoryLabel}</span>
+                                                    ) : null}
+                                                </div>
                                             ) : null}
-                                            <p style={{ margin: locationSubtitle ? '6px 0 0 0' : '8px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{whyHotLine}</p>
+                                            <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', background: 'transparent', boxShadow: 'none' }}>{captionForCard}</p>
                                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, gap: 8 }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1, gap: 8 }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 2 }}>
