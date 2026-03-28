@@ -1087,11 +1087,11 @@ const MainScreen = () => {
                         )}
                     </div>
                 ) : (
-                <div style={{ padding: '0 16px 20px', background: '#ffffff', minHeight: '100%' }}>
+                <div style={{ padding: '8px 16px 24px', background: '#ffffff', minHeight: '100%' }}>
 
-                        {/* 실시간 핫플 — 레퍼런스: 이미지 위 좌 카테고리·우 날씨만, 제목·설명은 이미지 아래 · 한 화면 노출용 낮은 미디어 높이 */}
-                        <div style={{ marginBottom: '0', paddingTop: '0', paddingBottom: '16px', background: '#ffffff' }}>
-                            <div style={{ padding: '0 0 8px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff' }}>
+                        {/* 실시간 핫플 — 이미지 4:3 세로 비중 + 섹션 여백 */}
+                        <div style={{ marginBottom: '0', paddingTop: '4px', paddingBottom: '24px', background: '#ffffff' }}>
+                            <div style={{ padding: '0 0 14px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff' }}>
                                 <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#111827' }}>실시간 핫플</h3>
                                 <button
                                     type="button"
@@ -1140,8 +1140,8 @@ const MainScreen = () => {
                                             className="main-hot-feed-media"
                                             style={{
                                                 width: '100%',
-                                                aspectRatio: '2/1',
-                                                maxHeight: 'min(32vw, 18dvh, 124px)',
+                                                aspectRatio: '4/3',
+                                                maxHeight: 'min(58vw, 38dvh, 260px)',
                                                 position: 'relative',
                                                 background: '#e5e7eb',
                                                 overflow: 'hidden',
@@ -1187,9 +1187,9 @@ const MainScreen = () => {
                                                 <div style={{ width: '100%', height: '100%', background: '#e5e7eb' }} />
                                             )}
                                         </div>
-                                        <div style={{ padding: '12px 12px 10px' }}>
+                                        <div style={{ padding: '14px 14px 12px' }}>
                                             <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{title}</h4>
-                                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 8 }}>
+                                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 10 }}>
                                                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', marginTop: 5, flexShrink: 0 }} />
                                                 <p style={{ margin: 0, fontSize: '12px', color: '#374151', lineHeight: 1.45, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{statusLine}</p>
                                             </div>
