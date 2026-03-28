@@ -281,8 +281,7 @@ const CrowdedPlaceScreen = () => {
                                 <div
                                     key={post.id}
                                     onClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } })}
-                                    style={{ maxHeight: 'calc((100dvh - 200px) / 2)' }}
-                                    className="group flex min-h-0 flex-col cursor-pointer overflow-hidden rounded-[14px] border border-slate-100 bg-white shadow-[0_2px_14px_rgba(15,23,42,0.07)] dark:border-slate-700 dark:bg-slate-800"
+                                    className="group flex flex-col cursor-pointer overflow-hidden rounded-[14px] border border-slate-100 bg-white shadow-[0_2px_14px_rgba(15,23,42,0.07)] dark:border-slate-700 dark:bg-slate-800"
                                 >
                                     <div
                                         className="relative w-full shrink-0 overflow-hidden bg-[#e5e7eb]"
@@ -337,7 +336,7 @@ const CrowdedPlaceScreen = () => {
                                             </div>
                                         )}
                                     </div>
-                                    <div className="min-h-0 flex-1 px-2 pb-2 pt-2.5">
+                                    <div className="shrink-0 px-2 pb-2.5 pt-2.5">
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="min-w-0 flex-1">
                                                 <h3 className="line-clamp-2 text-[15px] font-bold leading-snug text-text-main dark:text-white">{addressLine}</h3>
@@ -349,8 +348,8 @@ const CrowdedPlaceScreen = () => {
                                                         <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-extrabold text-white">{photoCat}</span>
                                                     ) : null}
                                                 </div>
-                                                <p className="mt-1.5 line-clamp-2 rounded-lg bg-primary-5 px-2.5 py-1.5 text-[11px] font-medium leading-relaxed text-slate-700 dark:bg-slate-900/60 dark:text-slate-200">
-                                                    {captionLine}
+                                                <p className="mt-1.5 line-clamp-2 break-words rounded-lg bg-primary-5 px-2.5 py-1.5 text-[11px] font-medium leading-relaxed text-slate-700 dark:bg-slate-900/60 dark:text-slate-200">
+                                                    {captionLine || '실시간으로 공유된 장소예요.'}
                                                 </p>
                                             </div>
                                             <button
@@ -364,7 +363,7 @@ const CrowdedPlaceScreen = () => {
                                                 </span>
                                             </button>
                                         </div>
-                                        <div className="mt-2 flex items-center justify-between gap-2">
+                                        <div className="mt-2 flex shrink-0 items-center justify-between gap-2">
                                             <div className="flex min-w-0 flex-1 items-center gap-2">
                                                 <div className="flex items-center pl-0.5">
                                                     {avatars.slice(0, 3).map((url, ai) => (
@@ -384,7 +383,7 @@ const CrowdedPlaceScreen = () => {
                                                 </div>
                                                 <span
                                                     key={`crowded-social-${post.id}-${crowdedSocialIdx}`}
-                                                    className="min-w-0 truncate text-[11px] font-medium text-slate-500 dark:text-slate-400"
+                                                    className="min-w-0 flex-1 text-[11px] font-medium leading-snug text-slate-600 dark:text-slate-300"
                                                 >
                                                     {socialText}
                                                 </span>
