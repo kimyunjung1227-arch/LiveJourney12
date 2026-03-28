@@ -348,7 +348,7 @@ const CrowdedPlaceScreen = () => {
                                                         <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-extrabold text-white">{photoCat}</span>
                                                     ) : null}
                                                 </div>
-                                                <p className="mt-1.5 line-clamp-2 break-words rounded-lg bg-primary-5 px-2.5 py-1.5 text-[11px] font-medium leading-relaxed text-slate-700 dark:bg-slate-900/60 dark:text-slate-200">
+                                                <p className="mt-1.5 line-clamp-2 break-words rounded-xl border border-primary/25 bg-primary-10 px-3 py-2 text-[11px] font-medium leading-relaxed text-slate-800 shadow-sm dark:border-slate-600 dark:bg-slate-900/85 dark:text-slate-100 dark:shadow-inner">
                                                     {captionLine || '실시간으로 공유된 장소예요.'}
                                                 </p>
                                             </div>
