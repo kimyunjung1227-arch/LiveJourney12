@@ -18,6 +18,7 @@ import { rankHotspotPosts } from '../utils/hotnessEngine';
 import { updatePostLikesSupabase } from '../api/postsSupabase';
 import { getWeatherByRegion } from '../api/weather';
 import { loadMagazineTopics } from '../utils/magazinesConfig';
+import { getLocationSubtitle } from '../utils/hotPlaceDisplay';
 
 const getAvatarUrls = (post) => {
     const urls = [];
@@ -527,6 +528,7 @@ const MainScreen = () => {
         } else {
             whyHotLine = tagHint ? `실시간으로 올라온 정보예요. ${tagHint}` : '실시간으로 올라온 핫플 정보예요.';
         }
+        const locationSubtitle = getLocationSubtitle(post, title);
         return {
             post,
             title,
@@ -540,6 +542,7 @@ const MainScreen = () => {
             regionShort,
             categoryLabel,
             whyHotLine,
+            locationSubtitle,
         };
     }, [hotFeedPost, weatherByRegion]);
 
@@ -1149,6 +1152,7 @@ const MainScreen = () => {
                                         regionShort,
                                         categoryLabel,
                                         whyHotLine,
+                                        locationSubtitle,
                                     } = hotFeedCardProps;
                                     const socialLines = [
                                         `지금 약 ${viewingCount}명이 이 피드를 보고 있어요`,
@@ -1227,10 +1231,10 @@ const MainScreen = () => {
                                         </div>
                                         <div style={{ padding: '10px 2px 4px', background: 'transparent', border: 'none', boxShadow: 'none' }}>
                                             <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{title}</h4>
-                                            {regionShort && String(title).trim() !== String(regionShort).trim() && (
-                                                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b', fontWeight: 500 }}>{regionShort}</p>
-                                            )}
-                                            <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{whyHotLine}</p>
+                                            {locationSubtitle ? (
+                                                <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#64748b', lineHeight: 1.45, fontWeight: 500 }}>{locationSubtitle}</p>
+                                            ) : null}
+                                            <p style={{ margin: locationSubtitle ? '6px 0 0 0' : '8px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{whyHotLine}</p>
                                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, gap: 8 }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1, gap: 8 }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 2 }}>

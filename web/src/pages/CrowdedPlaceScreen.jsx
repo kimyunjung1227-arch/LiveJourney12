@@ -6,9 +6,10 @@ import './MainScreen.css';
 
 import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
-import { fetchPostsSupabase, updatePostLikesSupabase } from '../api/postsSupabase';
+import { fetchPostsSupabase } from '../api/postsSupabase';
 import { rankHotspotPosts } from '../utils/hotnessEngine';
-import { toggleLike, isPostLiked, toggleBookmark, isPostBookmarked } from '../utils/socialInteractions';
+import { toggleBookmark, isPostBookmarked } from '../utils/socialInteractions';
+import { getLocationSubtitle, getHotAtmosphere } from '../utils/hotPlaceDisplay';
 
 const FILTERS = [
     { id: '전체', label: '전체', icon: null },
@@ -30,50 +31,13 @@ const matchFilter = (post, filterId) => {
     return true;
 };
 
-const getAvatarUrls = (post) => {
-    const urls = [];
-    const commenters = Array.isArray(post.comments) ? post.comments : [];
-    commenters.forEach((c) => {
-        const avatar = c.avatar || c.user?.avatar;
-        if (avatar && !urls.includes(avatar)) urls.push(avatar);
-    });
-    const uploaderAvatar = post.user?.avatar || post.avatar;
-    if (uploaderAvatar && !urls.includes(uploaderAvatar)) urls.unshift(uploaderAvatar);
-    return urls.slice(0, 3);
-};
-
 const CrowdedPlaceScreen = () => {
     const navigate = useNavigate();
     const [crowdedData, setCrowdedData] = useState([]);
     const [activeFilter, setActiveFilter] = useState('전체');
     const [refreshKey, setRefreshKey] = useState(0);
     const [bookmarkRefresh, setBookmarkRefresh] = useState(0);
-    const [feedbackIndex, setFeedbackIndex] = useState(0);
     const contentRef = useRef(null);
-
-    const handleLike = (e, post) => {
-        e.stopPropagation();
-        const wasLiked = isPostLiked(post.id);
-        const baseLikes = typeof post.likes === 'number'
-            ? post.likes
-            : (typeof post.likeCount === 'number' ? post.likeCount : 0);
-        const result = toggleLike(post.id, baseLikes);
-        if (result.existsInStorage) {
-            setCrowdedData((prev) =>
-                prev.map((p) => (p && p.id === post.id ? { ...p, likes: result.newCount, likeCount: result.newCount } : p))
-            );
-        } else {
-            const delta = wasLiked ? -1 : 1;
-            updatePostLikesSupabase(post.id, delta);
-            setCrowdedData((prev) =>
-                prev.map((p) =>
-                    (p && p.id === post.id
-                        ? { ...p, likes: result.newCount, likeCount: result.newCount }
-                        : p)
-                )
-            );
-        }
-    };
 
     const handleBookmark = (e, post) => {
         e.stopPropagation();
@@ -163,14 +127,6 @@ const CrowdedPlaceScreen = () => {
         loadData();
     }, [refreshKey]);
 
-    // 하단 설명 문구를 하나로 합쳐 순차적으로 보여주기 위한 인덱스 (공통)
-    useEffect(() => {
-        const id = setInterval(() => {
-            setFeedbackIndex((prev) => (prev + 1) % 3);
-        }, 3000);
-        return () => clearInterval(id);
-    }, []);
-
     const filteredPosts = crowdedData.filter((post) => matchFilter(post, activeFilter));
 
     return (
@@ -209,10 +165,10 @@ const CrowdedPlaceScreen = () => {
                                 key={f.id}
                                 type="button"
                                 onClick={() => setActiveFilter(f.id)}
-                                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors border ${
                                     isActive
-                                        ? 'bg-primary text-white shadow-md shadow-primary/20'
-                                        : 'bg-slate-100 dark:bg-slate-800 text-text-sub dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                        ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                                        : 'bg-white dark:bg-slate-800 text-text-sub dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'
                                 }`}
                             >
                                 {f.icon && <span className="material-symbols-outlined text-base">{f.icon}</span>}
@@ -233,27 +189,22 @@ const CrowdedPlaceScreen = () => {
                     <div className="flex flex-col gap-3 px-4 pb-16">
                         {filteredPosts.map((post) => {
                             const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
-                            const commentCount = Array.isArray(post.comments) ? post.comments.length : 0;
-                            const uploadCount = Math.min(99, commentCount + 1);
-                            const viewingCount = Math.max(1, Math.min(99, (likeCount + commentCount * 2) % 30 + 3));
                             const rank = post._rank;
-                            const impactLabel = post._impactLabel;
-                            const avatars = getAvatarUrls(post);
-                            const regionLabel = post.region || post.location || '장소';
                             const title = post.location || post.placeName || post.detailedLocation || '핫플레이스';
                             const isBookmarked = bookmarkRefresh >= 0 && isPostBookmarked(post.id);
-                            const desc = post.content || post.note || `${post.location || '장소'}의 모습`;
+                            const locationSub = getLocationSubtitle(post, title);
+                            const atmosphere = getHotAtmosphere(post);
                             return (
                                 <div
                                     key={post.id}
                                     onClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } })}
                                     className="group flex flex-col bg-white dark:bg-slate-800 rounded-2xl shadow-md border border-slate-100 dark:border-slate-700 overflow-hidden cursor-pointer"
                                 >
-                                    {/* 사진 영역: 4:3 비율 유지 (메인과 동일 구조) */}
-                                    <div className="relative w-full aspect-[4/3] bg-slate-200 overflow-hidden">
-                                        {rank != null && rank <= 3 && (
-                                            <div className="absolute top-3 left-3 z-10 w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold shadow-md">
-                                                {rank}
+                                    {/* 사진: 메인 핫플과 유사 — 좌상단 TRENDING, 우하단 분위기 */}
+                                    <div className="relative w-full aspect-[4/3] bg-slate-200 overflow-hidden rounded-t-2xl">
+                                        {rank != null && (
+                                            <div className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-md bg-slate-900/80 text-white text-[10px] font-extrabold tracking-tight shadow-md">
+                                                TRENDING #{rank}
                                             </div>
                                         )}
                                         {post.thumbnailIsVideo && post.firstVideoUrl ? (
@@ -262,64 +213,56 @@ const CrowdedPlaceScreen = () => {
                                                 muted
                                                 playsInline
                                                 preload="metadata"
-                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
                                             />
                                         ) : post.image ? (
-                                            <img src={post.image} alt={post.location || ''} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                            <img src={post.image} alt={post.location || ''} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.02]" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-slate-400">
                                                 <span className="material-symbols-outlined text-4xl">image</span>
                                             </div>
                                         )}
-                                        <div className="absolute inset-0 bg-black/10 pointer-events-none" />
-                                        <div className="absolute top-3 right-3 inline-flex items-center gap-1.5 bg-black/50 text-white px-2.5 py-1.5 rounded-lg text-xs font-medium z-10">
-                                            <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
-                                            {regionLabel}
-                                        </div>
-                                        <div className="absolute bottom-3 right-3 flex items-center justify-center z-10">
-                                            <span className="inline-flex items-center gap-1 bg-white/95 text-slate-900 px-2.5 py-1.5 rounded-full text-xs font-semibold shadow-md">
-                                                <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 0", color: '#ef4444' }}>favorite</span>
-                                                <span>{likeCount}</span>
+                                        <div className="absolute inset-0 bg-black/5 pointer-events-none" />
+                                        <div
+                                            className={`absolute bottom-3 right-3 z-10 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold text-white shadow-md ${
+                                                atmosphere === 'crowded' ? 'bg-blue-500' : 'bg-amber-500'
+                                            }`}
+                                        >
+                                            <span className="material-symbols-outlined text-[16px]">
+                                                {atmosphere === 'crowded' ? 'groups' : 'sentiment_satisfied'}
                                             </span>
+                                            {atmosphere === 'crowded' ? '사람 몰림' : '여유로움'}
                                         </div>
                                     </div>
-                                        <div className="p-3 pb-2">
-                                        {impactLabel && (
-                                            <p className="text-xs text-primary font-medium mb-1">{impactLabel}</p>
-                                        )}
+                                    <div className="p-3.5 pb-3">
                                         <div className="flex justify-between items-start gap-2">
                                             <div className="min-w-0 flex-1">
-                                                <h3 className="text-base font-bold text-text-main dark:text-white truncate">{title}</h3>
-                                                <p className="text-xs text-text-sub dark:text-slate-400 mt-0.5 line-clamp-2">{desc}</p>
+                                                <h3 className="text-base font-bold text-text-main dark:text-white leading-snug">{title}</h3>
+                                                {locationSub ? (
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                                                        {locationSub}
+                                                    </p>
+                                                ) : null}
                                             </div>
-                                            <button type="button" className="text-slate-400 hover:text-primary transition-colors p-1 flex-shrink-0" onClick={(e) => handleBookmark(e, post)} aria-label="저장">
-                                                <span className="material-symbols-outlined" style={isBookmarked ? { fontVariationSettings: "'FILL' 1" } : undefined}>bookmark</span>
+                                            <button
+                                                type="button"
+                                                className="text-slate-400 hover:text-primary transition-colors p-1 flex-shrink-0 mt-0.5"
+                                                onClick={(e) => handleBookmark(e, post)}
+                                                aria-label="저장"
+                                            >
+                                                <span className="material-symbols-outlined text-[22px]" style={isBookmarked ? { fontVariationSettings: "'FILL' 1" } : undefined}>
+                                                    bookmark
+                                                </span>
                                             </button>
                                         </div>
-                                        {/* 하단: 업로더 + 가벼운 실시간 설명 */}
-                                        <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-                                            <div className="flex items-center gap-1.5 min-w-0">
-                                                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
-                                                <span className="truncate">
-                                                    {feedbackIndex === 0 && (
-                                                        <>현재 <strong className="text-text-main dark:text-slate-300">{viewingCount}명</strong>이 이 사진을 보고 있어요</>
-                                                    )}
-                                                    {feedbackIndex === 1 && (
-                                                        <>지금 <strong className="text-text-main dark:text-slate-300">{uploadCount}명</strong>이 이 장소를 올렸어요</>
-                                                    )}
-                                                    {feedbackIndex === 2 && (
-                                                        <>좋아요 <strong className="text-text-main dark:text-slate-300">{likeCount}개</strong>가 모인 실시간 정보예요</>
-                                                    )}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-1 flex-shrink-0 text-[11px] text-slate-500 dark:text-slate-400">
-                                                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold text-slate-600 dark:text-slate-200">
-                                                    {(post.user?.username || post.userName || '여행자').charAt(0)}
-                                                </span>
-                                                <span className="max-w-[80px] truncate">
-                                                    {post.user?.username || post.userName || '여행자'}
-                                                </span>
-                                            </div>
+                                        <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                                            <span className="flex items-center gap-1 min-w-0 truncate">
+                                                <span className="material-symbols-outlined text-primary text-[15px] flex-shrink-0">trending_up</span>
+                                                <span className="font-medium text-slate-600 dark:text-slate-300">실시간 급상승 중</span>
+                                            </span>
+                                            <span className="flex-shrink-0 text-slate-400 dark:text-slate-500">
+                                                {post.time ? `${post.time} 업로드` : '최근 업로드'}
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
