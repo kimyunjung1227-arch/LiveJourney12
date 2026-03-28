@@ -744,7 +744,7 @@ const MainScreen = () => {
                 {/* 상단 배너는 현재 사용하지 않음 */}
 
                 {/* 관심 지역/장소 — 라벨 없이 원형 목록만 */}
-                <div style={{ padding: '4px 16px 8px', background: '#ffffff' }}>
+                <div style={{ padding: '2px 16px 4px', background: '#ffffff' }}>
                     <div
                         style={{ display: 'flex', gap: '10px', padding: '0 0 4px 0', overflowX: 'auto', scrollbarWidth: 'none', cursor: 'grab', scrollSnapType: 'x mandatory' }}
                         className="hide-scrollbar"
@@ -874,10 +874,10 @@ const MainScreen = () => {
 
                 {/* 지금 여기는 — 관심 지역 선택 시 숨김, 한 화면에 핫플까지 보이도록 높이 축소 */}
                 {!selectedInterest && (
-                    <div style={{ padding: '12px 16px 14px', background: '#ffffff' }}>
-                    <div style={{ padding: '0 0 8px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ padding: '8px 16px 6px', background: '#ffffff' }}>
+                    <div style={{ padding: '0 0 4px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#111827' }}>지금 여기는</h2>
+                            <h2 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#111827' }}>지금 여기는</h2>
                         </div>
                         <button
                             onClick={() => navigate('/realtime-feed')}
@@ -887,7 +887,7 @@ const MainScreen = () => {
                         </button>
                     </div>
                     <div
-                    style={{ display: 'flex', gap: '7px', padding: '0 0 12px 0', overflowX: 'auto', scrollbarWidth: 'none', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', cursor: 'grab', background: '#ffffff' }}
+                    style={{ display: 'flex', gap: '7px', padding: '0 0 6px 0', overflowX: 'auto', scrollbarWidth: 'none', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', cursor: 'grab', background: '#ffffff' }}
                         className="hide-scrollbar"
                         onMouseDown={handleDragStart}
                     >
@@ -923,7 +923,7 @@ const MainScreen = () => {
                                         scrollSnapStop: 'always'
                                     }}
                                 >
-                                    <div style={{ width: '100%', height: '200px', background: '#e5e7eb', position: 'relative', borderRadius: '14px', overflow: 'hidden', marginBottom: '4px' }}>
+                                    <div style={{ width: '100%', height: '148px', background: '#e5e7eb', position: 'relative', borderRadius: '14px', overflow: 'hidden', marginBottom: '2px' }}>
                                         {firstVideo ? (
                                             <video
                                                 ref={(el) => {
@@ -963,8 +963,8 @@ const MainScreen = () => {
                                             </span>
                                         </div>
                                     </div>
-                                    {/* 사진 정보 하단 — 설명만 표시 */}
-                                    <div style={{ padding: '6px 14px 10px', minHeight: '100px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                                    {/* 사진 정보 하단 — 설명만 표시 (minHeight 제거로 실시간 핫플까지 한 화면에 노출) */}
+                                    <div style={{ padding: '4px 10px 6px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', flexShrink: 0 }}>
                                             <div style={{ color: '#111827', fontSize: '14px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
                                                 {post.location || '어딘가의 지금'}
@@ -974,7 +974,7 @@ const MainScreen = () => {
                                             </span>
                                         </div>
                                         {(post.content || post.note) && (
-                                            <div style={{ color: '#4b5563', fontSize: '13px', lineHeight: 1.45, marginTop: '6px', height: '2.9em', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                                            <div style={{ color: '#4b5563', fontSize: '12px', lineHeight: 1.4, marginTop: '4px', maxHeight: '2.8em', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                                                 {post.content || post.note}
                                             </div>
                                         )}
@@ -1074,14 +1074,14 @@ const MainScreen = () => {
                 ) : (
                 <div style={{ padding: '0 16px 20px', background: '#ffffff', minHeight: '100%' }}>
 
-                        {/* 실시간 핫플 — 단일 카드 자동 슬라이드 (더보기 화면과 동일 랭킹 순서) */}
-                        <div style={{ marginBottom: '0', paddingTop: '0', paddingBottom: '20px', background: '#ffffff' }}>
-                            <div style={{ padding: '0 0 10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff' }}>
-                                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#111827' }}>실시간 핫플</h3>
+                        {/* 실시간 핫플 — 단일 카드 자동 슬라이드 (16:9 등으로 세로 높이 절약, 첫 진입 한 화면 노출) */}
+                        <div style={{ marginBottom: '0', paddingTop: '0', paddingBottom: '12px', background: '#ffffff' }}>
+                            <div style={{ padding: '0 0 6px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff' }}>
+                                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827' }}>실시간 핫플</h3>
                                 <button
                                     type="button"
                                     onClick={() => navigate('/crowded-place')}
-                                    className="border-none bg-transparent text-primary hover:text-primary-dark dark:hover:text-primary-soft text-sm font-semibold cursor-pointer py-1.5 px-2.5 min-h-[36px] flex items-center gap-0.5"
+                                    className="border-none bg-transparent text-primary hover:text-primary-dark dark:hover:text-primary-soft text-sm font-semibold cursor-pointer py-1 px-2 min-h-[32px] flex items-center gap-0.5"
                                 >
                                     <span>더보기</span>
                                     <span className="material-symbols-outlined" style={{ fontSize: 18 }}>chevron_right</span>
@@ -1113,28 +1113,38 @@ const MainScreen = () => {
                                         style={{
                                             cursor: 'pointer',
                                             background: '#fff',
-                                            borderRadius: '16px',
+                                            borderRadius: '14px',
                                             overflow: 'hidden',
-                                            boxShadow: '0 4px 20px rgba(15, 23, 42, 0.08)',
+                                            boxShadow: '0 3px 16px rgba(15, 23, 42, 0.07)',
                                             border: '1px solid #f1f5f9',
                                         }}
                                     >
-                                        <div style={{ width: '100%', aspectRatio: '4/3', position: 'relative', background: '#e5e7eb', overflow: 'hidden' }}>
-                                            <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'inline-flex', alignItems: 'center', gap: 4, background: '#ef4444', color: '#fff', padding: '5px 10px', borderRadius: 9999, fontSize: 11, fontWeight: 700, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
-                                                <span className="material-symbols-outlined" style={{ fontSize: 15, fontVariationSettings: '"FILL" 1' }}>local_fire_department</span>
+                                        <div
+                                            className="main-hot-feed-media"
+                                            style={{
+                                                width: '100%',
+                                                aspectRatio: '16/9',
+                                                maxHeight: 'min(42vw, 28dvh, 200px)',
+                                                position: 'relative',
+                                                background: '#e5e7eb',
+                                                overflow: 'hidden',
+                                            }}
+                                        >
+                                            <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 10, display: 'inline-flex', alignItems: 'center', gap: 3, background: '#ef4444', color: '#fff', padding: '4px 8px', borderRadius: 9999, fontSize: 10, fontWeight: 700, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+                                                <span className="material-symbols-outlined" style={{ fontSize: 14, fontVariationSettings: '"FILL" 1' }}>local_fire_department</span>
                                                 {post.surgeIndicator || '급상승'}
                                             </div>
                                             {hasWeather ? (
-                                                <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(6px)', color: '#f9fafb', padding: '6px 10px', borderRadius: 9999, fontSize: 11, fontWeight: 600, maxWidth: '58%' }}>
-                                                    {weather.icon && <span style={{ fontSize: 13 }}>{weather.icon}</span>}
+                                                <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(6px)', color: '#f9fafb', padding: '4px 8px', borderRadius: 9999, fontSize: 10, fontWeight: 600, maxWidth: '58%' }}>
+                                                    {weather.icon && <span style={{ fontSize: 12 }}>{weather.icon}</span>}
                                                     <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                         {weather.temperature}
                                                         {weather.condition && weather.condition !== '-' ? ` ${weather.condition}` : ''}
                                                     </span>
                                                 </div>
                                             ) : (
-                                                <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(6px)', color: '#f9fafb', padding: '6px 10px', borderRadius: 9999, fontSize: 11, fontWeight: 600, maxWidth: '58%' }}>
-                                                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>location_on</span>
+                                                <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(6px)', color: '#f9fafb', padding: '4px 8px', borderRadius: 9999, fontSize: 10, fontWeight: 600, maxWidth: '58%' }}>
+                                                    <span className="material-symbols-outlined" style={{ fontSize: 13 }}>location_on</span>
                                                     <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{regionShort}</span>
                                                 </div>
                                             )}
@@ -1160,14 +1170,14 @@ const MainScreen = () => {
                                                 <div style={{ width: '100%', height: '100%', background: '#e5e7eb' }} />
                                             )}
                                         </div>
-                                        <div style={{ padding: '14px 14px 12px' }}>
-                                            <h4 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{title}</h4>
-                                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 8 }}>
-                                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', marginTop: 5, flexShrink: 0 }} />
-                                                <p style={{ margin: 0, fontSize: '13px', color: '#374151', lineHeight: 1.45, fontWeight: 500 }}>{statusLine}</p>
+                                        <div style={{ padding: '10px 12px 8px' }}>
+                                            <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827', lineHeight: 1.25 }}>{title}</h4>
+                                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 6 }}>
+                                                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', marginTop: 4, flexShrink: 0 }} />
+                                                <p style={{ margin: 0, fontSize: '12px', color: '#374151', lineHeight: 1.4, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{statusLine}</p>
                                             </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, gap: 10 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1, gap: 8 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, gap: 8 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1, gap: 6 }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 2 }}>
                                                         {avatars.slice(0, 3).map((url, ai) => (
                                                             <img
@@ -1175,11 +1185,11 @@ const MainScreen = () => {
                                                                 src={url}
                                                                 alt=""
                                                                 style={{
-                                                                    width: 28,
-                                                                    height: 28,
+                                                                    width: 24,
+                                                                    height: 24,
                                                                     borderRadius: '50%',
                                                                     border: '2px solid #fff',
-                                                                    marginLeft: ai === 0 ? 0 : -10,
+                                                                    marginLeft: ai === 0 ? 0 : -8,
                                                                     objectFit: 'cover',
                                                                     flexShrink: 0,
                                                                     background: '#e2e8f0',
@@ -1187,10 +1197,10 @@ const MainScreen = () => {
                                                             />
                                                         ))}
                                                         {avatars.length === 0 && (
-                                                            <span style={{ width: 28, height: 28, borderRadius: '50%', background: '#e2e8f0', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }} aria-hidden>👤</span>
+                                                            <span style={{ width: 24, height: 24, borderRadius: '50%', background: '#e2e8f0', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }} aria-hidden>👤</span>
                                                         )}
                                                     </div>
-                                                    <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                         {photoCount}명이 지금 사진 찍는 중
                                                     </span>
                                                 </div>
@@ -1198,13 +1208,13 @@ const MainScreen = () => {
                                                     type="button"
                                                     aria-label="좋아요"
                                                     onClick={(e) => handleHotFeedLike(e, post)}
-                                                    style={{ background: 'none', border: 'none', padding: 6, cursor: 'pointer', flexShrink: 0, color: liked ? '#f43f5e' : '#94a3b8' }}
+                                                    style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', flexShrink: 0, color: liked ? '#f43f5e' : '#94a3b8' }}
                                                 >
-                                                    <span className="material-symbols-outlined" style={{ fontSize: 26, fontVariationSettings: liked ? '"FILL" 1' : '"FILL" 0' }}>favorite</span>
+                                                    <span className="material-symbols-outlined" style={{ fontSize: 22, fontVariationSettings: liked ? '"FILL" 1' : '"FILL" 0' }}>favorite</span>
                                                 </button>
                                             </div>
                                             {crowdedData.length > 1 && (
-                                                <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginTop: 12 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginTop: 8 }}>
                                                     {crowdedData.map((dotPost, di) => (
                                                         <button
                                                             key={String(dotPost.id)}

@@ -207,3 +207,8 @@
 .hot-feed-card-enter {
   animation: hot-feed-card-enter 0.35s ease-out;
 }
+
+/* 실시간 핫플 미디어: 16:9 + max-height로 첫 화면(헤더~하단 네비) 안에 맞춤 */
+.main-hot-feed-media {
+  min-height: 0;
+}
