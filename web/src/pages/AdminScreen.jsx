@@ -156,13 +156,7 @@ const AdminScreen = () => {
           <span className="material-symbols-outlined text-xl">arrow_back</span>
         </button>
         <h1 className="text-lg font-bold text-gray-800 dark:text-white">관리자</h1>
-        <button
-          type="button"
-          onClick={() => navigate('/admin/magazines')}
-          className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-primary hover:bg-primary/10"
-        >
-          매거진
-        </button>
+        <div className="w-10" />
       </header>
 
       <div className="flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">

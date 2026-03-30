@@ -2,9 +2,13 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { publishMagazine } from '../utils/magazinesStore';
+import { useAuth } from '../contexts/AuthContext';
+import { useAdminState } from '../utils/admin';
 
 const MagazineWriteScreen = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isAdmin, loading: adminLoading } = useAdminState(user);
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
   const [locationName, setLocationName] = useState('');
@@ -82,6 +86,20 @@ const MagazineWriteScreen = () => {
 
         {/* 폼 */}
         <main className="flex-1 overflow-y-auto px-4 pt-3 pb-20">
+          {adminLoading ? (
+            <div className="py-12 text-center text-[13px] text-gray-500">권한 확인 중...</div>
+          ) : !isAdmin ? (
+            <div className="py-12 text-center text-[13px] text-gray-500 dark:text-gray-400">
+              <p className="mb-2 font-semibold text-gray-800 dark:text-gray-100">매거진 발행은 관리자 승인 계정만 가능합니다.</p>
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="inline-flex items-center justify-center rounded-full bg-gray-900 text-white px-4 py-2 text-[13px] font-semibold"
+              >
+                돌아가기
+              </button>
+            </div>
+          ) : (
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div>
               <label className="block mb-2 text-[14px] font-semibold text-gray-800 dark:text-gray-100">
@@ -178,6 +196,7 @@ const MagazineWriteScreen = () => {
               </p>
             </div>
           </form>
+          )}
         </main>
       </div>
 

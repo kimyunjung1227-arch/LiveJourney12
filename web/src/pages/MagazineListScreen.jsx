@@ -3,9 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { loadMagazineTopics } from '../utils/magazinesConfig';
 import { listPublishedMagazines } from '../utils/magazinesStore';
+import { useAuth } from '../contexts/AuthContext';
+import { useAdminState } from '../utils/admin';
 
 const MagazineListScreen = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isAdmin } = useAdminState(user);
   const [topics, setTopics] = useState([]);
   const [published, setPublished] = useState([]);
 
@@ -53,14 +57,16 @@ const MagazineListScreen = () => {
         <main className="flex-1 overflow-y-auto px-4 pt-3 pb-20">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-[14px] font-extrabold text-gray-900 dark:text-gray-50 m-0">발행 매거진</h2>
-            <button
-              type="button"
-              onClick={() => navigate('/magazine/write')}
-              className="inline-flex items-center gap-1 rounded-full bg-gray-900 text-white px-3 py-1.5 text-[12px] font-semibold hover:bg-black"
-            >
-              <span className="material-symbols-outlined text-[16px]">edit</span>
-              발행
-            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => navigate('/magazine/write')}
+                className="inline-flex items-center gap-1 rounded-full bg-gray-900 text-white px-3 py-1.5 text-[12px] font-semibold hover:bg-black"
+              >
+                <span className="material-symbols-outlined text-[16px]">edit</span>
+                발행
+              </button>
+            )}
           </div>
 
           {published.length === 0 ? (
