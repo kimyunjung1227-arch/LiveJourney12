@@ -335,6 +335,33 @@ const CrowdedPlaceScreen = () => {
                                                 <span className="material-symbols-outlined text-4xl">image</span>
                                             </div>
                                         )}
+                                        {(() => {
+                                            const raw = Array.isArray(post.images)
+                                                ? post.images
+                                                : post.images
+                                                    ? [post.images]
+                                                    : post.image
+                                                        ? [post.image]
+                                                        : post.thumbnail
+                                                            ? [post.thumbnail]
+                                                            : [];
+                                            const thumbs = raw.map((v) => getDisplayImageUrl(v)).filter(Boolean).slice(0, 3);
+                                            const showThumbs = !(Array.isArray(post.videos) && post.videos.length > 0) && !(post.thumbnailIsVideo && post.firstVideoUrl) && thumbs.length > 1;
+                                            if (!showThumbs) return null;
+                                            return (
+                                                <div className="absolute left-2 bottom-2 z-10 flex items-center gap-1.5 rounded-full bg-[rgba(15,23,42,0.38)] px-2 py-1 shadow-sm backdrop-blur-[8px]">
+                                                    {thumbs.map((src, i) => (
+                                                        <img
+                                                            key={`${post.id}-thumb-${i}`}
+                                                            src={src}
+                                                            alt=""
+                                                            className="h-[30px] w-[30px] rounded-[10px] object-cover"
+                                                            style={{ border: '1px solid rgba(255,255,255,0.55)' }}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                     <div className="shrink-0 px-2 pb-2.5 pt-2.5">
                                         <div className="flex items-start justify-between gap-2">
@@ -348,7 +375,7 @@ const CrowdedPlaceScreen = () => {
                                                         <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-extrabold text-white">{photoCat}</span>
                                                     ) : null}
                                                 </div>
-                                                <p className="mt-1.5 line-clamp-2 break-words rounded-xl border border-primary/25 bg-primary-10 px-3 py-2 text-[11px] font-medium leading-relaxed text-slate-800 shadow-sm dark:border-slate-600 dark:bg-slate-900/85 dark:text-slate-100 dark:shadow-inner">
+                                                <p className="mt-1.5 line-clamp-2 break-words text-[11px] font-medium leading-relaxed text-slate-700 dark:text-slate-200">
                                                     {captionLine || '실시간으로 공유된 장소예요.'}
                                                 </p>
                                             </div>

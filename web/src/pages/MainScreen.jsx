@@ -1232,6 +1232,52 @@ const MainScreen = () => {
                                             ) : (
                                                 <div style={{ width: '100%', height: '100%', background: '#e5e7eb' }} />
                                             )}
+                                            {(() => {
+                                                const raw = Array.isArray(post.images)
+                                                    ? post.images
+                                                    : post.images
+                                                        ? [post.images]
+                                                        : post.image
+                                                            ? [post.image]
+                                                            : post.thumbnail
+                                                                ? [post.thumbnail]
+                                                                : [];
+                                                const thumbs = raw.map((v) => getDisplayImageUrl(v)).filter(Boolean).slice(0, 3);
+                                                const showThumbs = !(Array.isArray(post.videos) && post.videos.length > 0) && !(post.thumbnailIsVideo && post.firstVideoUrl) && thumbs.length > 1;
+                                                if (!showThumbs) return null;
+                                                return (
+                                                    <div
+                                                        style={{
+                                                            position: 'absolute',
+                                                            left: 10,
+                                                            bottom: 10,
+                                                            zIndex: 12,
+                                                            display: 'flex',
+                                                            gap: 6,
+                                                            padding: '6px 8px',
+                                                            borderRadius: 9999,
+                                                            background: 'rgba(15,23,42,0.38)',
+                                                            backdropFilter: 'blur(8px)',
+                                                        }}
+                                                    >
+                                                        {thumbs.map((src, i) => (
+                                                            <img
+                                                                key={`${post.id}-thumb-${i}`}
+                                                                src={src}
+                                                                alt=""
+                                                                style={{
+                                                                    width: 34,
+                                                                    height: 34,
+                                                                    borderRadius: 10,
+                                                                    objectFit: 'cover',
+                                                                    border: '1px solid rgba(255,255,255,0.55)',
+                                                                    boxShadow: '0 1px 5px rgba(0,0,0,0.18)',
+                                                                }}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                         <div style={{ padding: '10px 2px 4px', background: 'transparent', border: 'none', boxShadow: 'none' }}>
                                             <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{title}</h4>
@@ -1284,28 +1330,6 @@ const MainScreen = () => {
                                                     <span className="material-symbols-outlined" style={{ fontSize: 22, fontVariationSettings: liked ? '"FILL" 1' : '"FILL" 0' }}>favorite</span>
                                                 </button>
                                             </div>
-                                            {crowdedData.length > 1 && (
-                                                <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginTop: 10 }}>
-                                                    {crowdedData.map((dotPost, di) => (
-                                                        <button
-                                                            key={String(dotPost.id)}
-                                                            type="button"
-                                                            onClick={(e) => { e.stopPropagation(); setHotFeedSlideIndex(di); }}
-                                                            style={{
-                                                                width: di === slideIdx ? 18 : 6,
-                                                                height: 6,
-                                                                borderRadius: 999,
-                                                                border: 'none',
-                                                                padding: 0,
-                                                                background: di === slideIdx ? '#26C6DA' : '#e2e8f0',
-                                                                cursor: 'pointer',
-                                                                transition: 'width 0.2s ease',
-                                                            }}
-                                                            aria-label={`${di + 1}번째 핫플`}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
                                     );
