@@ -215,27 +215,29 @@ const MagazineDetailScreen = () => {
 
           {/* 스크롤 가능한 본문 */}
         <main className="flex-1 overflow-y-auto">
-          {/* 매거진 헤드 영역 */}
-          <section className="px-4 pt-4 pb-3 border-b border-zinc-100 dark:border-zinc-800 bg-white dark:bg-gray-900">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-100 text-[16px]">
-                {topic.emoji || '📚'}
-              </span>
-              <span className="text-[12px] font-semibold text-indigo-600">
+          {/* 헤드(와이어프레임 스타일: 제목/소제목 박스) */}
+          <section className="px-4 pt-4 pb-3 bg-white dark:bg-gray-900 border-b border-zinc-100 dark:border-zinc-800">
+            <div className="mb-3">
+              <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 dark:bg-indigo-900/25 px-3 py-1 text-[12px] font-semibold text-indigo-600 dark:text-indigo-200">
+                <span className="text-[14px]">{topic.emoji || '📚'}</span>
                 테마 매거진
-              </span>
+              </div>
             </div>
-            <h2 className="text-[20px] font-bold text-gray-900 dark:text-gray-50 leading-snug mb-2">
-              {topic.title}
-            </h2>
-            {topic.description && (
-              <p className="text-[13px] text-gray-600 dark:text-gray-300 leading-relaxed">
-                {topic.description}
+
+            <div className="border-2 border-black/90 rounded-md px-3 py-2">
+              <h2 className="m-0 text-[18px] font-extrabold text-gray-900 dark:text-gray-50 leading-snug">
+                {topic.title}
+              </h2>
+            </div>
+
+            <div className="mt-2 border border-black/40 rounded px-3 py-2 bg-white/80 dark:bg-gray-900/60">
+              <p className="m-0 text-[13px] font-medium text-gray-700 dark:text-gray-200 leading-relaxed">
+                {topic.description || '현재 올라오는 정보들을 한눈에 알아봐요.'}
               </p>
-            )}
+            </div>
           </section>
 
-          {/* 위치 기반 큐레이션 */}
+          {/* 위치 기반 큐레이션 (TOP 7) */}
           <section className="px-0 pb-10 pt-1">
             {loading ? (
               <div className="py-10 flex items-center justify-center text-[13px] text-gray-500">
@@ -248,7 +250,7 @@ const MagazineDetailScreen = () => {
               </div>
             ) : (
               <div className="flex flex-col gap-6 pt-4 pb-8">
-                {locationSections.slice(0, 10).map((sec) => {
+                {locationSections.slice(0, 7).map((sec, idx) => {
                   const region = sec.regionKey || '서울';
                   const coverA = sec.cover[0] || '';
                   const coverB = sec.cover[1] || '';
@@ -263,26 +265,27 @@ const MagazineDetailScreen = () => {
 
                   return (
                     <article key={sec.locKey} className="px-4">
-                      <div className="flex items-center justify-between gap-3 mb-2">
-                        <div className="min-w-0">
-                          <h3 className="text-[16px] font-extrabold text-gray-900 dark:text-gray-50 truncate">
-                            {sec.locKey}
-                          </h3>
-                          <p className="text-[12px] text-gray-500 dark:text-gray-400 mt-0.5">
-                            지금 이 위치 사진을 모아서 소개해요.
-                          </p>
+                      <div className="mb-2">
+                        <div className="text-[12px] font-semibold text-gray-500 dark:text-gray-400 mb-1">
+                          위치정보 {idx + 1}
                         </div>
                         <button
                           type="button"
                           onClick={goMore}
-                          className="shrink-0 inline-flex items-center gap-1 rounded-full bg-white dark:bg-gray-900 border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-[12px] font-semibold text-primary"
+                          className="w-full flex items-center justify-between gap-3"
                         >
-                          더보기
-                          <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+                          <h3 className="m-0 text-left min-w-0 flex-1 text-[16px] font-extrabold text-gray-900 dark:text-gray-50 truncate">
+                            {sec.locKey}
+                          </h3>
+                          <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-white dark:bg-gray-900 border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-[12px] font-semibold text-primary">
+                            더보기
+                            <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+                          </span>
                         </button>
                       </div>
 
                       <div className="w-full overflow-hidden rounded-2xl bg-white dark:bg-gray-900 border border-zinc-100 dark:border-zinc-800 shadow-[0_2px_14px_rgba(15,23,42,0.06)]">
+                        {/* 2장 썸네일(한 썸네일) */}
                         <div className="relative w-full bg-gray-100 dark:bg-gray-800" style={{ aspectRatio: '4/3' }}>
                           {has2 ? (
                             <div className="absolute inset-0 grid grid-cols-2">
@@ -298,6 +301,7 @@ const MagazineDetailScreen = () => {
                           )}
                         </div>
 
+                        {/* 이후 슬라이드(가로 스크롤) */}
                         {sec.rest.length > 0 && (
                           <div className="px-3 pt-2 pb-2">
                             <div className="flex gap-2 overflow-x-auto scrollbar-hide">
@@ -315,6 +319,7 @@ const MagazineDetailScreen = () => {
                         )}
 
                         <div className="px-3 pb-3">
+                          {/* 업로더 프로필(가볍게) */}
                           <div className="flex items-center gap-2 pt-2">
                             {sec.author.avatar ? (
                               <img src={sec.author.avatar} alt="" className="w-7 h-7 rounded-full object-cover bg-gray-200" />
@@ -333,28 +338,29 @@ const MagazineDetailScreen = () => {
                             </div>
                           </div>
 
-                          <p className="mt-2 text-[12px] leading-relaxed text-gray-700 dark:text-gray-200 line-clamp-2">
+                          {/* 위치에 대한 설명글(현재시제) */}
+                          <p className="mt-2 text-[13px] leading-relaxed text-gray-800 dark:text-gray-100 line-clamp-2">
                             {sec.topChips.length > 0
-                              ? `${sec.topChips.map((c) => c.name).join(' · ')} 정보를 지금 확인해요.`
-                              : '이 위치의 현재 분위기를 지금 확인해요.'}
+                              ? `지금 ${sec.topChips.map((c) => c.name).join(' · ')} 정보를 확인해요.`
+                              : '지금 이 위치의 현재 분위기를 확인해요.'}
                           </p>
 
+                          {/* 주변 맛집/명소 추천 */}
                           <div className="mt-2">
-                            <div className="text-[12px] font-extrabold text-gray-900 dark:text-gray-50 mb-1">
-                              위치 주변 추천
+                            <div className="text-[12px] font-semibold text-gray-500 dark:text-gray-400 mb-1">
+                              위치정보 주변 맛집, 명소
                             </div>
                             <div className="flex flex-wrap gap-1.5">
-                              {(sec.around.length > 0 ? sec.around : getLandmarksByRegion(region).slice(0, 3)).map((l) => (
-                                <span
-                                  key={`${sec.locKey}-around-${l.id}`}
-                                  className="inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-1 text-[11px] font-semibold text-gray-700 dark:text-gray-200"
-                                >
-                                  {l.name}
-                                </span>
-                              ))}
-                              <span className="inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-200">
-                                맛집을 지금 찾을 수 있어요
-                              </span>
+                              {(sec.around.length > 0 ? sec.around : getLandmarksByRegion(region).slice(0, 3))
+                                .slice(0, 3)
+                                .map((l) => (
+                                  <span
+                                    key={`${sec.locKey}-around-${l.id}`}
+                                    className="inline-flex items-center rounded-2xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-gray-900 px-3 py-2 text-[11px] font-semibold text-gray-700 dark:text-gray-200"
+                                  >
+                                    {l.name}
+                                  </span>
+                                ))}
                             </div>
                           </div>
                         </div>
