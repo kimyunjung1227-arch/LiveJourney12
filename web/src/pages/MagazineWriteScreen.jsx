@@ -1,76 +1,65 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
-import { logger } from '../utils/logger';
-
-const STORAGE_KEY = 'magazines';
-
-const saveMagazine = (magazine) => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const list = raw ? JSON.parse(raw) : [];
-    const arr = Array.isArray(list) ? list : [];
-    const updated = [magazine, ...arr];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    return true;
-  } catch (e) {
-    logger.warn('매거진 저장 실패:', e);
-    return false;
-  }
-};
+import { publishMagazine } from '../utils/magazinesStore';
 
 const MagazineWriteScreen = () => {
   const navigate = useNavigate();
   const [title, setTitle] = useState('');
-  const [summary, setSummary] = useState('');
-  const [regionName, setRegionName] = useState('');
-  const [coverImageUrl, setCoverImageUrl] = useState('');
-  const [body, setBody] = useState('');
+  const [subtitle, setSubtitle] = useState('');
+  const [locationName, setLocationName] = useState('');
+  const [locationDescription, setLocationDescription] = useState('');
+  const [around1, setAround1] = useState('');
+  const [around2, setAround2] = useState('');
+  const [around3, setAround3] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const aroundList = useMemo(() => {
+    return [around1, around2, around3].map((v) => String(v || '').trim()).filter(Boolean);
+  }, [around1, around2, around3]);
+
   const handleSubmit = useCallback(
-    (e) => {
+    async (e) => {
       e.preventDefault();
       if (!title.trim()) {
         alert('제목을 입력해 주세요.');
         return;
       }
-      if (!body.trim()) {
-        alert('본문 내용을 입력해 주세요.');
+      if (!subtitle.trim()) {
+        alert('소제목을 입력해 주세요.');
         return;
       }
-
-      const now = new Date().toISOString();
-      const magazine = {
-        id: `mag-${Date.now()}`,
-        title: title.trim(),
-        summary: summary.trim() || null,
-        regionName: regionName.trim() || null,
-        coverImage: coverImageUrl.trim() || null,
-        createdAt: now,
-        updatedAt: now,
-        author: '나의 기록',
-        content: [
-          {
-            type: 'text',
-            title: null,
-            body: body,
-          },
-        ],
-      };
+      if (!locationName.trim()) {
+        alert('위치정보를 입력해 주세요.');
+        return;
+      }
+      if (!locationDescription.trim()) {
+        alert('위치설명을 입력해 주세요.');
+        return;
+      }
 
       setSaving(true);
-      const ok = saveMagazine(magazine);
+      const res = await publishMagazine({
+        title: title.trim(),
+        subtitle: subtitle.trim(),
+        sections: [
+          {
+            location: locationName.trim(),
+            description: locationDescription.trim(),
+            around: aroundList,
+          },
+        ],
+      });
       setSaving(false);
 
-      if (!ok) {
-        alert('매거진을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      if (!res.success) {
+        alert('매거진 발행에 실패했습니다. 잠시 후 다시 시도해 주세요.');
         return;
       }
 
-      navigate(`/magazine/${magazine.id}`, { replace: true, state: { magazine } });
+      navigate(`/magazine/${res.magazine.id}`, { replace: true, state: { magazine: res.magazine } });
     },
-    [title, summary, regionName, coverImageUrl, body, navigate]
+    [title, subtitle, locationName, locationDescription, aroundList, navigate]
   );
 
   return (
@@ -100,7 +89,7 @@ const MagazineWriteScreen = () => {
               </label>
               <input
                 className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 text-[14px] text-gray-900 dark:text-gray-50 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
-                placeholder="예: 하루 만에 둘러보는 부산 바다 동선"
+                placeholder="예: 지금 벚꽃이 만개한 장소 TOP 7"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
@@ -108,55 +97,70 @@ const MagazineWriteScreen = () => {
 
             <div>
               <label className="block mb-2 text-[14px] font-semibold text-gray-800 dark:text-gray-100">
-                한 줄 요약 (선택)
+                소제목
               </label>
               <input
                 className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 text-[14px] text-gray-900 dark:text-gray-50 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
-                placeholder="예: 해운대–광안리–송정까지, 놓치면 아쉬운 스팟만 모았어요."
-                value={summary}
-                onChange={(e) => setSummary(e.target.value)}
+                placeholder="예: 한산적으로 만개한 벚꽃 명소들을 한눈에 알아봐요."
+                value={subtitle}
+                onChange={(e) => setSubtitle(e.target.value)}
               />
-            </div>
-
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <label className="block mb-2 text-[14px] font-semibold text-gray-800 dark:text-gray-100">
-                  지역 (선택)
-                </label>
-                <input
-                  className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 text-[14px] text-gray-900 dark:text-gray-50 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
-                  placeholder="예: 부산, 제주, 서울 종로"
-                  value={regionName}
-                  onChange={(e) => setRegionName(e.target.value)}
-                />
-              </div>
             </div>
 
             <div>
               <label className="block mb-2 text-[14px] font-semibold text-gray-800 dark:text-gray-100">
-                커버 이미지 URL (선택)
+                위치정보
               </label>
               <input
                 className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 text-[13px] text-gray-900 dark:text-gray-50 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
-                placeholder="예: https://images.unsplash.com/..."
-                value={coverImageUrl}
-                onChange={(e) => setCoverImageUrl(e.target.value)}
+                placeholder="예: 김천 연화지"
+                value={locationName}
+                onChange={(e) => setLocationName(e.target.value)}
               />
               <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-                아직은 URL로만 등록 가능해요. 나중에 업로드한 사진을 바로 선택할 수 있도록 확장할 예정입니다.
+                사진은 이 위치에서 올라온 게시물을 자동으로 모아서 보여줘요. (사진 입력은 최소화)
               </p>
             </div>
 
             <div>
               <label className="block mb-2 text-[14px] font-semibold text-gray-800 dark:text-gray-100">
-                본문
+                위치설명
               </label>
               <textarea
-                className="w-full min-h-[220px] rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 text-[14px] text-gray-900 dark:text-gray-50 leading-relaxed resize-none focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
-                placeholder={'예시)\n1. 아침 – 광안리 해변 산책\n2. 점심 – 현지인 추천 맛집\n3. 오후 – 감성 카페 & 포토 스팟\n\n하루 동선과 시간대별 팁을 자유롭게 적어주세요.'}
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
+                className="w-full min-h-[120px] rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3 text-[14px] text-gray-900 dark:text-gray-50 leading-relaxed resize-none focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary-soft"
+                placeholder={'예시)\n지금 벚꽃이 예쁘게 피어 있어요. 산책하기 좋은 동선이에요.'}
+                value={locationDescription}
+                onChange={(e) => setLocationDescription(e.target.value)}
               />
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-[14px] font-semibold text-gray-800 dark:text-gray-100">
+                주변 명소, 맛집 (최대 3개)
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <input
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-[13px]"
+                  placeholder="예: 성당못"
+                  value={around1}
+                  onChange={(e) => setAround1(e.target.value)}
+                />
+                <input
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-[13px]"
+                  placeholder="예: 카페"
+                  value={around2}
+                  onChange={(e) => setAround2(e.target.value)}
+                />
+                <input
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-[13px]"
+                  placeholder="예: 맛집"
+                  value={around3}
+                  onChange={(e) => setAround3(e.target.value)}
+                />
+              </div>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                여기에 입력한 키워드로 주변 장소 썸네일을 자동으로 찾아 보여줘요.
+              </p>
             </div>
 
             <div className="pt-2 pb-4">
@@ -170,7 +174,7 @@ const MagazineWriteScreen = () => {
                 {saving ? '저장 중...' : '매거진 발행하기'}
               </button>
               <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400 text-center">
-                지금은 내 기기에서만 보이는 개인 매거진으로 저장돼요.
+                발행한 매거진은 다른 기기에서도 보이도록 저장돼요.
               </p>
             </div>
           </form>

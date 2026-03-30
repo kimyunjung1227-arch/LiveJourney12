@@ -9,6 +9,7 @@ import { getDisplayImageUrl } from '../api/upload';
 import { logger } from '../utils/logger';
 import { getLandmarksByRegion } from '../utils/regionLandmarks';
 import { getCategoryChipsFromPost } from '../utils/travelCategories';
+import { getPublishedMagazineById, removePublishedMagazine } from '../utils/magazinesStore';
 
 const MagazineDetailScreen = () => {
   const navigate = useNavigate();
@@ -17,6 +18,7 @@ const MagazineDetailScreen = () => {
   const state = location.state || {};
 
   const topic = useMemo(() => getMagazineTopicById(id), [id]);
+  const [publishedMagazine, setPublishedMagazine] = useState(null);
   const [posts, setPosts] = useState([]);
   const [allPosts, setAllPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -60,16 +62,28 @@ const MagazineDetailScreen = () => {
       .join(' ')
       .toLowerCase();
 
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      // state로 넘어온 발행 매거진이 있으면 우선 사용
+      if (state?.magazine && Array.isArray(state.magazine.sections)) {
+        if (alive) setPublishedMagazine(state.magazine);
+        return;
+      }
+      // topic이 없거나, id가 pub-* 형식이면 발행 매거진 조회 시도
+      const shouldTryPublished = String(id || '').startsWith('pub-') || !topic;
+      if (!shouldTryPublished) return;
+      const found = await getPublishedMagazineById(id);
+      if (alive) setPublishedMagazine(found);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [id, state?.magazine, topic]);
+
   // 수국 등 키워드 기반으로 사용자 피드 큐레이션
   useEffect(() => {
     const load = async () => {
-      if (!topic) {
-        setPosts([]);
-        setAllPosts([]);
-        setLoading(false);
-        return;
-      }
-
       setLoading(true);
       try {
         const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
@@ -87,18 +101,28 @@ const MagazineDetailScreen = () => {
 
         const now = Date.now();
         const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
-        const keywords = (topic.tagKeywords || []).map((k) => String(k).toLowerCase());
+        const keywords = (topic?.tagKeywords || []).map((k) => String(k).toLowerCase());
 
-        const filtered = combinedAllPosts
+        const base = combinedAllPosts
           .filter((p) => {
-            const hasImage =
-              (Array.isArray(p.images) && p.images.length > 0) || p.image || p.thumbnail;
+            const hasImage = (Array.isArray(p.images) && p.images.length > 0) || p.image || p.thumbnail;
             if (!hasImage) return false;
-
             const tsSrc = p.timestamp || p.createdAt;
             const ts = tsSrc ? new Date(tsSrc).getTime() : now;
             if (Number.isNaN(ts) || ts < sevenDaysAgo) return false;
+            return true;
+          })
+          .sort((a, b) => {
+            const ta = new Date(a.timestamp || a.createdAt || now).getTime();
+            const tb = new Date(b.timestamp || b.createdAt || now).getTime();
+            return tb - ta;
+          });
 
+        // 발행 매거진: 키워드 필터 없이 최근 사진 풀을 사용 (위치로 매칭)
+        if (publishedMagazine) {
+          setPosts(base);
+        } else if (topic) {
+          const filtered = base.filter((p) => {
             const joined = [
               p.note,
               p.content,
@@ -109,16 +133,12 @@ const MagazineDetailScreen = () => {
               .filter(Boolean)
               .join(' ')
               .toLowerCase();
-
             return keywords.some((kw) => kw && joined.includes(kw));
-          })
-          .sort((a, b) => {
-            const ta = new Date(a.timestamp || a.createdAt || now).getTime();
-            const tb = new Date(b.timestamp || b.createdAt || now).getTime();
-            return tb - ta;
           });
-
-        setPosts(filtered);
+          setPosts(filtered);
+        } else {
+          setPosts(base);
+        }
       } catch (e) {
         logger.error('매거진 피드 로딩 오류:', e);
         setPosts([]);
@@ -129,7 +149,69 @@ const MagazineDetailScreen = () => {
     };
 
     load();
-  }, [topic]);
+  }, [topic, publishedMagazine]);
+
+  const publishedSections = useMemo(() => {
+    if (!publishedMagazine || !Array.isArray(publishedMagazine.sections)) return [];
+    const allTextPosts = Array.isArray(allPosts) ? allPosts : [];
+    const byRecency = (a, b) => {
+      const now = Date.now();
+      const ta = new Date(a?.timestamp || a?.createdAt || now).getTime();
+      const tb = new Date(b?.timestamp || b?.createdAt || now).getTime();
+      return tb - ta;
+    };
+    const pickMediaByKeyword = (keyword) => {
+      const k = String(keyword || '').trim().toLowerCase();
+      if (!k) return '';
+      const matched = allTextPosts
+        .filter((p) => toSearchText(p).includes(k))
+        .sort(byRecency)[0];
+      return matched ? (mediaUrlsFromPost(matched)[0] || '') : '';
+    };
+    const pickMediaByLocation = (loc) => {
+      const key = String(loc || '').trim().toLowerCase();
+      if (!key) return [];
+      const matchedPosts = allTextPosts
+        .filter((p) => toSearchText(p).includes(key))
+        .sort(byRecency);
+      const uniq = [...new Set(matchedPosts.flatMap(mediaUrlsFromPost))].filter(Boolean);
+      return uniq;
+    };
+
+    return publishedMagazine.sections
+      .map((s, idx) => {
+        const locKey = normalizeSpace(s?.location || '');
+        const regionKey = getRegionKey(locKey);
+        const uniqMedia = pickMediaByLocation(locKey);
+        const sliderMedia = uniqMedia.slice(0, 19);
+        const hasMoreMedia = uniqMedia.length > 19;
+
+        const aroundNames = Array.isArray(s?.around) ? s.around : [];
+        const around = aroundNames
+          .map((name, ai) => {
+            const id = `${idx}-${ai}`;
+            const image = pickMediaByKeyword(name);
+            return { id, name: String(name || '').trim(), image };
+          })
+          .filter((x) => x.name)
+          .slice(0, 3);
+
+        return {
+          locKey,
+          regionKey,
+          sliderMedia,
+          hasMoreMedia,
+          author: { username: publishedMagazine.author || 'LiveJourney', avatar: null, timeLabel: '' },
+          description: String(s?.description || '').trim(),
+          around,
+          mediaCount: uniqMedia.length,
+          postCount: 0,
+        };
+      })
+      .filter((x) => x.locKey);
+  }, [publishedMagazine, allPosts, normalizeSpace, getRegionKey]);
+
+  const sectionsToRender = publishedMagazine ? publishedSections : locationSections;
 
   const locationSections = useMemo(() => {
     if (!Array.isArray(posts) || posts.length === 0) return [];
@@ -198,6 +280,9 @@ const MagazineDetailScreen = () => {
   }, [posts, allPosts]);
 
   if (!topic) {
+    if (publishedMagazine) {
+      // topic이 없고 발행 매거진이 있으면 아래 렌더로 진행
+    } else {
     return (
       <div className="screen-layout bg-background-light dark:bg-background-dark h-screen overflow-hidden">
         <div className="screen-content flex flex-col h-full">
@@ -228,6 +313,7 @@ const MagazineDetailScreen = () => {
         <BottomNavigation />
       </div>
     );
+    }
   }
 
   return (
@@ -244,7 +330,28 @@ const MagazineDetailScreen = () => {
           <h1 className="text-[18px] font-bold text-text-primary-light dark:text-text-primary-dark m-0">
             여행 매거진
           </h1>
-          <div className="w-10" />
+          {publishedMagazine ? (
+            <button
+              type="button"
+              onClick={async () => {
+                if (!window.confirm('이 매거진을 삭제할까요?')) return;
+                const res = await removePublishedMagazine(publishedMagazine.id);
+                if (!res.success) {
+                  alert('삭제에 실패했습니다.');
+                  return;
+                }
+                alert('삭제되었습니다.');
+                navigate('/magazine', { replace: true });
+              }}
+              className="flex size-10 items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-rose-600"
+              aria-label="매거진 삭제"
+              title="삭제"
+            >
+              <span className="material-symbols-outlined text-[22px]">delete</span>
+            </button>
+          ) : (
+            <div className="w-10" />
+          )}
         </div>
 
           {/* 스크롤 가능한 본문 */}
@@ -253,20 +360,20 @@ const MagazineDetailScreen = () => {
           <section className="px-4 pt-4 pb-3 bg-white dark:bg-gray-900 border-b border-zinc-100 dark:border-zinc-800">
             <div className="mb-3">
               <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 dark:bg-indigo-900/25 px-3 py-1 text-[12px] font-semibold text-indigo-600 dark:text-indigo-200">
-                <span className="text-[14px]">{topic.emoji || '📚'}</span>
-                테마 매거진
+                <span className="text-[14px]">{publishedMagazine?.emoji || topic?.emoji || '📚'}</span>
+                {publishedMagazine ? '발행 매거진' : '테마 매거진'}
               </div>
             </div>
 
             <div className="px-0 py-1">
               <h2 className="m-0 text-[20px] font-extrabold text-gray-900 dark:text-gray-50 leading-snug">
-                {topic.title}
+                {publishedMagazine?.title || topic.title}
               </h2>
             </div>
 
             <div className="mt-1">
               <p className="m-0 text-[13px] font-medium text-gray-600 dark:text-gray-300 leading-relaxed">
-                {topic.description || '현재 올라오는 정보들을 한눈에 알아봐요.'}
+                {(publishedMagazine?.subtitle || topic.description) || '현재 올라오는 정보들을 한눈에 알아봐요.'}
               </p>
             </div>
           </section>
@@ -277,14 +384,14 @@ const MagazineDetailScreen = () => {
               <div className="py-10 flex items-center justify-center text-[13px] text-gray-500">
                 실시간 사진을 모으는 중이에요...
               </div>
-            ) : locationSections.length === 0 ? (
+            ) : sectionsToRender.length === 0 ? (
               <div className="py-10 flex flex-col items-center justify-center text-center text-[13px] text-gray-500 px-6">
                 <p className="mb-1">아직 이 매거진에 포함되는 사진이 없어요.</p>
                 <p>지금 여기를 통해 첫 번째 사진을 올려보세요.</p>
               </div>
             ) : (
               <div className="flex flex-col gap-6 pt-4 pb-8">
-                {locationSections.slice(0, 7).map((sec) => {
+                {sectionsToRender.slice(0, 7).map((sec) => {
                   const region = sec.regionKey || '서울';
                   const media = Array.isArray(sec.sliderMedia) ? sec.sliderMedia : [];
 
@@ -364,9 +471,11 @@ const MagazineDetailScreen = () => {
                           위치에 대한 설명
                         </div>
                         <p className="m-0 text-[13px] leading-relaxed text-gray-700 dark:text-gray-200 line-clamp-2">
-                          {sec.topChips.length > 0
-                            ? `지금 ${sec.topChips.map((c) => c.name).join(' · ')} 정보를 확인해요.`
-                            : '지금 이 위치의 현재 분위기를 확인해요.'}
+                          {publishedMagazine
+                            ? (sec.description || '지금 이 위치의 현재 분위기를 확인해요.')
+                            : (sec.topChips.length > 0
+                                ? `지금 ${sec.topChips.map((c) => c.name).join(' · ')} 정보를 확인해요.`
+                                : '지금 이 위치의 현재 분위기를 확인해요.')}
                         </p>
                       </div>
 
@@ -379,7 +488,7 @@ const MagazineDetailScreen = () => {
                           {(Array.isArray(sec.around) ? sec.around : []).slice(0, 3).map((l) => (
                             <div
                               key={`${sec.locKey}-around-${l.id}`}
-                              className="flex-1 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-gray-900"
+                              className="flex-1 overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-gray-900"
                             >
                               <div className="w-full bg-gray-100 dark:bg-gray-800" style={{ aspectRatio: '4/3' }}>
                                 {l.image ? (
