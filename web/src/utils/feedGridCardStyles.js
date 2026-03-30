@@ -11,7 +11,7 @@ export const feedGridCardBox = {
 
 export const feedGridImageBox = {
   width: '100%',
-  paddingBottom: '80%',
+  paddingBottom: '88%',
   height: 0,
   position: 'relative',
   background: '#e5e7eb',

@@ -13,6 +13,7 @@ import { getRegionDefaultImage } from '../utils/regionDefaultImages';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import { getGridCoverDisplay } from '../utils/postMedia';
 import {
+  feedGridCardBox,
   feedGridImageBox,
   feedGridInfoBox,
   feedGridTitleStyle,
@@ -500,10 +501,10 @@ const RegionDetailScreen = () => {
                             });
                           }}
                           style={{
-                            overflow: 'visible',
+                            ...feedGridCardBox,
                             cursor: 'pointer',
                             display: 'flex',
-                            flexDirection: 'column'
+                            flexDirection: 'column',
                           }}
                         >
                           <div style={feedGridImageBox}>
@@ -511,7 +512,7 @@ const RegionDetailScreen = () => {
                               <img
                                 src={gridCover.src}
                                 alt={photo.location || region.name}
-                                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '14px' }}
+                                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                               />
                             ) : gridCover.mode === 'video' && gridCover.src ? (
                               <video
@@ -519,7 +520,7 @@ const RegionDetailScreen = () => {
                                 muted
                                 playsInline
                                 preload="metadata"
-                                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '14px' }}
+                                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                               />
                             ) : (
                               <div
@@ -533,7 +534,6 @@ const RegionDetailScreen = () => {
                                   alignItems: 'center',
                                   justifyContent: 'center',
                                   color: '#cbd5e1',
-                                  borderRadius: '14px'
                                 }}
                               >
                                 <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>image</span>
