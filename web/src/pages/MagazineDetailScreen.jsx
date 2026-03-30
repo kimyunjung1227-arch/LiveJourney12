@@ -18,6 +18,7 @@ const MagazineDetailScreen = () => {
 
   const topic = useMemo(() => getMagazineTopicById(id), [id]);
   const [posts, setPosts] = useState([]);
+  const [allPosts, setAllPosts] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const normalizeSpace = (s) => String(s || '').replace(/\s+/g, ' ').trim();
@@ -46,12 +47,25 @@ const MagazineDetailScreen = () => {
     const urls = raw.map((v) => getDisplayImageUrl(v)).filter(Boolean);
     return [...new Set(urls)];
   };
+  const toSearchText = (p) =>
+    [
+      p?.detailedLocation,
+      p?.placeName,
+      p?.location,
+      p?.note,
+      p?.content,
+      ...(Array.isArray(p?.tags) ? p.tags : []),
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
 
   // 수국 등 키워드 기반으로 사용자 피드 큐레이션
   useEffect(() => {
     const load = async () => {
       if (!topic) {
         setPosts([]);
+        setAllPosts([]);
         setLoading(false);
         return;
       }
@@ -68,13 +82,14 @@ const MagazineDetailScreen = () => {
           }
         );
         const combined = Array.from(byId.values());
-        const allPosts = getCombinedPosts(combined);
+        const combinedAllPosts = getCombinedPosts(combined);
+        setAllPosts(combinedAllPosts);
 
         const now = Date.now();
         const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
         const keywords = (topic.tagKeywords || []).map((k) => String(k).toLowerCase());
 
-        const filtered = allPosts
+        const filtered = combinedAllPosts
           .filter((p) => {
             const hasImage =
               (Array.isArray(p.images) && p.images.length > 0) || p.image || p.thumbnail;
@@ -107,6 +122,7 @@ const MagazineDetailScreen = () => {
       } catch (e) {
         logger.error('매거진 피드 로딩 오류:', e);
         setPosts([]);
+        setAllPosts([]);
       } finally {
         setLoading(false);
       }
@@ -129,8 +145,8 @@ const MagazineDetailScreen = () => {
     const sections = Array.from(map.entries()).map(([locKey, list]) => {
       const regionKey = getRegionKey(locKey);
       const uniqMedia = [...new Set(list.flatMap(mediaUrlsFromPost))].filter(Boolean);
-      const cover = uniqMedia.slice(0, 2);
-      const rest = uniqMedia.slice(2);
+      const sliderMedia = uniqMedia.slice(0, 19);
+      const hasMoreMedia = uniqMedia.length > 19;
 
       const first = list[0] || null;
       const { username, avatar } = first ? getPostAuthor(first) : { username: '여행자', avatar: null };
@@ -147,21 +163,39 @@ const MagazineDetailScreen = () => {
       const landmarks = getLandmarksByRegion(regionKey);
       const around = landmarks.filter((l) => l?.name && !locKey.includes(l.name)).slice(0, 4);
 
+      const allTextPosts = Array.isArray(allPosts) ? allPosts : [];
+      const byRecency = (a, b) => {
+        const now = Date.now();
+        const ta = new Date(a?.timestamp || a?.createdAt || now).getTime();
+        const tb = new Date(b?.timestamp || b?.createdAt || now).getTime();
+        return tb - ta;
+      };
+      const aroundWithImage = around
+        .map((l) => {
+          const keys = [l?.name, ...(Array.isArray(l?.keywords) ? l.keywords : [])].filter(Boolean).map((s) => String(s).toLowerCase());
+          const matched = allTextPosts
+            .filter((p) => keys.some((k) => k && toSearchText(p).includes(k)))
+            .sort(byRecency)[0];
+          const img = matched ? mediaUrlsFromPost(matched)[0] : '';
+          return { ...l, image: img || '' };
+        })
+        .slice(0, 3);
+
       return {
         locKey,
         regionKey,
-        cover,
-        rest,
+        sliderMedia,
+        hasMoreMedia,
         author: { username, avatar, timeLabel },
         topChips,
-        around,
+        around: aroundWithImage,
         mediaCount: uniqMedia.length,
         postCount: list.length,
       };
     });
 
     return sections.sort((a, b) => (b.mediaCount - a.mediaCount) || (b.postCount - a.postCount));
-  }, [posts]);
+  }, [posts, allPosts]);
 
   if (!topic) {
     return (
@@ -215,7 +249,7 @@ const MagazineDetailScreen = () => {
 
           {/* 스크롤 가능한 본문 */}
         <main className="flex-1 overflow-y-auto">
-          {/* 헤드(와이어프레임 스타일: 제목/소제목 박스) */}
+          {/* 헤드(제목/소제목 - 테두리 제거) */}
           <section className="px-4 pt-4 pb-3 bg-white dark:bg-gray-900 border-b border-zinc-100 dark:border-zinc-800">
             <div className="mb-3">
               <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 dark:bg-indigo-900/25 px-3 py-1 text-[12px] font-semibold text-indigo-600 dark:text-indigo-200">
@@ -224,14 +258,14 @@ const MagazineDetailScreen = () => {
               </div>
             </div>
 
-            <div className="border-2 border-black/90 rounded-md px-3 py-2">
-              <h2 className="m-0 text-[18px] font-extrabold text-gray-900 dark:text-gray-50 leading-snug">
+            <div className="px-0 py-1">
+              <h2 className="m-0 text-[20px] font-extrabold text-gray-900 dark:text-gray-50 leading-snug">
                 {topic.title}
               </h2>
             </div>
 
-            <div className="mt-2 border border-black/40 rounded px-3 py-2 bg-white/80 dark:bg-gray-900/60">
-              <p className="m-0 text-[13px] font-medium text-gray-700 dark:text-gray-200 leading-relaxed">
+            <div className="mt-1">
+              <p className="m-0 text-[13px] font-medium text-gray-600 dark:text-gray-300 leading-relaxed">
                 {topic.description || '현재 올라오는 정보들을 한눈에 알아봐요.'}
               </p>
             </div>
@@ -250,11 +284,9 @@ const MagazineDetailScreen = () => {
               </div>
             ) : (
               <div className="flex flex-col gap-6 pt-4 pb-8">
-                {locationSections.slice(0, 7).map((sec, idx) => {
+                {locationSections.slice(0, 7).map((sec) => {
                   const region = sec.regionKey || '서울';
-                  const coverA = sec.cover[0] || '';
-                  const coverB = sec.cover[1] || '';
-                  const has2 = !!coverA && !!coverB;
+                  const media = Array.isArray(sec.sliderMedia) ? sec.sliderMedia : [];
 
                   const goMore = (e) => {
                     e?.stopPropagation?.();
@@ -265,62 +297,43 @@ const MagazineDetailScreen = () => {
 
                   return (
                     <article key={sec.locKey} className="px-4">
-                      <div className="mb-2">
-                        <div className="text-[12px] font-semibold text-gray-500 dark:text-gray-400 mb-1">
-                          위치정보 {idx + 1}
-                        </div>
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <h3 className="m-0 text-left min-w-0 flex-1 text-[16px] font-extrabold text-gray-900 dark:text-gray-50 truncate">
+                          {sec.locKey}
+                        </h3>
                         <button
                           type="button"
                           onClick={goMore}
-                          className="w-full flex items-center justify-between gap-3"
+                          className="shrink-0 inline-flex items-center gap-1 rounded-full bg-white dark:bg-gray-900 border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-[12px] font-semibold text-primary"
                         >
-                          <h3 className="m-0 text-left min-w-0 flex-1 text-[16px] font-extrabold text-gray-900 dark:text-gray-50 truncate">
-                            {sec.locKey}
-                          </h3>
-                          <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-white dark:bg-gray-900 border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-[12px] font-semibold text-primary">
-                            더보기
-                            <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-                          </span>
+                          더보기
+                          <span className="material-symbols-outlined text-[16px]">chevron_right</span>
                         </button>
                       </div>
 
+                      {/* 사진 피드(한 장씩 좌우 슬라이드, 최대 19장) */}
                       <div className="w-full overflow-hidden rounded-2xl bg-white dark:bg-gray-900 border border-zinc-100 dark:border-zinc-800 shadow-[0_2px_14px_rgba(15,23,42,0.06)]">
-                        {/* 2장 썸네일(한 썸네일) */}
-                        <div className="relative w-full bg-gray-100 dark:bg-gray-800" style={{ aspectRatio: '4/3' }}>
-                          {has2 ? (
-                            <div className="absolute inset-0 grid grid-cols-2">
-                              <img src={coverA} alt="" className="w-full h-full object-cover" loading="lazy" />
-                              <img src={coverB} alt="" className="w-full h-full object-cover" loading="lazy" />
+                        <div className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide">
+                          {(media.length ? media : ['']).slice(0, 19).map((src, i) => (
+                            <div
+                              key={`${sec.locKey}-slide-${i}`}
+                              className="snap-center flex-shrink-0 w-full bg-gray-100 dark:bg-gray-800"
+                              style={{ aspectRatio: '4/3' }}
+                            >
+                              {src ? (
+                                <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                  <span className="material-symbols-outlined text-5xl">image</span>
+                                </div>
+                              )}
                             </div>
-                          ) : coverA ? (
-                            <img src={coverA} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
-                          ) : (
-                            <div className="absolute inset-0 flex items-center justify-center text-gray-300">
-                              <span className="material-symbols-outlined text-5xl">image</span>
-                            </div>
-                          )}
+                          ))}
                         </div>
 
-                        {/* 이후 슬라이드(가로 스크롤) */}
-                        {sec.rest.length > 0 && (
-                          <div className="px-3 pt-2 pb-2">
-                            <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-                              {sec.rest.slice(0, 12).map((src, i) => (
-                                <img
-                                  key={`${sec.locKey}-rest-${i}`}
-                                  src={src}
-                                  alt=""
-                                  className="h-[54px] w-[54px] flex-shrink-0 rounded-xl object-cover border border-zinc-100 dark:border-zinc-800"
-                                  loading="lazy"
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="px-3 pb-3">
-                          {/* 업로더 프로필(가볍게) */}
-                          <div className="flex items-center gap-2 pt-2">
+                        {/* 사진 정보(업로더 프로필만) */}
+                        <div className="px-3 py-3">
+                          <div className="flex items-center gap-2">
                             {sec.author.avatar ? (
                               <img src={sec.author.avatar} alt="" className="w-7 h-7 rounded-full object-cover bg-gray-200" />
                             ) : (
@@ -336,33 +349,52 @@ const MagazineDetailScreen = () => {
                                 {sec.author.timeLabel || '방금'}
                               </div>
                             </div>
+                            {sec.hasMoreMedia && (
+                              <span className="ml-auto text-[11px] font-semibold text-gray-400 dark:text-gray-500">
+                                사진은 19장까지 보여줘요
+                              </span>
+                            )}
                           </div>
+                        </div>
+                      </div>
 
-                          {/* 위치에 대한 설명글(현재시제) */}
-                          <p className="mt-2 text-[13px] leading-relaxed text-gray-800 dark:text-gray-100 line-clamp-2">
-                            {sec.topChips.length > 0
-                              ? `지금 ${sec.topChips.map((c) => c.name).join(' · ')} 정보를 확인해요.`
-                              : '지금 이 위치의 현재 분위기를 확인해요.'}
-                          </p>
+                      {/* 위치 설명(사진 피드와 분리) */}
+                      <div className="mt-2 px-1">
+                        <div className="text-[13px] font-semibold text-gray-900 dark:text-gray-50 mb-1">
+                          위치에 대한 설명
+                        </div>
+                        <p className="m-0 text-[13px] leading-relaxed text-gray-700 dark:text-gray-200 line-clamp-2">
+                          {sec.topChips.length > 0
+                            ? `지금 ${sec.topChips.map((c) => c.name).join(' · ')} 정보를 확인해요.`
+                            : '지금 이 위치의 현재 분위기를 확인해요.'}
+                        </p>
+                      </div>
 
-                          {/* 주변 맛집/명소 추천 */}
-                          <div className="mt-2">
-                            <div className="text-[12px] font-semibold text-gray-500 dark:text-gray-400 mb-1">
-                              위치정보 주변 맛집, 명소
+                      {/* 주변 맛집/명소(가볍게, 작은 사진 3개) */}
+                      <div className="mt-2 px-1">
+                        <div className="text-[12px] font-semibold text-gray-500 dark:text-gray-400 mb-1">
+                          위치 주변 맛집, 가볼만한 곳
+                        </div>
+                        <div className="flex gap-2">
+                          {(Array.isArray(sec.around) ? sec.around : []).slice(0, 3).map((l) => (
+                            <div
+                              key={`${sec.locKey}-around-${l.id}`}
+                              className="flex-1 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-gray-900"
+                            >
+                              <div className="w-full bg-gray-100 dark:bg-gray-800" style={{ aspectRatio: '4/3' }}>
+                                {l.image ? (
+                                  <img src={l.image} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                    <span className="material-symbols-outlined">photo</span>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="px-2 py-1.5 text-[11px] font-semibold text-gray-700 dark:text-gray-200 truncate">
+                                {l.name}
+                              </div>
                             </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {(sec.around.length > 0 ? sec.around : getLandmarksByRegion(region).slice(0, 3))
-                                .slice(0, 3)
-                                .map((l) => (
-                                  <span
-                                    key={`${sec.locKey}-around-${l.id}`}
-                                    className="inline-flex items-center rounded-2xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-gray-900 px-3 py-2 text-[11px] font-semibold text-gray-700 dark:text-gray-200"
-                                  >
-                                    {l.name}
-                                  </span>
-                                ))}
-                            </div>
-                          </div>
+                          ))}
                         </div>
                       </div>
                     </article>
