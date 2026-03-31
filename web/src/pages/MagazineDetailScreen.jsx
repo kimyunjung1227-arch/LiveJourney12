@@ -460,15 +460,8 @@ const MagazineDetailScreen = () => {
                           {sec.description || '실시간으로 올라온 사진으로만 구성했어요.'}
                         </p>
 
-                        {/* 점(dot) 표시 (스크린샷 느낌) */}
-                        <div className="flex items-center justify-center gap-1.5 py-2">
-                          {[0, 1, 2, 3].map((di) => (
-                            <span
-                              key={`${sec.locKey}-dot-${di}`}
-                              className={`h-1.5 w-1.5 rounded-full ${di === 0 ? 'bg-slate-600' : 'bg-slate-300 dark:bg-slate-700'}`}
-                            />
-                          ))}
-                        </div>
+                        {/* 구분선 */}
+                        <div className="my-3 h-px w-full bg-zinc-200/80 dark:bg-zinc-800" />
 
                         {/* 추천 명소 리스트 (가로 카드 3개) */}
                         {aroundSpots.length > 0 && (
