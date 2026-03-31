@@ -98,7 +98,7 @@ const calculateRegionStats = (posts, regionName) => {
       return typeof raw === 'string' ? raw : (raw?.url ?? raw?.src ?? null);
     })(),
     // 최근 게시물 샘플
-    recentPosts: recentPosts.slice(0, 3)
+    recentPosts: recent24hPosts.slice(0, 3),
   };
 };
 
