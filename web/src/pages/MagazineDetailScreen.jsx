@@ -476,11 +476,11 @@ const MagazineDetailScreen = () => {
                             <div className="mb-2 text-[13px] font-extrabold text-gray-900 dark:text-gray-50">
                               📍 {sec.locKey} 추천 명소
                             </div>
-                            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+                            <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-2">
                               {aroundSpots.slice(0, 3).map((l) => (
                                 <div
                                   key={`${sec.locKey}-around-${l.id}`}
-                                  className="flex-shrink-0 w-[170px] bg-white dark:bg-gray-900"
+                                  className="snap-center flex-shrink-0 w-[78%] max-w-[340px] bg-white dark:bg-gray-900"
                                 >
                                   <div className="w-full overflow-hidden rounded-[4px] bg-gray-100 dark:bg-gray-800" style={{ aspectRatio: '4/3' }}>
                                     {l.image ? (

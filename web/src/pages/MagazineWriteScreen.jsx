@@ -7,6 +7,54 @@ import { useAdminState } from '../utils/admin';
 
 const DRAFT_KEY = 'magazinePublishDraft';
 
+const extractBetween = (text, startRe, endRe) => {
+  const s = text.search(startRe);
+  if (s < 0) return '';
+  const after = text.slice(s).replace(startRe, '');
+  if (!endRe) return after.trim();
+  const e = after.search(endRe);
+  return (e < 0 ? after : after.slice(0, e)).trim();
+};
+
+const parseMagazinePaste = (raw) => {
+  const text = String(raw || '').replace(/\r\n/g, '\n').trim();
+  if (!text) return null;
+  const lines = text.split('\n').map((l) => l.trim());
+  const titleLine = lines.find((l) => l && !/^\d+\./.test(l)) || '';
+
+  const blocks = [];
+  const re = /(^|\n)(\d+)\.\s*([^\n]+)\n([\s\S]*?)(?=\n\d+\.\s|$)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const name = String(m[3] || '').trim();
+    const body = String(m[4] || '');
+    const locationInfo = (() => {
+      const mm = body.match(/위치정보\s*:\s*([^\n]+)/);
+      return mm ? String(mm[1]).trim() : '';
+    })();
+    const description = extractBetween(body, /위치 설명\s*:\s*/i, /\n\s*위치 주변|\n\s*사진\s*:|$/i);
+    const aroundText = extractBetween(body, /위치 주변[^:]*:\s*/i, /$/i);
+    const boldNames = [];
+    const bRe = /\*\*\s*'?(.*?)'?\s*\*\*/g;
+    let bm;
+    while ((bm = bRe.exec(aroundText)) !== null) {
+      const n = String(bm[1] || '').trim();
+      if (n && !boldNames.includes(n)) boldNames.push(n);
+    }
+    const aroundPlaces = boldNames.slice(0, 8).map((n, i) => ({ id: `ap-${Date.now()}-${i}`, info: n, desc: '' }));
+
+    blocks.push({
+      locationTitle: name.replace(/^['"]|['"]$/g, '').trim(),
+      locationInfo,
+      description,
+      aroundPlaces,
+    });
+  }
+
+  if (!blocks.length) return null;
+  return { title: titleLine, sections: blocks };
+};
+
 const createEmptySection = (seed = {}) => ({
   id: `sec-${Date.now()}-${Math.random().toString(16).slice(2)}`,
   locationTitle: seed.locationTitle || '',
@@ -27,6 +75,7 @@ const MagazineWriteScreen = () => {
   const { isAdmin, loading: adminLoading } = useAdminState(user);
   const [title, setTitle] = useState('');
   const [sections, setSections] = useState([createEmptySection()]);
+  const [pasteText, setPasteText] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -50,6 +99,15 @@ const MagazineWriteScreen = () => {
     } catch (_) {
       // ignore
     }
+  }, []);
+
+  const applyPaste = useCallback((raw) => {
+    const parsed = parseMagazinePaste(raw);
+    if (!parsed) return false;
+    if (parsed.title) setTitle(parsed.title);
+    setSections(parsed.sections.map((s) => createEmptySection(s)));
+    setPasteText('');
+    return true;
   }, []);
 
   const canSubmit = useMemo(() => {
@@ -237,6 +295,31 @@ const MagazineWriteScreen = () => {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
               />
+            </div>
+
+            <div>
+              <label className="block mb-2 text-[13px] font-semibold text-gray-800 dark:text-gray-100">
+                복사한 글 붙여넣기 (자동 입력)
+              </label>
+              <textarea
+                className="w-full min-h-[110px] rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white/60 dark:bg-gray-900/30 px-3 py-2 text-[13px] leading-relaxed text-gray-900 dark:text-gray-50 focus:outline-none resize-none"
+                placeholder="여기에 전체 내용을 붙여넣으면 위치/설명/주변장소가 자동으로 채워져요."
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+                onBlur={() => { applyPaste(pasteText); }}
+              />
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ok = applyPaste(pasteText);
+                    if (!ok) alert('형식을 인식하지 못했어요. (1., 2., 3. 섹션/위치정보/위치 설명/위치 주변 문구가 있는지 확인해 주세요)');
+                  }}
+                  className="rounded-full bg-gray-900 text-white px-4 py-2 text-[12px] font-semibold"
+                >
+                  자동 채우기
+                </button>
+              </div>
             </div>
 
             {sections.map((sec, idx) => (
