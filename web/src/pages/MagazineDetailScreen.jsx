@@ -446,13 +446,10 @@ const MagazineDetailScreen = () => {
 
                     return (
                       <article key={sec.locKey || index} className="px-4">
-                        {/* 섹션 헤더: 트리플 느낌 (번호 + 간단 문구) */}
+                        {/* 섹션 헤더: 번호 */}
                         <div className="mb-2 flex items-center gap-2">
                           <div className="inline-flex items-center justify-center rounded-full bg-slate-900/90 px-2.5 py-1 text-[11px] font-extrabold text-white shadow-sm dark:bg-white/10">
                             {sectionIndexLabel}
-                          </div>
-                          <div className="text-[12px] font-semibold text-slate-600 dark:text-slate-300">
-                            가볍게 떠나기 좋은
                           </div>
                         </div>
                         <h3 className="m-0 text-left text-[18px] font-extrabold text-gray-900 dark:text-gray-50 leading-snug">
