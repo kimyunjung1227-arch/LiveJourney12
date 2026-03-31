@@ -57,6 +57,9 @@ const CrowdedPlaceScreen = lazy(() => import('./pages/CrowdedPlaceScreen'))
 const ChatScreen = lazy(() => import('./pages/ChatScreen'))
 const ChatWriteScreen = lazy(() => import('./pages/ChatWriteScreen'))
 const AdminScreen = lazy(() => import('./pages/AdminScreen'))
+const AdminHubScreen = lazy(() => import('./pages/AdminHubScreen'))
+const AdminPostsScreen = lazy(() => import('./pages/AdminPostsScreen'))
+const AdminNoticesScreen = lazy(() => import('./pages/AdminNoticesScreen'))
 
 function App() {
   // StatusBar 초기화 (앱 시작 시 한 번만)
@@ -149,7 +152,47 @@ function App() {
                 <Route path="/account-delete/confirm" element={<ProtectedRoute><AccountDeleteConfirmScreen /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute><SettingsScreen /></ProtectedRoute>} />
                 <Route path="/feed-update-frequency" element={<ProtectedRoute><FeedUpdateFrequencyScreen /></ProtectedRoute>} />
-                <Route path="/admin" element={<ProtectedRoute><AdminRoute><AdminScreen /></AdminRoute></ProtectedRoute>} />
+                <Route path="/admin" element={<ProtectedRoute><AdminRoute><AdminHubScreen /></AdminRoute></ProtectedRoute>} />
+                <Route
+                  path="/admin/posts"
+                  element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminPostsScreen />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/notices"
+                  element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminNoticesScreen />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/magazine/publish"
+                  element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <MagazineWriteScreen />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/legacy"
+                  element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminScreen />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="/admin/magazines"
                   element={
