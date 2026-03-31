@@ -9,6 +9,7 @@ import { getDisplayImageUrl } from '../api/upload';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { rankHotspotPosts } from '../utils/hotnessEngine';
 import { toggleBookmark, isPostBookmarked } from '../utils/socialInteractions';
+import { getMapThumbnailUri } from '../utils/postMedia';
 import {
     getHotFeedAddressLine,
     getCityDongLine,
@@ -141,10 +142,12 @@ const CrowdedPlaceScreen = () => {
                 const likesNum = Number(post.likes ?? post.likeCount ?? 0) || 0;
                 const commentsArr = Array.isArray(post.comments) ? post.comments : [];
                 const timeStr = getTimeAgo(post.timestamp || post.createdAt || post.time);
+                const coverStill = getMapThumbnailUri(post);
                 return {
                     ...post,
                     id: post.id,
-                    image: getDisplayImageUrl(firstImage || firstVideo || ''),
+                    // 동영상은 재생하지 않고, 가능한 정지 썸네일(이미지/thumbnail/poster)만 사용
+                    image: getDisplayImageUrl(coverStill || firstImage || ''),
                     thumbnailIsVideo: !firstImage && !!firstVideo,
                     firstVideoUrl: firstVideo ? getDisplayImageUrl(firstVideo) : null,
                     location: post.location,
@@ -269,25 +272,7 @@ const CrowdedPlaceScreen = () => {
                                                 <span className="truncate">{regionShort}</span>
                                             </div>
                                         )}
-                                        {Array.isArray(post.videos) && post.videos.length > 0 ? (
-                                            <video
-                                                src={getDisplayImageUrl(post.videos[0])}
-                                                poster={getDisplayImageUrl(post.images?.[0] || post.image || post.thumbnail)}
-                                                muted
-                                                loop
-                                                playsInline
-                                                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-                                            />
-                                        ) : post.thumbnailIsVideo && post.firstVideoUrl ? (
-                                            <video
-                                                src={post.firstVideoUrl}
-                                                muted
-                                                loop
-                                                playsInline
-                                                preload="metadata"
-                                                className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-                                            />
-                                        ) : post.image ? (
+                                        {post.image ? (
                                             <img src={post.image} alt={post.location || ''} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]" />
                                         ) : (
                                             <div className="flex h-full min-h-[100px] w-full items-center justify-center text-slate-400">
@@ -305,7 +290,7 @@ const CrowdedPlaceScreen = () => {
                                                             ? [post.thumbnail]
                                                             : [];
                                             const thumbs = raw.map((v) => getDisplayImageUrl(v)).filter(Boolean).slice(0, 3);
-                                            const showThumbs = !(Array.isArray(post.videos) && post.videos.length > 0) && !(post.thumbnailIsVideo && post.firstVideoUrl) && thumbs.length > 1;
+                                            const showThumbs = thumbs.length > 1;
                                             if (!showThumbs) return null;
                                             return (
                                                 <div className="absolute left-2 bottom-2 z-10 flex items-center gap-1.5 rounded-full bg-[rgba(15,23,42,0.38)] px-2 py-1 shadow-sm backdrop-blur-[8px]">

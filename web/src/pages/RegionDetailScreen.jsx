@@ -514,14 +514,6 @@ const RegionDetailScreen = () => {
                                 alt={photo.location || region.name}
                                 style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                               />
-                            ) : gridCover.mode === 'video' && gridCover.src ? (
-                              <video
-                                src={gridCover.src}
-                                muted
-                                playsInline
-                                preload="metadata"
-                                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                              />
                             ) : (
                               <div
                                 style={{

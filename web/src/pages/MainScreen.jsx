@@ -13,6 +13,7 @@ import './MainScreen.css';
 import { getCombinedPosts } from '../utils/mockData';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getDisplayImageUrl } from '../api/upload';
+import { getMapThumbnailUri } from '../utils/postMedia';
 import { getPostAccuracyCount, toggleLike, isPostLiked } from '../utils/socialInteractions';
 import { rankHotspotPosts } from '../utils/hotnessEngine';
 import { updatePostLikesSupabase } from '../api/postsSupabase';
@@ -57,6 +58,7 @@ const MainScreen = () => {
     const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
     const [interestPlaces, setInterestPlaces] = useState([]);
     const [selectedInterest, setSelectedInterest] = useState(null);
+    const [hotFeedVideoPoster, setHotFeedVideoPoster] = useState(null);
     const [showAddInterestModal, setShowAddInterestModal] = useState(false);
     const [newInterestPlace, setNewInterestPlace] = useState('');
     // 국내 관심지역 선택용 상태 (전국 8도)
@@ -534,6 +536,61 @@ const MainScreen = () => {
         const i = hotFeedSlideIndex % crowdedData.length;
         return crowdedData[i];
     }, [crowdedData, hotFeedSlideIndex]);
+
+    useEffect(() => {
+        let cancelled = false;
+        const post = hotFeedPost;
+        const firstVideo = post && Array.isArray(post.videos) && post.videos.length > 0 ? post.videos[0] : '';
+        if (!post || !firstVideo) {
+            setHotFeedVideoPoster(null);
+            return;
+        }
+        const still = getMapThumbnailUri(post);
+        if (still) {
+            setHotFeedVideoPoster(null);
+            return;
+        }
+
+        const capture = async () => {
+            try {
+                const url = getDisplayImageUrl(firstVideo);
+                if (!url) return;
+                const video = document.createElement('video');
+                video.crossOrigin = 'anonymous';
+                video.muted = true;
+                video.playsInline = true;
+                video.preload = 'auto';
+                video.src = url;
+
+                await new Promise((resolve, reject) => {
+                    const onLoaded = () => resolve();
+                    const onErr = () => reject(new Error('video load failed'));
+                    video.addEventListener('loadeddata', onLoaded, { once: true });
+                    video.addEventListener('error', onErr, { once: true });
+                });
+
+                const w = Math.max(1, video.videoWidth || 0);
+                const h = Math.max(1, video.videoHeight || 0);
+                if (!w || !h) return;
+
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) return;
+                ctx.drawImage(video, 0, 0, w, h);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+                if (!cancelled) setHotFeedVideoPoster(dataUrl);
+            } catch {
+                if (!cancelled) setHotFeedVideoPoster(null);
+            }
+        };
+
+        capture();
+        return () => {
+            cancelled = true;
+        };
+    }, [hotFeedPost]);
 
     const hotFeedCardProps = useMemo(() => {
         if (!hotFeedPost) return null;
@@ -1254,27 +1311,20 @@ const MainScreen = () => {
                                                     <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{regionShort}</span>
                                                 </div>
                                             )}
-                                            {(Array.isArray(post.videos) && post.videos.length > 0) ? (
-                                                <video
-                                                    ref={(el) => {
-                                                        if (el) videoRefs.current.set(`crowded-${post.id}`, el);
-                                                        else videoRefs.current.delete(`crowded-${post.id}`);
-                                                    }}
-                                                    data-video-id={`crowded-${post.id}`}
-                                                    src={getDisplayImageUrl(post.videos[0])}
-                                                    poster={getDisplayImageUrl(post.images?.[0] || post.image || post.thumbnail)}
-                                                    muted
-                                                    loop
-                                                    playsInline
-                                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                                                />
-                                            ) : post.thumbnailIsVideo && post.firstVideoUrl ? (
-                                                <video src={post.firstVideoUrl} muted loop playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                                            ) : (Array.isArray(post.images) && post.images.length > 0) || post.image || post.thumbnail ? (
-                                                <img src={getDisplayImageUrl(post.images?.[0] || post.image || post.thumbnail)} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                                            ) : (
-                                                <div style={{ width: '100%', height: '100%', background: '#e5e7eb' }} />
-                                            )}
+                                            {(() => {
+                                                const still = getMapThumbnailUri(post);
+                                                const src = still
+                                                    || hotFeedVideoPoster
+                                                    || (Array.isArray(post.images) && post.images.length > 0 ? post.images[0] : (post.image || post.thumbnail || ''));
+                                                if (!src) return <div style={{ width: '100%', height: '100%', background: '#e5e7eb' }} />;
+                                                return (
+                                                    <img
+                                                        src={src.startsWith('data:') ? src : getDisplayImageUrl(src)}
+                                                        alt={title}
+                                                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                                    />
+                                                );
+                                            })()}
                                             {(() => {
                                                 const raw = Array.isArray(post.images)
                                                     ? post.images
@@ -1286,7 +1336,7 @@ const MainScreen = () => {
                                                                 ? [post.thumbnail]
                                                                 : [];
                                                 const thumbs = raw.map((v) => getDisplayImageUrl(v)).filter(Boolean).slice(0, 3);
-                                                const showThumbs = !(Array.isArray(post.videos) && post.videos.length > 0) && !(post.thumbnailIsVideo && post.firstVideoUrl) && thumbs.length > 1;
+                                                const showThumbs = thumbs.length > 1;
                                                 if (!showThumbs) return null;
                                                 return (
                                                     <div
