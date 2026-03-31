@@ -6,6 +6,7 @@ import AdminRoute from './components/AdminRoute'
 import { initStatusBar } from './utils/statusBar'
 import SosAlertBanner from './components/SosAlertBanner'
 import { cleanLegacyUploadedPosts } from './utils/localStorageManager'
+import BadgeEarnedNavigator from './components/BadgeEarnedNavigator'
 
 // Pages (코드 스플리팅을 위해 lazy 로드)
 const WelcomeScreen = lazy(() => import('./pages/WelcomeScreen'))
@@ -79,6 +80,7 @@ function App() {
         <div className="app-container">
           <div className="page-wrapper">
             <SosAlertBanner />
+            <BadgeEarnedNavigator />
             <Suspense
               fallback={
                 <div className="screen-layout bg-background-light dark:bg-background-dark flex items-center justify-center">
