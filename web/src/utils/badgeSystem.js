@@ -42,9 +42,34 @@ const hasWaitingTag = (p) => {
   const txt = `${tagStr} ${cat} ${getPostText(p)}`.toLowerCase();
   return txt.includes('웨이팅') || txt.includes('#웨이팅') || txt.includes('대기') || txt.includes('#대기');
 };
+const IMPORTANT_INFO_TAGS = [
+  '중요정보',
+  '폐업',
+  '휴무',
+  '임시휴무',
+  '혼잡',
+  '북적',
+  '통제',
+  '공사',
+  '우회',
+  '주차',
+  '주차불가',
+  '만차',
+  '입장마감',
+  '웨이팅',
+  '대기',
+  '줄',
+];
+
+const normalizeTagText = (v) => String(v || '').replace(/^#/, '').replace(/\s+/g, '').trim();
+
 const isImportantInfoPost = (p) => {
-  const txt = getPostText(p);
-  return /(폐업|휴무|임시\s*휴무|통제|공사|우회|입장\s*마감|주차\s*불가|만차|혼잡|북적|대기\s*\d+|웨이팅|줄\s*\d+)/.test(txt);
+  // "명확한 행동" 기준: 태그(또는 카테고리)로 중요정보를 표시한 경우만 카운트
+  const tags = Array.isArray(p?.tags) ? p.tags : (p?.tags ? [p.tags] : []);
+  const normalizedTags = tags.map(normalizeTagText).filter(Boolean);
+  const cat = normalizeTagText(p?.categoryName || p?.category || '');
+  const hay = new Set([...normalizedTags, cat]);
+  return IMPORTANT_INFO_TAGS.some((t) => hay.has(t));
 };
 const isNightPost = (p) => {
   const ms = getPostCreatedAtMs(p);
@@ -57,7 +82,7 @@ const isNightPost = (p) => {
 export const BADGE_PROGRESS_DETAIL = {
   '첫 걸음': { shortCondition: '실시간 제보 1개', progressTarget: 1, getProgressCurrent: (s) => s.totalPosts || 0, progressUnit: '개' },
   '지역 가이드': { shortCondition: '해당 지역 제보 10회', progressTarget: 10, getProgressCurrent: (s) => s.maxRegionReports || 0, progressUnit: '회' },
-  '지역 지킴이': { shortCondition: '중요 키워드 포함 제보 5회', progressTarget: 5, getProgressCurrent: (s) => s.regionImportantInfo || 0, progressUnit: '회' },
+  '지역 지킴이': { shortCondition: '중요정보 태그 달고 제보 5회', progressTarget: 5, getProgressCurrent: (s) => s.regionImportantInfo || 0, progressUnit: '회' },
   '지역 통신원': { shortCondition: '같은 지역 3일 연속 제보', progressTarget: 3, getProgressCurrent: (s) => s.regionConsecutiveDays || 0, progressUnit: '일' },
   '지역 마스터': { shortCondition: '같은 지역 제보 30회', progressTarget: 30, getProgressCurrent: (s) => s.maxRegionReports || 0, progressUnit: '회' },
   '날씨요정': { shortCondition: '#날씨 태그/카테고리 제보 5회', progressTarget: 5, getProgressCurrent: (s) => s.weatherReports || 0, progressUnit: '회' },
@@ -83,7 +108,7 @@ export const BADGES = {
 
   // 🗺️ 1. 지역 가이드 (Locality) — regionAware, 획득 시 region 저장
   '지역 가이드': { name: '지역 가이드', description: '해당 지역 실시간 제보 10회 이상. 가장 직관적인 로컬 전문가 인증', icon: '🗺️', category: '지역 가이드', difficulty: 2, gradient: 'from-indigo-600 to-blue-800', regionAware: true, condition: (s) => (s.maxRegionReports || 0) >= 10, getProgress: (s) => Math.min(100, ((s.maxRegionReports || 0) / 10) * 100) },
-  '지역 지킴이': { name: '지역 지킴이', description: '내 게시글 내용에 중요 키워드(폐업/휴무/혼잡/통제/공사 등)가 포함된 제보 5회 이상', icon: '🛡️', category: '지역 가이드', difficulty: 2, gradient: 'from-amber-600 to-amber-800', regionAware: true, condition: (s) => (s.regionImportantInfo || 0) >= 5, getProgress: (s) => Math.min(100, ((s.regionImportantInfo || 0) / 5) * 100) },
+  '지역 지킴이': { name: '지역 지킴이', description: '제보 업로드 시 중요정보 태그(예: #혼잡/#폐업/#휴무/#통제/#공사/#만차/#웨이팅 등) 중 하나를 달고 5회 업로드', icon: '🛡️', category: '지역 가이드', difficulty: 2, gradient: 'from-amber-600 to-amber-800', regionAware: true, condition: (s) => (s.regionImportantInfo || 0) >= 5, getProgress: (s) => Math.min(100, ((s.regionImportantInfo || 0) / 5) * 100) },
   '지역 통신원': { name: '지역 통신원', description: '해당 지역에서 3일 연속 실시간 중계. 지역 소식을 실시간으로 전하는 특파원', icon: '📡', category: '지역 가이드', difficulty: 3, gradient: 'from-cyan-500 to-blue-600', regionAware: true, condition: (s) => (s.regionConsecutiveDays || 0) >= 3, getProgress: (s) => Math.min(100, ((s.regionConsecutiveDays || 0) / 3) * 100) },
   '지역 마스터': { name: '지역 마스터', description: '한 지역에서 실시간 제보 30회 이상. 해당 지역의 꾸준한 기록자', icon: '👑', category: '지역 가이드', difficulty: 4, gradient: 'from-purple-600 to-fuchsia-700', regionAware: true, condition: (s) => (s.maxRegionReports || 0) >= 30, getProgress: (s) => Math.min(100, ((s.maxRegionReports || 0) / 30) * 100) },
 
