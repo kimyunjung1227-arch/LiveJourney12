@@ -197,7 +197,16 @@ export const calculateUserStats = (posts = [], user = {}) => {
     consecutiveDays,
     firstReportNewPlace: 0,
 
-    trustScore: getTrustRawScore()
+    // 신뢰지수는 "현재 사용자 + posts(=Supabase+로컬 병합)" 기준으로 계산해야 누적이 유지됨
+    trustScore: (() => {
+      try {
+        const uid = user?.id || user?._id;
+        if (!uid) return getTrustRawScore();
+        return getTrustRawScore(String(uid), posts || []);
+      } catch {
+        return getTrustRawScore();
+      }
+    })()
   };
 
   logger.log(`✅ 통계 계산 완료: 총 ${stats.totalPosts}개 게시물, ${stats.visitedRegions}개 지역, 신뢰지수 ${stats.trustScore}`);

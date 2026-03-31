@@ -1452,8 +1452,8 @@ const ProfileScreen = () => {
             <div className="px-6 py-4">
               {(() => {
                 const uid = (authUser || user)?.id;
-                const raw = getTrustRawScore(uid ? String(uid) : null);
-                const { grade, nextGrade, progressToNext, pointsRemainingInTier } = getTrustGrade(raw, uid ? String(uid) : null);
+                const raw = getTrustRawScore(uid ? String(uid) : null, myPosts.length ? myPosts : null);
+                const { grade, nextGrade, progressToNext, pointsRemainingInTier } = getTrustGrade(raw, uid ? String(uid) : null, myPosts.length ? myPosts : null);
                 return (
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-1 flex-nowrap min-w-0">
@@ -2336,8 +2336,8 @@ const ProfileScreen = () => {
                 </div>
                 {(() => {
                   const uid = (authUser || user)?.id;
-                  const rawModal = getTrustRawScore(uid ? String(uid) : null);
-                  const { grade: currentGrade } = getTrustGrade(rawModal, uid ? String(uid) : null);
+                  const rawModal = getTrustRawScore(uid ? String(uid) : null, myPosts.length ? myPosts : null);
+                  const { grade: currentGrade } = getTrustGrade(rawModal, uid ? String(uid) : null, myPosts.length ? myPosts : null);
                   const currentGradeId = currentGrade?.id;
                   return TRUST_GRADES.map((g) => {
                     return (
