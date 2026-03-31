@@ -434,34 +434,44 @@ const MagazineDetailScreen = () => {
                         <h3 className="m-0 text-left text-[18px] font-extrabold text-gray-900 dark:text-gray-50 leading-snug">
                           {sec.locKey}
                         </h3>
-                        <p className="mt-1 mb-3 text-[13px] leading-relaxed text-gray-700 dark:text-gray-200">
-                          {sec.description || '실시간으로 올라온 사진으로만 구성했어요.'}
-                        </p>
 
                         {/* 섹션 대표 이미지 */}
                         {mainImage && (
-                          <div className="mb-3 overflow-hidden rounded-lg border border-zinc-100 dark:border-zinc-800 shadow-[0_4px_18px_rgba(15,23,42,0.12)]">
+                          <div className="mt-2 overflow-hidden rounded-[4px] border border-zinc-100 dark:border-zinc-800 shadow-[0_2px_10px_rgba(15,23,42,0.08)]">
                             <div className="w-full bg-gray-100 dark:bg-gray-800" style={{ aspectRatio: '4/3' }}>
                               <img src={mainImage} alt="" className="w-full h-full object-cover" loading="lazy" />
                             </div>
                           </div>
                         )}
 
-                        {/* 추천 명소 리스트 (섹션 본문과 구분) */}
+                        {/* 위치 설명 (사진 바깥) */}
+                        <p className="mt-3 mb-2 text-[13px] leading-relaxed text-gray-700 dark:text-gray-200">
+                          {sec.description || '실시간으로 올라온 사진으로만 구성했어요.'}
+                        </p>
+
+                        {/* 점(dot) 표시 (스크린샷 느낌) */}
+                        <div className="flex items-center justify-center gap-1.5 py-2">
+                          {[0, 1, 2, 3].map((di) => (
+                            <span
+                              key={`${sec.locKey}-dot-${di}`}
+                              className={`h-1.5 w-1.5 rounded-full ${di === 0 ? 'bg-slate-600' : 'bg-slate-300 dark:bg-slate-700'}`}
+                            />
+                          ))}
+                        </div>
+
+                        {/* 추천 명소 리스트 (가로 카드 3개) */}
                         {aroundSpots.length > 0 && (
-                          <div className="mt-3 rounded-lg bg-slate-50 dark:bg-slate-950/30 border border-slate-100 dark:border-slate-800 p-3">
+                          <div className="mt-3 pt-1">
                             <div className="mb-2 text-[13px] font-extrabold text-gray-900 dark:text-gray-50">
                               📍 가볍게 떠나기 좋은 {sec.locKey} 추천 명소
                             </div>
-                            <div className="space-y-2">
-                              {aroundSpots.slice(0, 6).map((l) => (
-                                <button
+                            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+                              {aroundSpots.slice(0, 3).map((l) => (
+                                <div
                                   key={`${sec.locKey}-around-${l.id}`}
-                                  type="button"
-                                  onClick={goMore}
-                                  className="w-full flex items-stretch gap-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-gray-900 overflow-hidden shadow-sm hover:shadow-md transition-shadow text-left"
+                                  className="flex-shrink-0 w-[170px] bg-white dark:bg-gray-900"
                                 >
-                                  <div className="w-[128px] bg-gray-100 dark:bg-gray-800 flex-shrink-0" style={{ aspectRatio: '4/3' }}>
+                                  <div className="w-full overflow-hidden rounded-[4px] bg-gray-100 dark:bg-gray-800" style={{ aspectRatio: '4/3' }}>
                                     {l.image ? (
                                       <img src={l.image} alt="" className="w-full h-full object-cover" loading="lazy" />
                                     ) : (
@@ -470,16 +480,20 @@ const MagazineDetailScreen = () => {
                                       </div>
                                     )}
                                   </div>
-                                  <div className="flex-1 min-w-0 py-2 pr-3">
-                                    <div className="text-[14px] font-extrabold text-gray-900 dark:text-gray-50 truncate">
+                                  <div className="pt-2">
+                                    <div className="text-[12px] font-extrabold text-gray-900 dark:text-gray-50 truncate">
                                       {l.name}
                                     </div>
-                                    <div className="mt-1 inline-flex items-center gap-1 text-[12px] font-semibold text-primary">
+                                    <button
+                                      type="button"
+                                      onClick={goMore}
+                                      className="mt-1 inline-flex items-center gap-0.5 text-[12px] font-semibold text-primary"
+                                    >
                                       자세히 보기
                                       <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-                                    </div>
+                                    </button>
                                   </div>
-                                </button>
+                                </div>
                               ))}
                             </div>
                           </div>
