@@ -318,6 +318,11 @@ const MagazineDetailScreen = () => {
     }
   }
 
+  const heroImage =
+    Array.isArray(sectionsToRender?.[0]?.sliderMedia) && sectionsToRender[0].sliderMedia.length
+      ? sectionsToRender[0].sliderMedia[0]
+      : '';
+
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark h-screen overflow-hidden">
       <div className="screen-content flex flex-col h-full">
@@ -358,7 +363,7 @@ const MagazineDetailScreen = () => {
 
           {/* 스크롤 가능한 본문 */}
         <main className="flex-1 overflow-y-auto">
-          {/* 헤드(제목/소제목 - 테두리 제거) */}
+          {/* 헤드(제목/소제목 + 커버 이미지) */}
           <section className="px-4 pt-4 pb-3 bg-white dark:bg-gray-900 border-b border-zinc-100 dark:border-zinc-800">
             <div className="mb-3">
               <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 dark:bg-indigo-900/25 px-3 py-1 text-[12px] font-semibold text-indigo-600 dark:text-indigo-200">
@@ -378,6 +383,20 @@ const MagazineDetailScreen = () => {
                 {(publishedMagazine?.subtitle || topic.description) || '현재 올라오는 정보들을 한눈에 알아봐요.'}
               </p>
             </div>
+
+            {/* 기사형 레이아웃일 때 상단 커버 이미지 */}
+            {publishedMagazine && heroImage && (
+              <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-[0_6px_24px_rgba(15,23,42,0.15)]">
+                <div className="w-full bg-gray-100 dark:bg-gray-800" style={{ aspectRatio: '4/3' }}>
+                  <img
+                    src={heroImage}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              </div>
+            )}
           </section>
 
           {/* 위치 기반 큐레이션 (TOP 7) */}
@@ -393,7 +412,7 @@ const MagazineDetailScreen = () => {
               </div>
             ) : (
               <div className="flex flex-col gap-6 pt-4 pb-8">
-                {sectionsToRender.slice(0, 7).map((sec) => {
+                {sectionsToRender.slice(0, 7).map((sec, index) => {
                   const region = sec.regionKey || '서울';
                   const media = Array.isArray(sec.sliderMedia) ? sec.sliderMedia : [];
 
@@ -404,6 +423,84 @@ const MagazineDetailScreen = () => {
                     });
                   };
 
+                  // 발행 매거진일 때: 기사형(섹션 번호 + 설명 + 장소 카드)
+                  if (publishedMagazine) {
+                    const sectionIndexLabel = `${index + 1}`.padStart(1, ' ');
+                    const aroundSpots = Array.isArray(sec.around) ? sec.around : [];
+                    const mainImage = media[0] || heroImage;
+
+                    return (
+                      <article key={sec.locKey || index} className="px-4">
+                        {/* 섹션 헤더: 번호 + 지역명 */}
+                        <div className="mb-2 flex items-center gap-2">
+                          <div className="inline-flex items-center justify-center rounded-full bg-sky-50 dark:bg-sky-900/40 px-2.5 py-1 text-[11px] font-semibold text-sky-600 dark:text-sky-200">
+                            {sectionIndexLabel}번째 여행지
+                          </div>
+                        </div>
+                        <h3 className="m-0 text-left text-[17px] font-extrabold text-gray-900 dark:text-gray-50 leading-snug">
+                          {sec.locKey}
+                        </h3>
+                        <p className="mt-1 mb-3 text-[13px] leading-relaxed text-gray-700 dark:text-gray-200">
+                          {sec.description || '지금 이 지역의 실시간 사진을 모아봤어요.'}
+                        </p>
+
+                        {/* 섹션 대표 이미지 */}
+                        {mainImage && (
+                          <div className="mb-3 overflow-hidden rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-[0_4px_18px_rgba(15,23,42,0.12)]">
+                            <div className="w-full bg-gray-100 dark:bg-gray-800" style={{ aspectRatio: '4/3' }}>
+                              <img src={mainImage} alt="" className="w-full h-full object-cover" loading="lazy" />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 섹션 내 스팟 카드 리스트 */}
+                        {aroundSpots.length > 0 && (
+                          <div className="mt-2">
+                            <div className="text-[12px] font-semibold text-gray-500 dark:text-gray-400 mb-1">
+                              이 근처에서 같이 들르면 좋은 곳
+                            </div>
+                            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+                              {aroundSpots.slice(0, 4).map((l) => (
+                                <div
+                                  key={`${sec.locKey}-around-${l.id}`}
+                                  className="flex-shrink-0 w-40 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-gray-900 overflow-hidden"
+                                >
+                                  <div className="w-full bg-gray-100 dark:bg-gray-800" style={{ aspectRatio: '4/3' }}>
+                                    {l.image ? (
+                                      <img src={l.image} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                        <span className="material-symbols-outlined text-[20px]">photo</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="px-2 py-1.5">
+                                    <div className="text-[11px] font-semibold text-gray-800 dark:text-gray-100 truncate">
+                                      {l.name}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 지역 상세로 이동 버튼 */}
+                        <div className="mt-3">
+                          <button
+                            type="button"
+                            onClick={goMore}
+                            className="inline-flex items-center gap-1 rounded-full bg-white dark:bg-gray-900 border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-[12px] font-semibold text-primary"
+                          >
+                            이 지역 실시간 정보 보러가기
+                            <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  }
+
+                  // 기본 테마 매거진: 기존 카드형 레이아웃 유지
                   return (
                     <article key={sec.locKey} className="px-4">
                       <div className="mb-2 flex items-center justify-between gap-3">
@@ -473,11 +570,9 @@ const MagazineDetailScreen = () => {
                           위치에 대한 설명
                         </div>
                         <p className="m-0 text-[13px] leading-relaxed text-gray-700 dark:text-gray-200 line-clamp-2">
-                          {publishedMagazine
-                            ? (sec.description || '지금 이 위치의 현재 분위기를 확인해요.')
-                            : (sec.topChips.length > 0
-                                ? `지금 ${sec.topChips.map((c) => c.name).join(' · ')} 정보를 확인해요.`
-                                : '지금 이 위치의 현재 분위기를 확인해요.')}
+                          {sec.topChips.length > 0
+                            ? `지금 ${sec.topChips.map((c) => c.name).join(' · ')} 정보를 확인해요.`
+                            : '지금 이 위치의 현재 분위기를 확인해요.'}
                         </p>
                       </div>
 

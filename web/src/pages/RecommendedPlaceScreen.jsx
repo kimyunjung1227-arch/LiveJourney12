@@ -44,7 +44,7 @@ const RecommendedPlaceScreen = () => {
           <span className="material-symbols-outlined" style={{ color: '#333' }}>arrow_back</span>
         </button>
         <div>
-          <h1 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#1f2937' }}>추천 여행지</h1>
+          <h1 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#1f2937' }}>실시간 추천 여행지</h1>
           <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>
             {RECOMMENDATION_TYPES.find(t => t.id === selectedTag)?.description}
           </p>
@@ -119,13 +119,49 @@ const RecommendedPlaceScreen = () => {
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       onError={(e) => { e.target.onerror = null; e.target.src = PLACEHOLDER_IMAGE; }}
                     />
+                    {item.stats?.isLive && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: 8,
+                          left: 8,
+                          padding: '4px 8px',
+                          borderRadius: '999px',
+                          background: 'rgba(239, 68, 68, 0.95)',
+                          color: 'white',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            backgroundColor: '#22c55e',
+                            boxShadow: '0 0 0 4px rgba(34, 197, 94, 0.4)'
+                          }}
+                        />
+                        LIVE
+                      </div>
+                    )}
                   </div>
                   <div style={{ padding: '12px 14px 14px', background: '#f8fafc', borderTop: '3px solid #475569', boxShadow: '0 -2px 0 0 #475569, 0 2px 8px rgba(0,0,0,0.08)' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#333', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {item.title}
+                    <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontWeight: 600, color: '#64748b', fontSize: '11px' }}>{item.regionName}</span>
+                      {item.stats?.lastPostTimeAgoLabel && (
+                        <span style={{ fontSize: '10px', color: '#94a3b8' }}>
+                          {item.stats.lastPostTimeAgoLabel} 업데이트
+                        </span>
+                      )}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {item.description}
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.regionName}
                     </div>
                   </div>
                 </div>
