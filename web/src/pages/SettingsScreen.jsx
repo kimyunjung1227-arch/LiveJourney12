@@ -3,12 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import BottomNavigation from '../components/BottomNavigation';
 import { logger } from '../utils/logger';
-import { useAdminState } from '../utils/admin';
 
 const SettingsScreen = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { isAdmin } = useAdminState(user);
 
   // 토글 상태
   const [activityNotification, setActivityNotification] = useState(true);
@@ -122,19 +120,6 @@ const SettingsScreen = () => {
                     chevron_right
                   </span>
                 </button>
-                {isAdmin && (
-                  <button
-                    onClick={() => navigate('/admin')}
-                    className="flex h-14 items-center justify-between px-4 hover:bg-surface-subtle-light dark:hover:bg-surface-subtle-dark transition-colors"
-                  >
-                    <p className="text-base font-normal leading-normal text-black dark:text-white">
-                      관리자
-                    </p>
-                    <span className="material-symbols-outlined text-black dark:text-white">
-                      chevron_right
-                    </span>
-                  </button>
-                )}
               </div>
             </div>
 
