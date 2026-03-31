@@ -25,30 +25,9 @@ function getHotBadgeLabel(variantIndex) {
     return HOT_BADGE_VARIANTS[variantIndex % HOT_BADGE_VARIANTS.length];
 }
 
-const FILTERS = [
-    { id: '전체', label: '전체', icon: null },
-    { id: '카페', label: '카페', icon: 'local_cafe' },
-    { id: '맛집', label: '맛집', icon: 'restaurant' },
-    { id: '명소', label: '명소', icon: 'location_on' },
-];
-
-const matchFilter = (post, filterId) => {
-    if (filterId === '전체') return true;
-    const cat = (post.category || '').toLowerCase();
-    const tags = Array.isArray(post.tags) ? post.tags.join(' ').toLowerCase() : '';
-    const content = (post.content || post.note || '').toLowerCase();
-    const loc = (post.location || '').toLowerCase();
-    const text = `${cat} ${tags} ${content} ${loc}`;
-    if (filterId === '카페') return text.includes('카페') || text.includes('cafe') || text.includes('커피');
-    if (filterId === '맛집') return cat === 'food';
-    if (filterId === '명소') return cat === 'scenic' || cat === 'landmark';
-    return true;
-};
-
 const CrowdedPlaceScreen = () => {
     const navigate = useNavigate();
     const [crowdedData, setCrowdedData] = useState([]);
-    const [activeFilter, setActiveFilter] = useState('전체');
     const [refreshKey, setRefreshKey] = useState(0);
     const [bookmarkRefresh, setBookmarkRefresh] = useState(0);
     const [weatherByRegion, setWeatherByRegion] = useState({});
@@ -68,7 +47,7 @@ const CrowdedPlaceScreen = () => {
 
     useEffect(() => {
         setCrowdedSocialIdx(0);
-    }, [activeFilter]);
+    }, []);
 
     const crowdedRegionsKey = useMemo(() => {
         const keys = crowdedData.map((p) => (p?.region || p?.location || '').trim().split(/\s+/)[0]).filter(Boolean);
@@ -196,7 +175,7 @@ const CrowdedPlaceScreen = () => {
         loadData();
     }, [refreshKey]);
 
-    const filteredPosts = crowdedData.filter((post) => matchFilter(post, activeFilter));
+    const filteredPosts = crowdedData;
 
     return (
         <div className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col">
@@ -225,27 +204,7 @@ const CrowdedPlaceScreen = () => {
                     <p className="text-text-sub dark:text-slate-400 text-[11px] mt-0.5">지금 가장 핫한 장소를 확인해보세요</p>
                 </section>
 
-                {/* 필터 — 칩 사이즈를 줄여 상단 영역 압축 */}
-                <div className="flex gap-1.5 overflow-x-auto px-5 py-2 scrollbar-hide">
-                    {FILTERS.map((f) => {
-                        const isActive = activeFilter === f.id;
-                        return (
-                            <button
-                                key={f.id}
-                                type="button"
-                                onClick={() => setActiveFilter(f.id)}
-                                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors border ${
-                                    isActive
-                                        ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
-                                        : 'bg-white dark:bg-slate-800 text-text-sub dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'
-                                }`}
-                            >
-                                {f.icon && <span className="material-symbols-outlined text-base">{f.icon}</span>}
-                                {f.label}
-                            </button>
-                        );
-                    })}
-                </div>
+                {/* 필터 제거: 바로 게시물 노출 */}
 
                 {/* 피드 — 세로 리스트, 4:3 카드, 랭킹은 3위까지 표시하되 피드는 계속 노출 */}
                 {filteredPosts.length === 0 ? (
