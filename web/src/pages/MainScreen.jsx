@@ -17,7 +17,7 @@ import { getPostAccuracyCount, toggleLike, isPostLiked } from '../utils/socialIn
 import { rankHotspotPosts } from '../utils/hotnessEngine';
 import { updatePostLikesSupabase } from '../api/postsSupabase';
 import { getWeatherByRegion } from '../api/weather';
-import { loadMagazineTopics } from '../utils/magazinesConfig';
+import { listPublishedMagazines } from '../utils/magazinesStore';
 import {
     getHotFeedAddressLine,
     getCityDongLine,
@@ -51,7 +51,7 @@ const MainScreen = () => {
     const [recommendedData, setRecommendedData] = useState([]);
     const [weatherByRegion, setWeatherByRegion] = useState({});
     const [allPostsForRecommend, setAllPostsForRecommend] = useState([]);
-    const [magazineTopics, setMagazineTopics] = useState([]);
+    const [publishedMagazines, setPublishedMagazines] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
@@ -437,16 +437,59 @@ const MainScreen = () => {
     }, []);
 
     useEffect(() => {
-        setMagazineTopics(loadMagazineTopics());
+        let alive = true;
+        const load = async () => {
+            const mags = await listPublishedMagazines();
+            if (alive) setPublishedMagazines(Array.isArray(mags) ? mags : []);
+        };
+        load();
+        const onUpdated = () => load();
+        window.addEventListener('magazinesUpdated', onUpdated);
+        return () => {
+            alive = false;
+            window.removeEventListener('magazinesUpdated', onUpdated);
+        };
     }, []);
 
-    useEffect(() => {
-        const onMagazineUpdated = () => {
-            setMagazineTopics(loadMagazineTopics());
+    const magazineCards = useMemo(() => {
+        if (!Array.isArray(publishedMagazines) || publishedMagazines.length === 0) return [];
+        const posts = Array.isArray(allPostsForRecommend) ? allPostsForRecommend : [];
+        const byRecency = (a, b) => {
+            const now = Date.now();
+            const ta = new Date(a?.timestamp || a?.createdAt || now).getTime();
+            const tb = new Date(b?.timestamp || b?.createdAt || now).getTime();
+            return tb - ta;
         };
-        window.addEventListener('magazineTopicsUpdated', onMagazineUpdated);
-        return () => window.removeEventListener('magazineTopicsUpdated', onMagazineUpdated);
-    }, []);
+        const pickCoverByLocation = (locationText) => {
+            const key = String(locationText || '').trim();
+            if (!key) return '';
+            const lower = key.toLowerCase();
+            const matched = posts
+                .filter((p) => {
+                    const loc = String(p?.location || '').toLowerCase();
+                    const place = String(p?.placeName || '').toLowerCase();
+                    const detailed = String(p?.detailedLocation || '').toLowerCase();
+                    return (loc && loc.includes(lower)) || (place && place.includes(lower)) || (detailed && detailed.includes(lower));
+                })
+                .filter((p) => (Array.isArray(p?.images) && p.images.length > 0) || p?.image || p?.thumbnail)
+                .sort(byRecency)[0];
+            const raw = matched?.images?.[0] || matched?.image || matched?.thumbnail || '';
+            return raw ? getDisplayImageUrl(raw) : '';
+        };
+        return publishedMagazines
+            .map((m) => {
+                const firstSection = Array.isArray(m?.sections) ? m.sections[0] : null;
+                const loc = String(firstSection?.location || m?.title || '').trim();
+                const cover = pickCoverByLocation(loc);
+                return { magazine: m, cover };
+            })
+            .sort((a, b) => {
+                const ta = new Date(a?.magazine?.createdAt || a?.magazine?.created_at || 0).getTime();
+                const tb = new Date(b?.magazine?.createdAt || b?.magazine?.created_at || 0).getTime();
+                return (Number.isNaN(tb) ? 0 : tb) - (Number.isNaN(ta) ? 0 : ta);
+            })
+            .slice(0, 6);
+    }, [publishedMagazines, allPostsForRecommend]);
 
     const filteredInterestPosts = useMemo(() => {
         if (!selectedInterest) return [];
@@ -1452,7 +1495,7 @@ const MainScreen = () => {
                                 })}
                             </div>
                         </div>
-                        {/* 여행 매거진 (추천 여행지 하단) - 주제형 큐레이션 */}
+                        {/* 여행 매거진 (발행 매거진 모아보기) */}
                         <div style={{ marginBottom: '24px', background: '#ffffff' }}>
                             <div style={{ padding: '0 0 10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#374151' }}>여행 매거진</h3>
@@ -1465,11 +1508,11 @@ const MainScreen = () => {
                                 </button>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 4 }}>
-                                {magazineTopics.map((topic) => (
+                                {magazineCards.map(({ magazine, cover }) => (
                                     <button
-                                        key={topic.id}
+                                        key={magazine.id}
                                         type="button"
-                                        onClick={() => navigate(`/magazine/${topic.id}`)}
+                                        onClick={() => navigate(`/magazine/${magazine.id}`, { state: { magazine } })}
                                         style={{
                                             width: '100%',
                                             display: 'flex',
@@ -1482,19 +1525,23 @@ const MainScreen = () => {
                                             boxShadow: '0 2px 6px rgba(15,23,42,0.03)',
                                         }}
                                     >
-                                        <div style={{ width: 56, height: 56, borderRadius: 999, overflow: 'hidden', background: '#eef2ff', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>
-                                            {topic.emoji || '📚'}
+                                        <div style={{ width: 56, height: 56, borderRadius: 12, overflow: 'hidden', background: '#e5e7eb', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            {cover ? (
+                                                <img src={cover} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                            ) : (
+                                                <span className="material-symbols-outlined" style={{ color: '#94a3b8' }}>photo</span>
+                                            )}
                                         </div>
                                         <div style={{ flex: 1, minWidth: 0, paddingLeft: 10, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                                             <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#4f46e5' }}>
-                                                테마 매거진
+                                                발행 매거진
                                             </p>
                                             <p style={{ margin: '2px 0 0 0', fontSize: 14, fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                {topic.title}
+                                                {magazine.title}
                                             </p>
-                                            {topic.description && (
+                                            {(magazine.subtitle || magazine.summary) && (
                                                 <p style={{ margin: '2px 0 0 0', fontSize: 12, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                    {topic.description}
+                                                    {magazine.subtitle || magazine.summary}
                                                 </p>
                                             )}
                                         </div>
