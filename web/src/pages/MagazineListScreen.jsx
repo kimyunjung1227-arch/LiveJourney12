@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { listPublishedMagazines } from '../utils/magazinesStore';
@@ -67,6 +67,8 @@ const MagazineListScreen = () => {
   const [published, setPublished] = useState([]);
   const [allPosts, setAllPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const carouselRef = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -106,6 +108,10 @@ const MagazineListScreen = () => {
     };
   }, [load]);
 
+  useEffect(() => {
+    setActiveSlideIndex(0);
+  }, [published]);
+
   const gridPosts = useMemo(() => {
     const withThumb = (Array.isArray(allPosts) ? allPosts : []).filter((p) => getMapThumbnailUri(p));
     const recent = filterRecentPosts(withThumb, 2, 72);
@@ -113,40 +119,47 @@ const MagazineListScreen = () => {
     return pool.slice(0, 12);
   }, [allPosts]);
 
-  const featured = useMemo(() => {
+  const slides = useMemo(() => {
     const mag = published[0];
+    const posts = Array.isArray(allPosts) ? allPosts : [];
     const byRecency = (a, b) => {
       const now = Date.now();
       const ta = new Date(a?.timestamp || a?.createdAt || now).getTime();
       const tb = new Date(b?.timestamp || b?.createdAt || now).getTime();
       return tb - ta;
     };
-    const posts = Array.isArray(allPosts) ? allPosts : [];
 
-    if (mag && Array.isArray(mag.sections) && mag.sections.length > 0 && posts.length > 0) {
-      const first = mag.sections[0];
-      const locKey = normalizeSpace(first?.location || '');
-      const matchedPosts = posts
-        .filter((p) => locKey && toSearchText(p).includes(locKey.toLowerCase()))
-        .sort(byRecency);
-      const uniqMedia = matchedPosts.flatMap(mediaUrlsFromPost);
-      const uniq = [...new Set(uniqMedia)].filter(Boolean);
-      const fallbackImg = gridPosts[0] ? getMapThumbnailUri(gridPosts[0]) : '';
-      const heroImage = uniq[0] || fallbackImg;
-      return {
-        kind: 'magazine',
-        mag,
-        title: String(mag.title || '').trim() || '여행 매거진',
-        placeTitle: locKey || String(mag.title || '').trim(),
-        description:
-          String(first?.description || mag.subtitle || mag.summary || '').trim() ||
-          'LiveJourney에 올라온 실시간 사진으로 구성된 코너예요.',
-        image: heroImage,
-        timeLabel: getTimeAgo(mag.created_at || mag.createdAt),
-        mediaCount: uniq.length,
-        askQuery: locKey || mag.title,
-        regionSummary: buildRegionSummary(matchedPosts),
-      };
+    if (mag && Array.isArray(mag.sections) && mag.sections.length > 0) {
+      const magTitle = String(mag.title || '').trim() || '여행 매거진';
+      return mag.sections.map((sec, idx) => {
+        const locKey = normalizeSpace(sec?.location || '');
+        const matchedPosts = posts
+          .filter((p) => locKey && toSearchText(p).includes(locKey.toLowerCase()))
+          .sort(byRecency);
+        const uniqMedia = matchedPosts.flatMap(mediaUrlsFromPost);
+        const uniq = [...new Set(uniqMedia)].filter(Boolean);
+        const fallbackImg = gridPosts[0] ? getMapThumbnailUri(gridPosts[0]) : '';
+        const heroImage = uniq[0] || fallbackImg;
+        const editorDescription = String(sec?.description || '').trim();
+        return {
+          kind: 'magazine',
+          mag,
+          magTitle,
+          sectionIndex: idx,
+          placeTitle: locKey || `장소 ${idx + 1}`,
+          description:
+            editorDescription ||
+            '장소 설명은 관리자 매거진 발행 화면에서 입력한 내용이 여기에 표시됩니다.',
+          image: heroImage,
+          timeLabel: matchedPosts[0]
+            ? getTimeAgo(matchedPosts[0].timestamp || matchedPosts[0].createdAt)
+            : getTimeAgo(mag.created_at || mag.createdAt),
+          askQuery: locKey || mag.title,
+          regionSummary: buildRegionSummary(matchedPosts),
+          locKey,
+          matchedPosts,
+        };
+      });
     }
 
     const p0 = gridPosts[0];
@@ -154,67 +167,90 @@ const MagazineListScreen = () => {
       const loc =
         normalizeSpace(p0.detailedLocation || p0.placeName || p0.location || '').split(' ').slice(0, 4).join(' ') ||
         '지금 여행지';
-      return {
-        kind: 'feed',
-        mag: null,
-        title: '지금 꼭 볼 실시간 여행지',
-        placeTitle: loc,
-        description:
-          String(p0.note || p0.content || '').trim().slice(0, 120) ||
-          '라이브저니에 올라온 최근 사진을 모았어요.',
-        image: getMapThumbnailUri(p0),
-        timeLabel: getTimeAgo(p0.timestamp || p0.createdAt),
-        mediaCount: gridPosts.length,
-        askQuery: loc,
-        postId: p0.id,
-        regionSummary: buildRegionSummary([p0]),
-      };
+      return [
+        {
+          kind: 'feed',
+          mag: null,
+          magTitle: '지금 꼭 볼 실시간 여행지',
+          sectionIndex: 0,
+          placeTitle: loc,
+          description:
+            String(p0.note || p0.content || '').trim().slice(0, 200) ||
+            '라이브저니에 올라온 최근 사진을 모았어요.',
+          image: getMapThumbnailUri(p0),
+          timeLabel: getTimeAgo(p0.timestamp || p0.createdAt),
+          askQuery: loc,
+          postId: p0.id,
+          regionSummary: buildRegionSummary([p0]),
+          locKey: loc.toLowerCase(),
+          matchedPosts: [p0],
+        },
+      ];
     }
 
-    return null;
+    return [];
   }, [published, allPosts, gridPosts]);
 
+  const currentSlide = slides[activeSlideIndex] || null;
+
   const regionPosts = useMemo(() => {
-    if (!featured) return [];
-    const keySource =
-      featured.kind === 'magazine'
-        ? normalizeSpace(featured.placeTitle || featured.mag?.title || '')
-        : normalizeSpace(featured.placeTitle || '');
-    const key = keySource.toLowerCase();
-    if (!key) return [];
-    const posts = Array.isArray(allPosts) ? allPosts : [];
-    const matched = posts
-      .filter((p) => toSearchText(p).includes(key) && getMapThumbnailUri(p))
-      .sort((a, b) => {
-        const now = Date.now();
-        const ta = new Date(a?.timestamp || a?.createdAt || now).getTime();
-        const tb = new Date(b?.timestamp || b?.createdAt || now).getTime();
-        return tb - ta;
-      });
-    return matched.slice(0, 10);
-  }, [featured, allPosts]);
+    if (!currentSlide) return [];
+    const withThumb = (arr) =>
+      (Array.isArray(arr) ? arr : []).filter((p) => p && getMapThumbnailUri(p));
+    if (currentSlide.kind === 'magazine' && currentSlide.matchedPosts?.length) {
+      return withThumb(currentSlide.matchedPosts).slice(0, 20);
+    }
+    const key = normalizeSpace(currentSlide.locKey || currentSlide.placeTitle || '').toLowerCase();
+    if (!key) return withThumb(gridPosts).slice(0, 12);
+    return withThumb(
+      (Array.isArray(allPosts) ? allPosts : []).filter(
+        (p) => toSearchText(p).includes(key) && getMapThumbnailUri(p)
+      )
+    ).slice(0, 20);
+  }, [currentSlide, allPosts, gridPosts]);
+
+  const scrollToSlide = useCallback((index) => {
+    const el = carouselRef.current;
+    if (!el || !slides.length) return;
+    const w = el.offsetWidth;
+    el.scrollTo({ left: index * w, behavior: 'smooth' });
+    setActiveSlideIndex(index);
+  }, [slides.length]);
+
+  const onCarouselScroll = useCallback((e) => {
+    const el = e.currentTarget;
+    const w = el.offsetWidth;
+    if (!w) return;
+    const idx = Math.round(el.scrollLeft / w);
+    setActiveSlideIndex((prev) => {
+      if (idx < 0 || idx >= slides.length) return prev;
+      return idx === prev ? prev : idx;
+    });
+  }, [slides.length]);
 
   const handleFeaturedClick = useCallback(() => {
-    if (featured?.kind === 'magazine' && featured.mag?.id) {
-      navigate(`/magazine/${featured.mag.id}`, { state: { magazine: featured.mag } });
-    } else if (featured?.postId) {
-      navigate(`/post/${featured.postId}`);
+    const slide = currentSlide;
+    if (slide?.kind === 'magazine' && slide.mag?.id) {
+      navigate(`/magazine/${slide.mag.id}`, { state: { magazine: slide.mag } });
+    } else if (slide?.postId) {
+      navigate(`/post/${slide.postId}`);
     } else {
       navigate('/search');
     }
-  }, [featured, navigate]);
+  }, [currentSlide, navigate]);
 
   const handleAskLight = useCallback(
     (e) => {
       e?.stopPropagation?.();
-      if (featured?.kind === 'magazine' && featured.mag?.id) {
-        navigate(`/magazine/${featured.mag.id}`, { state: { magazine: featured.mag } });
+      const slide = currentSlide;
+      if (slide?.kind === 'magazine' && slide.mag?.id) {
+        navigate(`/magazine/${slide.mag.id}`, { state: { magazine: slide.mag } });
       } else {
-        const q = featured?.askQuery || '';
+        const q = slide?.askQuery || '';
         navigate(q ? `/search?q=${encodeURIComponent(q)}` : '/search');
       }
     },
-    [featured, navigate]
+    [currentSlide, navigate]
   );
 
   const handleCardOpenMagazine = useCallback(
@@ -223,6 +259,9 @@ const MagazineListScreen = () => {
     },
     [navigate]
   );
+
+  const hideScrollbar =
+    'overflow-x-auto snap-x snap-mandatory flex [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark h-screen overflow-hidden">
@@ -238,83 +277,111 @@ const MagazineListScreen = () => {
             <div className="py-16 text-center text-[13px] text-gray-500">불러오는 중…</div>
           ) : (
             <>
-              {featured && (
+              {slides.length > 0 && (
                 <section className="mb-2">
-                  <h2 className="text-2xl font-extrabold text-gray-900 dark:text-gray-50 leading-tight tracking-tight m-0 mb-6">
-                    {featured.title}
+                  <h2 className="text-2xl font-extrabold text-gray-900 dark:text-gray-50 leading-tight tracking-tight m-0 mb-4">
+                    {slides[0]?.magTitle}
                   </h2>
 
-                  <article className="relative mb-8">
-                    <button
-                      type="button"
-                      onClick={handleFeaturedClick}
-                      className="w-full text-left rounded-2xl overflow-hidden shadow-sm border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-gray-900 transition-transform active:scale-[0.99]"
+                  <div className="mb-2">
+                    <div
+                      ref={carouselRef}
+                      className={hideScrollbar}
+                      onScroll={onCarouselScroll}
                     >
-                      <div className="relative h-[min(420px,55vh)] w-full overflow-hidden bg-zinc-100 dark:bg-zinc-800">
-                        {featured.image ? (
-                          <img
-                            src={featured.image}
-                            alt=""
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-zinc-400">
-                            <span className="material-symbols-outlined text-5xl">photo</span>
-                          </div>
-                        )}
-                        <div className="absolute top-3 left-3 flex flex-col gap-2">
-                          <span className="inline-flex rounded-full bg-amber-100 dark:bg-amber-900/80 text-amber-950 dark:text-amber-100 px-2.5 py-0.5 text-[11px] font-bold shadow-sm">
-                            {featured.timeLabel}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="p-5">
-                        <div className="flex justify-between items-start gap-3 mb-2">
-                          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-50 m-0 leading-snug">
-                            {featured.placeTitle}
-                          </h3>
-                          <div className="flex-shrink-0 rounded-lg border border-cyan-200/80 dark:border-cyan-800 bg-cyan-50/80 dark:bg-cyan-950/40 px-2.5 py-1 text-center">
-                            <span className="block text-[9px] font-bold text-cyan-800 dark:text-cyan-200 uppercase tracking-wide">
-                              Live
-                            </span>
-                            <span className="text-xs font-extrabold text-cyan-700 dark:text-cyan-300">
-                              사진 {featured.mediaCount}장
-                            </span>
-                          </div>
-                        </div>
-                        <p className="text-[15px] leading-relaxed text-gray-600 dark:text-gray-300 mb-4 m-0">
-                          {featured.description}
-                        </p>
-                        {featured.regionSummary && (
-                          <div className="mb-4 rounded-xl bg-cyan-50/80 dark:bg-cyan-950/40 px-3 py-2 text-[12px] text-cyan-900 dark:text-cyan-100">
-                            <p className="m-0">
-                              <span className="font-semibold mr-1">AI가 분석한 지역 특징</span>
-                              <span>{featured.regionSummary}</span>
-                            </p>
-                          </div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={handleAskLight}
-                          className="w-full py-2.5 px-4 rounded-xl text-[14px] font-semibold border border-primary/35 text-primary bg-white dark:bg-gray-900 dark:border-primary/45 dark:text-primary hover:bg-primary/5 transition-colors flex items-center justify-center gap-2"
+                      {slides.map((slide, i) => (
+                        <div
+                          key={`slide-${slide.sectionIndex}-${i}`}
+                          className="min-w-full shrink-0 snap-center box-border"
                         >
-                          <span className="material-symbols-outlined text-[18px]">chat_bubble</span>
-                          이 장소 지금 상황 물어보기
-                        </button>
+                          <article className="relative mb-2">
+                            <button
+                              type="button"
+                              onClick={handleFeaturedClick}
+                              className="w-full text-left rounded-2xl overflow-hidden shadow-sm border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-gray-900 transition-transform active:scale-[0.99]"
+                            >
+                              <div className="relative h-[min(380px,50vh)] w-full overflow-hidden bg-zinc-100 dark:bg-zinc-800">
+                                {slide.image ? (
+                                  <img
+                                    src={slide.image}
+                                    alt=""
+                                    className="w-full h-full object-cover"
+                                    loading={i === 0 ? 'eager' : 'lazy'}
+                                  />
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center text-zinc-400">
+                                    <span className="material-symbols-outlined text-5xl">photo</span>
+                                  </div>
+                                )}
+                                <div className="absolute top-3 left-3 flex flex-col gap-2">
+                                  <span className="inline-flex rounded-full bg-amber-100 dark:bg-amber-900/80 text-amber-950 dark:text-amber-100 px-2.5 py-0.5 text-[11px] font-bold shadow-sm">
+                                    {slide.timeLabel}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="p-5">
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-50 m-0 leading-snug mb-3">
+                                  {slide.placeTitle}
+                                </h3>
+                                <p className="text-[15px] leading-relaxed text-gray-600 dark:text-gray-300 mb-4 m-0">
+                                  {slide.description}
+                                </p>
+                                {slide.regionSummary && (
+                                  <div className="mb-4 rounded-xl bg-cyan-50/80 dark:bg-cyan-950/40 px-3 py-2 text-[12px] text-cyan-900 dark:text-cyan-100">
+                                    <p className="m-0">
+                                      <span className="font-semibold mr-1">AI가 분석한 지역 특징</span>
+                                      <span>{slide.regionSummary}</span>
+                                    </p>
+                                  </div>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={handleAskLight}
+                                  className="w-full py-2.5 px-4 rounded-xl text-[14px] font-semibold border border-primary/35 text-primary bg-white dark:bg-gray-900 dark:border-primary/45 dark:text-primary hover:bg-primary/5 transition-colors flex items-center justify-center gap-2"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">chat_bubble</span>
+                                  이 장소 지금 상황 물어보기
+                                </button>
+                              </div>
+                            </button>
+                          </article>
+                        </div>
+                      ))}
+                    </div>
+
+                    {slides.length > 1 && (
+                      <div className="flex items-center justify-center gap-2 mt-3 mb-1">
+                        {slides.map((_, i) => (
+                          <button
+                            key={`dot-${i}`}
+                            type="button"
+                            aria-label={`장소 ${i + 1}`}
+                            onClick={() => scrollToSlide(i)}
+                            className={`h-2 rounded-full transition-all ${
+                              i === activeSlideIndex
+                                ? 'w-6 bg-primary'
+                                : 'w-2 bg-zinc-300 dark:bg-zinc-600'
+                            }`}
+                          />
+                        ))}
                       </div>
-                    </button>
-                  </article>
+                    )}
+                    {slides.length > 1 && (
+                      <p className="text-center text-[11px] text-gray-400 dark:text-gray-500 m-0 mb-4">
+                        좌우로 밀어 다른 장소를 볼 수 있어요
+                      </p>
+                    )}
+                  </div>
                 </section>
               )}
 
-              {!featured && (
+              {slides.length === 0 && (
                 <div className="mb-8 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-700 bg-zinc-50/80 dark:bg-zinc-900/50 p-6 text-center">
                   <p className="text-[14px] font-medium text-gray-700 dark:text-gray-200 m-0 mb-1">
                     아직 표시할 매거진이 없어요
                   </p>
                   <p className="text-[12px] text-gray-500 dark:text-gray-400 m-0">
-                    게시물이 쌓이면 이곳에 실시간 사진이 채워져요.
+                    관리자에서 매거진을 발행하면 장소별로 슬라이드가 생겨요.
                   </p>
                 </div>
               )}
@@ -353,11 +420,11 @@ const MagazineListScreen = () => {
                     전체보기
                   </button>
                 </div>
-                {gridPosts.length === 0 && regionPosts.length === 0 ? (
-                  <p className="text-[13px] text-gray-500 py-6">아직 올라온 사진이 없어요.</p>
+                {regionPosts.length === 0 ? (
+                  <p className="text-[13px] text-gray-500 py-6">이 장소와 맞는 사진이 아직 없어요.</p>
                 ) : (
-                  <div className="flex flex-col gap-2">
-                    {(regionPosts.length ? regionPosts : gridPosts).map((post) => {
+                  <div className="flex flex-col gap-4">
+                    {regionPosts.map((post) => {
                       const uri = getMapThumbnailUri(post);
                       const label = getTimeAgo(post.timestamp || post.createdAt);
                       const loc =
@@ -369,9 +436,9 @@ const MagazineListScreen = () => {
                           key={post.id}
                           type="button"
                           onClick={() => navigate(`/post/${post.id}`)}
-                          className="flex items-center gap-3 rounded-2xl overflow-hidden bg-white dark:bg-gray-900 border border-zinc-100 dark:border-zinc-800 px-2.5 py-2 cursor-pointer text-left"
+                          className="w-full text-left rounded-2xl overflow-hidden bg-white dark:bg-gray-900 border border-zinc-200 dark:border-zinc-700 shadow-sm hover:shadow-md transition-shadow"
                         >
-                          <div className="flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden bg-zinc-100 dark:bg-zinc-800">
+                          <div className="relative w-full aspect-[4/3] bg-zinc-100 dark:bg-zinc-800">
                             {uri ? (
                               <img
                                 src={uri}
@@ -381,16 +448,18 @@ const MagazineListScreen = () => {
                               />
                             ) : (
                               <div className="flex h-full w-full items-center justify-center text-zinc-400">
-                                <span className="material-symbols-outlined">image</span>
+                                <span className="material-symbols-outlined text-4xl">image</span>
                               </div>
                             )}
+                            <div className="absolute bottom-2 left-2">
+                              <span className="inline-flex rounded-full bg-black/60 text-white px-2.5 py-1 text-[11px] font-bold backdrop-blur-sm">
+                                {label}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-semibold text-gray-900 dark:text-gray-50 m-0 truncate">
+                          <div className="px-3 py-3">
+                            <p className="text-[15px] font-bold text-gray-900 dark:text-gray-50 m-0 truncate">
                               {loc}
-                            </p>
-                            <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400 m-0">
-                              {label}
                             </p>
                           </div>
                         </button>
