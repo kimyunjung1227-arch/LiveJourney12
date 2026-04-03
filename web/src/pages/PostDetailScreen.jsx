@@ -1228,10 +1228,10 @@ const PostDetailScreen = () => {
                         mediaSwiperRef.current?.slideTo(index);
                       }}
                       aria-label={`사진 ${index + 1} / ${(mediaItems.length > 0 ? mediaItems : images).length}`}
-                      className={`h-1.5 w-1.5 shrink-0 cursor-pointer rounded-full transition-colors ${
+                      className={`shrink-0 cursor-pointer rounded-full transition-all duration-200 ease-out ${
                         index === currentImageIndex
-                          ? 'bg-primary shadow-[0_0_0_1px_rgba(255,255,255,0.85)]'
-                          : 'bg-white/40 hover:bg-white/55'
+                          ? 'h-1.5 w-[18px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.12)]'
+                          : 'h-1.5 w-1.5 bg-white/45 hover:bg-white/65'
                       }`}
                     />
                   ))}

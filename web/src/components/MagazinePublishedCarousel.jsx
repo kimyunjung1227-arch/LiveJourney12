@@ -75,12 +75,14 @@ function HeroRotator({ urls, resetKey, timeLabel }) {
           </span>
         </div>
         {safe.length > 1 && (
-          <div className="pointer-events-none absolute bottom-2 right-2 z-20 flex items-center gap-1">
+          <div className="pointer-events-none absolute bottom-2 right-2 z-20 flex items-center gap-1.5">
             {safe.map((_, i) => (
               <span
                 key={`dot-${i}`}
-                className={`h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${
-                  i === idx ? 'bg-primary shadow-[0_0_0_1px_rgba(255,255,255,0.6)]' : 'bg-white/40'
+                className={`shrink-0 rounded-full transition-all duration-200 ease-out ${
+                  i === idx
+                    ? 'h-1.5 w-[18px] bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.12)]'
+                    : 'h-1.5 w-1.5 bg-white/45'
                 }`}
               />
             ))}
