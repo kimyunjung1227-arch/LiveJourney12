@@ -308,10 +308,9 @@ const MagazineDetailScreen = () => {
     () => (publishedMagazine ? buildSlidesForMagazine(publishedMagazine, allPosts, gridPostsPub) : []),
     [publishedMagazine, allPosts, gridPostsPub]
   );
-  const currentSlidePub = slidesPublished[activeSlideIndex] || null;
-  const regionPostsPub = useMemo(
-    () => getRegionPostsForSlide(currentSlidePub, allPosts, gridPostsPub),
-    [currentSlidePub, allPosts, gridPostsPub]
+  const postsPerSlidePub = useMemo(
+    () => slidesPublished.map((slide) => getRegionPostsForSlide(slide, allPosts, gridPostsPub)),
+    [slidesPublished, allPosts, gridPostsPub]
   );
 
   useEffect(() => {
@@ -452,17 +451,18 @@ const MagazineDetailScreen = () => {
             </h1>
             <div className="w-10" />
           </header>
-          <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pt-3 pb-24 max-w-full">
-            <MagazinePublishedCarousel
-              variant="detail"
-              slides={slidesPublished}
-              activeSlideIndex={activeSlideIndex}
-              carouselRef={carouselRef}
-              onCarouselScroll={onCarouselScrollPub}
-              scrollToSlide={scrollToSlidePub}
-              regionPosts={regionPostsPub}
-              currentSlide={currentSlidePub}
-            />
+          <main className="flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden px-4 pt-3 pb-24 max-w-full">
+            <div className="flex w-full shrink-0 flex-col h-[calc(100dvh-9.5rem)] min-h-[320px] max-h-[calc(100dvh-9.5rem)]">
+              <MagazinePublishedCarousel
+                variant="detail"
+                slides={slidesPublished}
+                postsPerSlide={postsPerSlidePub}
+                activeSlideIndex={activeSlideIndex}
+                carouselRef={carouselRef}
+                onCarouselScroll={onCarouselScrollPub}
+                scrollToSlide={scrollToSlidePub}
+              />
+            </div>
           </main>
         </div>
         <BottomNavigation />

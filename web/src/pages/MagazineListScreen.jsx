@@ -68,11 +68,9 @@ const MagazineListScreen = () => {
     [published, allPosts, gridPosts]
   );
 
-  const currentSlide = slides[activeSlideIndex] || null;
-
-  const regionPosts = useMemo(
-    () => getRegionPostsForSlide(currentSlide, allPosts, gridPosts),
-    [currentSlide, allPosts, gridPosts]
+  const postsPerSlide = useMemo(
+    () => slides.map((slide) => getRegionPostsForSlide(slide, allPosts, gridPosts)),
+    [slides, allPosts, gridPosts]
   );
 
   const scrollToSlide = useCallback(
@@ -116,22 +114,23 @@ const MagazineListScreen = () => {
           </h1>
         </header>
 
-        <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pt-3 pb-24 max-w-full">
+        <main className="flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden px-4 pt-3 pb-24 max-w-full">
           {loading ? (
             <div className="py-16 text-center text-[13px] text-gray-500">불러오는 중…</div>
           ) : (
             <>
               {slides.length > 0 && (
-                <MagazinePublishedCarousel
-                  variant="list"
-                  slides={slides}
-                  activeSlideIndex={activeSlideIndex}
-                  carouselRef={carouselRef}
-                  onCarouselScroll={onCarouselScroll}
-                  scrollToSlide={scrollToSlide}
-                  regionPosts={regionPosts}
-                  currentSlide={currentSlide}
-                />
+                <div className="flex w-full shrink-0 flex-col h-[calc(100dvh-9.5rem)] min-h-[320px] max-h-[calc(100dvh-9.5rem)]">
+                  <MagazinePublishedCarousel
+                    variant="list"
+                    slides={slides}
+                    postsPerSlide={postsPerSlide}
+                    activeSlideIndex={activeSlideIndex}
+                    carouselRef={carouselRef}
+                    onCarouselScroll={onCarouselScroll}
+                    scrollToSlide={scrollToSlide}
+                  />
+                </div>
               )}
 
               {slides.length === 0 && (
