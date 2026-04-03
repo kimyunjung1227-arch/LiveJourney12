@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import MagazinePublishedCarousel from '../components/MagazinePublishedCarousel';
@@ -28,8 +28,6 @@ const MagazineDetailScreen = () => {
   const [posts, setPosts] = useState([]);
   const [allPosts, setAllPosts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
-  const carouselRef = useRef(null);
 
   const normalizeSpace = (s) => String(s || '').replace(/\s+/g, ' ').trim();
   const getLocationKey = (p) =>
@@ -313,35 +311,6 @@ const MagazineDetailScreen = () => {
     [slidesPublished, allPosts, gridPostsPub]
   );
 
-  useEffect(() => {
-    setActiveSlideIndex(0);
-  }, [publishedMagazine?.id]);
-
-  const scrollToSlidePub = useCallback(
-    (index) => {
-      const el = carouselRef.current;
-      if (!el || !slidesPublished.length) return;
-      const w = el.offsetWidth;
-      el.scrollTo({ left: index * w, behavior: 'smooth' });
-      setActiveSlideIndex(index);
-    },
-    [slidesPublished.length]
-  );
-
-  const onCarouselScrollPub = useCallback(
-    (e) => {
-      const el = e.currentTarget;
-      const w = el.offsetWidth;
-      if (!w) return;
-      const idx = Math.round(el.scrollLeft / w);
-      setActiveSlideIndex((prev) => {
-        if (idx < 0 || idx >= slidesPublished.length) return prev;
-        return idx === prev ? prev : idx;
-      });
-    },
-    [slidesPublished.length]
-  );
-
   if (!topic) {
     if (publishedMagazine) {
       // topic이 없고 발행 매거진이 있으면 아래 렌더로 진행
@@ -457,10 +426,6 @@ const MagazineDetailScreen = () => {
                 variant="detail"
                 slides={slidesPublished}
                 postsPerSlide={postsPerSlidePub}
-                activeSlideIndex={activeSlideIndex}
-                carouselRef={carouselRef}
-                onCarouselScroll={onCarouselScrollPub}
-                scrollToSlide={scrollToSlidePub}
               />
             </div>
           </main>

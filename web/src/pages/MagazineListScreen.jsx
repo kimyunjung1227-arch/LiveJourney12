@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import MagazinePublishedCarousel from '../components/MagazinePublishedCarousel';
@@ -16,8 +16,6 @@ const MagazineListScreen = () => {
   const [published, setPublished] = useState([]);
   const [allPosts, setAllPosts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
-  const carouselRef = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,10 +55,6 @@ const MagazineListScreen = () => {
     };
   }, [load]);
 
-  useEffect(() => {
-    setActiveSlideIndex(0);
-  }, [published]);
-
   const gridPosts = useMemo(() => getGridPostsPool(allPosts), [allPosts]);
 
   const slides = useMemo(
@@ -71,31 +65,6 @@ const MagazineListScreen = () => {
   const postsPerSlide = useMemo(
     () => slides.map((slide) => getRegionPostsForSlide(slide, allPosts, gridPosts)),
     [slides, allPosts, gridPosts]
-  );
-
-  const scrollToSlide = useCallback(
-    (index) => {
-      const el = carouselRef.current;
-      if (!el || !slides.length) return;
-      const w = el.offsetWidth;
-      el.scrollTo({ left: index * w, behavior: 'smooth' });
-      setActiveSlideIndex(index);
-    },
-    [slides.length]
-  );
-
-  const onCarouselScroll = useCallback(
-    (e) => {
-      const el = e.currentTarget;
-      const w = el.offsetWidth;
-      if (!w) return;
-      const idx = Math.round(el.scrollLeft / w);
-      setActiveSlideIndex((prev) => {
-        if (idx < 0 || idx >= slides.length) return prev;
-        return idx === prev ? prev : idx;
-      });
-    },
-    [slides.length]
   );
 
   const handleCardOpenMagazine = useCallback(
@@ -121,15 +90,7 @@ const MagazineListScreen = () => {
             <>
               {slides.length > 0 && (
                 <div className="w-full shrink-0">
-                  <MagazinePublishedCarousel
-                    variant="list"
-                    slides={slides}
-                    postsPerSlide={postsPerSlide}
-                    activeSlideIndex={activeSlideIndex}
-                    carouselRef={carouselRef}
-                    onCarouselScroll={onCarouselScroll}
-                    scrollToSlide={scrollToSlide}
-                  />
+                  <MagazinePublishedCarousel variant="list" slides={slides} postsPerSlide={postsPerSlide} />
                 </div>
               )}
 

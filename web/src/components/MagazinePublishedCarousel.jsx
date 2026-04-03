@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getTimeAgo } from '../utils/timeUtils';
 import { getMapThumbnailUri } from '../utils/postMedia';
 import { mediaUrlsFromPost, normalizeSpace } from '../utils/magazinePublishedUi';
 
 const carouselRowClass =
-  'flex w-full flex-row overflow-x-auto snap-x snap-mandatory overscroll-x-contain touch-pan-x scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
+  'flex w-full flex-row overflow-x-auto snap-x snap-mandatory overscroll-x-contain touch-pan-x scroll-smooth [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
 const collectHeroUrls = (slide, regionPosts) => {
   const set = new Set();
@@ -19,22 +19,25 @@ const collectHeroUrls = (slide, regionPosts) => {
   return [...set].filter(Boolean).slice(0, 12);
 };
 
-/** 메인 영역: 사진이 교차 페이드 */
+/** 메인 영역: 좌우 스와이프로 사진 넘김 */
 function HeroRotator({ urls, resetKey, timeLabel }) {
   const safe = useMemo(() => (Array.isArray(urls) ? urls.filter(Boolean) : []), [urls]);
   const [idx, setIdx] = useState(0);
+  const scrollRef = useRef(null);
 
   useEffect(() => {
     setIdx(0);
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ left: 0, behavior: 'auto' });
   }, [resetKey]);
 
-  useEffect(() => {
-    if (safe.length <= 1) return undefined;
-    const t = window.setInterval(() => {
-      setIdx((i) => (i + 1) % safe.length);
-    }, 3800);
-    return () => window.clearInterval(t);
-  }, [resetKey, safe.length]);
+  const onHeroScroll = (e) => {
+    const el = e.currentTarget;
+    const w = el.offsetWidth;
+    if (!w || !safe.length) return;
+    const i = Math.round(el.scrollLeft / w);
+    setIdx(Math.max(0, Math.min(i, safe.length - 1)));
+  };
 
   if (!safe.length) {
     return (
@@ -44,27 +47,35 @@ function HeroRotator({ urls, resetKey, timeLabel }) {
     );
   }
 
+  const heroStripClass =
+    'flex h-full w-full flex-row overflow-x-auto snap-x snap-mandatory overscroll-x-contain touch-pan-x scroll-smooth [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
+
   return (
     <div className="relative w-full overflow-hidden bg-zinc-100 dark:bg-zinc-800">
       <div className="relative aspect-[3/4] max-h-[min(300px,42dvh)] w-full">
-        {safe.map((src, i) => (
-          <img
-            key={`${resetKey}-${src}-${i}`}
-            src={src}
-            alt=""
-            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-[900ms] ease-in-out ${
-              i === idx ? 'z-10 opacity-100' : 'z-0 opacity-0'
-            }`}
-            loading={i === 0 ? 'eager' : 'lazy'}
-          />
-        ))}
-        <div className="absolute top-3 left-3 z-20 flex flex-col gap-2">
+        <div ref={scrollRef} onScroll={onHeroScroll} className={heroStripClass}>
+          {safe.map((src, i) => (
+            <div
+              key={`${resetKey}-${src}-${i}`}
+              className="relative h-full min-w-full shrink-0 snap-center snap-always"
+            >
+              <img
+                src={src}
+                alt=""
+                className="h-full w-full object-cover"
+                loading={i === 0 ? 'eager' : 'lazy'}
+                draggable={false}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="pointer-events-none absolute top-3 left-3 z-20 flex flex-col gap-2">
           <span className="inline-flex rounded-full bg-primary px-2.5 py-1 text-[10px] font-bold text-white shadow-md shadow-primary/30">
             {timeLabel}
           </span>
         </div>
         {safe.length > 1 && (
-          <div className="absolute bottom-2 right-2 z-20 flex items-center gap-1">
+          <div className="pointer-events-none absolute bottom-2 right-2 z-20 flex items-center gap-1">
             {safe.map((_, i) => (
               <span
                 key={`dot-${i}`}
@@ -81,17 +92,9 @@ function HeroRotator({ urls, resetKey, timeLabel }) {
 }
 
 /**
- * 발행 매거진: 제목·슬라이드·장소/게시 수·점이 한 세로 스크롤에 함께 움직임
+ * 발행 매거진: 제목·가로 슬라이드(장소)·실시간 게시물이 한 세로 스크롤에 함께 움직임
  */
-const MagazinePublishedCarousel = ({
-  slides,
-  postsPerSlide = [],
-  activeSlideIndex,
-  carouselRef,
-  onCarouselScroll,
-  scrollToSlide,
-  variant = 'list',
-}) => {
+const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list' }) => {
   const navigate = useNavigate();
 
   const handleFeaturedClick = (slide) => {
@@ -120,11 +123,6 @@ const MagazinePublishedCarousel = ({
     });
   };
 
-  const currentPostCount = Array.isArray(postsPerSlide[activeSlideIndex])
-    ? postsPerSlide[activeSlideIndex].length
-    : 0;
-  const total = slides.length;
-
   if (!slides.length) return null;
 
   return (
@@ -133,7 +131,7 @@ const MagazinePublishedCarousel = ({
         {slides[0]?.magTitle}
       </h2>
 
-      <div ref={carouselRef} className={carouselRowClass} onScroll={onCarouselScroll}>
+      <div className={carouselRowClass}>
         {slides.map((slide, i) => {
           const regionPosts = Array.isArray(postsPerSlide[i]) ? postsPerSlide[i] : [];
           const heroUrls = collectHeroUrls(slide, regionPosts);
@@ -264,30 +262,6 @@ const MagazinePublishedCarousel = ({
           );
         })}
       </div>
-
-      {total > 0 && (
-        <div className="mt-3 flex flex-col items-center gap-1.5 border-t border-zinc-100/80 pt-3 dark:border-zinc-800/80">
-          <div className="flex items-center justify-center gap-1.5" role="tablist" aria-label="장소 선택">
-            {slides.map((_, i) => (
-              <button
-                key={`place-dot-${i}`}
-                type="button"
-                role="tab"
-                aria-selected={i === activeSlideIndex}
-                aria-label={`장소 ${i + 1} / ${total}`}
-                onClick={() => scrollToSlide(i)}
-                className={`h-1.5 w-1.5 shrink-0 rounded-full transition-colors ${
-                  i === activeSlideIndex ? 'bg-primary' : 'bg-zinc-400/45 dark:bg-zinc-600'
-                }`}
-              />
-            ))}
-          </div>
-          <p className="m-0 text-[10px] font-normal tabular-nums leading-none text-zinc-400 dark:text-zinc-500">
-            게시{' '}
-            <span className="font-semibold text-primary">{currentPostCount}</span>
-          </p>
-        </div>
-      )}
     </div>
   );
 };
