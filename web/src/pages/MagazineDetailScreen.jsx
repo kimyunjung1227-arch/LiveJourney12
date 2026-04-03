@@ -451,8 +451,8 @@ const MagazineDetailScreen = () => {
             </h1>
             <div className="w-10" />
           </header>
-          <main className="flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden px-4 pt-3 pb-24 max-w-full">
-            <div className="flex w-full shrink-0 flex-col h-[calc(100dvh-9.5rem)] min-h-[320px] max-h-[calc(100dvh-9.5rem)]">
+          <main className="flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden scroll-smooth px-4 pt-3 pb-24 max-w-full [-webkit-overflow-scrolling:touch]">
+            <div className="w-full shrink-0">
               <MagazinePublishedCarousel
                 variant="detail"
                 slides={slidesPublished}

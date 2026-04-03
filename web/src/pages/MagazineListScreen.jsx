@@ -114,13 +114,13 @@ const MagazineListScreen = () => {
           </h1>
         </header>
 
-        <main className="flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden px-4 pt-3 pb-24 max-w-full">
+        <main className="flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden scroll-smooth px-4 pt-3 pb-24 max-w-full [-webkit-overflow-scrolling:touch]">
           {loading ? (
             <div className="py-16 text-center text-[13px] text-gray-500">불러오는 중…</div>
           ) : (
             <>
               {slides.length > 0 && (
-                <div className="flex w-full shrink-0 flex-col h-[calc(100dvh-9.5rem)] min-h-[320px] max-h-[calc(100dvh-9.5rem)]">
+                <div className="w-full shrink-0">
                   <MagazinePublishedCarousel
                     variant="list"
                     slides={slides}
