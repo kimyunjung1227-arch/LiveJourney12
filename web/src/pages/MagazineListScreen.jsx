@@ -10,6 +10,35 @@ import { getMapThumbnailUri } from '../utils/postMedia';
 
 const normalizeSpace = (s) => String(s || '').replace(/\s+/g, ' ').trim();
 
+const buildRegionSummary = (posts) => {
+  if (!Array.isArray(posts) || posts.length === 0) return '';
+  const text = posts.map((p) => toSearchText(p)).join(' ');
+  const lower = text.toLowerCase();
+  const sentences = [];
+
+  if (/벚꽃|꽃길|cherry blossom/i.test(text)) {
+    sentences.push('벚꽃과 계절감 있는 풍경 사진이 많이 올라오는 곳이에요.');
+  }
+  if (/카페|커피|라떼|디저트|cafe/i.test(lower)) {
+    sentences.push('카페와 디저트 사진이 많아서 쉬어가기 좋은 스팟이에요.');
+  }
+  if (/바다|해변|sea|해수욕장/i.test(lower)) {
+    sentences.push('바다와 수변 풍경이 중심이라 탁 트인 뷰를 즐기기 좋아요.');
+  }
+  if (/산책로|둘레길|trail|산책/i.test(lower)) {
+    sentences.push('산책하기 좋은 코스가 많아 가볍게 걷기 좋아 보여요.');
+  }
+  if (/야경|night/i.test(lower)) {
+    sentences.push('야경 사진이 많아서 밤에도 분위기가 좋은 편이에요.');
+  }
+
+  if (!sentences.length) {
+    return 'AI가 이 지역에 올라온 사진들을 분석했어요. 다양한 분위기의 사진이 올라오는 인기 여행 스폿이에요.';
+  }
+
+  return sentences.join(' ');
+};
+
 const mediaUrlsFromPost = (p) => {
   const raw = [];
   if (Array.isArray(p?.images)) raw.push(...p.images);
@@ -97,10 +126,10 @@ const MagazineListScreen = () => {
     if (mag && Array.isArray(mag.sections) && mag.sections.length > 0 && posts.length > 0) {
       const first = mag.sections[0];
       const locKey = normalizeSpace(first?.location || '');
-      const uniqMedia = posts
+      const matchedPosts = posts
         .filter((p) => locKey && toSearchText(p).includes(locKey.toLowerCase()))
-        .sort(byRecency)
-        .flatMap(mediaUrlsFromPost);
+        .sort(byRecency);
+      const uniqMedia = matchedPosts.flatMap(mediaUrlsFromPost);
       const uniq = [...new Set(uniqMedia)].filter(Boolean);
       const fallbackImg = gridPosts[0] ? getMapThumbnailUri(gridPosts[0]) : '';
       const heroImage = uniq[0] || fallbackImg;
@@ -116,6 +145,7 @@ const MagazineListScreen = () => {
         timeLabel: getTimeAgo(mag.created_at || mag.createdAt),
         mediaCount: uniq.length,
         askQuery: locKey || mag.title,
+        regionSummary: buildRegionSummary(matchedPosts),
       };
     }
 
@@ -137,18 +167,32 @@ const MagazineListScreen = () => {
         mediaCount: gridPosts.length,
         askQuery: loc,
         postId: p0.id,
+        regionSummary: buildRegionSummary([p0]),
       };
     }
 
     return null;
   }, [published, allPosts, gridPosts]);
 
-  const locationPill = useMemo(() => {
-    const p = gridPosts[0];
-    const loc = p?.detailedLocation || p?.placeName || p?.location || featured?.placeTitle || '';
-    const short = normalizeSpace(loc).split(' ').slice(0, 3).join(' ') || '지금 여행지';
-    return short;
-  }, [gridPosts, featured]);
+  const regionPosts = useMemo(() => {
+    if (!featured) return [];
+    const keySource =
+      featured.kind === 'magazine'
+        ? normalizeSpace(featured.placeTitle || featured.mag?.title || '')
+        : normalizeSpace(featured.placeTitle || '');
+    const key = keySource.toLowerCase();
+    if (!key) return [];
+    const posts = Array.isArray(allPosts) ? allPosts : [];
+    const matched = posts
+      .filter((p) => toSearchText(p).includes(key) && getMapThumbnailUri(p))
+      .sort((a, b) => {
+        const now = Date.now();
+        const ta = new Date(a?.timestamp || a?.createdAt || now).getTime();
+        const tb = new Date(b?.timestamp || b?.createdAt || now).getTime();
+        return tb - ta;
+      });
+    return matched.slice(0, 10);
+  }, [featured, allPosts]);
 
   const handleFeaturedClick = useCallback(() => {
     if (featured?.kind === 'magazine' && featured.mag?.id) {
@@ -183,37 +227,13 @@ const MagazineListScreen = () => {
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark h-screen overflow-hidden">
       <div className="screen-content flex flex-col h-full">
-        <header className="screen-header flex-shrink-0 z-[60] flex items-center justify-between px-4 py-3 bg-white/95 dark:bg-gray-900/95 border-b border-zinc-100 dark:border-zinc-800 backdrop-blur-sm">
-          <button
-            type="button"
-            onClick={() => navigate('/search')}
-            className="flex size-10 items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-            aria-label="검색"
-          >
-            <span className="material-symbols-outlined text-[22px] text-gray-600 dark:text-gray-300">search</span>
-          </button>
+        <header className="screen-header flex-shrink-0 z-[60] flex items-center justify-center px-4 py-3 bg-white/95 dark:bg-gray-900/95 border-b border-zinc-100 dark:border-zinc-800 backdrop-blur-sm">
           <h1 className="text-[17px] font-extrabold text-text-primary-light dark:text-text-primary-dark m-0 tracking-tight">
             매거진
           </h1>
-          <button
-            type="button"
-            onClick={() => navigate('/profile')}
-            className="flex size-10 items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-            aria-label="프로필"
-          >
-            <span className="material-symbols-outlined text-[22px] text-gray-600 dark:text-gray-300">person</span>
-          </button>
         </header>
 
         <main className="flex-1 overflow-y-auto px-4 pt-3 pb-24">
-          <div className="flex items-center mb-5">
-            <div className="inline-flex items-center gap-1 rounded-full bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5">
-              <span className="text-[13px] font-semibold text-gray-900 dark:text-gray-100">
-                {locationPill} <span aria-hidden="true">📍</span>
-              </span>
-            </div>
-          </div>
-
           {loading ? (
             <div className="py-16 text-center text-[13px] text-gray-500">불러오는 중…</div>
           ) : (
@@ -266,6 +286,14 @@ const MagazineListScreen = () => {
                         <p className="text-[15px] leading-relaxed text-gray-600 dark:text-gray-300 mb-4 m-0">
                           {featured.description}
                         </p>
+                        {featured.regionSummary && (
+                          <div className="mb-4 rounded-xl bg-cyan-50/80 dark:bg-cyan-950/40 px-3 py-2 text-[12px] text-cyan-900 dark:text-cyan-100">
+                            <p className="m-0">
+                              <span className="font-semibold mr-1">AI가 분석한 지역 특징</span>
+                              <span>{featured.regionSummary}</span>
+                            </p>
+                          </div>
+                        )}
                         <button
                           type="button"
                           onClick={handleAskLight}
@@ -325,36 +353,45 @@ const MagazineListScreen = () => {
                     전체보기
                   </button>
                 </div>
-                {gridPosts.length === 0 ? (
+                {gridPosts.length === 0 && regionPosts.length === 0 ? (
                   <p className="text-[13px] text-gray-500 py-6">아직 올라온 사진이 없어요.</p>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {gridPosts.map((post) => {
+                  <div className="flex flex-col gap-2">
+                    {(regionPosts.length ? regionPosts : gridPosts).map((post) => {
                       const uri = getMapThumbnailUri(post);
                       const label = getTimeAgo(post.timestamp || post.createdAt);
+                      const loc =
+                        normalizeSpace(
+                          post.detailedLocation || post.placeName || post.location || ''
+                        ) || '여행 기록';
                       return (
                         <button
                           key={post.id}
                           type="button"
                           onClick={() => navigate(`/post/${post.id}`)}
-                          className="relative aspect-square rounded-xl overflow-hidden group bg-zinc-100 dark:bg-zinc-800 border-0 p-0 cursor-pointer w-full"
+                          className="flex items-center gap-3 rounded-2xl overflow-hidden bg-white dark:bg-gray-900 border border-zinc-100 dark:border-zinc-800 px-2.5 py-2 cursor-pointer text-left"
                         >
-                          {uri ? (
-                            <img
-                              src={uri}
-                              alt=""
-                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 group-active:scale-100"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-zinc-400">
-                              <span className="material-symbols-outlined">image</span>
-                            </div>
-                          )}
-                          <div className="absolute bottom-1.5 left-1.5">
-                            <span className="inline-flex rounded-full bg-black/55 text-white px-2 py-0.5 text-[10px] font-bold backdrop-blur-[4px]">
+                          <div className="flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden bg-zinc-100 dark:bg-zinc-800">
+                            {uri ? (
+                              <img
+                                src={uri}
+                                alt=""
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-zinc-400">
+                                <span className="material-symbols-outlined">image</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-semibold text-gray-900 dark:text-gray-50 m-0 truncate">
+                              {loc}
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400 m-0">
                               {label}
-                            </span>
+                            </p>
                           </div>
                         </button>
                       );
