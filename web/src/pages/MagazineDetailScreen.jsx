@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
+import MagazinePublishedCarousel from '../components/MagazinePublishedCarousel';
 import { getMagazineTopicById } from '../utils/magazinesConfig';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getCombinedPosts } from '../utils/mockData';
@@ -9,7 +10,12 @@ import { getDisplayImageUrl } from '../api/upload';
 import { logger } from '../utils/logger';
 import { getLandmarksByRegion } from '../utils/regionLandmarks';
 import { getCategoryChipsFromPost } from '../utils/travelCategories';
-import { getPublishedMagazineById, removePublishedMagazine } from '../utils/magazinesStore';
+import { getPublishedMagazineById } from '../utils/magazinesStore';
+import {
+  buildSlidesForMagazine,
+  getGridPostsPool,
+  getRegionPostsForSlide,
+} from '../utils/magazinePublishedUi';
 
 const MagazineDetailScreen = () => {
   const navigate = useNavigate();
@@ -22,6 +28,8 @@ const MagazineDetailScreen = () => {
   const [posts, setPosts] = useState([]);
   const [allPosts, setAllPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const carouselRef = useRef(null);
 
   const normalizeSpace = (s) => String(s || '').replace(/\s+/g, ' ').trim();
   const getLocationKey = (p) =>
@@ -295,6 +303,46 @@ const MagazineDetailScreen = () => {
 
   const sectionsToRender = publishedMagazine ? publishedSections : locationSections;
 
+  const gridPostsPub = useMemo(() => getGridPostsPool(allPosts), [allPosts]);
+  const slidesPublished = useMemo(
+    () => (publishedMagazine ? buildSlidesForMagazine(publishedMagazine, allPosts, gridPostsPub) : []),
+    [publishedMagazine, allPosts, gridPostsPub]
+  );
+  const currentSlidePub = slidesPublished[activeSlideIndex] || null;
+  const regionPostsPub = useMemo(
+    () => getRegionPostsForSlide(currentSlidePub, allPosts, gridPostsPub),
+    [currentSlidePub, allPosts, gridPostsPub]
+  );
+
+  useEffect(() => {
+    setActiveSlideIndex(0);
+  }, [publishedMagazine?.id]);
+
+  const scrollToSlidePub = useCallback(
+    (index) => {
+      const el = carouselRef.current;
+      if (!el || !slidesPublished.length) return;
+      const w = el.offsetWidth;
+      el.scrollTo({ left: index * w, behavior: 'smooth' });
+      setActiveSlideIndex(index);
+    },
+    [slidesPublished.length]
+  );
+
+  const onCarouselScrollPub = useCallback(
+    (e) => {
+      const el = e.currentTarget;
+      const w = el.offsetWidth;
+      if (!w) return;
+      const idx = Math.round(el.scrollLeft / w);
+      setActiveSlideIndex((prev) => {
+        if (idx < 0 || idx >= slidesPublished.length) return prev;
+        return idx === prev ? prev : idx;
+      });
+    },
+    [slidesPublished.length]
+  );
+
   if (!topic) {
     if (publishedMagazine) {
       // topic이 없고 발행 매거진이 있으면 아래 렌더로 진행
@@ -330,6 +378,96 @@ const MagazineDetailScreen = () => {
       </div>
     );
     }
+  }
+
+  if (publishedMagazine) {
+    if (loading) {
+      return (
+        <div className="screen-layout bg-background-light dark:bg-background-dark h-screen overflow-hidden">
+          <div className="screen-content flex flex-col h-full">
+            <header className="screen-header flex-shrink-0 flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-zinc-100 dark:border-zinc-800">
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="flex size-10 items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                aria-label="뒤로"
+              >
+                <span className="material-symbols-outlined text-[22px]">arrow_back</span>
+              </button>
+              <h1 className="text-[17px] font-extrabold text-text-primary-light dark:text-text-primary-dark m-0">
+                여행 매거진
+              </h1>
+              <div className="w-10" />
+            </header>
+            <main className="flex-1 flex items-center justify-center">
+              <span className="text-[13px] text-gray-500">불러오는 중…</span>
+            </main>
+          </div>
+          <BottomNavigation />
+        </div>
+      );
+    }
+    if (slidesPublished.length === 0) {
+      return (
+        <div className="screen-layout bg-background-light dark:bg-background-dark h-screen overflow-hidden">
+          <div className="screen-content flex flex-col h-full">
+            <header className="screen-header flex-shrink-0 flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-zinc-100 dark:border-zinc-800">
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="flex size-10 items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                aria-label="뒤로"
+              >
+                <span className="material-symbols-outlined text-[22px]">arrow_back</span>
+              </button>
+              <h1 className="text-[17px] font-extrabold text-text-primary-light dark:text-text-primary-dark m-0">
+                여행 매거진
+              </h1>
+              <div className="w-10" />
+            </header>
+            <main className="flex-1 flex flex-col items-center justify-center px-4">
+              <p className="text-[14px] text-gray-600 dark:text-gray-300 text-center m-0">
+                표시할 장소 섹션이 없어요. 발행 매거진에 위치를 추가해 주세요.
+              </p>
+            </main>
+          </div>
+          <BottomNavigation />
+        </div>
+      );
+    }
+    return (
+      <div className="screen-layout bg-background-light dark:bg-background-dark h-screen overflow-hidden">
+        <div className="screen-content flex flex-col h-full">
+          <header className="screen-header flex-shrink-0 flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-900 border-b border-zinc-100 dark:border-zinc-800">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="flex size-10 items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+              aria-label="뒤로"
+            >
+              <span className="material-symbols-outlined text-[22px]">arrow_back</span>
+            </button>
+            <h1 className="text-[17px] font-extrabold text-text-primary-light dark:text-text-primary-dark m-0">
+              여행 매거진
+            </h1>
+            <div className="w-10" />
+          </header>
+          <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pt-3 pb-24 max-w-full">
+            <MagazinePublishedCarousel
+              variant="detail"
+              slides={slidesPublished}
+              activeSlideIndex={activeSlideIndex}
+              carouselRef={carouselRef}
+              onCarouselScroll={onCarouselScrollPub}
+              scrollToSlide={scrollToSlidePub}
+              regionPosts={regionPostsPub}
+              currentSlide={currentSlidePub}
+            />
+          </main>
+        </div>
+        <BottomNavigation />
+      </div>
+    );
   }
 
   const heroImage =

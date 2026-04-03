@@ -1,66 +1,15 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
+import MagazinePublishedCarousel from '../components/MagazinePublishedCarousel';
 import { listPublishedMagazines } from '../utils/magazinesStore';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getCombinedPosts } from '../utils/mockData';
-import { getTimeAgo, filterRecentPosts } from '../utils/timeUtils';
-import { getDisplayImageUrl } from '../api/upload';
-import { getMapThumbnailUri } from '../utils/postMedia';
-
-const normalizeSpace = (s) => String(s || '').replace(/\s+/g, ' ').trim();
-
-const buildRegionSummary = (posts) => {
-  if (!Array.isArray(posts) || posts.length === 0) return '';
-  const text = posts.map((p) => toSearchText(p)).join(' ');
-  const lower = text.toLowerCase();
-  const sentences = [];
-
-  if (/벚꽃|꽃길|cherry blossom/i.test(text)) {
-    sentences.push('벚꽃과 계절감 있는 풍경 사진이 많이 올라오는 곳이에요.');
-  }
-  if (/카페|커피|라떼|디저트|cafe/i.test(lower)) {
-    sentences.push('카페와 디저트 사진이 많아서 쉬어가기 좋은 스팟이에요.');
-  }
-  if (/바다|해변|sea|해수욕장/i.test(lower)) {
-    sentences.push('바다와 수변 풍경이 중심이라 탁 트인 뷰를 즐기기 좋아요.');
-  }
-  if (/산책로|둘레길|trail|산책/i.test(lower)) {
-    sentences.push('산책하기 좋은 코스가 많아 가볍게 걷기 좋아 보여요.');
-  }
-  if (/야경|night/i.test(lower)) {
-    sentences.push('야경 사진이 많아서 밤에도 분위기가 좋은 편이에요.');
-  }
-
-  if (!sentences.length) {
-    return 'AI가 이 지역에 올라온 사진들을 분석했어요. 다양한 분위기의 사진이 올라오는 인기 여행 스폿이에요.';
-  }
-
-  return sentences.join(' ');
-};
-
-const mediaUrlsFromPost = (p) => {
-  const raw = [];
-  if (Array.isArray(p?.images)) raw.push(...p.images);
-  else if (p?.images) raw.push(p.images);
-  if (p?.image) raw.push(p.image);
-  if (p?.thumbnail) raw.push(p.thumbnail);
-  const urls = raw.map((v) => getDisplayImageUrl(v)).filter(Boolean);
-  return [...new Set(urls)];
-};
-
-const toSearchText = (p) =>
-  [
-    p?.detailedLocation,
-    p?.placeName,
-    p?.location,
-    p?.note,
-    p?.content,
-    ...(Array.isArray(p?.tags) ? p.tags : []),
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
+import {
+  buildMagazineListSlides,
+  getGridPostsPool,
+  getRegionPostsForSlide,
+} from '../utils/magazinePublishedUi';
 
 const MagazineListScreen = () => {
   const navigate = useNavigate();
@@ -112,145 +61,43 @@ const MagazineListScreen = () => {
     setActiveSlideIndex(0);
   }, [published]);
 
-  const gridPosts = useMemo(() => {
-    const withThumb = (Array.isArray(allPosts) ? allPosts : []).filter((p) => getMapThumbnailUri(p));
-    const recent = filterRecentPosts(withThumb, 2, 72);
-    const pool = recent.length >= 6 ? recent : withThumb;
-    return pool.slice(0, 12);
-  }, [allPosts]);
+  const gridPosts = useMemo(() => getGridPostsPool(allPosts), [allPosts]);
 
-  const slides = useMemo(() => {
-    const mag = published[0];
-    const posts = Array.isArray(allPosts) ? allPosts : [];
-    const byRecency = (a, b) => {
-      const now = Date.now();
-      const ta = new Date(a?.timestamp || a?.createdAt || now).getTime();
-      const tb = new Date(b?.timestamp || b?.createdAt || now).getTime();
-      return tb - ta;
-    };
-
-    if (mag && Array.isArray(mag.sections) && mag.sections.length > 0) {
-      const magTitle = String(mag.title || '').trim() || '여행 매거진';
-      return mag.sections.map((sec, idx) => {
-        const locKey = normalizeSpace(sec?.location || '');
-        const matchedPosts = posts
-          .filter((p) => locKey && toSearchText(p).includes(locKey.toLowerCase()))
-          .sort(byRecency);
-        const uniqMedia = matchedPosts.flatMap(mediaUrlsFromPost);
-        const uniq = [...new Set(uniqMedia)].filter(Boolean);
-        const fallbackImg = gridPosts[0] ? getMapThumbnailUri(gridPosts[0]) : '';
-        const heroImage = uniq[0] || fallbackImg;
-        const editorDescription = String(sec?.description || '').trim();
-        return {
-          kind: 'magazine',
-          mag,
-          magTitle,
-          sectionIndex: idx,
-          placeTitle: locKey || `장소 ${idx + 1}`,
-          description:
-            editorDescription ||
-            '장소 설명은 관리자 매거진 발행 화면에서 입력한 내용이 여기에 표시됩니다.',
-          image: heroImage,
-          timeLabel: matchedPosts[0]
-            ? getTimeAgo(matchedPosts[0].timestamp || matchedPosts[0].createdAt)
-            : getTimeAgo(mag.created_at || mag.createdAt),
-          askQuery: locKey || mag.title,
-          regionSummary: buildRegionSummary(matchedPosts),
-          locKey,
-          matchedPosts,
-        };
-      });
-    }
-
-    const p0 = gridPosts[0];
-    if (p0) {
-      const loc =
-        normalizeSpace(p0.detailedLocation || p0.placeName || p0.location || '').split(' ').slice(0, 4).join(' ') ||
-        '지금 여행지';
-      return [
-        {
-          kind: 'feed',
-          mag: null,
-          magTitle: '지금 꼭 볼 실시간 여행지',
-          sectionIndex: 0,
-          placeTitle: loc,
-          description:
-            String(p0.note || p0.content || '').trim().slice(0, 200) ||
-            '라이브저니에 올라온 최근 사진을 모았어요.',
-          image: getMapThumbnailUri(p0),
-          timeLabel: getTimeAgo(p0.timestamp || p0.createdAt),
-          askQuery: loc,
-          postId: p0.id,
-          regionSummary: buildRegionSummary([p0]),
-          locKey: loc.toLowerCase(),
-          matchedPosts: [p0],
-        },
-      ];
-    }
-
-    return [];
-  }, [published, allPosts, gridPosts]);
+  const slides = useMemo(
+    () => buildMagazineListSlides(published, allPosts, gridPosts),
+    [published, allPosts, gridPosts]
+  );
 
   const currentSlide = slides[activeSlideIndex] || null;
 
-  const regionPosts = useMemo(() => {
-    if (!currentSlide) return [];
-    const withThumb = (arr) =>
-      (Array.isArray(arr) ? arr : []).filter((p) => p && getMapThumbnailUri(p));
-    if (currentSlide.kind === 'magazine' && currentSlide.matchedPosts?.length) {
-      return withThumb(currentSlide.matchedPosts).slice(0, 20);
-    }
-    const key = normalizeSpace(currentSlide.locKey || currentSlide.placeTitle || '').toLowerCase();
-    if (!key) return withThumb(gridPosts).slice(0, 12);
-    return withThumb(
-      (Array.isArray(allPosts) ? allPosts : []).filter(
-        (p) => toSearchText(p).includes(key) && getMapThumbnailUri(p)
-      )
-    ).slice(0, 20);
-  }, [currentSlide, allPosts, gridPosts]);
+  const regionPosts = useMemo(
+    () => getRegionPostsForSlide(currentSlide, allPosts, gridPosts),
+    [currentSlide, allPosts, gridPosts]
+  );
 
-  const scrollToSlide = useCallback((index) => {
-    const el = carouselRef.current;
-    if (!el || !slides.length) return;
-    const w = el.offsetWidth;
-    el.scrollTo({ left: index * w, behavior: 'smooth' });
-    setActiveSlideIndex(index);
-  }, [slides.length]);
-
-  const onCarouselScroll = useCallback((e) => {
-    const el = e.currentTarget;
-    const w = el.offsetWidth;
-    if (!w) return;
-    const idx = Math.round(el.scrollLeft / w);
-    setActiveSlideIndex((prev) => {
-      if (idx < 0 || idx >= slides.length) return prev;
-      return idx === prev ? prev : idx;
-    });
-  }, [slides.length]);
-
-  const handleFeaturedClick = useCallback(() => {
-    const slide = currentSlide;
-    if (slide?.kind === 'magazine' && slide.mag?.id) {
-      navigate(`/magazine/${slide.mag.id}`, { state: { magazine: slide.mag } });
-    } else if (slide?.postId) {
-      navigate(`/post/${slide.postId}`);
-    } else {
-      navigate('/search');
-    }
-  }, [currentSlide, navigate]);
-
-  const handleAskLight = useCallback(
-    (e) => {
-      e?.stopPropagation?.();
-      const slide = currentSlide;
-      if (slide?.kind === 'magazine' && slide.mag?.id) {
-        navigate(`/magazine/${slide.mag.id}`, { state: { magazine: slide.mag } });
-      } else {
-        const q = slide?.askQuery || '';
-        navigate(q ? `/search?q=${encodeURIComponent(q)}` : '/search');
-      }
+  const scrollToSlide = useCallback(
+    (index) => {
+      const el = carouselRef.current;
+      if (!el || !slides.length) return;
+      const w = el.offsetWidth;
+      el.scrollTo({ left: index * w, behavior: 'smooth' });
+      setActiveSlideIndex(index);
     },
-    [currentSlide, navigate]
+    [slides.length]
+  );
+
+  const onCarouselScroll = useCallback(
+    (e) => {
+      const el = e.currentTarget;
+      const w = el.offsetWidth;
+      if (!w) return;
+      const idx = Math.round(el.scrollLeft / w);
+      setActiveSlideIndex((prev) => {
+        if (idx < 0 || idx >= slides.length) return prev;
+        return idx === prev ? prev : idx;
+      });
+    },
+    [slides.length]
   );
 
   const handleCardOpenMagazine = useCallback(
@@ -259,9 +106,6 @@ const MagazineListScreen = () => {
     },
     [navigate]
   );
-
-  const carouselClass =
-    'w-full flex flex-row overflow-x-auto snap-x snap-mandatory overscroll-x-contain touch-pan-x [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark h-screen overflow-hidden">
@@ -278,97 +122,16 @@ const MagazineListScreen = () => {
           ) : (
             <>
               {slides.length > 0 && (
-                <section className="mb-2">
-                  <h2 className="text-2xl font-extrabold text-gray-900 dark:text-gray-50 leading-tight tracking-tight m-0 mb-4">
-                    {slides[0]?.magTitle}
-                  </h2>
-
-                  <div className="mb-2 w-full min-w-0">
-                    <div ref={carouselRef} className={carouselClass} onScroll={onCarouselScroll}>
-                      {slides.map((slide, i) => (
-                        <div
-                          key={`slide-${slide.sectionIndex}-${i}`}
-                          className="flex-[0_0_100%] w-full min-w-0 shrink-0 snap-center box-border px-0"
-                        >
-                          <article className="relative mb-2 w-full max-w-full">
-                            <button
-                              type="button"
-                              onClick={handleFeaturedClick}
-                              className="w-full max-w-full text-left rounded-2xl overflow-hidden shadow-sm border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-gray-900 transition-transform active:scale-[0.99]"
-                            >
-                              <div className="relative w-full aspect-[3/4] max-h-[min(420px,68dvh)] overflow-hidden bg-zinc-100 dark:bg-zinc-800">
-                                {slide.image ? (
-                                  <img
-                                    src={slide.image}
-                                    alt=""
-                                    className="absolute inset-0 h-full w-full object-cover"
-                                    loading={i === 0 ? 'eager' : 'lazy'}
-                                  />
-                                ) : (
-                                  <div className="flex h-full min-h-[200px] w-full items-center justify-center text-zinc-400">
-                                    <span className="material-symbols-outlined text-5xl">photo</span>
-                                  </div>
-                                )}
-                                <div className="absolute top-3 left-3 flex flex-col gap-2">
-                                  <span className="inline-flex rounded-full bg-amber-100 dark:bg-amber-900/80 text-amber-950 dark:text-amber-100 px-2.5 py-0.5 text-[11px] font-bold shadow-sm">
-                                    {slide.timeLabel}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="p-5">
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-50 m-0 leading-snug mb-3">
-                                  {slide.placeTitle}
-                                </h3>
-                                <p className="text-[15px] leading-relaxed text-gray-600 dark:text-gray-300 mb-4 m-0">
-                                  {slide.description}
-                                </p>
-                                {slide.regionSummary && (
-                                  <div className="mb-4 rounded-xl bg-cyan-50/80 dark:bg-cyan-950/40 px-3 py-2 text-[12px] text-cyan-900 dark:text-cyan-100">
-                                    <p className="m-0">
-                                      <span className="font-semibold mr-1">AI가 분석한 지역 특징</span>
-                                      <span>{slide.regionSummary}</span>
-                                    </p>
-                                  </div>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={handleAskLight}
-                                  className="w-full py-2.5 px-4 rounded-xl text-[14px] font-semibold border border-primary/35 text-primary bg-white dark:bg-gray-900 dark:border-primary/45 dark:text-primary hover:bg-primary/5 transition-colors flex items-center justify-center gap-2"
-                                >
-                                  <span className="material-symbols-outlined text-[18px]">chat_bubble</span>
-                                  이 장소 지금 상황 물어보기
-                                </button>
-                              </div>
-                            </button>
-                          </article>
-                        </div>
-                      ))}
-                    </div>
-
-                    {slides.length > 1 && (
-                      <div className="flex items-center justify-center gap-2 mt-3 mb-1">
-                        {slides.map((_, i) => (
-                          <button
-                            key={`dot-${i}`}
-                            type="button"
-                            aria-label={`장소 ${i + 1}`}
-                            onClick={() => scrollToSlide(i)}
-                            className={`h-2 rounded-full transition-all ${
-                              i === activeSlideIndex
-                                ? 'w-6 bg-primary'
-                                : 'w-2 bg-zinc-300 dark:bg-zinc-600'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    )}
-                    {slides.length > 1 && (
-                      <p className="text-center text-[11px] text-gray-400 dark:text-gray-500 m-0 mb-4">
-                        좌우로 밀어 다른 장소를 볼 수 있어요
-                      </p>
-                    )}
-                  </div>
-                </section>
+                <MagazinePublishedCarousel
+                  variant="list"
+                  slides={slides}
+                  activeSlideIndex={activeSlideIndex}
+                  carouselRef={carouselRef}
+                  onCarouselScroll={onCarouselScroll}
+                  scrollToSlide={scrollToSlide}
+                  regionPosts={regionPosts}
+                  currentSlide={currentSlide}
+                />
               )}
 
               {slides.length === 0 && (
@@ -405,65 +168,21 @@ const MagazineListScreen = () => {
                 </section>
               )}
 
-              <section>
-                <div className="flex justify-between items-end mb-3">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-50 m-0">장소 실시간 게시물</h3>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/main')}
-                    className="text-sm font-semibold text-primary hover:underline m-0 bg-transparent border-0 p-0 cursor-pointer"
-                  >
-                    전체보기
-                  </button>
-                </div>
-                {regionPosts.length === 0 ? (
-                  <p className="text-[13px] text-gray-500 py-6">이 장소와 맞는 사진이 아직 없어요.</p>
-                ) : (
-                  <div className="flex flex-col gap-4">
-                    {regionPosts.map((post) => {
-                      const uri = getMapThumbnailUri(post);
-                      const label = getTimeAgo(post.timestamp || post.createdAt);
-                      const loc =
-                        normalizeSpace(
-                          post.detailedLocation || post.placeName || post.location || ''
-                        ) || '여행 기록';
-                      return (
-                        <button
-                          key={post.id}
-                          type="button"
-                          onClick={() => navigate(`/post/${post.id}`)}
-                          className="w-full text-left rounded-2xl overflow-hidden bg-white dark:bg-gray-900 border border-zinc-200 dark:border-zinc-700 shadow-sm hover:shadow-md transition-shadow"
-                        >
-                          <div className="relative w-full aspect-[4/3] bg-zinc-100 dark:bg-zinc-800">
-                            {uri ? (
-                              <img
-                                src={uri}
-                                alt=""
-                                className="w-full h-full object-cover"
-                                loading="lazy"
-                              />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center text-zinc-400">
-                                <span className="material-symbols-outlined text-4xl">image</span>
-                              </div>
-                            )}
-                            <div className="absolute bottom-2 left-2">
-                              <span className="inline-flex rounded-full bg-black/60 text-white px-2.5 py-1 text-[11px] font-bold backdrop-blur-sm">
-                                {label}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="px-3 py-3">
-                            <p className="text-[15px] font-bold text-gray-900 dark:text-gray-50 m-0 truncate">
-                              {loc}
-                            </p>
-                          </div>
-                        </button>
-                      );
-                    })}
+              {slides.length === 0 && (
+                <section>
+                  <div className="flex justify-between items-end mb-3">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-gray-50 m-0">장소 실시간 게시물</h3>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/main')}
+                      className="text-sm font-semibold text-primary hover:underline m-0 bg-transparent border-0 p-0 cursor-pointer"
+                    >
+                      전체보기
+                    </button>
                   </div>
-                )}
-              </section>
+                  <p className="text-[13px] text-gray-500 py-6">이 장소와 맞는 사진이 아직 없어요.</p>
+                </section>
+              )}
             </>
           )}
         </main>
