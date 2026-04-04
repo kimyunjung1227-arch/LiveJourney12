@@ -22,11 +22,9 @@ import { listPublishedMagazines } from '../utils/magazinesStore';
 import {
     getHotFeedAddressLine,
     getCityDongLine,
-    getPhotoCategoryLabel,
     getPhotoCaptionLine,
     getAvatarUrls,
     computeHotFeedViewingCount,
-    getHotFeedBadgeIconName,
 } from '../utils/hotPlaceDisplay';
 
 /** 이미지 좌상단 카테고리 뱃지 (급상승 / 사람 많음 / 인기 / 실시간) */
@@ -625,22 +623,17 @@ const MainScreen = () => {
             whyHotLine = tagHint ? `실시간으로 올라온 정보예요. ${tagHint}` : '실시간으로 올라온 핫플 정보예요.';
         }
         const cityDongLine = getCityDongLine(post);
-        const photoCategoryLabel = getPhotoCategoryLabel(post);
-        const rawCat = post.categoryName && String(post.categoryName).trim();
-        const isGenericAi = !rawCat || /^(추천\s*장소|추천장소|여행)$/i.test(rawCat);
-        const badgeLabel = isGenericAi ? photoCategoryLabel : rawCat;
-        const badgeIcon = getHotFeedBadgeIconName(badgeLabel);
         const hotReasonLabel = engagementTier === '사람 많음' ? '인파 많음' : engagementTier;
-        const hotReasonStyle = (() => {
+        const hotReasonIcon = (() => {
             switch (engagementTier) {
                 case '급상승':
-                    return { bg: '#ea580c', icon: 'trending_up' };
+                    return 'trending_up';
                 case '사람 많음':
-                    return { bg: '#dc2626', icon: 'groups' };
+                    return 'groups';
                 case '인기':
-                    return { bg: '#9333ea', icon: 'favorite' };
+                    return 'favorite';
                 default:
-                    return { bg: '#475569', icon: 'bolt' };
+                    return 'bolt';
             }
         })();
         const photoCaptionLine = getPhotoCaptionLine(post);
@@ -659,13 +652,10 @@ const MainScreen = () => {
             likeCount,
             avatars,
             regionShort,
-            badgeLabel,
-            badgeIcon,
             hotReasonLabel,
-            hotReasonStyle,
+            hotReasonIcon,
             whyHotLine,
             cityDongLine,
-            photoCategoryLabel,
             captionForCard,
         };
     }, [hotFeedPost, weatherByRegion]);
@@ -1285,12 +1275,9 @@ const MainScreen = () => {
                                         likeCount,
                                         avatars,
                                         regionShort,
-                                        badgeLabel,
-                                        badgeIcon,
                                         hotReasonLabel,
-                                        hotReasonStyle,
+                                        hotReasonIcon,
                                         cityDongLine,
-                                        photoCategoryLabel,
                                         captionForCard,
                                     } = hotFeedCardProps;
                                     const socialLines = [
@@ -1301,7 +1288,7 @@ const MainScreen = () => {
                                     const socialText = socialLines[hotFeedSocialIdx % 3];
                                     const liked = isPostLiked(post.id);
                                     const slideIdx = crowdedData.length ? hotFeedSlideIndex % crowdedData.length : 0;
-                                    const categoryBadgeBg = '#26C6DA';
+                                    const hotIndicatorBg = '#b91c1c';
                                     return (
                                     <div
                                         key={`${post.id}-${slideIdx}`}
@@ -1334,11 +1321,9 @@ const MainScreen = () => {
                                                     top: 8,
                                                     left: 8,
                                                     zIndex: 10,
-                                                    display: 'flex',
-                                                    flexDirection: 'row',
-                                                    flexWrap: 'wrap',
-                                                    gap: 6,
+                                                    display: 'inline-flex',
                                                     alignItems: 'center',
+                                                    gap: 4,
                                                     maxWidth: 'calc(100% - 100px)',
                                                 }}
                                             >
@@ -1348,37 +1333,18 @@ const MainScreen = () => {
                                                         display: 'inline-flex',
                                                         alignItems: 'center',
                                                         gap: 4,
-                                                        background: hotReasonStyle.bg,
+                                                        background: hotIndicatorBg,
                                                         color: '#fff',
                                                         padding: '4px 9px',
                                                         borderRadius: 9999,
                                                         fontSize: 10,
                                                         fontWeight: 800,
-                                                        boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                                                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                                                         maxWidth: '100%',
                                                     }}
                                                 >
-                                                    <span className="material-symbols-outlined shrink-0" style={{ fontSize: 14, fontVariationSettings: '"FILL" 1' }}>{hotReasonStyle.icon}</span>
+                                                    <span className="material-symbols-outlined shrink-0" style={{ fontSize: 14, fontVariationSettings: '"FILL" 1' }}>{hotReasonIcon}</span>
                                                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hotReasonLabel}</span>
-                                                </span>
-                                                <span
-                                                    title="장소 카테고리"
-                                                    style={{
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        gap: 4,
-                                                        background: categoryBadgeBg,
-                                                        color: '#fff',
-                                                        padding: '4px 9px',
-                                                        borderRadius: 9999,
-                                                        fontSize: 10,
-                                                        fontWeight: 800,
-                                                        boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-                                                        maxWidth: '100%',
-                                                    }}
-                                                >
-                                                    <span className="material-symbols-outlined shrink-0" style={{ fontSize: 14, fontVariationSettings: '"FILL" 1' }}>{badgeIcon}</span>
-                                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{badgeLabel}</span>
                                                 </span>
                                             </div>
                                             {hasWeather ? (
@@ -1460,12 +1426,9 @@ const MainScreen = () => {
                                         </div>
                                         <div style={{ padding: '10px 2px 4px', background: 'transparent', border: 'none', boxShadow: 'none' }}>
                                             <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{title}</h4>
-                                            {(cityDongLine || photoCategoryLabel) ? (
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                                                    <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500, lineHeight: 1.4, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cityDongLine || regionShort}</span>
-                                                    {photoCategoryLabel ? (
-                                                        <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: '#26C6DA', padding: '3px 9px', borderRadius: 9999, flexShrink: 0 }}>{photoCategoryLabel}</span>
-                                                    ) : null}
+                                            {(cityDongLine || regionShort) ? (
+                                                <div style={{ marginTop: 6 }}>
+                                                    <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500, lineHeight: 1.4, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cityDongLine || regionShort}</span>
                                                 </div>
                                             ) : null}
                                             <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', background: 'transparent', boxShadow: 'none' }}>{captionForCard}</p>
