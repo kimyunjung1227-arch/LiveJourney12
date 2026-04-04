@@ -91,6 +91,45 @@ export function getPhotoCategoryLabel(post) {
     return '명소';
 }
 
+/** 메인·핫플 카드 — 위치 우측에 나열할 사진·장소 카테고리 칩 (중복 제거, 최대 max개) */
+export function getPhotoCategoryLabels(post, max = 4) {
+    if (!post) return ['명소'];
+    const primary = getPhotoCategoryLabel(post);
+    const out = new Set([primary]);
+    const tagStrs = Array.isArray(post.tags) ? post.tags : [];
+    const pushFromTag = (raw) => {
+        const s = String(raw || '').replace(/^#/, '').trim();
+        if (!s || s.length > 14) return;
+        const low = s.toLowerCase();
+        if (/카페|cafe/.test(low)) out.add('카페');
+        else if (/맛집|음식|식당|food/.test(low)) out.add('맛집');
+        else if (/명소|해변|바다|산|등산|야경|전시|박물관|호텔|숙소|펜션/.test(low)) {
+            if (/해변|바다/.test(low)) out.add('해변');
+            else if (/산|등산/.test(low)) out.add('등산');
+            else if (/야경/.test(low)) out.add('야경');
+            else if (/호텔|숙소|펜션/.test(low)) out.add('숙소');
+            else out.add('명소');
+        }
+    };
+    tagStrs.forEach(pushFromTag);
+    const reason = [...(Array.isArray(post.reasonTags) ? post.reasonTags : []), ...(Array.isArray(post.aiHotTags) ? post.aiHotTags : [])];
+    reason.forEach((t) => pushFromTag(String(t).replace(/#/g, '')));
+    return Array.from(out).slice(0, max);
+}
+
+/** 이미지 좌상단 핫플 뱃지 (급상승 / 사람 많음 / 인기 / 실시간) */
+export function getHotCategoryLabel(post) {
+    const likes = Number(post?.likes ?? post?.likeCount ?? 0) || 0;
+    const commentCount = Array.isArray(post?.comments) ? post.comments.length : 0;
+    const tagStr = [...(Array.isArray(post?.reasonTags) ? post.reasonTags : []), ...(Array.isArray(post?.aiHotTags) ? post.aiHotTags : [])]
+        .map((t) => String(t || ''))
+        .join(' ');
+    if (post?.surgeIndicator === '급상승' || likes > 45) return '급상승';
+    if (tagStr.includes('웨이팅') || tagStr.includes('줄') || commentCount > 10 || likes > 28) return '사람 많음';
+    if (post?.surgeIndicator === '인기' || likes > 18) return '인기';
+    return post?.surgeIndicator || '실시간';
+}
+
 /** 실시간 핫플 좌상단 뱃지용 — 카테고리 문구에 맞는 Material Symbol 이름 */
 export function getHotFeedBadgeIconName(label) {
     const s = String(label || '').toLowerCase();

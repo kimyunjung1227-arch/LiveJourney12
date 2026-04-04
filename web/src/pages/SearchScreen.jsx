@@ -13,6 +13,7 @@ import PostThumbnail from '../components/PostThumbnail';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import BackButton from '../components/BackButton';
 import InterestPlacesContent from '../components/InterestPlacesContent';
+import { normalizeRegionName } from '../utils/regionNames';
 
 // 해시태그 파싱: #동백꽃 #바다 #힐링 → ['동백꽃','바다','힐링']
 const parseHashtags = (q) => {
@@ -410,7 +411,10 @@ const SearchScreen = () => {
       const updated = recentSearches.includes(targetRegion.name) ? recentSearches : [targetRegion.name, ...recentSearches.slice(0, 3)];
       setRecentSearches(updated);
       localStorage.setItem('recentSearches', JSON.stringify(updated));
-      navigate(`/region/${targetRegion.name}`, { state: { region: { name: targetRegion.name } } });
+      {
+        const rn = normalizeRegionName(targetRegion.name);
+        navigate(`/region/${encodeURIComponent(rn)}`, { state: { region: { name: rn } } });
+      }
       setSearchQuery('');
       setShowSuggestions(false);
       return;
@@ -442,7 +446,10 @@ const SearchScreen = () => {
     setRecentSearches(updatedRecentSearches);
     localStorage.setItem('recentSearches', JSON.stringify(updatedRecentSearches));
 
-    navigate(`/region/${regionName}`, { state: { region: { name: regionName } } });
+    {
+      const rn = normalizeRegionName(regionName);
+      navigate(`/region/${encodeURIComponent(rn)}`, { state: { region: { name: rn } } });
+    }
   }, [recentSearches, navigate, incrementSearchCount]);
 
   // 해시태그 자동완성 클릭 (최근 검색에는 넣지 않음)
@@ -460,7 +467,10 @@ const SearchScreen = () => {
       setSearchQuery('');
       return;
     }
-    navigate(`/region/${search}`, { state: { region: { name: search } } });
+    {
+      const rn = normalizeRegionName(search);
+      navigate(`/region/${encodeURIComponent(rn)}`, { state: { region: { name: rn } } });
+    }
   }, [navigate, incrementSearchCount]);
 
   const handleClearRecentSearches = useCallback(() => {
@@ -483,7 +493,8 @@ const SearchScreen = () => {
   }, [recentSearches]);
 
   const handleRegionClick = useCallback((regionName) => {
-    navigate(`/region/${regionName}`, { state: { region: { name: regionName } } });
+    const rn = normalizeRegionName(regionName);
+    navigate(`/region/${encodeURIComponent(rn)}`, { state: { region: { name: rn } } });
   }, [navigate]);
 
   const handleRegionClickWithDragCheck = useCallback((regionName) => {
@@ -750,7 +761,10 @@ const SearchScreen = () => {
                     onClick={() => {
                       if (!hasMovedRef.current) {
                         incrementSearchCount(name);
-                        navigate(`/region/${name}`, { state: { region: { name } } });
+                        {
+                          const rn = normalizeRegionName(name);
+                          navigate(`/region/${encodeURIComponent(rn)}`, { state: { region: { name: rn } } });
+                        }
                       }
                     }}
                     className="flex-shrink-0 px-3 py-2 rounded-full text-xs font-medium bg-primary-5 dark:bg-gray-700 text-gray-800 dark:text-gray-100 hover:bg-primary-10 dark:hover:bg-primary/30 transition-colors flex items-center gap-1.5"

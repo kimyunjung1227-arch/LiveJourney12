@@ -25,20 +25,9 @@ import {
     getPhotoCaptionLine,
     getAvatarUrls,
     computeHotFeedViewingCount,
+    getHotCategoryLabel,
+    getPhotoCategoryLabels,
 } from '../utils/hotPlaceDisplay';
-
-/** 이미지 좌상단 카테고리 뱃지 (급상승 / 사람 많음 / 인기 / 실시간) */
-const getHotCategoryLabel = (post) => {
-    const likes = Number(post.likes ?? post.likeCount ?? 0) || 0;
-    const commentCount = Array.isArray(post.comments) ? post.comments.length : 0;
-    const tagStr = [...(Array.isArray(post.reasonTags) ? post.reasonTags : []), ...(Array.isArray(post.aiHotTags) ? post.aiHotTags : [])]
-        .map((t) => String(t || ''))
-        .join(' ');
-    if (post.surgeIndicator === '급상승' || likes > 45) return '급상승';
-    if (tagStr.includes('웨이팅') || tagStr.includes('줄') || commentCount > 10 || likes > 28) return '사람 많음';
-    if (post.surgeIndicator === '인기' || likes > 18) return '인기';
-    return post.surgeIndicator || '실시간';
-};
 
 const MainScreen = () => {
     const navigate = useNavigate();
@@ -641,6 +630,7 @@ const MainScreen = () => {
         const hasUserCaption = !!(post.note || '').trim()
             || (!!(post.content || '').trim() && (post.content || '').trim() !== (loc ? `${loc}의 모습` : ''));
         const captionForCard = hasUserCaption ? photoCaptionLine : whyHotLine;
+        const photoCategoryLabels = getPhotoCategoryLabels(post);
         return {
             post,
             title,
@@ -657,6 +647,7 @@ const MainScreen = () => {
             whyHotLine,
             cityDongLine,
             captionForCard,
+            photoCategoryLabels,
         };
     }, [hotFeedPost, weatherByRegion]);
 
@@ -1279,6 +1270,7 @@ const MainScreen = () => {
                                         hotReasonIcon,
                                         cityDongLine,
                                         captionForCard,
+                                        photoCategoryLabels,
                                     } = hotFeedCardProps;
                                     const socialLines = [
                                         `지금 약 ${viewingCount}명이 이 피드를 보고 있어요`,
@@ -1426,9 +1418,29 @@ const MainScreen = () => {
                                         </div>
                                         <div style={{ padding: '10px 2px 4px', background: 'transparent', border: 'none', boxShadow: 'none' }}>
                                             <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{title}</h4>
-                                            {(cityDongLine || regionShort) ? (
-                                                <div style={{ marginTop: 6 }}>
-                                                    <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500, lineHeight: 1.4, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cityDongLine || regionShort}</span>
+                                            {(cityDongLine || regionShort || (photoCategoryLabels && photoCategoryLabels.length)) ? (
+                                                <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                                    <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500, lineHeight: 1.4, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cityDongLine || regionShort}</span>
+                                                    {photoCategoryLabels && photoCategoryLabels.length > 0 ? (
+                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'flex-end', flexShrink: 0, maxWidth: '52%' }}>
+                                                            {photoCategoryLabels.map((label) => (
+                                                                <span
+                                                                    key={`${post.id}-cat-${label}`}
+                                                                    style={{
+                                                                        fontSize: 10,
+                                                                        fontWeight: 700,
+                                                                        color: '#fff',
+                                                                        background: 'rgba(38, 198, 218, 0.95)',
+                                                                        padding: '3px 8px',
+                                                                        borderRadius: 9999,
+                                                                        whiteSpace: 'nowrap',
+                                                                    }}
+                                                                >
+                                                                    {label}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    ) : null}
                                                 </div>
                                             ) : null}
                                             <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', background: 'transparent', boxShadow: 'none' }}>{captionForCard}</p>

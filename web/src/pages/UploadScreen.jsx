@@ -16,6 +16,8 @@ import { getBadgeCongratulationMessage, getBadgeDifficultyEffects } from '../uti
 import { logger } from '../utils/logger';
 import { extractExifData, convertGpsToAddress, formatExifDate } from '../utils/exifExtractor';
 import { slugsFromAnalysisResult } from '../utils/travelCategories';
+import { normalizeRegionName } from '../utils/regionNames';
+import { searchPlaceWithKakaoFirst } from '../utils/kakaoPlacesGeocode';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import { addMissionResponse, updateMissionResponseLinkedPostId } from '../utils/sosMissionStore';
 const UploadScreen = () => {
@@ -881,7 +883,7 @@ const UploadScreen = () => {
         const tagPayload = dedupeHashtags(formData.tags)
           .map((t) => t.replace(/^#+/, '').trim())
           .filter(Boolean);
-        const region = formData.location?.split(' ')[0] || '기타';
+        const region = normalizeRegionName(formData.location?.split(' ')[0] || '기타');
         const postIdStr = String(editingPostId);
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postIdStr.trim());
 
@@ -1005,11 +1007,21 @@ const UploadScreen = () => {
 
       setUploadProgress(60);
 
-      // EXIF에서 추출한 좌표 사용 (없으면 기본값)
-      const coordinates = formData.coordinates || (formData.exifData?.gpsCoordinates ? {
+      let coordinates = formData.coordinates || (formData.exifData?.gpsCoordinates ? {
         lat: formData.exifData.gpsCoordinates.lat,
         lng: formData.exifData.gpsCoordinates.lng
-      } : { lat: 37.5665, lng: 126.9780 });
+      } : null);
+
+      if (!coordinates && formData.location.trim()) {
+        const geo = await searchPlaceWithKakaoFirst(formData.location.trim());
+        if (geo && !Number.isNaN(geo.lat) && !Number.isNaN(geo.lng)) {
+          coordinates = { lat: geo.lat, lng: geo.lng };
+          logger.log('📍 위치 문구로 카카오 좌표 확정:', geo.placeName || geo.address, coordinates);
+        }
+      }
+      if (!coordinates) {
+        coordinates = { lat: 37.5665, lng: 126.9780 };
+      }
 
       const postData = {
         images: uploadedImageUrls.length > 0 ? uploadedImageUrls : formData.images,
@@ -1019,7 +1031,7 @@ const UploadScreen = () => {
           name: formData.verifiedLocation || formData.location,
           lat: coordinates.lat,
           lon: coordinates.lng,
-          region: formData.location?.split(' ')[0] || '지역',
+          region: normalizeRegionName(formData.location?.split(' ')[0] || '지역'),
           country: '대한민국'
         },
         tags: formData.tags.map(tag => tag.replace('#', '')),
@@ -1073,8 +1085,8 @@ const UploadScreen = () => {
             return;
           }
 
-          // 지역 정보 추출 (첫 번째 단어를 지역으로 사용)
-          const region = formData.location?.split(' ')[0] || '기타';
+          // 지역 정보 추출 (첫 번째 단어 — 구미/구미시 등 표기 통일)
+          const region = normalizeRegionName(formData.location?.split(' ')[0] || '기타');
 
           // EXIF에서 추출한 촬영 날짜 사용 (없으면 현재 시간)
           const photoTimestamp = formData.photoDate
@@ -1120,10 +1132,7 @@ const UploadScreen = () => {
             category: aiCategory,
             categories: Array.isArray(formData.aiCategories) ? formData.aiCategories : [aiCategory],
             categoryName: aiCategoryName,
-            coordinates: formData.coordinates || (formData.exifData?.gpsCoordinates ? {
-              lat: formData.exifData.gpsCoordinates.lat,
-              lng: formData.exifData.gpsCoordinates.lng
-            } : null),
+            coordinates,
             detailedLocation: formData.verifiedLocation || formData.location,
             placeName: formData.location,
             region: region, // 지역 정보 추가

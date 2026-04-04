@@ -20,12 +20,15 @@ import {
   feedGridDescStyle,
   feedGridMetaRow,
 } from '../utils/feedGridCardStyles';
+import { normalizeRegionName, postMatchesCanonicalRegion } from '../utils/regionNames';
 
 const RegionDetailScreen = () => {
   const navigate = useNavigate();
-  const { regionName } = useParams();
+  const { regionName: regionNameParam } = useParams();
   const location = useLocation();
-  const region = location.state?.region || { name: regionName || '서울' };
+  const decodedName = regionNameParam ? decodeURIComponent(regionNameParam) : '';
+  const canonicalRegionName = normalizeRegionName(decodedName || location.state?.region?.name || '서울');
+  const region = { ...(location.state?.region || {}), name: canonicalRegionName };
   const focusLocation = location.state?.focusLocation || null;
 
   const [realtimePhotos, setRealtimePhotos] = useState([]);
@@ -50,11 +53,11 @@ const RegionDetailScreen = () => {
 
   // 관심 지역 상태 확인
   useEffect(() => {
-    setIsNotificationEnabled(isInterestPlace(region.name || regionName));
-  }, [region.name, regionName]);
+    setIsNotificationEnabled(isInterestPlace(region.name || canonicalRegionName));
+  }, [region.name, canonicalRegionName]);
 
   const handleNotificationToggle = () => {
-    const newState = toggleInterestPlace(region.name || regionName);
+    const newState = toggleInterestPlace(region.name || canonicalRegionName);
     setIsNotificationEnabled(newState);
   };
 
@@ -81,9 +84,7 @@ const RegionDetailScreen = () => {
     const recentPosts = filterActivePosts48(combinedPosts);
     logger.log(`📊 ${region.name} - 7일 이내 게시물: ${recentPosts.length}개`);
 
-    let regionPosts = recentPosts.filter(
-      post => post.location?.includes(region.name) || post.location === region.name
-    );
+    let regionPosts = recentPosts.filter((post) => postMatchesCanonicalRegion(post, canonicalRegionName));
 
     // 매거진 등에서 상세 위치(focusLocation)가 넘어온 경우, 해당 위치 중심으로 한 번 더 필터링
     if (focusLocation) {
@@ -163,7 +164,7 @@ const RegionDetailScreen = () => {
     logger.log('📊 지역 게시물 로드:', {
       total: formattedPosts.length
     });
-  }, [region.name, regionName, timeToMinutes, selectedLandmarks, focusLocation]);
+  }, [canonicalRegionName, region.name, timeToMinutes, selectedLandmarks, focusLocation]);
 
   // 필터에 따른 게시물 필터링 및 표시
   useEffect(() => {

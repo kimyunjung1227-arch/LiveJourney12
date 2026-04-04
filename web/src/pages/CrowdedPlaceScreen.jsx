@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { filterActivePosts48, getTimeAgo } from '../utils/timeUtils';
@@ -8,38 +8,29 @@ import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { rankHotspotPosts } from '../utils/hotnessEngine';
-import { toggleBookmark, isPostBookmarked } from '../utils/socialInteractions';
+import { toggleLike, isPostLiked } from '../utils/socialInteractions';
+import { updatePostLikesSupabase } from '../api/postsSupabase';
 import { getMapThumbnailUri } from '../utils/postMedia';
+import { getUnreadCount } from '../utils/notifications';
 import {
     getHotFeedAddressLine,
     getCityDongLine,
-    getPhotoCategoryLabel,
     getPhotoCaptionLine,
     computeHotFeedViewingCount,
     getAvatarUrls,
+    getHotCategoryLabel,
+    getPhotoCategoryLabels,
 } from '../utils/hotPlaceDisplay';
 import { getWeatherByRegion } from '../api/weather';
-
-const HOT_BADGE_VARIANTS = ['급상승', '실시간 인기', '지금 주목받는 곳', '실시간 핫플'];
-
-function getHotBadgeLabel(variantIndex) {
-    return HOT_BADGE_VARIANTS[variantIndex % HOT_BADGE_VARIANTS.length];
-}
 
 const CrowdedPlaceScreen = () => {
     const navigate = useNavigate();
     const [crowdedData, setCrowdedData] = useState([]);
     const [refreshKey, setRefreshKey] = useState(0);
-    const [bookmarkRefresh, setBookmarkRefresh] = useState(0);
     const [weatherByRegion, setWeatherByRegion] = useState({});
-    const [badgeTick, setBadgeTick] = useState(0);
     const [crowdedSocialIdx, setCrowdedSocialIdx] = useState(0);
+    const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
     const contentRef = useRef(null);
-
-    useEffect(() => {
-        const id = setInterval(() => setBadgeTick((t) => t + 1), 2600);
-        return () => clearInterval(id);
-    }, []);
 
     useEffect(() => {
         const id = setInterval(() => setCrowdedSocialIdx((i) => (i + 1) % 3), 2800);
@@ -88,11 +79,34 @@ const CrowdedPlaceScreen = () => {
         };
     }, [crowdedRegionsKey]);
 
-    const handleBookmark = (e, post) => {
+    useEffect(() => {
+        const onCountChange = () => setUnreadNotificationCount(getUnreadCount());
+        window.addEventListener('notificationCountChanged', onCountChange);
+        setUnreadNotificationCount(getUnreadCount());
+        return () => window.removeEventListener('notificationCountChanged', onCountChange);
+    }, []);
+
+    const handleHotFeedLike = useCallback((e, post) => {
         e.stopPropagation();
-        toggleBookmark(post);
-        setBookmarkRefresh((k) => k + 1);
-    };
+        const wasLiked = isPostLiked(post.id);
+        const baseLikes = typeof post.likes === 'number'
+            ? post.likes
+            : (typeof post.likeCount === 'number' ? post.likeCount : 0);
+        const result = toggleLike(post.id, baseLikes);
+        if (result.existsInStorage) {
+            setCrowdedData((prev) =>
+                prev.map((p) => (p && p.id === post.id ? { ...p, likes: result.newCount, likeCount: result.newCount } : p))
+            );
+        } else {
+            const delta = wasLiked ? -1 : 1;
+            updatePostLikesSupabase(post.id, delta);
+            setCrowdedData((prev) =>
+                prev.map((p) =>
+                    (p && p.id === post.id ? { ...p, likes: result.newCount, likeCount: result.newCount } : p)
+                )
+            );
+        }
+    }, []);
 
     useEffect(() => {
         const handler = () => setRefreshKey((k) => k + 1);
@@ -182,34 +196,57 @@ const CrowdedPlaceScreen = () => {
 
     return (
         <div className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col">
-            {/* 헤더 */}
-            <header className="screen-header sticky top-0 z-20 flex items-center justify-between px-4 py-3 bg-background-light/90 dark:bg-background-dark/90 border-b border-slate-100 dark:border-slate-800 backdrop-blur">
+            {/* 메인과 동일 상단 바 — 뒤로가기 + 로고 + 검색 + 알림 */}
+            <div
+                className="flex-shrink-0 flex items-center gap-2 px-4 py-3 bg-white dark:bg-gray-900 sticky top-0 z-20"
+                style={{
+                    borderBottom: 'none',
+                    boxShadow: 'none',
+                }}
+            >
                 <button
+                    type="button"
                     onClick={() => navigate(-1)}
                     aria-label="뒤로가기"
-                    className="flex size-10 shrink-0 items-center justify-center rounded-full text-text-main dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    className="flex size-10 shrink-0 items-center justify-center rounded-full text-[#0f172a] dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                     <span className="material-symbols-outlined text-2xl">arrow_back</span>
                 </button>
-                <h1 className="flex-1 text-center text-lg font-bold text-text-main dark:text-white">
-                    실시간 급상승 핫플
-                </h1>
-                <div className="w-10" />
-            </header>
+                <span
+                    className="logo-text shrink-0 text-[18px] font-bold tracking-tight text-[#0f172a] dark:text-white opacity-90"
+                    style={{ letterSpacing: '-0.3px' }}
+                >
+                    Live Journey
+                </span>
+                <button
+                    type="button"
+                    onClick={() => navigate('/search')}
+                    className="flex flex-1 min-w-0 max-w-[260px] h-8 ml-2 mr-1 items-center justify-between border-0 border-b border-solid border-slate-200 bg-transparent text-slate-400 text-sm cursor-pointer"
+                    aria-label="검색"
+                >
+                    <span className="truncate">어디로 떠나볼까요?</span>
+                    <span className="material-symbols-outlined text-[20px] shrink-0">search</span>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => navigate('/notifications')}
+                    className="relative flex size-11 shrink-0 items-center justify-center text-[#0f172a] dark:text-white"
+                    aria-label="알림"
+                >
+                    <span className="material-symbols-outlined text-2xl">notifications</span>
+                    {unreadNotificationCount > 0 && (
+                        <span className="noti-badge absolute top-1 right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                            {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                        </span>
+                    )}
+                </button>
+            </div>
 
-            {/* 컨텐츠 */}
-            <div ref={contentRef} className="screen-content flex-1 overflow-y-auto">
-                {/* 상단 타이틀 — 실시간 급상승 핫플 피드 */}
-                <section className="px-5 pt-3 pb-0.5">
-                    <h2 className="text-lg font-bold leading-tight text-text-main dark:text-white">
-                        실시간 급상승 핫플 🔥
-                    </h2>
-                    <p className="text-text-sub dark:text-slate-400 text-[11px] mt-0.5">지금 가장 핫한 장소를 확인해보세요</p>
-                </section>
+            <div ref={contentRef} className="screen-content flex-1 overflow-y-auto bg-white dark:bg-gray-900">
+                <div className="px-4 pt-2 pb-1 flex items-center justify-between">
+                    <h2 className="m-0 text-[17px] font-bold text-[#111827] dark:text-white">실시간 핫플</h2>
+                </div>
 
-                {/* 필터 제거: 바로 게시물 노출 */}
-
-                {/* 피드 — 세로 리스트, 4:3 카드, 랭킹은 3위까지 표시하되 피드는 계속 노출 */}
                 {filteredPosts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 px-6 text-center text-slate-400 dark:text-slate-500">
                         <span className="material-symbols-outlined text-5xl mb-3">local_fire_department</span>
@@ -217,12 +254,44 @@ const CrowdedPlaceScreen = () => {
                         <p className="text-xs text-slate-400 dark:text-slate-500">좋아요가 쌓이거나 최근 게시물이 생기면 이곳에 표시돼요.</p>
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-2 px-4 pb-16">
+                    <div className="flex flex-col gap-2 px-4 pb-20">
                         {filteredPosts.map((post) => {
                             const addressLine = getHotFeedAddressLine(post);
                             const cityDong = getCityDongLine(post);
-                            const photoCat = getPhotoCategoryLabel(post);
+                            const photoCategoryLabels = getPhotoCategoryLabels(post);
                             const captionLine = getPhotoCaptionLine(post);
+                            const engagementTier = getHotCategoryLabel(post);
+                            const tagHint = (post.reasonTags && post.reasonTags[0])
+                                ? String(post.reasonTags[0]).replace(/#/g, '').replace(/_/g, ' ').trim()
+                                : ((Array.isArray(post.aiHotTags) && post.aiHotTags[0])
+                                    ? String(post.aiHotTags[0]).replace(/#/g, '').trim()
+                                    : '');
+                            let whyHotLine = '';
+                            if (post._impactLabel) {
+                                whyHotLine = post._impactLabel;
+                            } else if (engagementTier === '급상승') {
+                                whyHotLine = tagHint ? `최근 이 장소에 관심이 급증했어요. ${tagHint}` : '최근 관심이 급증한 실시간 핫플이에요.';
+                            } else if (engagementTier === '사람 많음') {
+                                whyHotLine = tagHint ? `지금 현장 반응이 뜨거워요. ${tagHint}` : '지금 많은 분들이 몰리는 곳이에요.';
+                            } else if (engagementTier === '인기') {
+                                whyHotLine = tagHint ? `꾸준히 사랑받는 장소예요. ${tagHint}` : '꾸준히 인기 있는 핫플이에요.';
+                            } else {
+                                whyHotLine = tagHint ? `실시간으로 올라온 정보예요. ${tagHint}` : '실시간으로 올라온 핫플 정보예요.';
+                            }
+                            const loc = (post.location || '').trim();
+                            const hasUserCaption = !!(post.note || '').trim()
+                                || (!!(post.content || '').trim() && (post.content || '').trim() !== (loc ? `${loc}의 모습` : ''));
+                            const captionForCard = hasUserCaption ? captionLine : whyHotLine;
+                            const hotReasonLabel = engagementTier === '사람 많음' ? '인파 많음' : engagementTier;
+                            const hotReasonIcon = (() => {
+                                switch (engagementTier) {
+                                    case '급상승': return 'trending_up';
+                                    case '사람 많음': return 'groups';
+                                    case '인기': return 'favorite';
+                                    default: return 'bolt';
+                                }
+                            })();
+                            const hotIndicatorBg = '#b91c1c';
                             const regionShort = post.region || (post.location || '').trim().split(/\s+/).slice(0, 2).join(' ') || '위치';
                             const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
                             const commentCount = Array.isArray(post.comments) ? post.comments.length : 0;
@@ -235,7 +304,7 @@ const CrowdedPlaceScreen = () => {
                             ];
                             const socialText = socialLines[crowdedSocialIdx % 3];
                             const avatars = getAvatarUrls(post);
-                            const isBookmarked = bookmarkRefresh >= 0 && isPostBookmarked(post.id);
+                            const liked = isPostLiked(post.id);
                             const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
                             const weather = post.weather || weatherByRegion[regionKey] || null;
                             const hasWeather = weather && (weather.icon || weather.temperature != null);
@@ -252,11 +321,14 @@ const CrowdedPlaceScreen = () => {
                                             maxHeight: 'min(54vw, 36dvh, 228px)',
                                         }}
                                     >
-                                        <div className="absolute left-2 top-2 z-10 inline-flex max-w-[58%] items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[10px] font-extrabold tracking-tight text-white shadow-[0_2px_8px_rgba(0,0,0,0.12)]">
-                                            <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: '"FILL" 1' }}>
-                                                local_fire_department
+                                        <div className="absolute left-2 top-2 z-10 flex max-w-[calc(100%-100px)] items-center gap-1">
+                                            <span
+                                                className="inline-flex max-w-full items-center gap-1 rounded-full px-2 py-1 text-[10px] font-extrabold text-white shadow-md"
+                                                style={{ background: hotIndicatorBg }}
+                                            >
+                                                <span className="material-symbols-outlined shrink-0 text-[14px]" style={{ fontVariationSettings: '"FILL" 1' }}>{hotReasonIcon}</span>
+                                                <span className="truncate">{hotReasonLabel}</span>
                                             </span>
-                                            {getHotBadgeLabel(badgeTick)}
                                         </div>
                                         {hasWeather ? (
                                             <div className="absolute right-2 top-2 z-10 inline-flex max-w-[58%] items-center gap-1 rounded-full bg-[rgba(15,23,42,0.52)] px-2.5 py-1 text-[10px] font-semibold text-[#f8fafc] shadow-md backdrop-blur-[8px]">
@@ -307,30 +379,40 @@ const CrowdedPlaceScreen = () => {
                                             );
                                         })()}
                                     </div>
-                                    <div className="shrink-0 px-2 pb-2.5 pt-2.5">
+                                    <div className="shrink-0 px-0.5 pb-2.5 pt-2.5">
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="min-w-0 flex-1">
-                                                <h3 className="line-clamp-2 text-[15px] font-bold leading-snug text-text-main dark:text-white">{addressLine}</h3>
+                                                <h3 className="line-clamp-2 text-base font-bold leading-snug text-[#111827] dark:text-white">{addressLine}</h3>
                                                 <div className="mt-1.5 flex items-center justify-between gap-2">
-                                                    <span className="min-w-0 flex-1 truncate text-[11px] font-medium leading-snug text-slate-500 dark:text-slate-400">
+                                                    <span className="min-w-0 flex-1 truncate text-xs font-medium leading-snug text-slate-500 dark:text-slate-400">
                                                         {cityDong || regionShort}
                                                     </span>
-                                                    {photoCat ? (
-                                                        <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-extrabold text-white">{photoCat}</span>
+                                                    {photoCategoryLabels.length > 0 ? (
+                                                        <div className="flex max-w-[52%] flex-wrap justify-end gap-1">
+                                                            {photoCategoryLabels.map((label) => (
+                                                                <span
+                                                                    key={`${post.id}-pl-${label}`}
+                                                                    className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold text-white"
+                                                                    style={{ background: 'rgba(38, 198, 218, 0.95)' }}
+                                                                >
+                                                                    {label}
+                                                                </span>
+                                                            ))}
+                                                        </div>
                                                     ) : null}
                                                 </div>
-                                                <p className="mt-1.5 line-clamp-2 break-words text-[11px] font-medium leading-relaxed text-slate-700 dark:text-slate-200">
-                                                    {captionLine || '실시간으로 공유된 장소예요.'}
+                                                <p className="mt-2 line-clamp-2 break-words text-xs font-medium leading-relaxed text-[#374151] dark:text-slate-200">
+                                                    {captionForCard}
                                                 </p>
                                             </div>
                                             <button
                                                 type="button"
-                                                className="mt-0.5 shrink-0 p-1 text-slate-400 transition-colors hover:text-primary"
-                                                onClick={(e) => handleBookmark(e, post)}
-                                                aria-label="저장"
+                                                className="mt-0.5 shrink-0 border-0 bg-transparent p-1 text-slate-400 hover:text-rose-500"
+                                                onClick={(e) => handleHotFeedLike(e, post)}
+                                                aria-label="좋아요"
                                             >
-                                                <span className="material-symbols-outlined text-[22px]" style={isBookmarked ? { fontVariationSettings: "'FILL' 1" } : undefined}>
-                                                    bookmark
+                                                <span className="material-symbols-outlined text-[22px]" style={liked ? { fontVariationSettings: '"FILL" 1', color: '#f43f5e' } : undefined}>
+                                                    favorite
                                                 </span>
                                             </button>
                                         </div>
