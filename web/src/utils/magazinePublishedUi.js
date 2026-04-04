@@ -27,6 +27,50 @@ export const toSearchText = (p) =>
     .join(' ')
     .toLowerCase();
 
+const FIELD_VOICE_MAX = 4;
+const FIELD_VOICE_MAX_CHARS = 96;
+
+const getVoiceAuthor = (p) => {
+  const u = p?.user;
+  const username =
+    (typeof u === 'string' ? u : u?.username) ||
+    p?.userName ||
+    p?.author?.name ||
+    '여행자';
+  return String(username || '여행자');
+};
+
+const truncateVoiceText = (s, maxChars) => {
+  const t = String(s || '').trim();
+  if (t.length <= maxChars) return t;
+  return `${t.slice(0, Math.max(0, maxChars - 1))}…`;
+};
+
+/**
+ * 장소에 맞는 게시물에서 짧은 글(note/content)만 뽑아 '현장의 목소리'용 데이터 생성
+ */
+export const buildFieldVoicesFromPosts = (posts, options = {}) => {
+  const max = options.max ?? FIELD_VOICE_MAX;
+  const maxChars = options.maxChars ?? FIELD_VOICE_MAX_CHARS;
+  const list = Array.isArray(posts) ? posts : [];
+  const byRecency = (a, b) => {
+    const now = Date.now();
+    const ta = new Date(a?.timestamp || a?.createdAt || now).getTime();
+    const tb = new Date(b?.timestamp || b?.createdAt || now).getTime();
+    return tb - ta;
+  };
+  return list
+    .filter((p) => String(p?.note || p?.content || '').trim().length > 0)
+    .sort(byRecency)
+    .slice(0, max)
+    .map((p) => ({
+      id: String(p.id ?? `voice-${p.timestamp || p.createdAt || Math.random()}`),
+      text: truncateVoiceText(String(p.note || p.content || '').trim(), maxChars),
+      author: getVoiceAuthor(p),
+      timeLabel: getTimeAgo(p.timestamp || p.createdAt),
+    }));
+};
+
 export const buildRegionSummary = (posts) => {
   if (!Array.isArray(posts) || posts.length === 0) return '';
   const text = posts.map((p) => toSearchText(p)).join(' ');
@@ -122,6 +166,7 @@ export const buildSlidesForMagazine = (mag, allPosts, gridPosts) => {
           : getTimeAgo(mag.created_at || mag.createdAt),
         askQuery: locKey || mag.title,
         regionSummary: buildRegionSummary(matchedPosts),
+        fieldVoices: buildFieldVoicesFromPosts(matchedPosts),
         locKey,
         matchedPosts,
         aroundDisplay,
@@ -159,6 +204,7 @@ export const buildMagazineListSlides = (published, allPosts, gridPosts) => {
         askQuery: loc,
         postId: p0.id,
         regionSummary: buildRegionSummary([p0]),
+        fieldVoices: buildFieldVoicesFromPosts([p0], { max: 2 }),
         locKey: loc.toLowerCase(),
         matchedPosts: [p0],
       },

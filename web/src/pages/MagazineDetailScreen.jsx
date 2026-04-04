@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import MagazinePublishedCarousel from '../components/MagazinePublishedCarousel';
+import MagazineFieldVoices from '../components/MagazineFieldVoices';
 import { getMagazineTopicById } from '../utils/magazinesConfig';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getCombinedPosts } from '../utils/mockData';
@@ -13,6 +14,7 @@ import { getCategoryChipsFromPost } from '../utils/travelCategories';
 import { getPublishedMagazineById } from '../utils/magazinesStore';
 import {
   buildSlidesForMagazine,
+  buildFieldVoicesFromPosts,
   getGridPostsPool,
   getRegionPostsForSlide,
 } from '../utils/magazinePublishedUi';
@@ -236,6 +238,7 @@ const MagazineDetailScreen = () => {
         around: aroundWithImage,
         mediaCount: uniqMedia.length,
         postCount: list.length,
+        fieldVoices: buildFieldVoicesFromPosts(list),
       };
     });
 
@@ -268,6 +271,11 @@ const MagazineDetailScreen = () => {
       const uniq = [...new Set(matchedPosts.flatMap(mediaUrlsFromPost))].filter(Boolean);
       return uniq;
     };
+    const pickPostsByLocation = (loc) => {
+      const key = String(loc || '').trim().toLowerCase();
+      if (!key) return [];
+      return allTextPosts.filter((p) => toSearchText(p).includes(key)).sort(byRecency);
+    };
 
     return publishedMagazine.sections
       .map((s, idx) => {
@@ -276,6 +284,7 @@ const MagazineDetailScreen = () => {
         const uniqMedia = pickMediaByLocation(locKey);
         const sliderMedia = uniqMedia.slice(0, 19);
         const hasMoreMedia = uniqMedia.length > 19;
+        const matchedForVoices = pickPostsByLocation(locKey);
 
         const aroundNames = Array.isArray(s?.around) ? s.around : [];
         const around = aroundNames
@@ -297,6 +306,7 @@ const MagazineDetailScreen = () => {
           around,
           mediaCount: uniqMedia.length,
           postCount: 0,
+          fieldVoices: buildFieldVoicesFromPosts(matchedForVoices),
         };
       })
       .filter((x) => x.locKey);
@@ -566,6 +576,12 @@ const MagazineDetailScreen = () => {
                           {sec.description || '실시간으로 올라온 사진으로만 구성했어요.'}
                         </p>
 
+                        {Array.isArray(sec.fieldVoices) && sec.fieldVoices.length > 0 ? (
+                          <div className="mt-2 mb-3">
+                            <MagazineFieldVoices voices={sec.fieldVoices} />
+                          </div>
+                        ) : null}
+
                         {/* 구분선 */}
                         <div className="my-3 h-px w-full bg-zinc-200/80 dark:bg-zinc-800" />
 
@@ -713,7 +729,11 @@ const MagazineDetailScreen = () => {
                         )}
                       </div>
 
-                      {/* 위치 설명 문구 제거: 발행 시 작성한 설명을 사용 */}
+                      {Array.isArray(sec.fieldVoices) && sec.fieldVoices.length > 0 ? (
+                        <div className="mt-3">
+                          <MagazineFieldVoices voices={sec.fieldVoices} />
+                        </div>
+                      ) : null}
 
                       {/* 주변 맛집/명소: 구분선 + 1장씩 크게 슬라이드 */}
                       {(Array.isArray(sec.around) ? sec.around : []).length > 0 && (

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getTimeAgo } from '../utils/timeUtils';
 import { getMapThumbnailUri } from '../utils/postMedia';
 import { mediaUrlsFromPost, normalizeSpace } from '../utils/magazinePublishedUi';
+import MagazineFieldVoices from './MagazineFieldVoices';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 
 /** 스무스 스크롤 없음 → 한 장 단위 스냅이 덜 흐트러짐 */
@@ -294,6 +295,11 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
                       <p className="mb-3 m-0 text-[14px] leading-relaxed text-gray-600 dark:text-gray-300">
                         {slide.description}
                       </p>
+                      {Array.isArray(slide.fieldVoices) && slide.fieldVoices.length > 0 ? (
+                        <div className="mb-3">
+                          <MagazineFieldVoices voices={slide.fieldVoices} />
+                        </div>
+                      ) : null}
                       {slide.regionSummary && (
                         <div className="mb-3 rounded-lg bg-cyan-50/70 px-2.5 py-1.5 text-[11px] text-cyan-900 dark:bg-cyan-950/35 dark:text-cyan-100">
                           <span className="mr-1 font-semibold">AI 요약</span>
@@ -367,6 +373,11 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
                         <p className="mb-3 m-0 text-[14px] leading-relaxed text-gray-600 dark:text-gray-300">
                           {slide.description}
                         </p>
+                        {Array.isArray(slide.fieldVoices) && slide.fieldVoices.length > 0 ? (
+                          <div className="mb-3">
+                            <MagazineFieldVoices voices={slide.fieldVoices} />
+                          </div>
+                        ) : null}
                         {slide.regionSummary && (
                           <div className="mb-3 rounded-lg bg-cyan-50/70 px-2.5 py-1.5 text-[11px] text-cyan-900 dark:bg-cyan-950/35 dark:text-cyan-100">
                             <span className="mr-1 font-semibold">AI 요약</span>
