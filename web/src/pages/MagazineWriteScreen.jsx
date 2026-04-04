@@ -1,9 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
+import MagazinePublishedCarousel from '../components/MagazinePublishedCarousel';
 import { publishMagazine } from '../utils/magazinesStore';
 import { useAuth } from '../contexts/AuthContext';
 import { useAdminState } from '../utils/admin';
+import { fetchPostsSupabase } from '../api/postsSupabase';
+import { getCombinedPosts } from '../utils/mockData';
+import { buildSlidesForMagazine, getGridPostsPool, getRegionPostsForSlide } from '../utils/magazinePublishedUi';
 
 const DRAFT_KEY = 'magazinePublishDraft';
 
@@ -77,6 +81,43 @@ const MagazineWriteScreen = () => {
   const [sections, setSections] = useState([createEmptySection()]);
   const [pasteText, setPasteText] = useState('');
   const [saving, setSaving] = useState(false);
+  const [allPosts, setAllPosts] = useState([]);
+  const [feedRefresh, setFeedRefresh] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+        const supabasePosts = await fetchPostsSupabase();
+        const byId = new Map();
+        [...(Array.isArray(supabasePosts) ? supabasePosts : []), ...(Array.isArray(localPosts) ? localPosts : [])].forEach(
+          (p) => {
+            if (p && p.id && !byId.has(p.id)) byId.set(p.id, p);
+          }
+        );
+        const combined = getCombinedPosts(Array.from(byId.values()));
+        if (alive) setAllPosts(combined);
+      } catch {
+        if (alive) setAllPosts([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [feedRefresh]);
+
+  useEffect(() => {
+    const id = setInterval(() => setFeedRefresh((n) => n + 1), 45000);
+    const onVis = () => {
+      if (document.visibilityState === 'visible') setFeedRefresh((n) => n + 1);
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -115,6 +156,50 @@ const MagazineWriteScreen = () => {
     if (!Array.isArray(sections) || sections.length === 0) return false;
     return sections.some((s) => String(s?.locationTitle || '').trim() && String(s?.description || '').trim());
   }, [title, sections]);
+
+  const previewMagazine = useMemo(() => {
+    if (!title.trim()) return null;
+    const normalizedSections = (Array.isArray(sections) ? sections : [])
+      .map((s) => ({
+        locationTitle: String(s?.locationTitle || '').trim(),
+        locationInfo: String(s?.locationInfo || '').trim(),
+        description: String(s?.description || '').trim(),
+        aroundPlaces: Array.isArray(s?.aroundPlaces) ? s.aroundPlaces : [],
+      }))
+      .filter((s) => s.locationTitle || s.locationInfo || s.description || (s.aroundPlaces && s.aroundPlaces.length));
+    if (normalizedSections.length === 0) return null;
+    if (!normalizedSections.some((s) => s.locationTitle && s.description)) return null;
+    return {
+      id: 'draft-preview',
+      title: title.trim(),
+      subtitle: '',
+      author: user?.email || user?.username || 'LiveJourney',
+      createdAt: new Date().toISOString(),
+      sections: normalizedSections.map((s) => ({
+        location: s.locationTitle || s.locationInfo || title.trim(),
+        locationInfo: s.locationInfo,
+        description: s.description,
+        around: (Array.isArray(s.aroundPlaces) ? s.aroundPlaces : [])
+          .map((p) => ({
+            id: p?.id || `ap-${String(p?.info || '').slice(0, 8)}`,
+            info: String(p?.info || '').trim(),
+            desc: String(p?.desc || '').trim(),
+          }))
+          .filter((p) => p.info || p.desc)
+          .slice(0, 12),
+      })),
+    };
+  }, [title, sections, user?.email, user?.username]);
+
+  const gridPostsPub = useMemo(() => getGridPostsPool(allPosts), [allPosts]);
+  const previewSlides = useMemo(
+    () => (previewMagazine ? buildSlidesForMagazine(previewMagazine, allPosts, gridPostsPub) : []),
+    [previewMagazine, allPosts, gridPostsPub]
+  );
+  const previewPostsPerSlide = useMemo(
+    () => previewSlides.map((slide) => getRegionPostsForSlide(slide, allPosts, gridPostsPub)),
+    [previewSlides, allPosts, gridPostsPub]
+  );
 
   const saveDraft = useCallback(() => {
     try {
@@ -326,7 +411,7 @@ const MagazineWriteScreen = () => {
               <section key={sec.id} className="pt-2">
                 <div className="mb-2 flex items-center justify-between">
                   <div className="text-[12px] font-extrabold text-gray-900 dark:text-gray-50">
-                    위치 {idx + 1}
+                    장소 {idx + 1}
                   </div>
                   <button
                     type="button"
@@ -338,7 +423,7 @@ const MagazineWriteScreen = () => {
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <label className="block mb-2 text-[13px] font-semibold text-gray-800 dark:text-gray-100">위치</label>
+                    <label className="block mb-2 text-[13px] font-semibold text-gray-800 dark:text-gray-100">장소 이름</label>
                     <input
                       className="w-full border-b border-zinc-200 dark:border-zinc-700 bg-transparent px-0 py-3 text-[15px] font-semibold text-gray-900 dark:text-gray-50 focus:outline-none"
                       placeholder="예: 경기 수원"
@@ -358,7 +443,7 @@ const MagazineWriteScreen = () => {
                   </div>
 
                   <div>
-                    <label className="block mb-2 text-[13px] font-semibold text-gray-800 dark:text-gray-100">위치에 대한 설명</label>
+                    <label className="block mb-2 text-[13px] font-semibold text-gray-800 dark:text-gray-100">장소 설명</label>
                     <textarea
                       className="w-full min-h-[140px] bg-transparent px-0 py-2 text-[15px] leading-relaxed text-gray-900 dark:text-gray-50 focus:outline-none resize-none"
                       placeholder="설명글을 입력하세요."
@@ -368,7 +453,7 @@ const MagazineWriteScreen = () => {
                   </div>
 
                   <div>
-                    <label className="block mb-2 text-[13px] font-semibold text-gray-800 dark:text-gray-100">위치 주변 가기 좋은 명소</label>
+                    <label className="block mb-2 text-[13px] font-semibold text-gray-800 dark:text-gray-100">장소 주변 명소, 맛집</label>
                     <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
                       {(Array.isArray(sec.aroundPlaces) ? sec.aroundPlaces : []).map((p, pi) => (
                         <div
@@ -427,9 +512,26 @@ const MagazineWriteScreen = () => {
                 onClick={handleAddSection}
                 className="w-full rounded-full border border-zinc-200 dark:border-zinc-700 bg-white/60 dark:bg-gray-900/40 py-3 text-[14px] font-extrabold text-gray-900 dark:text-gray-50"
               >
-                + 추가하기
+                + 장소 추가하기
               </button>
             </div>
+
+            {previewSlides.length > 0 ? (
+              <div className="pt-8 border-t border-zinc-200 dark:border-zinc-700 mt-8">
+                <p className="mb-3 text-[13px] font-bold text-gray-800 dark:text-gray-100">
+                  미리보기 (발행 후 상세와 동일 · 실시간 사진은 주기적으로 갱신됩니다)
+                </p>
+                <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-700 dark:bg-zinc-900/30">
+                  <MagazinePublishedCarousel variant="detail" slides={previewSlides} postsPerSlide={previewPostsPerSlide} />
+                </div>
+              </div>
+            ) : (
+              <div className="pt-8 border-t border-zinc-200 dark:border-zinc-700 mt-8 pb-4">
+                <p className="text-[12px] text-gray-500 dark:text-gray-400 m-0">
+                  제목과 장소 이름·설명을 입력하면 아래에 미리보기가 표시됩니다.
+                </p>
+              </div>
+            )}
           </form>
           )}
         </main>

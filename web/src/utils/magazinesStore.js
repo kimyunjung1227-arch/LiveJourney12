@@ -40,48 +40,12 @@ const normalizeMagazine = (m) => {
   };
 };
 
-/** 데모·온보딩용 예시 매거진 (목록에 항상 포함, ID 중복 시 생략) */
-export const EXAMPLE_MAGAZINE_ID = 'pub-lj-example-spring';
-
-const getExampleMagazine = () =>
-  normalizeMagazine({
-    id: EXAMPLE_MAGAZINE_ID,
-    title: '봄 여행, 지금 이 순간',
-    subtitle: 'LiveJourney 예시 매거진',
-    summary: '카페 산책부터 전통 골목까지, 발행 화면과 동일한 구조로 미리 보여 드려요.',
-    author: 'LiveJourney',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    sections: [
-      {
-        location: '제주 애월 카페거리',
-        locationInfo: '제주특별자치도 애월읍',
-        description:
-          '해안 도로를 따라 카페와 소품샵이 이어져 드라이브와 산책을 함께 즐기기 좋습니다. 석양이 지는 시간에 맞춰 방문해 보세요.',
-        around: [],
-      },
-      {
-        location: '서울 북촌 한옥마을',
-        locationInfo: '서울 종로구',
-        description:
-          '한옥과 골목이 어우러진 산책 코스입니다. 한복 체험이나 전통 찻집에서 여유로운 하루를 보내기 좋아요.',
-        around: [],
-      },
-    ],
-  });
-
-const mergeExampleMagazine = (list) => {
-  const arr = Array.isArray(list) ? list.map(normalizeMagazine).filter(Boolean) : [];
-  if (arr.some((m) => String(m?.id) === EXAMPLE_MAGAZINE_ID)) return arr;
-  return [getExampleMagazine(), ...arr];
-};
-
 export const listPublishedMagazines = async () => {
   const res = await fetchMagazinesSupabase();
   let list = [];
   if (res.success) list = (Array.isArray(res.magazines) ? res.magazines : []).map(normalizeMagazine).filter(Boolean);
   else list = readLocal().map(normalizeMagazine).filter(Boolean);
-  return mergeExampleMagazine(list);
+  return list;
 };
 
 export const getPublishedMagazineById = async (id) => {

@@ -266,6 +266,8 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
           const heroUrls = collectHeroUrls(slide, regionPosts);
           const heroResetKey = `${slide.sectionIndex}-${i}`;
 
+          const sectionHeading = slide.sectionLabel || `장소 ${(slide.sectionIndex ?? i) + 1}`;
+
           return (
             <div
               key={`slide-${slide.sectionIndex}-${i}`}
@@ -276,9 +278,17 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
                   <div className="w-full max-w-full overflow-hidden rounded-2xl border border-zinc-100 bg-white shadow-sm dark:border-zinc-800 dark:bg-gray-900">
                     <HeroRotator urls={heroUrls} resetKey={heroResetKey} timeLabel={slide.timeLabel} />
                     <div className="p-4">
-                      <h3 className="mb-2 text-base font-bold leading-snug text-gray-900 dark:text-gray-50">
+                      <p className="mb-1 m-0 text-[11px] font-extrabold uppercase tracking-wide text-primary">
+                        {sectionHeading}
+                      </p>
+                      <h3 className="mb-1 text-base font-bold leading-snug text-gray-900 dark:text-gray-50">
                         {slide.placeTitle}
                       </h3>
+                      {slide.locationInfoLine ? (
+                        <p className="mb-2 m-0 text-[12px] font-medium text-gray-500 dark:text-gray-400">
+                          {slide.locationInfoLine}
+                        </p>
+                      ) : null}
                       <p className="mb-3 m-0 text-[14px] leading-relaxed text-gray-600 dark:text-gray-300">
                         {slide.description}
                       </p>
@@ -291,11 +301,44 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
                       <button
                         type="button"
                         onClick={(e) => handleAskLight(e, slide)}
-                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 px-4 text-[14px] font-bold text-white shadow-md shadow-primary/25 transition hover:bg-primary/90 active:scale-[0.99] dark:bg-primary dark:text-white"
+                        className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 px-4 text-[14px] font-bold text-white shadow-md shadow-primary/25 transition hover:bg-primary/90 active:scale-[0.99] dark:bg-primary dark:text-white"
                       >
                         <span className="material-symbols-outlined text-[18px] text-white">chat_bubble</span>
-                        이 장소 지금 상황 물어보기
+                        지금 여기 장소에 대해 물어보기
                       </button>
+                      {Array.isArray(slide.aroundDisplay) && slide.aroundDisplay.length > 0 ? (
+                        <div className="mb-1">
+                          <h4 className="m-0 mb-2 text-[13px] font-bold text-gray-900 dark:text-gray-50">
+                            장소 주변 명소, 맛집
+                          </h4>
+                          <div className="-mx-1 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            {slide.aroundDisplay.map((ar) => (
+                              <div
+                                key={ar.id}
+                                className="w-[132px] shrink-0 overflow-hidden rounded-xl border border-zinc-100 bg-zinc-50/80 dark:border-zinc-700 dark:bg-zinc-900/50"
+                              >
+                                <div className="relative aspect-[4/3] bg-zinc-200 dark:bg-zinc-800">
+                                  {ar.image ? (
+                                    <img src={ar.image} alt="" className="h-full w-full object-cover" loading="lazy" />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center text-zinc-400">
+                                      <span className="material-symbols-outlined text-2xl">storefront</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="px-2 py-1.5">
+                                  <p className="m-0 truncate text-[11px] font-bold text-gray-900 dark:text-gray-50">{ar.name}</p>
+                                  {ar.desc ? (
+                                    <p className="m-0 mt-0.5 line-clamp-2 text-[10px] leading-snug text-gray-500 dark:text-gray-400">
+                                      {ar.desc}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 ) : (
@@ -303,9 +346,17 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
                     <div className="w-full max-w-full overflow-hidden rounded-2xl border border-zinc-100 bg-white shadow-sm dark:border-zinc-800 dark:bg-gray-900">
                       <HeroRotator urls={heroUrls} resetKey={heroResetKey} timeLabel={slide.timeLabel} />
                       <div className="p-4">
-                        <h3 className="mb-2 text-base font-bold leading-snug text-gray-900 dark:text-gray-50">
+                        <p className="mb-1 m-0 text-[11px] font-extrabold uppercase tracking-wide text-primary">
+                          {sectionHeading}
+                        </p>
+                        <h3 className="mb-1 text-base font-bold leading-snug text-gray-900 dark:text-gray-50">
                           {slide.placeTitle}
                         </h3>
+                        {slide.locationInfoLine ? (
+                          <p className="mb-2 m-0 text-[12px] font-medium text-gray-500 dark:text-gray-400">
+                            {slide.locationInfoLine}
+                          </p>
+                        ) : null}
                         <p className="mb-3 m-0 text-[14px] leading-relaxed text-gray-600 dark:text-gray-300">
                           {slide.description}
                         </p>
@@ -318,11 +369,44 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
                         <button
                           type="button"
                           onClick={(e) => handleAskLight(e, slide)}
-                          className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 px-4 text-[14px] font-bold text-white shadow-md shadow-primary/25 transition hover:bg-primary/90 active:scale-[0.99] dark:bg-primary dark:text-white"
+                          className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 px-4 text-[14px] font-bold text-white shadow-md shadow-primary/25 transition hover:bg-primary/90 active:scale-[0.99] dark:bg-primary dark:text-white"
                         >
                           <span className="material-symbols-outlined text-[18px] text-white">chat_bubble</span>
-                          이 장소 지금 상황 물어보기
+                          지금 여기 장소에 대해 물어보기
                         </button>
+                        {Array.isArray(slide.aroundDisplay) && slide.aroundDisplay.length > 0 ? (
+                          <div className="mb-1">
+                            <h4 className="m-0 mb-2 text-[13px] font-bold text-gray-900 dark:text-gray-50">
+                              장소 주변 명소, 맛집
+                            </h4>
+                            <div className="-mx-1 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                              {slide.aroundDisplay.map((ar) => (
+                                <div
+                                  key={ar.id}
+                                  className="w-[132px] shrink-0 overflow-hidden rounded-xl border border-zinc-100 bg-zinc-50/80 dark:border-zinc-700 dark:bg-zinc-900/50"
+                                >
+                                  <div className="relative aspect-[4/3] bg-zinc-200 dark:bg-zinc-800">
+                                    {ar.image ? (
+                                      <img src={ar.image} alt="" className="h-full w-full object-cover" loading="lazy" />
+                                    ) : (
+                                      <div className="flex h-full w-full items-center justify-center text-zinc-400">
+                                        <span className="material-symbols-outlined text-2xl">storefront</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="px-2 py-1.5">
+                                    <p className="m-0 truncate text-[11px] font-bold text-gray-900 dark:text-gray-50">{ar.name}</p>
+                                    {ar.desc ? (
+                                      <p className="m-0 mt-0.5 line-clamp-2 text-[10px] leading-snug text-gray-500 dark:text-gray-400">
+                                        {ar.desc}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                     <button

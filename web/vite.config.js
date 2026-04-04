@@ -6,20 +6,31 @@ const kakaoKey = typeof process !== 'undefined' && process.env && process.env.VI
   ? String(process.env.VITE_KAKAO_MAP_API_KEY).trim()
   : ''
 
+/** OG·canonical·JSON-LD용 공개 베이스 URL(trailing slash 없음). 서브경로 배포 시 전체 베이스까지 포함해 설정 */
+function getPublicBaseForHtml() {
+  const raw = typeof process !== 'undefined' && process.env && process.env.VITE_SITE_URL
+    ? String(process.env.VITE_SITE_URL).trim()
+    : ''
+  return (raw || 'https://livejourney.co.kr').replace(/\/$/, '')
+}
+
 export default defineConfig({
   plugins: [
     react(),
     {
       name: 'inject-kakao-script',
       transformIndexHtml(html) {
+        const publicBase = getPublicBaseForHtml()
+        let out = html.replace(/__PUBLIC_BASE__/g, publicBase)
         try {
           const scriptTag = kakaoKey
             ? `<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(kakaoKey)}&libraries=services,clusterer&autoload=false" defer></script>`
             : ''
-          return html.replace('<!-- KAKAO_MAP_SCRIPT -->', scriptTag)
+          out = out.replace('<!-- KAKAO_MAP_SCRIPT -->', scriptTag)
         } catch (_) {
-          return html.replace('<!-- KAKAO_MAP_SCRIPT -->', '')
+          out = out.replace('<!-- KAKAO_MAP_SCRIPT -->', '')
         }
+        return out
       },
     },
   ],

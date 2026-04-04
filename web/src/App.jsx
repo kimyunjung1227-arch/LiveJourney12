@@ -7,6 +7,7 @@ import { initStatusBar } from './utils/statusBar'
 import SosAlertBanner from './components/SosAlertBanner'
 import { cleanLegacyUploadedPosts } from './utils/localStorageManager'
 import BadgeEarnedNavigator from './components/BadgeEarnedNavigator'
+import RootSeo from './components/RootSeo'
 
 // Pages (코드 스플리팅을 위해 lazy 로드)
 const WelcomeScreen = lazy(() => import('./pages/WelcomeScreen'))
@@ -78,6 +79,7 @@ function App() {
   return (
     <AuthProvider>
       <Router basename={basename}>
+        <RootSeo />
         <div className="app-container">
           <div className="page-wrapper">
             <SosAlertBanner />

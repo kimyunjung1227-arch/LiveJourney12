@@ -171,18 +171,31 @@ const HotFeedCard = ({
                     <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                         <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500, lineHeight: 1.4, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cityDongLine || regionShort}</span>
                         {photoCategoryLabels && photoCategoryLabels.length > 0 ? (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'flex-end', flexShrink: 0, maxWidth: '52%' }}>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    gap: 3,
+                                    justifyContent: 'flex-end',
+                                    alignItems: 'center',
+                                    flexShrink: 0,
+                                    maxWidth: '56%',
+                                }}
+                            >
                                 {photoCategoryLabels.map((label) => (
                                     <span
                                         key={`${post.id}-cat-${label}`}
                                         style={{
-                                            fontSize: 10,
-                                            fontWeight: 700,
-                                            color: '#fff',
-                                            background: 'rgba(38, 198, 218, 0.95)',
-                                            padding: '3px 8px',
+                                            fontSize: 9,
+                                            fontWeight: 600,
+                                            letterSpacing: '-0.02em',
+                                            color: '#64748b',
+                                            background: 'rgba(248, 250, 252, 0.92)',
+                                            border: '1px solid rgba(226, 232, 240, 0.95)',
+                                            padding: '2px 7px',
                                             borderRadius: 9999,
                                             whiteSpace: 'nowrap',
+                                            lineHeight: 1.35,
                                         }}
                                     >
                                         {label}

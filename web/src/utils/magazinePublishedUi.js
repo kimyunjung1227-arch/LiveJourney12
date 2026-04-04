@@ -70,6 +70,15 @@ export const buildSlidesForMagazine = (mag, allPosts, gridPosts) => {
 
   if (mag && Array.isArray(mag.sections) && mag.sections.length > 0) {
     const magTitle = String(mag.title || '').trim() || '여행 매거진';
+    const pickFirstMediaForKeyword = (keyword) => {
+      const k = String(keyword || '').trim().toLowerCase();
+      if (!k) return '';
+      const matched = posts
+        .filter((p) => toSearchText(p).includes(k))
+        .sort(byRecency)[0];
+      return matched ? (mediaUrlsFromPost(matched)[0] || '') : '';
+    };
+
     return mag.sections.map((sec, idx) => {
       const locKey = normalizeSpace(sec?.location || '');
       const matchedPosts = posts
@@ -80,12 +89,30 @@ export const buildSlidesForMagazine = (mag, allPosts, gridPosts) => {
       const fallbackImg = gridPosts[0] ? getMapThumbnailUri(gridPosts[0]) : '';
       const heroImage = uniq[0] || fallbackImg;
       const editorDescription = String(sec?.description || '').trim();
+      const rawAround = Array.isArray(sec.around) ? sec.around : [];
+      const aroundDisplay = rawAround
+        .map((a) => {
+          const name = String(a?.info ?? a?.name ?? '').trim();
+          if (!name) return null;
+          return {
+            id: String(a?.id || `ar-${idx}-${name}`),
+            name,
+            desc: String(a?.desc ?? '').trim(),
+            image: pickFirstMediaForKeyword(name),
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 12);
+      const locationInfoLine = String(sec?.locationInfo || '').trim();
+
       return {
         kind: 'magazine',
         mag,
         magTitle,
         sectionIndex: idx,
+        sectionLabel: `장소 ${idx + 1}`,
         placeTitle: locKey || `장소 ${idx + 1}`,
+        locationInfoLine,
         description:
           editorDescription ||
           '장소 설명은 관리자 매거진 발행 화면에서 입력한 내용이 여기에 표시됩니다.',
@@ -97,6 +124,7 @@ export const buildSlidesForMagazine = (mag, allPosts, gridPosts) => {
         regionSummary: buildRegionSummary(matchedPosts),
         locKey,
         matchedPosts,
+        aroundDisplay,
       };
     });
   }
