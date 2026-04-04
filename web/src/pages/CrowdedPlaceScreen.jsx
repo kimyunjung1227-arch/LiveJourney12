@@ -12,15 +12,8 @@ import { toggleLike, isPostLiked } from '../utils/socialInteractions';
 import { updatePostLikesSupabase } from '../api/postsSupabase';
 import { getMapThumbnailUri } from '../utils/postMedia';
 import { getUnreadCount } from '../utils/notifications';
-import {
-    getHotFeedAddressLine,
-    getCityDongLine,
-    getPhotoCaptionLine,
-    computeHotFeedViewingCount,
-    getAvatarUrls,
-    getHotCategoryLabel,
-    getPhotoCategoryLabels,
-} from '../utils/hotPlaceDisplay';
+import HotFeedCard from '../components/HotFeedCard';
+import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCardModel';
 import { getWeatherByRegion } from '../api/weather';
 
 const CrowdedPlaceScreen = () => {
@@ -242,213 +235,40 @@ const CrowdedPlaceScreen = () => {
                 </button>
             </div>
 
-            <div ref={contentRef} className="screen-content flex-1 overflow-y-auto bg-white dark:bg-gray-900">
-                <div className="px-4 pt-2 pb-1 flex items-center justify-between">
-                    <h2 className="m-0 text-[17px] font-bold text-[#111827] dark:text-white">실시간 핫플</h2>
-                </div>
+            <div ref={contentRef} className="screen-content flex-1 overflow-y-auto" style={{ background: '#ffffff' }}>
+                <div style={{ padding: '8px 16px 24px', background: '#ffffff', minHeight: '100%' }}>
+                    <div style={{ marginBottom: '0', paddingTop: '4px', paddingBottom: '24px', background: '#ffffff' }}>
+                        <div style={{ padding: '0 0 14px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff' }}>
+                            <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#111827' }}>실시간 핫플</h3>
+                            <span className="w-10" aria-hidden />
+                        </div>
 
-                {filteredPosts.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 px-6 text-center text-slate-400 dark:text-slate-500">
-                        <span className="material-symbols-outlined text-5xl mb-3">local_fire_department</span>
-                        <p className="text-sm mb-1">아직 실시간 핫플 게시물이 없어요</p>
-                        <p className="text-xs text-slate-400 dark:text-slate-500">좋아요가 쌓이거나 최근 게시물이 생기면 이곳에 표시돼요.</p>
+                        {filteredPosts.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '28px 12px', color: '#94a3b8', fontSize: '14px' }}>
+                                아직 실시간 핫플 게시물이 없어요.
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-2 pb-16">
+                                {filteredPosts.map((post) => {
+                                    const cardProps = buildHotFeedCardProps(post, weatherByRegion);
+                                    if (!cardProps) return null;
+                                    const socialText = getHotFeedSocialLine(cardProps, crowdedSocialIdx);
+                                    const liked = isPostLiked(post.id);
+                                    return (
+                                        <HotFeedCard
+                                            key={post.id}
+                                            cardProps={cardProps}
+                                            socialText={socialText}
+                                            liked={liked}
+                                            onCardClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } })}
+                                            onLikeClick={handleHotFeedLike}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
-                ) : (
-                    <div className="flex flex-col gap-2 px-4 pb-20">
-                        {filteredPosts.map((post) => {
-                            const addressLine = getHotFeedAddressLine(post);
-                            const cityDong = getCityDongLine(post);
-                            const photoCategoryLabels = getPhotoCategoryLabels(post);
-                            const captionLine = getPhotoCaptionLine(post);
-                            const engagementTier = getHotCategoryLabel(post);
-                            const tagHint = (post.reasonTags && post.reasonTags[0])
-                                ? String(post.reasonTags[0]).replace(/#/g, '').replace(/_/g, ' ').trim()
-                                : ((Array.isArray(post.aiHotTags) && post.aiHotTags[0])
-                                    ? String(post.aiHotTags[0]).replace(/#/g, '').trim()
-                                    : '');
-                            let whyHotLine = '';
-                            if (post._impactLabel) {
-                                whyHotLine = post._impactLabel;
-                            } else if (engagementTier === '급상승') {
-                                whyHotLine = tagHint ? `최근 이 장소에 관심이 급증했어요. ${tagHint}` : '최근 관심이 급증한 실시간 핫플이에요.';
-                            } else if (engagementTier === '사람 많음') {
-                                whyHotLine = tagHint ? `지금 현장 반응이 뜨거워요. ${tagHint}` : '지금 많은 분들이 몰리는 곳이에요.';
-                            } else if (engagementTier === '인기') {
-                                whyHotLine = tagHint ? `꾸준히 사랑받는 장소예요. ${tagHint}` : '꾸준히 인기 있는 핫플이에요.';
-                            } else {
-                                whyHotLine = tagHint ? `실시간으로 올라온 정보예요. ${tagHint}` : '실시간으로 올라온 핫플 정보예요.';
-                            }
-                            const loc = (post.location || '').trim();
-                            const hasUserCaption = !!(post.note || '').trim()
-                                || (!!(post.content || '').trim() && (post.content || '').trim() !== (loc ? `${loc}의 모습` : ''));
-                            const captionForCard = hasUserCaption ? captionLine : whyHotLine;
-                            const hotReasonLabel = engagementTier === '사람 많음' ? '인파 많음' : engagementTier;
-                            const hotReasonIcon = (() => {
-                                switch (engagementTier) {
-                                    case '급상승': return 'trending_up';
-                                    case '사람 많음': return 'groups';
-                                    case '인기': return 'favorite';
-                                    default: return 'bolt';
-                                }
-                            })();
-                            const hotIndicatorBg = '#b91c1c';
-                            const regionShort = post.region || (post.location || '').trim().split(/\s+/).slice(0, 2).join(' ') || '위치';
-                            const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
-                            const commentCount = Array.isArray(post.comments) ? post.comments.length : 0;
-                            const photoCount = Math.max(1, Math.min(99, (likeCount + commentCount * 2) % 28 + 4));
-                            const viewingCount = computeHotFeedViewingCount(post);
-                            const socialLines = [
-                                `지금 약 ${viewingCount}명이 이 피드를 보고 있어요`,
-                                `좋아요 ${likeCount}개를 받았어요`,
-                                `${photoCount}명이 지금 사진 찍는 중이에요`,
-                            ];
-                            const socialText = socialLines[crowdedSocialIdx % 3];
-                            const avatars = getAvatarUrls(post);
-                            const liked = isPostLiked(post.id);
-                            const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
-                            const weather = post.weather || weatherByRegion[regionKey] || null;
-                            const hasWeather = weather && (weather.icon || weather.temperature != null);
-                            return (
-                                <div
-                                    key={post.id}
-                                    onClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } })}
-                                    className="group flex flex-col cursor-pointer overflow-hidden rounded-[14px] border border-slate-100 bg-white shadow-[0_2px_14px_rgba(15,23,42,0.07)] dark:border-slate-700 dark:bg-slate-800"
-                                >
-                                    <div
-                                        className="relative w-full shrink-0 overflow-hidden bg-[#e5e7eb]"
-                                        style={{
-                                            aspectRatio: '4/3',
-                                            maxHeight: 'min(54vw, 36dvh, 228px)',
-                                        }}
-                                    >
-                                        <div className="absolute left-2 top-2 z-10 flex max-w-[calc(100%-100px)] items-center gap-1">
-                                            <span
-                                                className="inline-flex max-w-full items-center gap-1 rounded-full px-2 py-1 text-[10px] font-extrabold text-white shadow-md"
-                                                style={{ background: hotIndicatorBg }}
-                                            >
-                                                <span className="material-symbols-outlined shrink-0 text-[14px]" style={{ fontVariationSettings: '"FILL" 1' }}>{hotReasonIcon}</span>
-                                                <span className="truncate">{hotReasonLabel}</span>
-                                            </span>
-                                        </div>
-                                        {hasWeather ? (
-                                            <div className="absolute right-2 top-2 z-10 inline-flex max-w-[58%] items-center gap-1 rounded-full bg-[rgba(15,23,42,0.52)] px-2.5 py-1 text-[10px] font-semibold text-[#f8fafc] shadow-md backdrop-blur-[8px]">
-                                                {weather.icon ? <span className="text-xs">{weather.icon}</span> : null}
-                                                <span className="truncate">
-                                                    {weather.temperature != null && weather.temperature !== '-' ? `${weather.temperature}` : ''}
-                                                    {weather.condition && weather.condition !== '-' ? ` ${weather.condition}` : ''}
-                                                </span>
-                                            </div>
-                                        ) : (
-                                            <div className="absolute right-2 top-2 z-10 inline-flex max-w-[58%] items-center gap-0.5 rounded-full bg-[rgba(15,23,42,0.52)] px-2.5 py-1 text-[10px] font-semibold text-[#f8fafc] backdrop-blur-[8px]">
-                                                <span className="material-symbols-outlined text-[13px]">location_on</span>
-                                                <span className="truncate">{regionShort}</span>
-                                            </div>
-                                        )}
-                                        {post.image ? (
-                                            <img src={post.image} alt={post.location || ''} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]" />
-                                        ) : (
-                                            <div className="flex h-full min-h-[100px] w-full items-center justify-center text-slate-400">
-                                                <span className="material-symbols-outlined text-4xl">image</span>
-                                            </div>
-                                        )}
-                                        {(() => {
-                                            const raw = Array.isArray(post.images)
-                                                ? post.images
-                                                : post.images
-                                                    ? [post.images]
-                                                    : post.image
-                                                        ? [post.image]
-                                                        : post.thumbnail
-                                                            ? [post.thumbnail]
-                                                            : [];
-                                            const thumbs = raw.map((v) => getDisplayImageUrl(v)).filter(Boolean).slice(0, 3);
-                                            const showThumbs = thumbs.length > 1;
-                                            if (!showThumbs) return null;
-                                            return (
-                                                <div className="absolute left-2 bottom-2 z-10 flex items-center gap-1.5 rounded-full bg-[rgba(15,23,42,0.38)] px-2 py-1 shadow-sm backdrop-blur-[8px]">
-                                                    {thumbs.map((src, i) => (
-                                                        <img
-                                                            key={`${post.id}-thumb-${i}`}
-                                                            src={src}
-                                                            alt=""
-                                                            className="h-[30px] w-[30px] rounded-[10px] object-cover"
-                                                            style={{ border: '1px solid rgba(255,255,255,0.55)' }}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            );
-                                        })()}
-                                    </div>
-                                    <div className="shrink-0 px-0.5 pb-2.5 pt-2.5">
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div className="min-w-0 flex-1">
-                                                <h3 className="line-clamp-2 text-base font-bold leading-snug text-[#111827] dark:text-white">{addressLine}</h3>
-                                                <div className="mt-1.5 flex items-center justify-between gap-2">
-                                                    <span className="min-w-0 flex-1 truncate text-xs font-medium leading-snug text-slate-500 dark:text-slate-400">
-                                                        {cityDong || regionShort}
-                                                    </span>
-                                                    {photoCategoryLabels.length > 0 ? (
-                                                        <div className="flex max-w-[52%] flex-wrap justify-end gap-1">
-                                                            {photoCategoryLabels.map((label) => (
-                                                                <span
-                                                                    key={`${post.id}-pl-${label}`}
-                                                                    className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold text-white"
-                                                                    style={{ background: 'rgba(38, 198, 218, 0.95)' }}
-                                                                >
-                                                                    {label}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    ) : null}
-                                                </div>
-                                                <p className="mt-2 line-clamp-2 break-words text-xs font-medium leading-relaxed text-[#374151] dark:text-slate-200">
-                                                    {captionForCard}
-                                                </p>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                className="mt-0.5 shrink-0 border-0 bg-transparent p-1 text-slate-400 hover:text-rose-500"
-                                                onClick={(e) => handleHotFeedLike(e, post)}
-                                                aria-label="좋아요"
-                                            >
-                                                <span className="material-symbols-outlined text-[22px]" style={liked ? { fontVariationSettings: '"FILL" 1', color: '#f43f5e' } : undefined}>
-                                                    favorite
-                                                </span>
-                                            </button>
-                                        </div>
-                                        <div className="mt-2 flex shrink-0 items-center justify-between gap-2">
-                                            <div className="flex min-w-0 flex-1 items-center gap-2">
-                                                <div className="flex items-center pl-0.5">
-                                                    {avatars.slice(0, 3).map((url, ai) => (
-                                                        <img
-                                                            key={`${post.id}-av-${ai}`}
-                                                            src={url}
-                                                            alt=""
-                                                            className="h-[26px] w-[26px] flex-shrink-0 rounded-full border-2 border-white object-cover"
-                                                            style={{ marginLeft: ai === 0 ? 0 : -9 }}
-                                                        />
-                                                    ))}
-                                                    {avatars.length === 0 ? (
-                                                        <span className="inline-flex h-[26px] w-[26px] items-center justify-center rounded-full bg-slate-200 text-[11px]" aria-hidden>
-                                                            👤
-                                                        </span>
-                                                    ) : null}
-                                                </div>
-                                                <span
-                                                    key={`crowded-social-${post.id}-${crowdedSocialIdx}`}
-                                                    className="min-w-0 flex-1 text-[11px] font-medium leading-snug text-slate-600 dark:text-slate-300"
-                                                >
-                                                    {socialText}
-                                                </span>
-                                            </div>
-                                            <span className="shrink-0 text-[10px] text-slate-400 dark:text-slate-500">{post.time ? `${post.time} 업로드` : '최근 업로드'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
+                </div>
             </div>
 
             {/* 위로가기 버튼 - 프로필 버튼 바로 위, 흰색 완전 원형 */}

@@ -19,15 +19,8 @@ import { rankHotspotPosts } from '../utils/hotnessEngine';
 import { updatePostLikesSupabase } from '../api/postsSupabase';
 import { getWeatherByRegion } from '../api/weather';
 import { listPublishedMagazines } from '../utils/magazinesStore';
-import {
-    getHotFeedAddressLine,
-    getCityDongLine,
-    getPhotoCaptionLine,
-    getAvatarUrls,
-    computeHotFeedViewingCount,
-    getHotCategoryLabel,
-    getPhotoCategoryLabels,
-} from '../utils/hotPlaceDisplay';
+import HotFeedCard from '../components/HotFeedCard';
+import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCardModel';
 
 const MainScreen = () => {
     const navigate = useNavigate();
@@ -580,76 +573,10 @@ const MainScreen = () => {
         };
     }, [hotFeedPost]);
 
-    const hotFeedCardProps = useMemo(() => {
-        if (!hotFeedPost) return null;
-        const post = hotFeedPost;
-        const title = getHotFeedAddressLine(post);
-        const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
-        const weather = post.weather || weatherByRegion[regionKey] || null;
-        const hasWeather = weather && (weather.icon || weather.temperature);
-        const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
-        const commentCount = Array.isArray(post.comments) ? post.comments.length : 0;
-        const photoCount = Math.max(1, Math.min(99, (likeCount + commentCount * 2) % 28 + 4));
-        const viewingCount = computeHotFeedViewingCount(post);
-        const avatars = getAvatarUrls(post);
-        const regionShort = post.region || (post.location || '').trim().split(/\s+/).slice(0, 2).join(' ') || '위치';
-        const engagementTier = getHotCategoryLabel(post);
-        const tagHint = (post.reasonTags && post.reasonTags[0])
-            ? String(post.reasonTags[0]).replace(/#/g, '').replace(/_/g, ' ').trim()
-            : ((Array.isArray(post.aiHotTags) && post.aiHotTags[0])
-                ? String(post.aiHotTags[0]).replace(/#/g, '').trim()
-                : '');
-        let whyHotLine = '';
-        if (post._impactLabel) {
-            whyHotLine = post._impactLabel;
-        } else if (engagementTier === '급상승') {
-            whyHotLine = tagHint ? `최근 이 장소에 관심이 급증했어요. ${tagHint}` : '최근 관심이 급증한 실시간 핫플이에요.';
-        } else if (engagementTier === '사람 많음') {
-            whyHotLine = tagHint ? `지금 현장 반응이 뜨거워요. ${tagHint}` : '지금 많은 분들이 몰리는 곳이에요.';
-        } else if (engagementTier === '인기') {
-            whyHotLine = tagHint ? `꾸준히 사랑받는 장소예요. ${tagHint}` : '꾸준히 인기 있는 핫플이에요.';
-        } else {
-            whyHotLine = tagHint ? `실시간으로 올라온 정보예요. ${tagHint}` : '실시간으로 올라온 핫플 정보예요.';
-        }
-        const cityDongLine = getCityDongLine(post);
-        const hotReasonLabel = engagementTier === '사람 많음' ? '인파 많음' : engagementTier;
-        const hotReasonIcon = (() => {
-            switch (engagementTier) {
-                case '급상승':
-                    return 'trending_up';
-                case '사람 많음':
-                    return 'groups';
-                case '인기':
-                    return 'favorite';
-                default:
-                    return 'bolt';
-            }
-        })();
-        const photoCaptionLine = getPhotoCaptionLine(post);
-        const loc = (post.location || '').trim();
-        const hasUserCaption = !!(post.note || '').trim()
-            || (!!(post.content || '').trim() && (post.content || '').trim() !== (loc ? `${loc}의 모습` : ''));
-        const captionForCard = hasUserCaption ? photoCaptionLine : whyHotLine;
-        const photoCategoryLabels = getPhotoCategoryLabels(post);
-        return {
-            post,
-            title,
-            regionKey,
-            weather,
-            hasWeather,
-            photoCount,
-            viewingCount,
-            likeCount,
-            avatars,
-            regionShort,
-            hotReasonLabel,
-            hotReasonIcon,
-            whyHotLine,
-            cityDongLine,
-            captionForCard,
-            photoCategoryLabels,
-        };
-    }, [hotFeedPost, weatherByRegion]);
+    const hotFeedCardProps = useMemo(
+        () => buildHotFeedCardProps(hotFeedPost, weatherByRegion),
+        [hotFeedPost, weatherByRegion]
+    );
 
     useEffect(() => {
         setHotFeedSlideIndex(0);
@@ -1256,236 +1183,20 @@ const MainScreen = () => {
                                 </div>
                             ) : (
                                 (() => {
-                                    const {
-                                        post,
-                                        title,
-                                        weather,
-                                        hasWeather,
-                                        photoCount,
-                                        viewingCount,
-                                        likeCount,
-                                        avatars,
-                                        regionShort,
-                                        hotReasonLabel,
-                                        hotReasonIcon,
-                                        cityDongLine,
-                                        captionForCard,
-                                        photoCategoryLabels,
-                                    } = hotFeedCardProps;
-                                    const socialLines = [
-                                        `지금 약 ${viewingCount}명이 이 피드를 보고 있어요`,
-                                        `좋아요 ${likeCount}개를 받았어요`,
-                                        `${photoCount}명이 지금 사진 찍는 중이에요`,
-                                    ];
-                                    const socialText = socialLines[hotFeedSocialIdx % 3];
-                                    const liked = isPostLiked(post.id);
+                                    const { post } = hotFeedCardProps;
                                     const slideIdx = crowdedData.length ? hotFeedSlideIndex % crowdedData.length : 0;
-                                    const hotIndicatorBg = '#b91c1c';
+                                    const socialText = getHotFeedSocialLine(hotFeedCardProps, hotFeedSocialIdx);
+                                    const liked = isPostLiked(post.id);
                                     return (
-                                    <div
-                                        key={`${post.id}-${slideIdx}`}
-                                        className="hot-feed-card-enter"
-                                        onClick={withDragCheck(() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } }))}
-                                        style={{
-                                            cursor: 'pointer',
-                                            background: 'transparent',
-                                            border: 'none',
-                                            boxShadow: 'none',
-                                            overflow: 'visible',
-                                        }}
-                                    >
-                                        <div
-                                            className="main-hot-feed-media"
-                                            style={{
-                                                width: '100%',
-                                                aspectRatio: '4/3',
-                                                maxHeight: 'min(54vw, 36dvh, 228px)',
-                                                position: 'relative',
-                                                background: '#e5e7eb',
-                                                overflow: 'hidden',
-                                                borderRadius: 14,
-                                                boxShadow: '0 2px 14px rgba(15, 23, 42, 0.07)',
-                                            }}
-                                        >
-                                            <div
-                                                style={{
-                                                    position: 'absolute',
-                                                    top: 8,
-                                                    left: 8,
-                                                    zIndex: 10,
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: 4,
-                                                    maxWidth: 'calc(100% - 100px)',
-                                                }}
-                                            >
-                                                <span
-                                                    title="이 게시물이 핫플에 오른 이유"
-                                                    style={{
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        gap: 4,
-                                                        background: hotIndicatorBg,
-                                                        color: '#fff',
-                                                        padding: '4px 9px',
-                                                        borderRadius: 9999,
-                                                        fontSize: 10,
-                                                        fontWeight: 800,
-                                                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                                                        maxWidth: '100%',
-                                                    }}
-                                                >
-                                                    <span className="material-symbols-outlined shrink-0" style={{ fontSize: 14, fontVariationSettings: '"FILL" 1' }}>{hotReasonIcon}</span>
-                                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hotReasonLabel}</span>
-                                                </span>
-                                            </div>
-                                            {hasWeather ? (
-                                                <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(15,23,42,0.52)', backdropFilter: 'blur(8px)', color: '#f8fafc', padding: '4px 9px', borderRadius: 9999, fontSize: 10, fontWeight: 600, maxWidth: '58%' }}>
-                                                    {weather.icon && <span style={{ fontSize: 12 }}>{weather.icon}</span>}
-                                                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                        {weather.temperature}
-                                                        {weather.condition && weather.condition !== '-' ? ` ${weather.condition}` : ''}
-                                                    </span>
-                                                </div>
-                                            ) : (
-                                                <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'inline-flex', alignItems: 'center', gap: 3, background: 'rgba(15,23,42,0.52)', backdropFilter: 'blur(8px)', color: '#f8fafc', padding: '4px 9px', borderRadius: 9999, fontSize: 10, fontWeight: 600, maxWidth: '58%' }}>
-                                                    <span className="material-symbols-outlined" style={{ fontSize: 13 }}>location_on</span>
-                                                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{regionShort}</span>
-                                                </div>
-                                            )}
-                                            {(() => {
-                                                const still = getMapThumbnailUri(post);
-                                                const src = still
-                                                    || hotFeedVideoPoster
-                                                    || (Array.isArray(post.images) && post.images.length > 0 ? post.images[0] : (post.image || post.thumbnail || ''));
-                                                if (!src) return <div style={{ width: '100%', height: '100%', background: '#e5e7eb' }} />;
-                                                return (
-                                                    <img
-                                                        src={src.startsWith('data:') ? src : getDisplayImageUrl(src)}
-                                                        alt={title}
-                                                        decoding="async"
-                                                        fetchPriority="high"
-                                                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                                                    />
-                                                );
-                                            })()}
-                                            {(() => {
-                                                const raw = Array.isArray(post.images)
-                                                    ? post.images
-                                                    : post.images
-                                                        ? [post.images]
-                                                        : post.image
-                                                            ? [post.image]
-                                                            : post.thumbnail
-                                                                ? [post.thumbnail]
-                                                                : [];
-                                                const thumbs = raw.map((v) => getDisplayImageUrl(v)).filter(Boolean).slice(0, 3);
-                                                const showThumbs = thumbs.length > 1;
-                                                if (!showThumbs) return null;
-                                                return (
-                                                    <div
-                                                        style={{
-                                                            position: 'absolute',
-                                                            left: 10,
-                                                            bottom: 10,
-                                                            zIndex: 12,
-                                                            display: 'flex',
-                                                            gap: 6,
-                                                            padding: '6px 8px',
-                                                            borderRadius: 9999,
-                                                            background: 'rgba(15,23,42,0.38)',
-                                                            backdropFilter: 'blur(8px)',
-                                                        }}
-                                                    >
-                                                        {thumbs.map((src, i) => (
-                                                            <img
-                                                                key={`${post.id}-thumb-${i}`}
-                                                                src={src}
-                                                                alt=""
-                                                                style={{
-                                                                    width: 34,
-                                                                    height: 34,
-                                                                    borderRadius: 10,
-                                                                    objectFit: 'cover',
-                                                                    border: '1px solid rgba(255,255,255,0.55)',
-                                                                    boxShadow: '0 1px 5px rgba(0,0,0,0.18)',
-                                                                }}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                );
-                                            })()}
-                                        </div>
-                                        <div style={{ padding: '10px 2px 4px', background: 'transparent', border: 'none', boxShadow: 'none' }}>
-                                            <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{title}</h4>
-                                            {(cityDongLine || regionShort || (photoCategoryLabels && photoCategoryLabels.length)) ? (
-                                                <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                                                    <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500, lineHeight: 1.4, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cityDongLine || regionShort}</span>
-                                                    {photoCategoryLabels && photoCategoryLabels.length > 0 ? (
-                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'flex-end', flexShrink: 0, maxWidth: '52%' }}>
-                                                            {photoCategoryLabels.map((label) => (
-                                                                <span
-                                                                    key={`${post.id}-cat-${label}`}
-                                                                    style={{
-                                                                        fontSize: 10,
-                                                                        fontWeight: 700,
-                                                                        color: '#fff',
-                                                                        background: 'rgba(38, 198, 218, 0.95)',
-                                                                        padding: '3px 8px',
-                                                                        borderRadius: 9999,
-                                                                        whiteSpace: 'nowrap',
-                                                                    }}
-                                                                >
-                                                                    {label}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    ) : null}
-                                                </div>
-                                            ) : null}
-                                            <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', background: 'transparent', boxShadow: 'none' }}>{captionForCard}</p>
-                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, gap: 8 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1, gap: 8 }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 2 }}>
-                                                        {avatars.slice(0, 3).map((url, ai) => (
-                                                            <img
-                                                                key={`${post.id}-av-${ai}`}
-                                                                src={url}
-                                                                alt=""
-                                                                style={{
-                                                                    width: 26,
-                                                                    height: 26,
-                                                                    borderRadius: '50%',
-                                                                    border: '2px solid #fff',
-                                                                    marginLeft: ai === 0 ? 0 : -9,
-                                                                    objectFit: 'cover',
-                                                                    flexShrink: 0,
-                                                                    background: '#e2e8f0',
-                                                                }}
-                                                            />
-                                                        ))}
-                                                        {avatars.length === 0 && (
-                                                            <span style={{ width: 26, height: 26, borderRadius: '50%', background: '#e2e8f0', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }} aria-hidden>👤</span>
-                                                        )}
-                                                    </div>
-                                                    <span
-                                                        key={`social-${post.id}-${hotFeedSocialIdx}`}
-                                                        style={{ fontSize: 11, color: '#64748b', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
-                                                    >
-                                                        {socialText}
-                                                    </span>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    aria-label="좋아요"
-                                                    onClick={(e) => handleHotFeedLike(e, post)}
-                                                    style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', flexShrink: 0, color: liked ? '#f43f5e' : '#94a3b8' }}
-                                                >
-                                                    <span className="material-symbols-outlined" style={{ fontSize: 22, fontVariationSettings: liked ? '"FILL" 1' : '"FILL" 0' }}>favorite</span>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
+                                        <HotFeedCard
+                                            key={`${post.id}-${slideIdx}`}
+                                            cardProps={hotFeedCardProps}
+                                            socialText={socialText}
+                                            liked={liked}
+                                            onCardClick={withDragCheck(() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } }))}
+                                            onLikeClick={handleHotFeedLike}
+                                            videoPosterUrl={hotFeedVideoPoster}
+                                        />
                                     );
                                 })()
                             )}
