@@ -10,16 +10,18 @@ const carouselRowClass =
   'flex w-full min-w-0 flex-row overflow-x-auto snap-x snap-mandatory overscroll-x-contain touch-pan-x [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden cursor-grab active:cursor-grabbing select-none';
 
 const MAGAZINE_DRAG_MULTIPLIER = 2.35;
+/** 장소 가로 슬라이드: 살짝만 넘겨도 다음/이전 칸으로 붙도록 (bias 작을수록 민감) */
+const PLACES_ROW_DRAG_MULTIPLIER = 3.6;
+const PLACES_SNAP_BIAS = 0.1;
 
 /**
- * 짧은 스와이프에도 다음/이전 칸으로 붙도록 (중간 35%만 '가까운 쪽'으로 반올림)
- * pages = scrollLeft / pageWidth 일 때 ceil(pages - 0.35) 로 칸 결정
+ * pages = scrollLeft / pageWidth 일 때 ceil(pages - snapBias) 로 칸 결정 (bias 작을수록 짧은 스와이프에 반응)
  */
-function snapIndexFromScroll(scrollLeft, pageWidth, pageCount) {
+function snapIndexFromScroll(scrollLeft, pageWidth, pageCount, snapBias = 0.35) {
   if (!pageWidth || pageCount < 1) return 0;
   const maxIdx = pageCount - 1;
   const pages = scrollLeft / pageWidth;
-  const i = Math.ceil(pages - 0.35);
+  const i = Math.ceil(pages - snapBias);
   return Math.max(0, Math.min(i, maxIdx));
 }
 
@@ -27,7 +29,7 @@ function snapHeroToNearestPage(el, pageCount, setIdxState) {
   if (!el || pageCount < 2) return;
   const w = el.clientWidth || el.offsetWidth;
   if (!w) return;
-  const i = snapIndexFromScroll(el.scrollLeft, w, pageCount);
+  const i = snapIndexFromScroll(el.scrollLeft, w, pageCount, 0.35);
   el.scrollTo({ left: i * w, behavior: 'auto' });
   setIdxState(i);
 }
@@ -86,7 +88,7 @@ function HeroRotator({ urls, resetKey, timeLabel }) {
     const el = e.currentTarget;
     const w = el.clientWidth || el.offsetWidth;
     if (!w || !safe.length) return;
-    setIdx(snapIndexFromScroll(el.scrollLeft, w, safe.length));
+    setIdx(snapIndexFromScroll(el.scrollLeft, w, safe.length, 0.35));
   };
 
   if (!safe.length) {
@@ -168,7 +170,7 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
       if (!node || slides.length < 2) return;
       const w = node.clientWidth || node.offsetWidth;
       if (!w) return;
-      const i = snapIndexFromScroll(node.scrollLeft, w, slides.length);
+      const i = snapIndexFromScroll(node.scrollLeft, w, slides.length, PLACES_SNAP_BIAS);
       node.scrollTo({ left: i * w, behavior: 'auto' });
       setPlaceSlideIdx(i);
     },
@@ -176,7 +178,7 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
   );
 
   const { handleDragStart: handlePlacesDragStart } = useHorizontalDragScroll(snapPlacesToNearest, {
-    dragMultiplier: MAGAZINE_DRAG_MULTIPLIER,
+    dragMultiplier: PLACES_ROW_DRAG_MULTIPLIER,
   });
 
   useEffect(() => {
@@ -204,7 +206,7 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
     const el = e.currentTarget;
     const w = el.clientWidth || el.offsetWidth;
     if (!w || !slides.length) return;
-    setPlaceSlideIdx(snapIndexFromScroll(el.scrollLeft, w, slides.length));
+    setPlaceSlideIdx(snapIndexFromScroll(el.scrollLeft, w, slides.length, PLACES_SNAP_BIAS));
   };
 
   const scrollToPlaceSlide = (index) => {
@@ -301,21 +303,26 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
                       <button
                         type="button"
                         onClick={(e) => handleAskLight(e, slide)}
-                        className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 px-4 text-[14px] font-bold text-white shadow-md shadow-primary/25 transition hover:bg-primary/90 active:scale-[0.99] dark:bg-primary dark:text-white"
+                        className="mb-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-primary/35 bg-primary/[0.07] py-2.5 px-3 text-[13px] font-semibold text-primary shadow-none transition hover:bg-primary/12 active:scale-[0.99] dark:border-primary/45 dark:bg-primary/10 dark:text-primary"
                       >
-                        <span className="material-symbols-outlined text-[18px] text-white">chat_bubble</span>
+                        <span className="material-symbols-outlined text-[17px] text-primary" style={{ fontVariationSettings: '"FILL" 0' }}>
+                          chat_bubble
+                        </span>
                         지금 여기 장소에 대해 물어보기
                       </button>
                       {Array.isArray(slide.aroundDisplay) && slide.aroundDisplay.length > 0 ? (
-                        <div className="mb-1">
-                          <h4 className="m-0 mb-2 text-[13px] font-bold text-gray-900 dark:text-gray-50">
-                            장소 주변 명소, 맛집
+                        <div className="mb-1 rounded-xl border border-zinc-100 bg-zinc-50/90 p-3 dark:border-zinc-700 dark:bg-zinc-900/45">
+                          <h4 className="m-0 mb-1 text-[13px] font-bold text-gray-900 dark:text-gray-50">
+                            {sectionHeading} 주변, 같이 가보면 좋은 곳
                           </h4>
-                          <div className="-mx-1 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          <p className="m-0 mb-2.5 text-[11px] leading-snug text-gray-500 dark:text-gray-400">
+                            소개해 둔 주변 명소·맛집이에요. 피드에 새 사진이 올라오면 썸네일이 갱신돼요.
+                          </p>
+                          <div className="-mx-0.5 flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                             {slide.aroundDisplay.map((ar) => (
                               <div
                                 key={ar.id}
-                                className="w-[132px] shrink-0 overflow-hidden rounded-xl border border-zinc-100 bg-zinc-50/80 dark:border-zinc-700 dark:bg-zinc-900/50"
+                                className="w-[132px] shrink-0 overflow-hidden rounded-xl border border-white/80 bg-white shadow-sm dark:border-zinc-600 dark:bg-zinc-900/60"
                               >
                                 <div className="relative aspect-[4/3] bg-zinc-200 dark:bg-zinc-800">
                                   {ar.image ? (
@@ -369,21 +376,26 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
                         <button
                           type="button"
                           onClick={(e) => handleAskLight(e, slide)}
-                          className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 px-4 text-[14px] font-bold text-white shadow-md shadow-primary/25 transition hover:bg-primary/90 active:scale-[0.99] dark:bg-primary dark:text-white"
+                          className="mb-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-primary/35 bg-primary/[0.07] py-2.5 px-3 text-[13px] font-semibold text-primary shadow-none transition hover:bg-primary/12 active:scale-[0.99] dark:border-primary/45 dark:bg-primary/10 dark:text-primary"
                         >
-                          <span className="material-symbols-outlined text-[18px] text-white">chat_bubble</span>
+                          <span className="material-symbols-outlined text-[17px] text-primary" style={{ fontVariationSettings: '"FILL" 0' }}>
+                            chat_bubble
+                          </span>
                           지금 여기 장소에 대해 물어보기
                         </button>
                         {Array.isArray(slide.aroundDisplay) && slide.aroundDisplay.length > 0 ? (
-                          <div className="mb-1">
-                            <h4 className="m-0 mb-2 text-[13px] font-bold text-gray-900 dark:text-gray-50">
-                              장소 주변 명소, 맛집
+                          <div className="mb-1 rounded-xl border border-zinc-100 bg-zinc-50/90 p-3 dark:border-zinc-700 dark:bg-zinc-900/45">
+                            <h4 className="m-0 mb-1 text-[13px] font-bold text-gray-900 dark:text-gray-50">
+                              {sectionHeading} 주변, 같이 가보면 좋은 곳
                             </h4>
-                            <div className="-mx-1 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            <p className="m-0 mb-2.5 text-[11px] leading-snug text-gray-500 dark:text-gray-400">
+                              소개해 둔 주변 명소·맛집이에요. 피드에 새 사진이 올라오면 썸네일이 갱신돼요.
+                            </p>
+                            <div className="-mx-0.5 flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                               {slide.aroundDisplay.map((ar) => (
                                 <div
                                   key={ar.id}
-                                  className="w-[132px] shrink-0 overflow-hidden rounded-xl border border-zinc-100 bg-zinc-50/80 dark:border-zinc-700 dark:bg-zinc-900/50"
+                                  className="w-[132px] shrink-0 overflow-hidden rounded-xl border border-white/80 bg-white shadow-sm dark:border-zinc-600 dark:bg-zinc-900/60"
                                 >
                                   <div className="relative aspect-[4/3] bg-zinc-200 dark:bg-zinc-800">
                                     {ar.image ? (
