@@ -1,12 +1,13 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getTimeAgo } from '../utils/timeUtils';
 import { getMapThumbnailUri } from '../utils/postMedia';
 import { mediaUrlsFromPost, normalizeSpace } from '../utils/magazinePublishedUi';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 
+/** 스무스 스크롤 없음 → 한 장 단위 스냅이 덜 흐트러짐 */
 const carouselRowClass =
-  'flex w-full flex-row overflow-x-auto snap-x snap-mandatory overscroll-x-contain touch-pan-x scroll-smooth [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden cursor-grab active:cursor-grabbing select-none';
+  'flex w-full min-w-0 flex-row overflow-x-auto snap-x snap-mandatory overscroll-x-contain touch-pan-x [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden cursor-grab active:cursor-grabbing select-none';
 
 const collectHeroUrls = (slide, regionPosts) => {
   const set = new Set();
@@ -20,12 +21,31 @@ const collectHeroUrls = (slide, regionPosts) => {
   return [...set].filter(Boolean).slice(0, 12);
 };
 
+/** 가로 한 장 단위 스냅 (snap-start + 드래그/터치 종료 시 정렬) */
+function snapHeroToNearestPage(el, pageCount, setIdxState) {
+  if (!el || pageCount < 2) return;
+  const w = el.clientWidth || el.offsetWidth;
+  if (!w) return;
+  const raw = Math.round(el.scrollLeft / w);
+  const i = Math.max(0, Math.min(raw, pageCount - 1));
+  el.scrollTo({ left: i * w, behavior: 'auto' });
+  setIdxState(i);
+}
+
 /** 메인 영역: 좌우 스와이프로 사진 넘김 */
 function HeroRotator({ urls, resetKey, timeLabel }) {
-  const { handleDragStart: handleHeroDragStart } = useHorizontalDragScroll();
   const safe = useMemo(() => (Array.isArray(urls) ? urls.filter(Boolean) : []), [urls]);
   const [idx, setIdx] = useState(0);
   const scrollRef = useRef(null);
+
+  const onHeroRelease = useCallback(
+    (el) => {
+      snapHeroToNearestPage(el, safe.length, setIdx);
+    },
+    [safe.length]
+  );
+
+  const { handleDragStart: handleHeroDragStart } = useHorizontalDragScroll(onHeroRelease);
 
   useEffect(() => {
     setIdx(0);
@@ -33,9 +53,24 @@ function HeroRotator({ urls, resetKey, timeLabel }) {
     if (el) el.scrollTo({ left: 0, behavior: 'auto' });
   }, [resetKey]);
 
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || safe.length < 2) return;
+    const snap = () => snapHeroToNearestPage(el, safe.length, setIdx);
+    el.addEventListener('scrollend', snap);
+    const onTouchEnd = () => {
+      requestAnimationFrame(() => requestAnimationFrame(snap));
+    };
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener('scrollend', snap);
+      el.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [resetKey, safe.length]);
+
   const onHeroScroll = (e) => {
     const el = e.currentTarget;
-    const w = el.offsetWidth;
+    const w = el.clientWidth || el.offsetWidth;
     if (!w || !safe.length) return;
     const i = Math.round(el.scrollLeft / w);
     setIdx(Math.max(0, Math.min(i, safe.length - 1)));
@@ -50,7 +85,7 @@ function HeroRotator({ urls, resetKey, timeLabel }) {
   }
 
   const heroStripClass =
-    'flex h-full w-full flex-row overflow-x-auto snap-x snap-mandatory overscroll-x-contain touch-pan-x scroll-smooth [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden cursor-grab active:cursor-grabbing select-none';
+    'flex h-full w-full min-w-0 flex-row overflow-x-auto snap-x snap-mandatory overscroll-x-contain touch-pan-x [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden cursor-grab active:cursor-grabbing select-none';
 
   return (
     <div className="relative w-full overflow-hidden bg-zinc-100 dark:bg-zinc-800">
@@ -65,7 +100,7 @@ function HeroRotator({ urls, resetKey, timeLabel }) {
           {safe.map((src, i) => (
             <div
               key={`${resetKey}-${src}-${i}`}
-              className="relative h-full min-w-full shrink-0 snap-center snap-always"
+              className="relative h-full w-full min-w-0 shrink-0 grow-0 basis-full snap-start snap-always"
             >
               <img
                 src={src}
@@ -106,7 +141,6 @@ function HeroRotator({ urls, resetKey, timeLabel }) {
  */
 const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list' }) => {
   const navigate = useNavigate();
-  const { handleDragStart: handlePlacesDragStart } = useHorizontalDragScroll();
   const placesRowRef = useRef(null);
   const [placeSlideIdx, setPlaceSlideIdx] = useState(0);
 
@@ -115,11 +149,42 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
     [slides]
   );
 
+  const snapPlacesToNearest = useCallback(
+    (el) => {
+      const node = el || placesRowRef.current;
+      if (!node || slides.length < 2) return;
+      const w = node.clientWidth || node.offsetWidth;
+      if (!w) return;
+      const raw = Math.round(node.scrollLeft / w);
+      const i = Math.max(0, Math.min(raw, slides.length - 1));
+      node.scrollTo({ left: i * w, behavior: 'auto' });
+      setPlaceSlideIdx(i);
+    },
+    [slides.length]
+  );
+
+  const { handleDragStart: handlePlacesDragStart } = useHorizontalDragScroll(snapPlacesToNearest);
+
   useEffect(() => {
     setPlaceSlideIdx(0);
     const el = placesRowRef.current;
     if (el) el.scrollTo({ left: 0, behavior: 'auto' });
   }, [slidesStableKey]);
+
+  useEffect(() => {
+    const el = placesRowRef.current;
+    if (!el || slides.length < 2) return;
+    const snap = () => snapPlacesToNearest(el);
+    el.addEventListener('scrollend', snap);
+    const onTouchEnd = () => {
+      requestAnimationFrame(() => requestAnimationFrame(snap));
+    };
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener('scrollend', snap);
+      el.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [slides.length, slidesStableKey, snapPlacesToNearest]);
 
   const onPlacesRowScroll = (e) => {
     const el = e.currentTarget;
@@ -135,7 +200,8 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
     const w = el.clientWidth || el.offsetWidth;
     if (!w) return;
     const i = Math.max(0, Math.min(index, slides.length - 1));
-    el.scrollTo({ left: w * i, behavior: 'smooth' });
+    el.scrollTo({ left: w * i, behavior: 'auto' });
+    setPlaceSlideIdx(i);
   };
 
   const handleFeaturedClick = (slide) => {
@@ -190,7 +256,7 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
           return (
             <div
               key={`slide-${slide.sectionIndex}-${i}`}
-              className="w-full min-w-[100%] max-w-[100%] shrink-0 snap-center snap-always box-border px-0"
+              className="box-border w-full min-w-0 max-w-full shrink-0 grow-0 basis-full snap-start snap-always px-0"
             >
               <article className="w-full max-w-full pb-1">
                 {variant === 'detail' ? (
