@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { useAuth } from '../contexts/AuthContext';
 import { getEarnedBadgesForUser, BADGES, getBadgeDisplayName } from '../utils/badgeSystem';
@@ -12,9 +12,15 @@ import { getPosts } from '../api/posts';
 import { fetchPostsByUserIdSupabase, fetchPostsSupabase } from '../api/postsSupabase';
 import { getTrustRawScore, getTrustGrade } from '../utils/trustIndex';
 import api from '../api/axios';
+import {
+  resolveUserDisplayFromPosts,
+  getCachedFollowProfile,
+  setCachedFollowProfile,
+} from '../utils/userProfileHints';
 
 const UserProfileScreen = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { userId } = useParams();
   const { user: currentUser } = useAuth();
   const [user, setUser] = useState(null);
@@ -54,10 +60,11 @@ const UserProfileScreen = () => {
     setRepresentativeBadge(null);
     setStats({ posts: 0 });
     setShowAllBadges(false);
-    setTrustScore(0);
+    setTrustRawScore(0);
 
     // 해당 사용자의 정보 찾기 (게시물에서)
     const uploadedPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+    const profileHint = location.state?.profileHint;
 
     // userId 매칭 (일관된 로직 - PostDetailScreen과 동일)
     const userPost = uploadedPosts.find(p => {
@@ -83,25 +90,34 @@ const UserProfileScreen = () => {
       return String(postUserId) === String(userId);
     });
 
-    if (userPost) {
-      const postUserId = userPost.userId ||
-        (typeof userPost.user === 'string' ? userPost.user : userPost.user?.id) ||
-        userPost.user;
-      const foundUser = {
-        id: String(userId),
-        username: (typeof userPost.user === 'string' ? userPost.user : userPost.user?.username) ||
+    const cached = getCachedFollowProfile(userId);
+    const resolvedFromPosts = resolveUserDisplayFromPosts(userId, uploadedPosts);
+    const pickUsername = () => {
+      if (profileHint?.username && profileHint.username !== '사용자') return profileHint.username;
+      if (cached?.username && cached.username !== '사용자') return cached.username;
+      if (userPost) {
+        const postUserId = userPost.userId ||
+          (typeof userPost.user === 'string' ? userPost.user : userPost.user?.id) ||
+          userPost.user;
+        return (typeof userPost.user === 'string' ? userPost.user : userPost.user?.username) ||
           String(postUserId) ||
-          '사용자',
-        profileImage: null
-      };
-      setUser(foundUser);
-    } else {
-      setUser({
-        id: String(userId),
-        username: '사용자',
-        profileImage: null
-      });
-    }
+          resolvedFromPosts.username;
+      }
+      return resolvedFromPosts.username;
+    };
+    const pickAvatar = () =>
+      profileHint?.profileImage ??
+      cached?.profileImage ??
+      (userPost && typeof userPost.user === 'object' ? userPost.user?.profileImage : null) ??
+      userPost?.userAvatar ??
+      resolvedFromPosts.profileImage ??
+      null;
+
+    setUser({
+      id: String(userId),
+      username: pickUsername(),
+      profileImage: pickAvatar(),
+    });
 
     // 뱃지 로드 (현재 로컬/서버 기준 실제 데이터만 사용)
     const badges = getEarnedBadgesForUser(userId) || [];
@@ -156,7 +172,18 @@ const UserProfileScreen = () => {
         if (supabasePosts && supabasePosts.length > 0) {
           const first = supabasePosts[0];
           const u = first.user && typeof first.user === 'object' ? first.user : {};
-          setUser(prev => ({ ...(prev || {}), id: String(userId), username: u.username || prev?.username || '사용자', profileImage: u.profileImage ?? prev?.profileImage ?? null }));
+          setUser((prev) => {
+            const next = {
+              ...(prev || {}),
+              id: String(userId),
+              username: u.username || prev?.username || '사용자',
+              profileImage: u.profileImage ?? prev?.profileImage ?? null,
+            };
+            if (next.username && next.username !== '사용자') {
+              setCachedFollowProfile(userId, { username: next.username, profileImage: next.profileImage ?? null });
+            }
+            return next;
+          });
         }
       } catch (_) { /* Supabase 실패 시 로컬/API만 사용 */ }
       // 2) 로컬 게시물 병합 (같은 id면 유지, 없으면 추가)
@@ -215,7 +242,7 @@ const UserProfileScreen = () => {
       setSelectedDate('');
       setAvailableDates([]);
     };
-  }, [userId, navigate, currentUser]);
+  }, [userId, navigate, currentUser, location.key]);
 
   // 팔로우 / 팔로워·팔로잉 수 로드 및 followsUpdated 구독
   useEffect(() => {
@@ -496,8 +523,18 @@ const UserProfileScreen = () => {
                             setFollowerCount((c) => c + 1);
                             const myName = currentUser?.username || '여행자';
                             const theirName = user?.username || '사용자';
-                            notifyFollowReceived(myName, userId);
-                            notifyFollowingStarted(theirName, currentUser.id);
+                            setCachedFollowProfile(userId, {
+                              username: theirName,
+                              profileImage: user?.profileImage || null,
+                            });
+                            notifyFollowReceived(myName, userId, {
+                              actorUserId: currentUser.id,
+                              actorAvatar: currentUser?.profileImage || null,
+                            });
+                            notifyFollowingStarted(theirName, currentUser.id, {
+                              targetUserId: userId,
+                              targetAvatar: user?.profileImage || null,
+                            });
                           }
                         }
                         setFollowLoading(false);

@@ -1,61 +1,86 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import BottomNavigation from '../components/BottomNavigation';
-import { getNotificationsForCurrentUser, markAllNotificationsAsRead, markNotificationAsRead, deleteNotification } from '../utils/notifications';
+import {
+  getNotificationsForCurrentUser,
+  markAllNotificationsAsRead,
+  markNotificationAsRead,
+  deleteNotification,
+} from '../utils/notifications';
+import { follow, unfollow, isFollowing } from '../utils/followSystem';
+import { getDisplayImageUrl } from '../api/upload';
 
-// 간단한 알림 아이콘 컴포넌트
-const NotificationIcon = ({ type }) => {
-  const icons = {
-    badge: 'military_tech',
-    like: 'favorite',
-    comment: 'comment',
-    follow: 'person_add',
-    post: 'photo_camera'
-  };
-  return <span className="material-symbols-outlined">{icons[type] || 'notifications'}</span>;
+const typeMeta = {
+  badge: { icon: 'military_tech', bg: 'bg-amber-50 dark:bg-amber-900/25' },
+  like: { icon: 'favorite', bg: 'bg-rose-50 dark:bg-rose-900/20' },
+  comment: { icon: 'chat_bubble', bg: 'bg-sky-50 dark:bg-sky-900/20' },
+  follow: { icon: 'person', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+  post: { icon: 'photo_camera', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+  interest: { icon: 'place', bg: 'bg-teal-50 dark:bg-teal-900/20' },
+  system: { icon: 'notifications', bg: 'bg-zinc-100 dark:bg-zinc-800' },
 };
+
+function notificationTimeMs(n) {
+  if (n.timestamp) {
+    const t = new Date(n.timestamp).getTime();
+    if (!Number.isNaN(t)) return t;
+  }
+  return Date.now();
+}
+
+function bucketLabel(daysAgo) {
+  if (daysAgo <= 7) return '최근 7일';
+  if (daysAgo <= 30) return '최근 30일';
+  return '이전';
+}
 
 const NotificationsScreen = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [filter, setFilter] = useState('all'); // 'all', 'interest'
+  const [filter, setFilter] = useState('all');
   const [showMarkAllReadModal, setShowMarkAllReadModal] = useState(false);
   const [allNotifications, setAllNotifications] = useState([]);
+  const [, setTick] = useState(0);
 
-  // 알림 불러오기 (로그인 사용자 기준 필터)
   useEffect(() => {
     loadNotifications();
-
-    const handleNotificationUpdate = () => {
-      loadNotifications();
-    };
-
+    const handleNotificationUpdate = () => loadNotifications();
     window.addEventListener('notificationUpdate', handleNotificationUpdate);
-
-    return () => {
-      window.removeEventListener('notificationUpdate', handleNotificationUpdate);
-    };
+    return () => window.removeEventListener('notificationUpdate', handleNotificationUpdate);
   }, [user?.id]);
 
   const loadNotifications = () => {
     setAllNotifications(getNotificationsForCurrentUser());
   };
 
-  // 필터링된 알림
-  const filteredNotifications = filter === 'interest'
-    ? allNotifications.filter(n => n.type === 'interest')
-    : allNotifications;
+  const filteredNotifications = useMemo(() => {
+    const list =
+      filter === 'interest'
+        ? allNotifications.filter((n) => n.type === 'interest')
+        : allNotifications;
+    return [...list].sort((a, b) => notificationTimeMs(b) - notificationTimeMs(a));
+  }, [allNotifications, filter]);
 
-  const handleNotificationClick = (notification) => {
-    // 알림 읽음 처리
+  const grouped = useMemo(() => {
+    const now = Date.now();
+    const groups = { '최근 7일': [], '최근 30일': [], 이전: [] };
+    filteredNotifications.forEach((n) => {
+      const ms = notificationTimeMs(n);
+      const days = (now - ms) / 86400000;
+      const key = bucketLabel(days);
+      if (groups[key]) groups[key].push(n);
+      else groups.이전.push(n);
+    });
+    return groups;
+  }, [filteredNotifications]);
+
+  const handleOpen = (notification) => {
     if (!notification.read) {
       markNotificationAsRead(notification.id);
       loadNotifications();
     }
-
-    // SOS 요청 알림인 경우 미션 업로드 화면으로 이동
-    if (notification.data && notification.data.type === 'sos_request' && notification.data.sosRequest) {
+    if (notification.data?.type === 'sos_request' && notification.data.sosRequest) {
       const sosRequest = notification.data.sosRequest;
       navigate('/upload', {
         state: {
@@ -63,24 +88,18 @@ const NotificationsScreen = () => {
           missionId: notification.data?.missionId || `mission-${sosRequest.id || Date.now()}`,
           missionQuestion: sosRequest.question,
           missionLocationName: sosRequest.coordinates ? '요청 위치' : '근처 지역',
-          missionCoordinates: sosRequest.coordinates
-        }
+          missionCoordinates: sosRequest.coordinates,
+        },
       });
       return;
     }
-
-    // 일반 알림은 link로 이동
-    if (notification.link) {
-      navigate(notification.link);
-    }
+    if (notification.link) navigate(notification.link);
   };
 
   const handleMarkAllRead = () => {
     markAllNotificationsAsRead();
     loadNotifications();
     setShowMarkAllReadModal(false);
-
-    // 알림 카운트 업데이트 이벤트 발생
     window.dispatchEvent(new Event('notificationCountChanged'));
   };
 
@@ -88,127 +107,201 @@ const NotificationsScreen = () => {
     e.stopPropagation();
     deleteNotification(notificationId);
     loadNotifications();
-
-    // 알림 카운트 업데이트 이벤트 발생
     window.dispatchEvent(new Event('notificationCountChanged'));
   };
 
-  const cancelMarkAllRead = () => {
-    setShowMarkAllReadModal(false);
+  const avatarFor = (n) => {
+    if (n.actorAvatar) return getDisplayImageUrl(n.actorAvatar);
+    return null;
   };
 
+  const leftIcon = (n) => {
+    const t = typeMeta[n.type] || typeMeta.system;
+    const url = avatarFor(n);
+    if (url && (n.type === 'follow' || n.type === 'like')) {
+      return (
+        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800 ring-1 ring-zinc-200/80 dark:ring-zinc-700">
+          <img src={url} alt="" className="h-full w-full object-cover" />
+        </div>
+      );
+    }
+    return (
+      <div
+        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${t.bg}`}
+      >
+        <span className="material-symbols-outlined text-[22px] text-zinc-600 dark:text-zinc-300">
+          {n.icon || t.icon}
+        </span>
+      </div>
+    );
+  };
+
+  const renderRight = (n) => {
+    if (n.type === 'like' && n.thumbnailUrl) {
+      return (
+        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-zinc-100 ring-1 ring-zinc-200/80 dark:bg-zinc-800 dark:ring-zinc-700">
+          <img src={getDisplayImageUrl(n.thumbnailUrl)} alt="" className="h-full w-full object-cover" />
+        </div>
+      );
+    }
+    if (n.type === 'badge' || n.type === 'system') {
+      return (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleOpen({ ...n, read: n.read });
+          }}
+          className="shrink-0 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+        >
+          자세히
+        </button>
+      );
+    }
+    if (n.type === 'follow' && n.kind === 'follow_received' && n.actorUserId) {
+      const uid = n.actorUserId;
+      const following = isFollowing(null, uid);
+      return (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (following) {
+              unfollow(uid);
+            } else {
+              follow(uid);
+            }
+            setTick((x) => x + 1);
+            window.dispatchEvent(new CustomEvent('followsUpdated'));
+          }}
+          className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold text-white ${
+            following ? 'bg-zinc-400' : 'bg-[#e53935] hover:bg-[#c62828]'
+          }`}
+        >
+          {following ? '팔로잉' : '팔로우'}
+        </button>
+      );
+    }
+    return null;
+  };
+
+  const mainText = (n) => {
+    if (n.message) return n.message;
+    return n.title || '알림';
+  };
+
+  const sectionOrder = ['최근 7일', '최근 30일', '이전'];
+
   return (
-    <div className="screen-layout bg-background-light dark:bg-background-dark relative h-screen overflow-hidden">
+    <div className="screen-layout relative h-screen overflow-hidden bg-[#fafafa] dark:bg-background-dark">
       <div className="screen-content">
-        {/* 헤더 */}
-        <header className="screen-header flex h-16 items-center justify-between border-b border-border-light bg-white dark:border-border-dark dark:bg-gray-900 px-4 shadow-sm">
+        <header className="screen-header flex h-14 items-center justify-between border-b border-zinc-200/80 bg-white px-3 dark:border-border-dark dark:bg-gray-900">
           <button
+            type="button"
             onClick={() => navigate('/main')}
-            className="flex size-12 shrink-0 items-center justify-center cursor-pointer text-content-light dark:text-content-dark hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+            className="flex size-11 shrink-0 items-center justify-center rounded-lg text-content-light transition-colors hover:bg-zinc-100 dark:text-content-dark dark:hover:bg-gray-800"
           >
             <span className="material-symbols-outlined text-2xl">arrow_back</span>
           </button>
-          <h1 className="flex-1 text-center text-lg font-bold leading-tight tracking-[-0.015em] text-content-light dark:text-content-dark">
-            알림
-          </h1>
+          <h1 className="flex-1 text-center text-base font-bold text-zinc-900 dark:text-white">알림</h1>
           <button
+            type="button"
             onClick={() => setShowMarkAllReadModal(true)}
-            disabled={allNotifications.filter(n => !n.read).length === 0}
-            className="flex size-12 shrink-0 items-center justify-end cursor-pointer text-content-light dark:text-content-dark rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={allNotifications.filter((x) => !x.read).length === 0}
+            className="flex size-11 shrink-0 items-center justify-end rounded-lg text-zinc-600 transition-colors disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-300"
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>check</span>
+            <span className="material-symbols-outlined text-[22px]">done_all</span>
           </button>
         </header>
 
-        {/* 필터 탭 */}
         <div className="screen-body">
-          <div className="flex gap-2 border-b border-border-light dark:border-border-dark px-4 py-3 bg-surface-light/60 dark:bg-surface-dark/80 backdrop-blur">
+          <div className="flex gap-2 border-b border-zinc-100 bg-white px-3 py-2.5 dark:border-border-dark dark:bg-gray-900">
             <button
+              type="button"
               onClick={() => setFilter('all')}
-              className={`flex-1 py-2 px-4 rounded-full text-sm font-semibold transition-colors ${filter === 'all'
-                  ? 'bg-primary text-white'
-                  : 'bg-background-light dark:bg-background-dark text-text-secondary-light dark:text-text-secondary-dark hover:bg-primary/10'
-                }`}
+              className={`flex-1 rounded-full py-2 text-xs font-semibold transition-colors ${
+                filter === 'all'
+                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                  : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
+              }`}
             >
               전체 ({allNotifications.length})
             </button>
             <button
+              type="button"
               onClick={() => setFilter('interest')}
-              className={`flex-1 py-2 px-4 rounded-full text-sm font-semibold transition-colors ${filter === 'interest'
-                  ? 'bg-primary text-white'
-                  : 'bg-background-light dark:bg-background-dark text-text-secondary-light dark:text-text-secondary-dark hover:bg-primary/10'
-                }`}
+              className={`flex-1 rounded-full py-2 text-xs font-semibold transition-colors ${
+                filter === 'interest'
+                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                  : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
+              }`}
             >
-              관심지역 소식 ({allNotifications.filter(n => n.type === 'interest').length})
+              관심지역 ({allNotifications.filter((n) => n.type === 'interest').length})
             </button>
           </div>
 
-          {/* 알림 목록 */}
-          <div className="pb-20">
+          <div className="pb-24 pt-1">
             {filteredNotifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 px-4">
-                <span className="material-symbols-outlined text-7xl text-gray-300 dark:text-gray-600 mb-4">
+              <div className="flex flex-col items-center justify-center px-6 py-20">
+                <span className="material-symbols-outlined mb-3 text-5xl text-zinc-300 dark:text-zinc-600">
                   notifications_off
                 </span>
-                <p className="text-lg font-bold text-gray-700 dark:text-gray-300 mb-2">
-                  알림이 없습니다
+                <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">알림이 없습니다</p>
+                <p className="mt-1 text-center text-xs text-zinc-500 dark:text-zinc-400">
+                  활동이 쌓이면 여기에 표시돼요
                 </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 text-center max-w-xs mb-4">
-                  {filter === 'unread'
-                    ? '읽은 알림이 없습니다.'
-                    : '여행 정보를 공유하고 다른 사용자와 소통하면 알림을 받을 수 있어요!'}
-                </p>
-                <button
-                  onClick={() => navigate('/upload')}
-                  className="bg-primary text-white px-6 py-3 rounded-full font-semibold hover:bg-primary/90 transition-colors shadow-lg flex items-center gap-2"
-                >
-                  <span className="material-symbols-outlined">add_a_photo</span>
-                  첫 사진 올리기
-                </button>
-                <button
-                  onClick={() => navigate('/main')}
-                  className="mt-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-6 py-2.5 rounded-full font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-                >
-                  둘러보기
-                </button>
               </div>
             ) : (
-              <div className="divide-y divide-border-light dark:divide-border-dark">
-                {filteredNotifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    onClick={() => handleNotificationClick(notification)}
-                    className={`flex gap-4 px-4 py-4 cursor-pointer hover:bg-surface-subtle-light dark:hover:bg-surface-subtle-dark transition-colors ${!notification.read ? 'bg-primary/5 dark:bg-primary/10' : 'bg-white dark:bg-gray-900'
-                      }`}
-                  >
-                    <div className={`flex size-12 shrink-0 items-center justify-center rounded-full ${notification.iconBg || 'bg-primary/10'
-                      }`}>
-                      <NotificationIcon type={notification.type} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="text-sm font-semibold text-content-light dark:text-content-dark">
-                          {notification.title}
-                        </h3>
-                        {!notification.read && (
-                          <span className="flex size-2 shrink-0 rounded-full bg-primary mt-1.5"></span>
-                        )}
+              <div className="px-0">
+                {sectionOrder.map((section) => {
+                  const items = grouped[section];
+                  if (!items || items.length === 0) return null;
+                  return (
+                    <div key={section} className="mb-4">
+                      <p className="px-4 pb-2 pt-3 text-xs font-bold text-zinc-500 dark:text-zinc-400">{section}</p>
+                      <div className="divide-y divide-zinc-100 bg-white dark:divide-zinc-800 dark:bg-gray-900">
+                        {items.map((notification) => (
+                          <div
+                            key={notification.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => handleOpen(notification)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') handleOpen(notification);
+                            }}
+                            className={`flex cursor-pointer items-center gap-3 px-4 py-3.5 transition-colors ${
+                              !notification.read ? 'bg-sky-50/50 dark:bg-sky-950/20' : ''
+                            } hover:bg-zinc-50 dark:hover:bg-gray-800/80`}
+                          >
+                            {leftIcon(notification)}
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[13px] leading-snug text-zinc-900 dark:text-zinc-100">
+                                {mainText(notification)}
+                              </p>
+                              {notification.subMessage ? (
+                                <p className="mt-0.5 line-clamp-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                                  {notification.subMessage}
+                                </p>
+                              ) : null}
+                              <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">
+                                {notification.time}
+                              </p>
+                            </div>
+                            {renderRight(notification)}
+                            <button
+                              type="button"
+                              onClick={(e) => handleDelete(notification.id, e)}
+                              className="flex size-8 shrink-0 items-center justify-center rounded-full text-zinc-300 hover:bg-zinc-100 hover:text-zinc-500 dark:hover:bg-gray-800"
+                              aria-label="삭제"
+                            >
+                              <span className="material-symbols-outlined text-lg">close</span>
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                      <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-1 line-clamp-2">
-                        {notification.message}
-                      </p>
-                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-2">
-                        {notification.time}
-                      </p>
                     </div>
-                    <button
-                      onClick={(e) => handleDelete(notification.id, e)}
-                      className="flex size-8 shrink-0 items-center justify-center rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -217,28 +310,27 @@ const NotificationsScreen = () => {
 
       <BottomNavigation />
 
-      {/* 모두 읽음 확인 모달 */}
       {showMarkAllReadModal && (
-        <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-scale-up">
-            <div className="p-6">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
-                모든 알림을 읽음 처리하시겠습니까?
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                안 읽은 알림 {allNotifications.filter(n => !n.read).length}개가 모두 읽음 처리됩니다.
+        <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-800">
+            <div className="p-5">
+              <h3 className="text-base font-bold text-zinc-900 dark:text-white">모든 알림을 읽음 처리할까요?</h3>
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                읽지 않은 알림 {allNotifications.filter((n) => !n.read).length}개가 읽음 처리됩니다.
               </p>
             </div>
-            <div className="flex gap-3 px-6 pb-6">
+            <div className="flex gap-2 px-5 pb-5">
               <button
-                onClick={cancelMarkAllRead}
-                className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                type="button"
+                onClick={() => setShowMarkAllReadModal(false)}
+                className="flex-1 rounded-xl bg-zinc-100 py-3 text-sm font-semibold text-zinc-900 dark:bg-zinc-700 dark:text-white"
               >
                 취소
               </button>
               <button
+                type="button"
                 onClick={handleMarkAllRead}
-                className="flex-1 py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-colors"
+                className="flex-1 rounded-xl bg-zinc-900 py-3 text-sm font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
               >
                 확인
               </button>

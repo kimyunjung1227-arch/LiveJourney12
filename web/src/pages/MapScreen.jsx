@@ -3013,6 +3013,7 @@ const MapScreen = () => {
             touchAction: 'pan-x'
           }}
           onMouseDown={(e) => {
+            if (e.target.closest('button')) return;
             e.preventDefault();
             hasDraggedFilterRef.current = false;
             const slider = e.currentTarget;
@@ -3042,6 +3043,7 @@ const MapScreen = () => {
             document.addEventListener('mouseup', handleMouseUp);
           }}
           onTouchStart={(e) => {
+            if (e.target.closest('button')) return;
             hasDraggedFilterRef.current = false;
             const slider = e.currentTarget;
             if (slider.scrollWidth <= slider.clientWidth) return;
@@ -3545,21 +3547,29 @@ const MapScreen = () => {
           </div>
         )}
 
-        {/* 지도 컨트롤 - 내 위치 버튼만 (줌 +/- 제거) */}
+        {/* 지도 컨트롤: 줌 + 내 위치 */}
         {!isRouteMode && (
-          <div style={{
-            position: 'absolute',
-            right: '16px',
-            bottom: isSheetHidden ? '120px' : `${sheetHeight + 16}px`,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            zIndex: 30,
-            transition: 'all 0.3s ease-out',
-            pointerEvents: 'auto'
-          }}>
+          <div
+            style={{
+              position: 'absolute',
+              right: '16px',
+              bottom: isSheetHidden ? '120px' : `${sheetHeight + 16}px`,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              zIndex: 30,
+              transition: 'all 0.3s ease-out',
+              pointerEvents: 'auto',
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
-              onClick={handleCenterLocation}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleZoomIn();
+              }}
               style={{
                 width: '40px',
                 height: '40px',
@@ -3570,7 +3580,55 @@ const MapScreen = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                cursor: 'pointer'
+                cursor: 'pointer',
+              }}
+              title="확대"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '22px', color: '#52525b' }}>
+                add
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleZoomOut();
+              }}
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '20px',
+                border: 'none',
+                background: 'white',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+              title="축소"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '22px', color: '#52525b' }}>
+                remove
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCenterLocation();
+              }}
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '20px',
+                border: 'none',
+                background: 'white',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
               }}
               title="내 위치"
             >
@@ -3707,10 +3765,13 @@ const MapScreen = () => {
                     className="pin-card"
                     onClick={() => {
                       if (pinHasMovedRef.current) return;
-                      // 지도/시트 통일: 같은 설명 카드(pinDetailView)로 표시
-                      const alreadySelected = selectedPinId === pin.id && pinDetailView?.post?.id === pin.post?.id;
                       setSelectedPinId(pin.id);
-                      setPinDetailView(alreadySelected ? null : { post: pin.post });
+                      setPinDetailView(null);
+                      if (map && pin.lat != null && pin.lng != null) {
+                        const pos = new window.kakao.maps.LatLng(Number(pin.lat), Number(pin.lng));
+                        map.panTo(pos);
+                        map.setLevel(3);
+                      }
                     }}
                     style={{
                       minWidth: '90px',
@@ -3815,19 +3876,20 @@ const MapScreen = () => {
               position: 'absolute',
               left: '50%',
               transform: 'translateX(-50%)',
-              bottom: `calc(${isSheetHidden ? 100 : Math.max(sheetHeight + 20, 100)}px + 68px)`,
-              width: 'calc(100% - 32px)',
-              maxWidth: 340,
+              bottom: `calc(${isSheetHidden ? 88 : Math.max(sheetHeight + 16, 88)}px + 56px)`,
+              width: 'calc(100% - 24px)',
+              maxWidth: 300,
               zIndex: 200,
-              background: 'white',
-              borderRadius: '16px',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+              background: 'rgba(255,255,255,0.97)',
+              borderRadius: '12px',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+              border: '1px solid rgba(0,0,0,0.06)',
               overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px' }}>
               {(() => {
                 const thumb = getPostPinImageUrl(pinDetailView.post);
                 const rawVid = !thumb ? getFirstVideoUriFromPost(pinDetailView.post) : '';
@@ -3839,7 +3901,7 @@ const MapScreen = () => {
                       muted
                       playsInline
                       preload="metadata"
-                      style={{ width: 72, height: 72, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }}
+                      style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }}
                     />
                   );
                 }
@@ -3847,33 +3909,33 @@ const MapScreen = () => {
                   <img
                     src={thumb || MAP_PIN_PLACEHOLDER_SVG}
                     alt=""
-                    style={{ width: 72, height: 72, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }}
+                    style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }}
                     onError={(e) => { e.target.src = MAP_PIN_PLACEHOLDER_SVG; }}
                   />
                 );
               })()}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: 0, fontSize: 15, fontWeight: 'bold', color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#27272a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {pinDetailView.post.placeName || pinDetailView.post.detailedLocation || pinDetailView.post.location || '여행지'}
                 </p>
                 {(pinDetailView.post.note && pinDetailView.post.note.trim()) ? (
-                  <p style={{ margin: '4px 0 0 0', fontSize: 12, color: '#666', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  <p style={{ margin: '3px 0 0 0', fontSize: 11, color: '#71717a', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                     {pinDetailView.post.note}
                   </p>
                 ) : (
-                  <p style={{ margin: '4px 0 0 0', fontSize: 12, color: '#999' }}>설명이 없습니다</p>
+                  <p style={{ margin: '3px 0 0 0', fontSize: 11, color: '#a1a1aa' }}>설명 없음</p>
                 )}
               </div>
               <button
                 type="button"
                 onClick={() => setPinDetailView(null)}
-                style={{ width: 32, height: 32, borderRadius: 16, border: 'none', background: '#f0f0f0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                style={{ width: 28, height: 28, borderRadius: 14, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                 aria-label="닫기"
               >
-                <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#666' }}>close</span>
+                <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#a1a1aa' }}>close</span>
               </button>
             </div>
-            <div style={{ padding: '0 12px 12px', display: 'flex', gap: 8 }}>
+            <div style={{ padding: '0 10px 8px', display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 type="button"
                 onClick={() => {
@@ -3888,14 +3950,13 @@ const MapScreen = () => {
                   });
                 }}
                 style={{
-                  flex: 1,
-                  height: 40,
-                  borderRadius: 12,
-                  border: 'none',
-                  background: '#00BCD4',
-                  color: 'white',
-                  fontSize: 14,
-                  fontWeight: '600',
+                  padding: '4px 10px',
+                  borderRadius: 8,
+                  border: '1px solid rgba(0,188,212,0.45)',
+                  background: 'rgba(0,188,212,0.08)',
+                  color: '#0891b2',
+                  fontSize: 11,
+                  fontWeight: 600,
                   cursor: 'pointer'
                 }}
               >

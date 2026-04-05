@@ -14,7 +14,13 @@ import { logger } from '../utils/logger';
 import { getDisplayImageUrl } from '../api/upload';
 import api from '../api/axios';
 import { cleanLegacyUploadedPosts } from '../utils/localStorageManager';
-import { deletePostSupabase, fetchPostsByUserIdSupabase } from '../api/postsSupabase';
+import { deletePostSupabase, fetchPostsByUserIdSupabase, fetchPostsSupabase } from '../api/postsSupabase';
+import {
+  resolveUserDisplayFromPosts,
+  getCachedFollowProfile,
+  setCachedFollowProfile,
+  getPostUserId,
+} from '../utils/userProfileHints';
 
 // HTML 문자열(template literal)로 src/alt를 주입할 때 속성 안전 처리
 const escapeHtmlAttr = (value) => {
@@ -207,11 +213,55 @@ const ProfileScreen = () => {
   const [showFollowListModal, setShowFollowListModal] = useState(false);
   const [followListType, setFollowListType] = useState('follower'); // 'follower' | 'following'
   const [followListIds, setFollowListIds] = useState([]);
+  /** 팔로우 목록 모달: 로컬+Supabase 게시물 풀 (이름·아바타 추론용) */
+  const [followListPostPool, setFollowListPostPool] = useState([]);
   const [showTrustGradesModal, setShowTrustGradesModal] = useState(false);
   const [trustExplainOpen, setTrustExplainOpen] = useState(false);
   // 내 사진 탭 보기 방식: 'date' | 'custom'
   // 기본은 "모아보기"가 먼저 보이도록 custom으로 설정
   const [photoViewMode, setPhotoViewMode] = useState('custom');
+
+  // 팔로워/팔로잉 모달: 전체·개별 Supabase 게시물로 이름·프로필 추론 보강
+  useEffect(() => {
+    if (!showFollowListModal) return;
+    const local = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+    setFollowListPostPool(local);
+    let cancelled = false;
+    const ids = Array.isArray(followListIds) ? followListIds : [];
+    (async () => {
+      try {
+        const remote = await fetchPostsSupabase();
+        if (cancelled) return;
+        const byId = new Map();
+        local.forEach((p) => {
+          if (p?.id != null) byId.set(p.id, p);
+        });
+        (remote || []).forEach((p) => {
+          if (p?.id != null && !byId.has(p.id)) byId.set(p.id, p);
+        });
+        for (const uid of ids) {
+          const has = [...byId.values()].some((p) => getPostUserId(p) === String(uid));
+          if (!has) {
+            try {
+              const up = await fetchPostsByUserIdSupabase(uid);
+              if (cancelled) return;
+              (up || []).forEach((p) => {
+                if (p?.id && !byId.has(p.id)) byId.set(p.id, p);
+              });
+            } catch {
+              /* skip */
+            }
+          }
+        }
+        setFollowListPostPool([...byId.values()]);
+      } catch {
+        if (!cancelled) setFollowListPostPool(local);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showFollowListModal, followListIds]);
 
   // 모든 Hook을 먼저 선언한 후 useEffect 실행
   useEffect(() => {
@@ -2191,6 +2241,7 @@ const ProfileScreen = () => {
                     const currentUserData = authUser || user;
                     const myId = currentUserData?.id;
 
+                    const pool = followListPostPool.length > 0 ? followListPostPool : posts;
                     const resolveUserInfo = (uid) => {
                       if (String(uid) === String(myId) && currentUserData) {
                         return {
@@ -2198,19 +2249,15 @@ const ProfileScreen = () => {
                           profileImage: currentUserData.profileImage || null,
                         };
                       }
-                      const p = posts.find((post) => {
-                        const pu = post.userId || (typeof post.user === 'string' ? post.user : post.user?.id);
-                        return String(pu) === String(uid);
-                      });
-                      if (!p) return { username: '사용자', profileImage: null };
-                      if (!p.user) return { username: '사용자', profileImage: null };
-                      if (typeof p.user === 'string') {
-                        return { username: p.user, profileImage: null };
-                      }
-                      return {
-                        username: p.user?.username || '사용자',
-                        profileImage: p.user?.profileImage || null,
-                      };
+                      const cached = getCachedFollowProfile(uid);
+                      const fromPosts = resolveUserDisplayFromPosts(uid, pool);
+                      const username =
+                        (cached?.username && cached.username !== '사용자' ? cached.username : null) ||
+                        (fromPosts.username !== '사용자' ? fromPosts.username : null) ||
+                        cached?.username ||
+                        fromPosts.username;
+                      const profileImage = fromPosts.profileImage || cached?.profileImage || null;
+                      return { username, profileImage };
                     };
 
                     const getRepBadge = (uid) => {
@@ -2232,7 +2279,14 @@ const ProfileScreen = () => {
                         >
                           <button
                             type="button"
-                            onClick={() => { setShowFollowListModal(false); navigate(`/user/${uid}`); }}
+                            onClick={() => {
+                              const { username: un, profileImage: av } = resolveUserInfo(uid);
+                              setCachedFollowProfile(uid, { username: un, profileImage: av });
+                              setShowFollowListModal(false);
+                              navigate(`/user/${uid}`, {
+                                state: { profileHint: { username: un, profileImage: av } },
+                              });
+                            }}
                             className="flex items-center gap-3 flex-1 min-w-0 text-left"
                           >
                             {/* 프로필 이미지 */}
@@ -2269,8 +2323,15 @@ const ProfileScreen = () => {
                                   const r = follow(uid);
                                   if (r.success) {
                                     const me = currentUserData?.username || '여행자';
-                                    notifyFollowReceived(me, uid);
-                                    notifyFollowingStarted(username, myId);
+                                    setCachedFollowProfile(uid, { username, profileImage });
+                                    notifyFollowReceived(me, uid, {
+                                      actorUserId: myId,
+                                      actorAvatar: currentUserData?.profileImage || null,
+                                    });
+                                    notifyFollowingStarted(username, myId, {
+                                      targetUserId: uid,
+                                      targetAvatar: profileImage || null,
+                                    });
                                   }
                                 }
                               }}

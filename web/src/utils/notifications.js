@@ -212,28 +212,33 @@ const getTimeAgo = (date) => {
 
 // 뱃지 획득 알림
 export const notifyBadge = (badgeName, difficulty = '중') => {
-  const difficultyEmoji = difficulty === '상' ? '🔥' : difficulty === '중' ? '⭐' : '🌟';
-
   addNotification({
     type: 'badge',
-    title: `🏆 새로운 뱃지 획득! ${difficultyEmoji}`,
+    title: '',
     message: `"${badgeName}" 뱃지를 획득했습니다!`,
     badge: badgeName,
     difficulty,
     icon: 'military_tech',
-    iconBg: 'bg-primary/10',
-    iconColor: 'text-primary',
-    link: '/badges'
+    iconBg: 'bg-amber-50 dark:bg-amber-900/20',
+    iconColor: 'text-amber-700',
+    link: '/badges',
   });
 };
 
-// 좋아요 알림
-export const notifyLike = (username, postLocation) => {
+// 좋아요 알림 (썸네일·게시글 링크는 opts로 전달)
+export const notifyLike = (username, postLocation, opts = {}) => {
+  const postId = opts.postId;
   addNotification({
     type: 'like',
-    title: '❤️ 새로운 좋아요',
-    message: `${username}님이 "${postLocation}" 게시물을 좋아합니다.`,
-    link: '/profile'
+    title: '',
+    message: `${username}님이 회원님의 게시물을 좋아합니다`,
+    subMessage: postLocation || '',
+    actorUsername: username,
+    actorAvatar: opts.actorAvatar || null,
+    actorUserId: opts.actorUserId ? String(opts.actorUserId) : null,
+    thumbnailUrl: opts.thumbnailUrl || null,
+    postId: postId || null,
+    link: postId ? `/post/${postId}` : '/main',
   });
 };
 
@@ -247,27 +252,37 @@ export const notifyComment = (username, postLocation, comment) => {
   });
 };
 
-/** 피팔로우 유저에게: 누군가 나를 팔로우함 */
-export const notifyFollowReceived = (followerUsername, recipientUserId) => {
+/** 피팔로우 유저에게: 누군가 나를 팔로우함 — recipient = 피알림자(나) */
+export const notifyFollowReceived = (followerUsername, recipientUserId, opts = {}) => {
   if (!recipientUserId) return null;
+  const actorId = opts.actorUserId ? String(opts.actorUserId) : null;
   return addNotification({
     type: 'follow',
-    title: '👥 새로운 팔로워',
-    message: `${followerUsername}님이 회원님을 팔로우하기 시작했습니다.`,
+    kind: 'follow_received',
+    title: '',
+    message: `${followerUsername}님이 회원님을 팔로우하기 시작했습니다`,
+    actorUsername: followerUsername,
+    actorAvatar: opts.actorAvatar || null,
+    actorUserId: actorId,
     recipientUserId: String(recipientUserId),
-    link: '/profile',
+    link: actorId ? `/user/${actorId}` : '/main',
   });
 };
 
-/** 팔로우한 사람에게: 내가 누군가를 팔로우함 */
-export const notifyFollowingStarted = (targetUsername, recipientUserId) => {
+/** 팔로우를 시작한 사람에게: 상대 프로필로 이동 */
+export const notifyFollowingStarted = (targetUsername, recipientUserId, opts = {}) => {
   if (!recipientUserId) return null;
+  const tid = opts.targetUserId ? String(opts.targetUserId) : null;
   return addNotification({
     type: 'follow',
-    title: '👥 팔로우했어요',
-    message: `${targetUsername}님을 팔로우하기 시작했습니다.`,
+    kind: 'follow_started',
+    title: '',
+    message: `${targetUsername}님을 팔로우하기 시작했습니다`,
+    actorUsername: targetUsername,
+    actorAvatar: opts.targetAvatar || null,
+    targetUserId: tid,
     recipientUserId: String(recipientUserId),
-    link: '/profile',
+    link: tid ? `/user/${tid}` : '/main',
   });
 };
 

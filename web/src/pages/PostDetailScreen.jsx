@@ -1155,8 +1155,14 @@ const PostDetailScreen = () => {
                               username: userName,
                               profileImage: authorAvatar || null,
                             });
-                            notifyFollowReceived(myName, postUserId);
-                            notifyFollowingStarted(userName, user.id);
+                            notifyFollowReceived(myName, postUserId, {
+                              actorUserId: user.id,
+                              actorAvatar: user?.profileImage || null,
+                            });
+                            notifyFollowingStarted(userName, user.id, {
+                              targetUserId: postUserId,
+                              targetAvatar: authorAvatar || null,
+                            });
                           }
                         }
                       }}
