@@ -50,6 +50,7 @@ const MainScreen = () => {
     const [selectedRecommendTag, setSelectedRecommendTag] = useState('active');
     const [hotFeedSlideIndex, setHotFeedSlideIndex] = useState(0);
     const [hotFeedSocialIdx, setHotFeedSocialIdx] = useState(0);
+    const [headerLogoFailed, setHeaderLogoFailed] = useState(false);
 
     const { handleDragStart, hasMovedRef } = useHorizontalDragScroll();
     const videoRefs = useRef(new Map());
@@ -775,19 +776,81 @@ const MainScreen = () => {
                     borderBottom: 'none',
                     boxShadow: 'none'
                 }}>
-                    <span
-                        className="logo-text"
+                    <div
                         style={{
-                            fontSize: '18px',
-                            fontWeight: 700,
-                            color: '#0f172a',
-                            opacity: 0.9,
-                            letterSpacing: '-0.3px',
-                            flexShrink: 0
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            flexShrink: 0,
+                            minWidth: 0,
                         }}
                     >
-                        Live Journey
-                    </span>
+                        {!headerLogoFailed ? (
+                            <img
+                                src={`${import.meta.env.BASE_URL}livejourney-logo.png`}
+                                alt="Live Journey"
+                                style={{
+                                    height: 26,
+                                    width: 'auto',
+                                    maxWidth: 90,
+                                    objectFit: 'contain',
+                                    display: 'block',
+                                    flexShrink: 0,
+                                }}
+                                onError={() => setHeaderLogoFailed(true)}
+                            />
+                        ) : (
+                            <span
+                                className="logo-text"
+                                style={{
+                                    fontSize: '13px',
+                                    fontWeight: 700,
+                                    color: '#0f172a',
+                                    letterSpacing: '-0.3px',
+                                    lineHeight: '26px',
+                                    flexShrink: 0,
+                                }}
+                            >
+                                Live Journey
+                            </span>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => navigate('/coupons')}
+                            style={{
+                                flex: '1 1 auto',
+                                minWidth: 0,
+                                maxWidth: 168,
+                                height: 32,
+                                padding: '0 10px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 6,
+                                borderRadius: 9999,
+                                border: '1px solid rgba(0, 188, 212, 0.45)',
+                                background: 'rgba(0, 188, 212, 0.08)',
+                                color: '#0f766e',
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                overflow: 'hidden',
+                            }}
+                            aria-label="래플·혜택 보기"
+                        >
+                            <span aria-hidden style={{ flexShrink: 0 }}>🎁</span>
+                            <span
+                                style={{
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    textAlign: 'left',
+                                }}
+                            >
+                                래플창 · 혜택·쿠폰
+                            </span>
+                        </button>
+                    </div>
                     {/* 중앙 검색창 (예시 이미지 스타일 참고) */}
                     <button
                         type="button"
@@ -797,7 +860,7 @@ const MainScreen = () => {
                             minWidth: 0,
                             maxWidth: 260,
                             height: 32,
-                            marginLeft: 12,
+                            marginLeft: 8,
                             marginRight: 8,
                             display: 'flex',
                             alignItems: 'center',
