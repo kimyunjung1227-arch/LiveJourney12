@@ -14,7 +14,7 @@ import { createPostSupabase, getMergedMyPostsForStats, fetchPostByIdSupabase, up
 import { getCurrentTimestamp, getTimeAgo } from '../utils/timeUtils';
 import { getBadgeCongratulationMessage, getBadgeDifficultyEffects } from '../utils/badgeMessages';
 import { logger } from '../utils/logger';
-import { extractExifData, convertGpsToAddress } from '../utils/exifExtractor';
+import { extractExifData, convertGpsToAddress, formatExifDate } from '../utils/exifExtractor';
 import { slugsFromAnalysisResult } from '../utils/travelCategories';
 import { normalizeRegionName } from '../utils/regionNames';
 import { searchPlaceWithKakaoFirst } from '../utils/kakaoPlacesGeocode';
@@ -1589,6 +1589,20 @@ const UploadScreen = () => {
             </div>
           )}
           <div className="pt-4 space-y-5">
+            {/* 사진 / 동영상 + 업로드 가이드 버튼 한 줄 */}
+            <div className="flex items-center justify-between px-1 mb-1">
+              <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                사진 / 동영상
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowUploadGuide(true)}
+                className="inline-flex items-center gap-1 rounded-full border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-[11px] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                <span>업로드 가이드</span>
+              </button>
+            </div>
+
             {/* 사진 / 동영상 선택 — 단일 큰 박스 */}
             <div className="space-y-3">
 
@@ -1596,7 +1610,6 @@ const UploadScreen = () => {
                 <button
                   type="button"
                   onClick={() => setShowPhotoOptions(true)}
-                  aria-label="사진 또는 동영상 추가"
                   className="w-full rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/60 flex flex-col items-center justify-center text-center hover:border-primary hover:bg-primary-soft/20 transition-colors"
                   style={{
                     minHeight: '160px',
@@ -1604,12 +1617,58 @@ const UploadScreen = () => {
                     padding: '24px 16px'
                   }}
                 >
-                  <span className="material-symbols-outlined text-5xl text-gray-500 dark:text-gray-400" aria-hidden>
-                    add_photo_alternate
-                  </span>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                    사진, 동영상 추가하기
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    사진은 EXIF 촬영 시각이 있어야 하고, 촬영 후 48시간 이내만 올릴 수 있어요. 동영상은 파일당 100MB까지예요.
+                  </p>
                 </button>
               ) : (
                 <div className="space-y-3">
+                  {/* 개수 요약 + 촬영 시간 */}
+                  <div className="flex flex-col gap-1 px-1 text-sm text-gray-700 dark:text-gray-300">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                      {formData.images.length > 0 && (
+                        <span>사진 {formData.images.length}장</span>
+                      )}
+                      {formData.videos.length > 0 && (
+                        <span>동영상 {formData.videos.length}개</span>
+                      )}
+                    </div>
+                    {formData.photoDate && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {(() => {
+                          const formatted = formatExifDate(formData.photoDate);
+                          const dateObj = new Date(formData.photoDate);
+                          const timeText = isNaN(dateObj.getTime())
+                            ? ''
+                            : dateObj.toLocaleString('ko-KR', {
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              });
+                          return (
+                            <>
+                              <span className="mr-1 text-[11px] font-medium text-teal-600">
+                                EXIF 기준 촬영 시간
+                              </span>
+                              <span>
+                                {formatted ? `${formatted} · ${timeText}` : timeText}
+                              </span>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                    {formData.photoDate && formData.images.length > 0 && (
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                        위 시각은 파일 메타데이터(EXIF)에서 읽은 값이며, 실시간 피드 규칙(48시간)에 사용돼요.
+                      </p>
+                    )}
+                  </div>
+
                   {/* 가로 한 줄 슬라이드 미리보기 */}
                   <div
                     className="flex gap-2 overflow-x-auto pb-1 -mx-1 scrollbar-thin [&::-webkit-scrollbar]:h-1"
@@ -1645,9 +1704,7 @@ const UploadScreen = () => {
                         className="relative flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 bg-gray-100"
                       >
                         <video src={video} className="w-full h-full object-cover" muted />
-                        <span className="material-symbols-outlined absolute bottom-1 left-1 text-white text-lg drop-shadow opacity-90" aria-hidden>
-                          videocam
-                        </span>
+                        <span className="absolute inset-0 flex items-center justify-center text-white text-xs drop-shadow">동영상</span>
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1852,8 +1909,6 @@ const UploadScreen = () => {
         >
           <div className="w-full">
             <button
-              type="button"
-              aria-label={editingPostId ? '게시물 저장' : '게시물 업로드'}
               onClick={() => {
                 logger.debug('Upload button clicked');
                 logger.debug('Current state:', {
@@ -1872,13 +1927,19 @@ const UploadScreen = () => {
                 }`}
             >
               {uploading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" aria-label={editingPostId ? '저장 중' : '업로드 중'} />
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                  <span>{editingPostId ? '저장 중...' : '업로드 중...'}</span>
+                </>
               ) : (
-                <span className="material-symbols-outlined text-xl" aria-hidden>
-                  {editingPostId ? 'save' : 'cloud_upload'}
-                </span>
+                <span>{editingPostId ? '저장하기' : '업로드하기'}</span>
               )}
             </button>
+            {((formData.images.length + formData.videos.length) === 0 || !formData.location.trim()) && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
+                {(formData.images.length + formData.videos.length) === 0 ? '사진 또는 동영상을 추가해주세요' : '위치를 입력해주세요'}
+              </p>
+            )}
           </div>
         </footer>
 
@@ -1949,41 +2010,30 @@ const UploadScreen = () => {
               onClick={(e) => e.stopPropagation()}
               style={{ marginBottom: '80px', maxWidth: '100%' }}
             >
+              <h3 className="text-lg font-bold text-center mb-4">사진 또는 동영상 선택</h3>
               <button
-                type="button"
                 onClick={() => handlePhotoOptionSelect('camera')}
-                aria-label="카메라로 촬영"
-                className="w-full flex items-center justify-center bg-white dark:bg-gray-800 border border-subtle-light dark:border-subtle-dark rounded-lg h-14 px-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className="w-full flex items-center justify-center gap-3 bg-white dark:bg-gray-800 border border-subtle-light dark:border-subtle-dark rounded-lg h-14 px-4 text-base font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
-                <span className="material-symbols-outlined text-3xl text-gray-800 dark:text-gray-100" aria-hidden>
-                  photo_camera
-                </span>
+                <span>촬영하기</span>
               </button>
               <button
-                type="button"
                 onClick={() => handlePhotoOptionSelect('gallery')}
-                aria-label="갤러리에서 선택"
-                className="w-full flex items-center justify-center bg-white dark:bg-gray-800 border border-subtle-light dark:border-subtle-dark rounded-lg h-14 px-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className="w-full flex items-center justify-center gap-3 bg-white dark:bg-gray-800 border border-subtle-light dark:border-subtle-dark rounded-lg h-14 px-4 text-base font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
-                <span className="material-symbols-outlined text-3xl text-gray-800 dark:text-gray-100" aria-hidden>
-                  photo_library
-                </span>
+                <span>갤러리에서 선택하기</span>
               </button>
             </div>
             {/* 취소 버튼 - 네비게이션 바 위치 */}
             <button
-              type="button"
               onClick={() => setShowPhotoOptions(false)}
-              aria-label="닫기"
-              className="absolute bottom-0 left-0 right-0 w-full flex items-center justify-center bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 h-20 px-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors z-[61]"
+              className="absolute bottom-0 left-0 right-0 w-full flex items-center justify-center bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 h-20 px-4 text-base font-semibold hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors z-[61]"
               style={{
                 paddingBottom: 'env(safe-area-inset-bottom, 0px)',
                 boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.05)'
               }}
             >
-              <span className="material-symbols-outlined text-2xl text-gray-600 dark:text-gray-300" aria-hidden>
-                close
-              </span>
+              취소
             </button>
           </div>
         )}
