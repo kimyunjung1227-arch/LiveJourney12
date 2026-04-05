@@ -882,7 +882,7 @@ const MainScreen = () => {
                 {/* 상단 배너는 현재 사용하지 않음 */}
 
                 {/* 관심 지역/장소 — 라벨 없이 원형 목록만 */}
-                <div style={{ padding: '6px 16px 8px', background: '#ffffff' }}>
+                <div style={{ padding: '4px 16px 5px', background: '#ffffff' }}>
                     <div
                         style={{ display: 'flex', gap: '10px', padding: '0 0 2px 0', overflowX: 'auto', scrollbarWidth: 'none', cursor: 'grab', scrollSnapType: 'x mandatory' }}
                         className="hide-scrollbar"
@@ -1012,8 +1012,8 @@ const MainScreen = () => {
 
                 {/* 지금 여기는 — 관심 지역 선택 시 숨김, 한 화면에 핫플까지 보이도록 높이 축소 */}
                 {!selectedInterest && (
-                    <div style={{ padding: '6px 16px 10px', background: '#ffffff' }}>
-                    <div style={{ padding: '0 0 4px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ padding: '2px 16px 6px', background: '#ffffff' }}>
+                    <div style={{ padding: '0 0 2px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#111827' }}>지금 여기는</h2>
                         </div>
@@ -1025,7 +1025,7 @@ const MainScreen = () => {
                         </button>
                     </div>
                     <div
-                    style={{ display: 'flex', gap: '7px', padding: '0 0 8px 0', overflowX: 'auto', scrollbarWidth: 'none', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', cursor: 'grab', background: '#ffffff' }}
+                    style={{ display: 'flex', gap: '6px', padding: '0 0 4px 0', overflowX: 'auto', scrollbarWidth: 'none', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', cursor: 'grab', background: '#ffffff' }}
                         className="hide-scrollbar"
                         onMouseDown={handleDragStart}
                     >
@@ -1061,7 +1061,7 @@ const MainScreen = () => {
                                         scrollSnapStop: 'always'
                                     }}
                                 >
-                                    <div style={{ width: '100%', height: '228px', background: '#e5e7eb', position: 'relative', borderRadius: '14px', overflow: 'hidden', marginBottom: '4px' }}>
+                                    <div style={{ width: '100%', height: '228px', background: '#e5e7eb', position: 'relative', borderRadius: '14px', overflow: 'hidden', marginBottom: '2px' }}>
                                         {firstVideo ? (
                                             <video
                                                 ref={(el) => {
@@ -1102,7 +1102,7 @@ const MainScreen = () => {
                                         </div>
                                     </div>
                                     {/* 사진 정보 하단 — 설명만 표시 */}
-                                    <div style={{ padding: '6px 14px 10px', minHeight: '100px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                                    <div style={{ padding: '4px 10px 6px', minHeight: '88px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', flexShrink: 0 }}>
                                             <div style={{ color: '#111827', fontSize: '14px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
                                                 {post.location || '어딘가의 지금'}
@@ -1126,8 +1126,8 @@ const MainScreen = () => {
 
                 {/* 메인 컨텐츠 */}
                 {selectedInterest ? (
-                    <div style={{ padding: '0 16px 20px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', background: '#f0f9ff', padding: '6px 12px', borderRadius: '12px' }}>
+                    <div style={{ padding: '0 16px 16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', background: '#f0f9ff', padding: '6px 12px', borderRadius: '12px' }}>
                             <span style={{ fontWeight: 700, color: '#0284c7', fontSize: '14px', lineHeight: 1.3 }}>"{selectedInterest}" 모아보기</span>
                             <button
                                 type="button"
@@ -1153,7 +1153,7 @@ const MainScreen = () => {
                             </button>
                         </div>
                         {filteredInterestPosts.length > 0 ? (
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
                                 {filteredInterestPosts.map((post) => (
                                     <div key={post.id} onClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts: filteredInterestPosts } })} style={{ overflow: 'hidden', cursor: 'pointer', display: 'flex', flexDirection: 'column' }}>
                                         {/* 정사각형 썸네일 — 2x2 그리드 통일 */}
@@ -1210,11 +1210,11 @@ const MainScreen = () => {
                         )}
                     </div>
                 ) : (
-                <div style={{ padding: '4px 16px 24px', background: '#ffffff', minHeight: '100%' }}>
+                <div style={{ padding: '2px 16px 20px', background: '#ffffff', minHeight: '100%' }}>
 
                         {/* 실시간 핫플 — 이미지 4:3 세로 비중 + 섹션 여백 */}
-                        <div style={{ marginBottom: '0', paddingTop: 0, paddingBottom: '16px', background: '#ffffff' }}>
-                            <div style={{ padding: '0 0 8px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff' }}>
+                        <div style={{ marginBottom: '0', paddingTop: 0, paddingBottom: '12px', background: '#ffffff' }}>
+                            <div style={{ padding: '0 0 5px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff' }}>
                                 <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#111827' }}>실시간 핫플</h3>
                                 <button
                                     type="button"
@@ -1226,7 +1226,7 @@ const MainScreen = () => {
                                 </button>
                             </div>
                             {!hotFeedCardProps ? (
-                                <div style={{ textAlign: 'center', padding: '18px 12px', color: '#94a3b8', fontSize: '14px' }}>
+                                <div style={{ textAlign: 'center', padding: '12px 12px', color: '#94a3b8', fontSize: '14px' }}>
                                     아직 실시간 핫플 게시물이 없어요.
                                 </div>
                             ) : (
@@ -1251,8 +1251,8 @@ const MainScreen = () => {
                         </div>
 
                         {/* ✨ 추천 여행지 */}
-                        <div style={{ marginBottom: '24px', background: '#ffffff' }}>
-                            <div style={{ padding: '0 0 12px 0' }}>
+                        <div style={{ marginBottom: '16px', background: '#ffffff' }}>
+                            <div style={{ padding: '0 0 8px 0' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#374151' }}>추천 여행지</h3>
                                 </div>
@@ -1264,7 +1264,7 @@ const MainScreen = () => {
                                 style={{
                                     display: 'flex',
                                     gap: 8,
-                                    padding: '0 0 12px 0',
+                                    padding: '0 0 8px 0',
                                     overflowX: 'auto',
                                     scrollbarWidth: 'none',
                                     WebkitOverflowScrolling: 'touch',
@@ -1309,7 +1309,7 @@ const MainScreen = () => {
                                 style={{
                                     display: 'flex',
                                     gap: '10px',
-                                    padding: '0 0 16px 0',
+                                    padding: '0 0 10px 0',
                                     overflowX: 'auto',
                                     scrollbarWidth: 'none',
                                     WebkitOverflowScrolling: 'touch',
@@ -1366,8 +1366,8 @@ const MainScreen = () => {
                             </div>
                         </div>
                         {/* 여행 매거진 (발행 매거진 모아보기) */}
-                        <div style={{ marginBottom: '24px', background: '#ffffff' }}>
-                            <div style={{ padding: '0 0 10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ marginBottom: '16px', background: '#ffffff' }}>
+                            <div style={{ padding: '0 0 6px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#374151' }}>여행 매거진</h3>
                                 <button
                                     type="button"
@@ -1377,7 +1377,7 @@ const MainScreen = () => {
                                     <span>더보기</span>
                                 </button>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 4 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 2 }}>
                                 {magazineCards.map(({ magazine, cover }) => (
                                     <button
                                         key={magazine.id}

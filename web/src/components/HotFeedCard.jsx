@@ -119,7 +119,7 @@ const HotFeedCard = ({
                     );
                 })()}
             </div>
-            <div style={{ padding: '10px 2px 4px', background: 'transparent', border: 'none', boxShadow: 'none' }}>
+            <div style={{ padding: '8px 2px 2px', background: 'transparent', border: 'none', boxShadow: 'none' }}>
                 <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{title}</h4>
                 {(cityDongLine || regionShort || (photoCategoryLabels && photoCategoryLabels.length)) ? (
                     <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -159,8 +159,8 @@ const HotFeedCard = ({
                         ) : null}
                     </div>
                 ) : null}
-                <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', background: 'transparent', boxShadow: 'none' }}>{captionForCard}</p>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, gap: 8 }}>
+                <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', background: 'transparent', boxShadow: 'none' }}>{captionForCard}</p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, gap: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1, gap: 8 }}>
                         <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 2 }}>
                             {avatars.slice(0, 3).map((url, ai) => (
