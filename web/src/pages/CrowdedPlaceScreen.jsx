@@ -11,7 +11,6 @@ import { rankHotspotPosts } from '../utils/hotnessEngine';
 import { toggleLike, isPostLiked } from '../utils/socialInteractions';
 import { updatePostLikesSupabase } from '../api/postsSupabase';
 import { getMapThumbnailUri } from '../utils/postMedia';
-import { getUnreadCount } from '../utils/notifications';
 import HotFeedCard from '../components/HotFeedCard';
 import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCardModel';
 import { getWeatherByRegion } from '../api/weather';
@@ -22,7 +21,6 @@ const CrowdedPlaceScreen = () => {
     const [refreshKey, setRefreshKey] = useState(0);
     const [weatherByRegion, setWeatherByRegion] = useState({});
     const [crowdedSocialIdx, setCrowdedSocialIdx] = useState(0);
-    const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
     const contentRef = useRef(null);
 
     useEffect(() => {
@@ -42,7 +40,7 @@ const CrowdedPlaceScreen = () => {
     useEffect(() => {
         const regions = new Set();
         crowdedData.forEach((p) => {
-            if (p && !p.weather && (p.region || p.location)) {
+            if (p && !p.weather && !p.weatherSnapshot && (p.region || p.location)) {
                 const r = (p.region || p.location || '').trim().split(/\s+/)[0] || p.region || p.location;
                 if (r) regions.add(r);
             }
@@ -71,13 +69,6 @@ const CrowdedPlaceScreen = () => {
             cancelled = true;
         };
     }, [crowdedRegionsKey]);
-
-    useEffect(() => {
-        const onCountChange = () => setUnreadNotificationCount(getUnreadCount());
-        window.addEventListener('notificationCountChanged', onCountChange);
-        setUnreadNotificationCount(getUnreadCount());
-        return () => window.removeEventListener('notificationCountChanged', onCountChange);
-    }, []);
 
     const handleHotFeedLike = useCallback((e, post) => {
         e.stopPropagation();
@@ -189,66 +180,31 @@ const CrowdedPlaceScreen = () => {
 
     return (
         <div className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col">
-            {/* 메인과 동일 상단 바 — 뒤로가기 + 로고 + 검색 + 알림 */}
-            <div
-                className="flex-shrink-0 flex items-center gap-2 px-4 py-3 bg-white dark:bg-gray-900 sticky top-0 z-20"
-                style={{
-                    borderBottom: 'none',
-                    boxShadow: 'none',
-                }}
-            >
+            <header className="sticky top-0 z-20 flex shrink-0 items-center gap-2 border-b border-border-light bg-background-light px-3 py-3 dark:border-border-dark dark:bg-background-dark">
                 <button
                     type="button"
                     onClick={() => navigate(-1)}
                     aria-label="뒤로가기"
-                    className="flex size-10 shrink-0 items-center justify-center rounded-full text-[#0f172a] dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+                    className="flex size-10 shrink-0 items-center justify-center rounded-full text-text-primary-light hover:bg-black/5 dark:text-text-primary-dark dark:hover:bg-white/10"
                 >
                     <span className="material-symbols-outlined text-2xl">arrow_back</span>
                 </button>
-                <span
-                    className="logo-text shrink-0 text-[18px] font-bold tracking-tight text-[#0f172a] dark:text-white opacity-90"
-                    style={{ letterSpacing: '-0.3px' }}
-                >
-                    Live Journey
-                </span>
-                <button
-                    type="button"
-                    onClick={() => navigate('/search')}
-                    className="flex flex-1 min-w-0 max-w-[260px] h-8 ml-2 mr-1 items-center justify-between border-0 border-b border-solid border-slate-200 bg-transparent text-slate-400 text-sm cursor-pointer"
-                    aria-label="검색"
-                >
-                    <span className="truncate">어디로 떠나볼까요?</span>
-                    <span className="material-symbols-outlined text-[20px] shrink-0">search</span>
-                </button>
-                <button
-                    type="button"
-                    onClick={() => navigate('/notifications')}
-                    className="relative flex size-11 shrink-0 items-center justify-center text-[#0f172a] dark:text-white"
-                    aria-label="알림"
-                >
-                    <span className="material-symbols-outlined text-2xl">notifications</span>
-                    {unreadNotificationCount > 0 && (
-                        <span className="noti-badge absolute top-1 right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                            {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
-                        </span>
-                    )}
-                </button>
-            </div>
+                <h1 className="min-w-0 flex-1 pr-2 text-center text-[17px] font-bold leading-snug text-text-primary-light dark:text-text-primary-dark">
+                    실시간 급상승 핫플
+                </h1>
+                <div className="size-10 shrink-0" aria-hidden />
+            </header>
 
-            <div ref={contentRef} className="screen-content flex-1 overflow-y-auto" style={{ background: '#ffffff' }}>
-                <div style={{ padding: '8px 16px 24px', background: '#ffffff', minHeight: '100%' }}>
-                    <div style={{ marginBottom: '0', paddingTop: '4px', paddingBottom: '24px', background: '#ffffff' }}>
-                        <div style={{ padding: '0 0 14px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff' }}>
-                            <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#111827' }}>실시간 핫플</h3>
-                            <span className="w-10" aria-hidden />
-                        </div>
+            <div ref={contentRef} className="screen-content flex-1 overflow-y-auto bg-background-light dark:bg-background-dark">
+                <div className="min-h-full px-4 pb-16 pt-2">
+                    <div className="pb-6">
 
                         {filteredPosts.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '28px 12px', color: '#94a3b8', fontSize: '14px' }}>
+                            <div className="py-10 text-center text-sm text-text-secondary-light dark:text-text-secondary-dark">
                                 아직 실시간 핫플 게시물이 없어요.
                             </div>
                         ) : (
-                            <div className="flex flex-col gap-2 pb-16">
+                            <div className="flex flex-col gap-2">
                                 {filteredPosts.map((post) => {
                                     const cardProps = buildHotFeedCardProps(post, weatherByRegion);
                                     if (!cardProps) return null;

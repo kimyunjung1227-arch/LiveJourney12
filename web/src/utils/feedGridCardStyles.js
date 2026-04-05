@@ -9,6 +9,16 @@ export const feedGridCardBox = {
   boxShadow: '0 2px 14px rgba(15, 23, 42, 0.08)',
 };
 
+/** 메인 배경 위 그리드 — 흰 카드 박스 없이 썸네일·텍스트만 (지금 여기는 더보기 등) */
+export const feedGridCardBoxFlat = {
+  width: '100%',
+  overflow: 'hidden',
+  borderRadius: 18,
+  background: 'transparent',
+  border: 'none',
+  boxShadow: 'none',
+};
+
 export const feedGridImageBox = {
   width: '100%',
   paddingBottom: '88%',

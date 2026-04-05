@@ -11,7 +11,7 @@ import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getWeatherByRegion } from '../api/weather';
 import { getGridCoverDisplay } from '../utils/postMedia';
 import {
-  feedGridCardBox,
+  feedGridCardBoxFlat,
   feedGridImageBox,
   feedGridInfoBox,
   feedGridTitleStyle,
@@ -150,23 +150,11 @@ const RealtimeFeedScreen = () => {
   }, []);
 
   return (
-    <div className="screen-layout" style={{ background: '#ffffff', minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-      <div style={{ height: '20px' }} />
+    <div
+      className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col relative"
+    >
       <header
-        className="screen-header"
-        style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
-          borderBottom: '1px solid #f0f0f0',
-          flexShrink: 0,
-          background: 'white',
-          padding: '10px 16px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '8px',
-        }}
+        className="screen-header sticky top-0 z-[100] flex shrink-0 items-center justify-between gap-2 border-b border-border-light bg-background-light px-4 py-2.5 dark:border-border-dark dark:bg-background-dark"
       >
         <button
           type="button"
@@ -185,32 +173,21 @@ const RealtimeFeedScreen = () => {
           </span>
         </button>
 
-        <div
-          style={{
-            flex: 1,
-            textAlign: 'center',
-            fontSize: 18,
-            fontWeight: 700,
-            color: '#1f2937',
-          }}
-        >
+        <div className="flex-1 text-center text-lg font-bold text-text-primary-light dark:text-text-primary-dark">
           지금 여기는
         </div>
 
-        <div style={{ width: 24, height: 24 }} />
+        <div className="w-10 shrink-0" aria-hidden />
       </header>
 
       <div
         ref={contentRef}
-        className="screen-content"
-        style={{ flex: 1, overflow: 'auto', padding: '16px', paddingBottom: '100px' }}
+        className="screen-content flex-1 overflow-auto bg-background-light px-4 pb-24 pt-3 dark:bg-background-dark"
       >
         {realtimeData.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: '#94a3b8' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '48px', marginBottom: '16px', display: 'block' }}>
-              schedule
-            </span>
-            <p>아직 게시물이 없어요</p>
+          <div className="py-16 text-center text-text-secondary-light dark:text-text-secondary-dark">
+            <span className="material-symbols-outlined mb-4 block text-5xl opacity-60">schedule</span>
+            <p className="text-sm">아직 게시물이 없어요</p>
           </div>
         ) : (
           <div
@@ -232,7 +209,7 @@ const RealtimeFeedScreen = () => {
                   key={`${post.id}-${index}`}
                   onClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts: realtimeData } })}
                   style={{
-                    ...feedGridCardBox,
+                    ...feedGridCardBoxFlat,
                     cursor: 'pointer',
                     display: 'flex',
                     flexDirection: 'column',
