@@ -765,7 +765,7 @@ const MainScreen = () => {
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     gap: '10px',
-                    padding: '12px 16px',
+                    padding: '7px 16px',
                     background: '#ffffff',
                     backdropFilter: 'blur(10px)',
                     position: 'sticky',
@@ -778,63 +778,40 @@ const MainScreen = () => {
                         style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 14,
+                            gap: 8,
                             flexShrink: 0,
                         }}
                     >
-                        <div
-                            role="img"
-                            aria-label="Live Journey"
+                        <span
+                            className="logo-text"
                             style={{
-                                display: 'inline-flex',
-                                alignItems: 'baseline',
-                                gap: 3,
+                                fontSize: '15px',
+                                fontWeight: 700,
+                                color: '#0f172a',
+                                letterSpacing: '-0.04em',
+                                lineHeight: 1.1,
                                 flexShrink: 0,
-                                lineHeight: 1,
                             }}
                         >
-                            <span
-                                className="logo-text"
-                                style={{
-                                    fontSize: '15px',
-                                    fontWeight: 800,
-                                    color: '#000000',
-                                    letterSpacing: '-0.04em',
-                                }}
-                            >
-                                Live
-                            </span>
-                            <span
-                                style={{
-                                    fontFamily:
-                                        "Georgia, 'Times New Roman', 'Noto Serif KR', Times, serif",
-                                    fontSize: '12px',
-                                    fontWeight: 700,
-                                    color: '#A50021',
-                                    letterSpacing: '0.05em',
-                                    textTransform: 'uppercase',
-                                }}
-                            >
-                                JOURNEY
-                            </span>
-                        </div>
+                            라이브저니
+                        </span>
                         <button
                             type="button"
                             onClick={() => navigate('/coupons')}
                             style={{
                                 flexShrink: 0,
-                                height: 28,
-                                minWidth: 52,
-                                padding: '0 14px',
+                                height: 22,
+                                minWidth: 44,
+                                padding: '0 8px',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                gap: 5,
+                                gap: 3,
                                 borderRadius: 9999,
                                 border: 'none',
                                 background: '#F2F2F2',
                                 color: '#757575',
-                                fontSize: 11,
+                                fontSize: 10,
                                 fontWeight: 500,
                                 letterSpacing: '-0.02em',
                                 cursor: 'pointer',
@@ -844,7 +821,7 @@ const MainScreen = () => {
                             <span
                                 className="material-symbols-outlined"
                                 style={{
-                                    fontSize: 16,
+                                    fontSize: 13,
                                     color: '#757575',
                                     fontWeight: 400,
                                 }}
@@ -863,7 +840,7 @@ const MainScreen = () => {
                             flex: 1,
                             minWidth: 0,
                             maxWidth: 228,
-                            height: 28,
+                            height: 26,
                             marginLeft: 6,
                             marginRight: 6,
                             display: 'flex',
@@ -874,7 +851,7 @@ const MainScreen = () => {
                             border: 'none',
                             borderBottom: '1px solid #e2e8f0',
                             color: '#94a3b8',
-                            fontSize: 13,
+                            fontSize: 12,
                             cursor: 'pointer'
                         }}
                         aria-label="검색으로 이동"
@@ -882,15 +859,15 @@ const MainScreen = () => {
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             어디로 떠나볼까요?
                         </span>
-                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#94a3b8', flexShrink: 0 }}>search</span>
+                        <span className="material-symbols-outlined" style={{ fontSize: 17, color: '#94a3b8', flexShrink: 0 }}>search</span>
                     </button>
                     <button
                         onClick={() => navigate('/notifications')}
                         className="icon-btn"
-                        style={{ minWidth: 44, minHeight: 44, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}
+                        style={{ minWidth: 40, minHeight: 40, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}
                         aria-label="알림"
                     >
-                        <span className="material-symbols-outlined" style={{ fontSize: 24 }}>notifications</span>
+                        <span className="material-symbols-outlined" style={{ fontSize: 22 }}>notifications</span>
                         {unreadNotificationCount > 0 && (
                             <span className="noti-badge" aria-label="새 알림">
                                 {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
@@ -902,7 +879,7 @@ const MainScreen = () => {
                 {/* 상단 배너는 현재 사용하지 않음 */}
 
                 {/* 관심 지역/장소 — 라벨 없이 원형 목록만 */}
-                <div style={{ padding: '4px 16px 8px', background: '#ffffff' }}>
+                <div style={{ padding: '10px 16px 12px', background: '#ffffff' }}>
                     <div
                         style={{ display: 'flex', gap: '10px', padding: '0 0 4px 0', overflowX: 'auto', scrollbarWidth: 'none', cursor: 'grab', scrollSnapType: 'x mandatory' }}
                         className="hide-scrollbar"
