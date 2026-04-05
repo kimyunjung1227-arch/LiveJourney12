@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { memo } from 'react';
 
 /**
  * 매거진 장소별 — 현장 사용자가 올린 사진·짧은 글
  * @param {{ id: string, text: string, author: string, timeLabel: string, thumbUrl?: string }[]} voices
  */
-const MagazineFieldVoices = ({ voices = [], className = '' }) => {
+const MagazineFieldVoices = memo(function MagazineFieldVoices({ voices = [], className = '' }) {
   const list = Array.isArray(voices) ? voices.filter((v) => v && String(v.text || '').trim()) : [];
   if (list.length === 0) return null;
 
@@ -56,6 +56,6 @@ const MagazineFieldVoices = ({ voices = [], className = '' }) => {
       </div>
     </div>
   );
-};
+});
 
 export default MagazineFieldVoices;

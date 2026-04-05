@@ -27,7 +27,7 @@ const loadKakaoMapAPI = () => {
 
     if (tryResolve()) return;
 
-    const waitForKakao = (deadlineMs, label) => {
+    const waitForKakao = (deadlineMs) => {
       const deadline = Date.now() + deadlineMs;
       const t = setInterval(() => {
         if (tryResolve()) {
@@ -43,7 +43,7 @@ const loadKakaoMapAPI = () => {
 
     // 1) 먼저 HTML에 삽입된 스크립트 대기 (최대 4초)
     logger.log('📡 Kakao Map API 대기 중...');
-    waitForKakao(4000, 'html');
+    waitForKakao(4000);
   }).catch((err) => {
     // 2) 실패 시 키가 있으면 동적 스크립트로 한 번 더 시도
     const key = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_KAKAO_MAP_API_KEY

@@ -46,11 +46,10 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
-    minify: false
-  }
+    // 이전 false는 번들 비대화 원인 — 프로덕션은 esbuild 압축 권장
+    minify: 'esbuild',
+    target: 'es2020',
+    chunkSizeWarningLimit: 900,
+  },
 })
-
-
-
-
 
