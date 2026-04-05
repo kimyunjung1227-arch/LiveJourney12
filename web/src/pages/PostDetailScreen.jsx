@@ -779,69 +779,56 @@ const PostDetailScreen = () => {
 
     if (!postUserId) return;
 
-    // 1) 사용자 전체 뱃지 먼저 계산 (사진 상세에서는 대표 뱃지만 사용하지만,
-    //    추후 확장에 대비해 일단 로드해 둠)
-    const badges = getEarnedBadgesForUser(postUserId) || [];
-    setUserBadges(badges);
-
-    // 2) 저장된 대표 뱃지 로드
-    let repBadge = null;
-    const repBadgeJson = localStorage.getItem(`representativeBadge_${postUserId}`);
-    if (repBadgeJson) {
-      try {
-        repBadge = JSON.parse(repBadgeJson);
-      } catch {
-        repBadge = null;
-      }
-    }
-
-    // 3) 없으면 보유 뱃지 중 하나를 대표 뱃지로 사용
-    if (!repBadge && badges.length > 0) {
-      // 난이도/정렬 등의 로직이 생기면 여기서 변경
-      repBadge = badges[0];
-      localStorage.setItem(`representativeBadge_${postUserId}`, JSON.stringify(repBadge));
-    }
-
-    // 4) 그래도 없으면, 포스트에 들어있는 텍스트 배지를 대표 뱃지처럼 보여줌
-    if (!repBadge) {
-      const fallbackBadgeName =
-        (post?.user && typeof post.user === 'object' && post.user.badges?.[0]) ||
-        post?.badge ||
-        null;
-
-      if (fallbackBadgeName) {
-        repBadge = {
-          name: fallbackBadgeName,
-          icon: '🏅',
-        };
-      }
-    }
-
-    if (repBadge) {
-      setRepresentativeBadge(repBadge);
-    }
-
-    // 5) 작성자 신뢰지수
-    // - 프로필 화면과 동일하게 Supabase+로컬 병합 게시물 기준으로 계산
-    // - 현재 보고 있는 게시물이 포함되지 않았으면 함께 포함해서 계산
     (async () => {
       const authorId = String(postUserId || '');
-      let postsForTrust = [];
+      let postsForAuthor = [];
       try {
         if (authorId) {
-          // 내 프로필과 동일한 로직 사용
-          // (다른 사람 게시물일 때도 해당 userId 기준으로 병합)
-          postsForTrust = await getMergedMyPostsForStats(authorId);
+          postsForAuthor = await getMergedMyPostsForStats(authorId);
         }
       } catch {
-        postsForTrust = [];
+        postsForAuthor = [];
       }
-      // 병합 목록에 현재 게시물이 없으면 추가
-      if (post && post.id && !postsForTrust.some((p) => String(p.id || p._id) === String(post.id || post._id))) {
-        postsForTrust = [post, ...postsForTrust];
+      if (post && post.id && !postsForAuthor.some((p) => String(p.id || p._id) === String(post.id || post._id))) {
+        postsForAuthor = [post, ...postsForAuthor];
       }
-      const raw = getTrustRawScore(authorId || null, postsForTrust.length ? postsForTrust : null);
-      const { grade, progressToNext } = getTrustGrade(raw, authorId || null, postsForTrust.length ? postsForTrust : null);
+
+      const badges = getEarnedBadgesForUser(postUserId, postsForAuthor) || [];
+      setUserBadges(badges);
+
+      let repBadge = null;
+      const repBadgeJson = localStorage.getItem(`representativeBadge_${postUserId}`);
+      if (repBadgeJson) {
+        try {
+          repBadge = JSON.parse(repBadgeJson);
+        } catch {
+          repBadge = null;
+        }
+      }
+      if (!repBadge && badges.length > 0) {
+        repBadge = badges[0];
+        try {
+          const saved = JSON.parse(localStorage.getItem('user') || '{}');
+          if (saved?.id && String(saved.id) === String(postUserId)) {
+            localStorage.setItem(`representativeBadge_${postUserId}`, JSON.stringify(repBadge));
+          }
+        } catch (_) { /* ignore */ }
+      }
+      if (!repBadge) {
+        const fallbackBadgeName =
+          (post?.user && typeof post.user === 'object' && post.user.badges?.[0]) ||
+          post?.badge ||
+          null;
+        if (fallbackBadgeName) {
+          repBadge = { name: fallbackBadgeName, icon: '🏅' };
+        }
+      }
+      if (repBadge) {
+        setRepresentativeBadge(repBadge);
+      }
+
+      const raw = getTrustRawScore(authorId || null, postsForAuthor.length ? postsForAuthor : null);
+      const { grade, progressToNext } = getTrustGrade(raw, authorId || null, postsForAuthor.length ? postsForAuthor : null);
       setAuthorTrustScore(progressToNext);
       setAuthorTrustGrade(grade);
     })();

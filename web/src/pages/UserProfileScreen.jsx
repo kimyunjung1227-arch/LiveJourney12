@@ -3,13 +3,14 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { useAuth } from '../contexts/AuthContext';
 import { getEarnedBadgesForUser, BADGES, getBadgeDisplayName } from '../utils/badgeSystem';
+import { getMergedMyPostsForStats } from '../api/postsSupabase';
 import { getCoordinatesByLocation } from '../utils/regionLocationMapping';
 import { follow, unfollow, isFollowing, getFollowerCount, getFollowingCount } from '../utils/followSystem';
 import { notifyFollowReceived, notifyFollowingStarted } from '../utils/notifications';
 import { logger } from '../utils/logger';
 import { getDisplayImageUrl } from '../api/upload';
 import { getPosts } from '../api/posts';
-import { fetchPostsByUserIdSupabase, fetchPostsSupabase } from '../api/postsSupabase';
+import { fetchPostsByUserIdSupabase } from '../api/postsSupabase';
 import { getTrustRawScore, getTrustGrade } from '../utils/trustIndex';
 import api from '../api/axios';
 import {
@@ -119,29 +120,14 @@ const UserProfileScreen = () => {
       profileImage: pickAvatar(),
     });
 
-    // 뱃지 로드 (현재 로컬/서버 기준 실제 데이터만 사용)
-    const badges = getEarnedBadgesForUser(userId) || [];
-    setEarnedBadges(badges);
-
-    // 대표 뱃지: 본인은 로컬/획득 뱃지, 다른 사용자는 서버/로컬에 있을 때만
     const isOwnProfile = currentUser && String(userId) === String(currentUser.id);
     const repBadgeJson = localStorage.getItem(`representativeBadge_${userId}`);
     if (repBadgeJson) {
       try {
-        const repBadge = JSON.parse(repBadgeJson);
-        setRepresentativeBadge(repBadge);
+        setRepresentativeBadge(JSON.parse(repBadgeJson));
       } catch {
         setRepresentativeBadge(null);
       }
-    } else if (isOwnProfile && badges && badges.length > 0) {
-      let badgeIndex = 0;
-      if (userId) {
-        const hash = userId.toString().split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        badgeIndex = hash % badges.length;
-      }
-      const repFromEarned = badges[badgeIndex];
-      localStorage.setItem(`representativeBadge_${userId}`, JSON.stringify(repFromEarned));
-      setRepresentativeBadge(repFromEarned);
     } else {
       setRepresentativeBadge(null);
     }
@@ -158,15 +144,58 @@ const UserProfileScreen = () => {
 
     const merge = async () => {
       const byId = new Map();
-      // 1) Supabase에서 해당 사용자 게시물 조회 (다른 사용자 프로필에서도 사진 나오도록)
-      let supabasePosts = [];
+      localPosts.forEach(p => { if (p && (p.id || p._id)) byId.set(p.id || p._id, p); });
+
+      const applyMerged = (mergedList) => {
+        const merged = [...mergedList].sort((a, b) => (b.timestamp || b.createdAt || 0) - (a.timestamp || a.createdAt || 0));
+        setUserPosts(merged);
+        setStats({ posts: merged.length });
+        const badges = getEarnedBadgesForUser(userId, merged) || [];
+        setEarnedBadges(badges);
+        if (!repBadgeJson) {
+          setRepresentativeBadge((prev) => {
+            if (prev) return prev;
+            if (!badges.length) return null;
+            const idx = userId ? (userId.toString().split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % badges.length) : 0;
+            const pick = badges[idx];
+            if (isOwnProfile && pick) {
+              try {
+                localStorage.setItem(`representativeBadge_${userId}`, JSON.stringify(pick));
+              } catch (_) { /* ignore */ }
+            }
+            return pick;
+          });
+        }
+        const postsWithMedia = merged.filter(
+          p => (p.images && p.images.length > 0) || p.image || p.imageUrl || (p.videos && p.videos.length > 0)
+        );
+        const dateSet = new Set();
+        postsWithMedia.forEach(post => {
+          const raw = post.createdAt || post.timestamp;
+          if (raw == null || raw === '') return;
+          const d = new Date(raw);
+          if (isNaN(d.getTime())) return;
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          dateSet.add(`${y}-${m}-${day}`);
+        });
+        setAvailableDates([...dateSet].sort((a, b) => new Date(b) - new Date(a)));
+      };
+
+      // 로컬만으로 먼저 화면 표시 (느린 전체 Supabase 조회 제거)
+      applyMerged([...byId.values()]);
+      setLoading(false);
+
+      // 1) Supabase: 해당 user_id(UUID) 게시물만 (경량)
       try {
-        supabasePosts = await fetchPostsByUserIdSupabase(userId);
-        // user_id가 UUID가 아니면 빈 배열이 올 수 있음 → 전체 조회 후 클라이언트에서 필터
-        if (!supabasePosts || supabasePosts.length === 0) {
-          const all = await fetchPostsSupabase();
-          const forUser = (all || []).filter(p => getPostUserId(p) === String(userId));
-          supabasePosts = forUser;
+        let supabasePosts = await fetchPostsByUserIdSupabase(userId);
+        if ((!supabasePosts || supabasePosts.length === 0) && /^[0-9a-f-]{36}$/i.test(String(userId).trim())) {
+          try {
+            supabasePosts = await getMergedMyPostsForStats(userId);
+          } catch (_) {
+            supabasePosts = [];
+          }
         }
         (supabasePosts || []).forEach(p => { if (p && p.id) byId.set(p.id, p); });
         if (supabasePosts && supabasePosts.length > 0) {
@@ -186,9 +215,9 @@ const UserProfileScreen = () => {
           });
         }
       } catch (_) { /* Supabase 실패 시 로컬/API만 사용 */ }
-      // 2) 로컬 게시물 병합 (같은 id면 유지, 없으면 추가)
+
       localPosts.forEach(p => { if (p && (p.id || p._id) && !byId.has(p.id || p._id)) byId.set(p.id || p._id, p); });
-      // 3) 기존 REST API(있으면) 병합
+
       try {
         const res = await getPosts({ limit: 100 });
         if (res && res.posts && Array.isArray(res.posts)) {
@@ -208,25 +237,8 @@ const UserProfileScreen = () => {
           });
         }
       } catch (_) { /* API 없으면 무시 */ }
-      const merged = [...byId.values()].sort((a, b) => (b.timestamp || b.createdAt || 0) - (a.timestamp || a.createdAt || 0));
-      setUserPosts(merged);
-      setStats({ posts: merged.length });
-      const postsWithMedia = merged.filter(
-        p => (p.images && p.images.length > 0) || p.image || p.imageUrl || (p.videos && p.videos.length > 0)
-      );
-      const dateSet = new Set();
-      postsWithMedia.forEach(post => {
-        const raw = post.createdAt || post.timestamp;
-        if (raw == null || raw === '') return;
-        const d = new Date(raw);
-        if (isNaN(d.getTime())) return;
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        dateSet.add(`${y}-${m}-${day}`);
-      });
-      setAvailableDates([...dateSet].sort((a, b) => new Date(b) - new Date(a)));
-      setLoading(false);
+
+      applyMerged([...byId.values()]);
     };
     merge();
 

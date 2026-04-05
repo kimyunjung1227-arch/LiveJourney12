@@ -790,6 +790,19 @@ const UploadScreen = () => {
       return;
     }
 
+    const pendingTag = normalizeTag(tagInput);
+    let finalTags = dedupeHashtags([...(formData.tags || [])]);
+    if (pendingTag) {
+      const low = pendingTag.toLowerCase();
+      if (!finalTags.some((t) => normalizeTag(t).toLowerCase() === low)) {
+        finalTags = dedupeHashtags([...finalTags, `#${pendingTag}`]);
+      }
+    }
+    if (pendingTag) {
+      setTagInput('');
+      setFormData((prev) => ({ ...prev, tags: finalTags }));
+    }
+
     if (editingPostId) {
       try {
         setUploading(true);
@@ -841,7 +854,7 @@ const UploadScreen = () => {
           }
         }
         setUploadProgress(70);
-        const tagPayload = dedupeHashtags(formData.tags)
+        const tagPayload = dedupeHashtags(finalTags)
           .map((t) => t.replace(/^#+/, '').trim())
           .filter(Boolean);
         const region = normalizeRegionName(formData.location?.split(' ')[0] || '기타');
@@ -884,7 +897,7 @@ const UploadScreen = () => {
             detailedLocation: formData.location.trim(),
             placeName: formData.location.trim(),
             region,
-            tags: formData.tags,
+            tags: finalTags,
             category: formData.aiCategory,
             categories: Array.isArray(formData.aiCategories) ? formData.aiCategories : [formData.aiCategory],
             categoryName: formData.aiCategoryName,
@@ -995,7 +1008,7 @@ const UploadScreen = () => {
           region: normalizeRegionName(formData.location?.split(' ')[0] || '지역'),
           country: '대한민국'
         },
-        tags: formData.tags.map(tag => tag.replace('#', '')),
+        tags: finalTags.map((tag) => String(tag).replace(/^#+/, '').trim()).filter(Boolean),
         isRealtime: true,
         photoDate: formData.photoDate || null, // EXIF 촬영 날짜
         exifData: formData.exifData ? {
@@ -1079,7 +1092,7 @@ const UploadScreen = () => {
             images: finalImages,
             videos: finalVideos,
             location: formData.location,
-            tags: Array.isArray(formData.tags) ? formData.tags : [],
+            tags: Array.isArray(finalTags) ? finalTags : [],
             note: formData.note,
             timestamp: photoTimestamp,
             createdAt: backendPost?.createdAt || getCurrentTimestamp(),
@@ -1309,7 +1322,7 @@ const UploadScreen = () => {
       setUploading(false);
       setUploadProgress(0);
     }
-  }, [formData, user, navigate, checkAndAwardBadge, editingPostId]);
+  }, [formData, user, navigate, checkAndAwardBadge, editingPostId, tagInput]);
 
   if (editingPostId && !editFormReady) {
     return (

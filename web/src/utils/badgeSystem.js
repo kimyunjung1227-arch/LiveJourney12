@@ -505,10 +505,59 @@ export const markBadgeAsSeen = (badgeName) => {
   }
 };
 /**
- * 특정 유저의 획득한 뱃지 (표시용, 신뢰지수 등급 제외)
+ * 통계로 달성 가능한 뱃지 목록 (프로필·타인 조회용 — 게시물 기반 추정)
  */
-export const getEarnedBadgesForUser = (userId) => {
-  return getEarnedBadgesForDisplay();
+export const getEarnedBadgesFromStats = (stats) => {
+  if (!stats) return [];
+  const list = [];
+  for (const [badgeName, badgeInfo] of Object.entries(BADGES)) {
+    if (badgeInfo.category === TRUST_CATEGORY || badgeInfo.hidden) continue;
+    try {
+      if (badgeInfo.condition(stats)) {
+        const item = { ...badgeInfo, name: badgeName };
+        if ((badgeInfo.regionAware || REGION_AWARE_NAMES.includes(badgeName)) && stats.topRegionName) {
+          item.region = stats.topRegionName;
+        }
+        list.push(item);
+      }
+    } catch (_) { /* 조건 함수 예외 무시 */ }
+  }
+  return list;
+};
+
+/**
+ * 특정 유저의 획득/추정 뱃지 (표시용, 신뢰지수 등급 제외)
+ * @param {string} userId
+ * @param {Array|null} posts - 해당 유저 게시물이 있으면 통계로 뱃지 추정(타인 프로필). 없으면 본인만 로컬 저장 뱃지.
+ */
+export const getEarnedBadgesForUser = (userId, posts = null) => {
+  try {
+    const saved = typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('user') || '{}') : {};
+    const selfId = saved?.id;
+    const isSelf = selfId != null && String(selfId) === String(userId);
+
+    if (posts && Array.isArray(posts)) {
+      const stats = calculateUserStats(posts, { id: userId });
+      const fromStats = getEarnedBadgesFromStats(stats);
+      if (isSelf) {
+        const fromStorage = getEarnedBadgesForDisplay();
+        const byName = new Map();
+        fromStats.forEach((b) => byName.set(b.name, { ...b }));
+        fromStorage.forEach((b) => {
+          const cur = byName.get(b.name);
+          byName.set(b.name, cur ? { ...cur, ...b, earnedAt: b.earnedAt || cur.earnedAt, region: b.region || cur.region } : b);
+        });
+        return [...byName.values()];
+      }
+      return fromStats;
+    }
+
+    if (isSelf) return getEarnedBadgesForDisplay();
+    return [];
+  } catch (e) {
+    logger.warn('getEarnedBadgesForUser:', e?.message);
+    return [];
+  }
 };
 
 /**
