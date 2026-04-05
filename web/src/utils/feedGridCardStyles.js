@@ -27,10 +27,11 @@ export const feedGridImageBox = {
   overflow: 'hidden',
 };
 
-/** 플랫 카드용 — 썸네일 상·하단 라운드 동일 (18px, 카드 박스와 동일 반경) */
+/** 플랫 카드용 — 썸네일 상·하단 라운드 동일 (18px). 세로는 기본 feedGridImageBox(88%)보다 크게 */
 export const feedGridImageBoxFlat = {
   ...feedGridImageBox,
   borderRadius: 18,
+  paddingBottom: '118%',
 };
 
 export const feedGridInfoBox = {

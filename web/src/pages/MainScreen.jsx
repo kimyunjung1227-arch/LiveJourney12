@@ -1014,7 +1014,7 @@ const MainScreen = () => {
                                         scrollSnapStop: 'always'
                                     }}
                                 >
-                                    <div style={{ width: '100%', height: '200px', background: '#e5e7eb', position: 'relative', borderRadius: '14px', overflow: 'hidden', marginBottom: '4px' }}>
+                                    <div style={{ width: '100%', height: '260px', background: '#e5e7eb', position: 'relative', borderRadius: '14px', overflow: 'hidden', marginBottom: '4px' }}>
                                         {firstVideo ? (
                                             <video
                                                 ref={(el) => {
