@@ -12,8 +12,7 @@ export const feedGridCardBox = {
 /** 메인 배경 위 그리드 — 흰 카드 박스 없이 썸네일·텍스트만 (지금 여기는 더보기 등) */
 export const feedGridCardBoxFlat = {
   width: '100%',
-  overflow: 'hidden',
-  borderRadius: 18,
+  overflow: 'visible',
   background: 'transparent',
   border: 'none',
   boxShadow: 'none',
@@ -26,6 +25,12 @@ export const feedGridImageBox = {
   position: 'relative',
   background: '#e5e7eb',
   overflow: 'hidden',
+};
+
+/** 플랫 카드용 — 썸네일 상·하단 라운드 동일 (18px, 카드 박스와 동일 반경) */
+export const feedGridImageBoxFlat = {
+  ...feedGridImageBox,
+  borderRadius: 18,
 };
 
 export const feedGridInfoBox = {

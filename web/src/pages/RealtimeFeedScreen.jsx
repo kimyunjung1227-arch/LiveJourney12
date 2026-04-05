@@ -12,7 +12,7 @@ import { getWeatherByRegion } from '../api/weather';
 import { getGridCoverDisplay } from '../utils/postMedia';
 import {
   feedGridCardBoxFlat,
-  feedGridImageBox,
+  feedGridImageBoxFlat,
   feedGridInfoBox,
   feedGridTitleStyle,
   feedGridDescStyle,
@@ -215,7 +215,7 @@ const RealtimeFeedScreen = () => {
                     flexDirection: 'column',
                   }}
                 >
-                  <div style={feedGridImageBox}>
+                  <div style={feedGridImageBoxFlat}>
                     {post.gridCover?.mode === 'img' && post.gridCover.src ? (
                       <img
                         src={post.gridCover.src}
