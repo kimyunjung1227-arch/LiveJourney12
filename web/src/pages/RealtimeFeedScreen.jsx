@@ -63,7 +63,7 @@ const RealtimeFeedScreen = () => {
   useEffect(() => {
     const regions = new Set();
     realtimeData.forEach((p) => {
-      if (p && !p.weather && (p.region || p.location)) {
+      if (p && !p.weather && !p.weatherSnapshot && (p.region || p.location)) {
         const r = (p.region || p.location || '').trim().split(/\s+/)[0] || p.region || p.location;
         if (r) regions.add(r);
       }
@@ -224,7 +224,7 @@ const RealtimeFeedScreen = () => {
           >
             {displayedPosts.map((post, index) => {
               const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
-              const weather = post.weather || weatherByRegion[regionKey] || null;
+              const weather = post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
               const hasWeather = weather && (weather.icon || weather.temperature);
               const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
               return (

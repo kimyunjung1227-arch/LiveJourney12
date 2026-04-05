@@ -15,7 +15,7 @@ export function buildHotFeedCardProps(post, weatherByRegion = {}) {
     if (!post) return null;
     const title = getHotFeedAddressLine(post);
     const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
-    const weather = post.weather || weatherByRegion[regionKey] || null;
+    const weather = post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
     const hasWeather = weather && (weather.icon || weather.temperature);
     const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
     const commentCount = Array.isArray(post.comments) ? post.comments.length : 0;

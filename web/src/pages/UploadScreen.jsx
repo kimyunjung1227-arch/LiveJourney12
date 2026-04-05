@@ -489,6 +489,7 @@ const UploadScreen = () => {
     const imageFiles = [];
     const videoFiles = [];
     const rejectedOldImages = [];
+    const rejectedNoExif = [];
 
     for (const file of files) {
       const isVideo = file.type.startsWith('video/');
@@ -504,20 +505,34 @@ const UploadScreen = () => {
       } else {
         try {
           const exif = await extractExifData(file);
-          if (exif?.photoTimestamp) {
-            const now = Date.now();
-            const diff = now - exif.photoTimestamp;
-            if (diff > MAX_DIFF_MS) {
-              rejectedOldImages.push(file.name);
-              continue;
-            }
+          if (!exif?.photoTimestamp) {
+            rejectedNoExif.push(file.name);
+            continue;
+          }
+          const now = Date.now();
+          const diff = now - exif.photoTimestamp;
+          if (diff > MAX_DIFF_MS) {
+            rejectedOldImages.push(file.name);
+            continue;
           }
         } catch (error) {
-          logger.warn('EXIF 검사 중 오류 (무시):', error);
-          // EXIF를 읽지 못해도, 일단 최근 사진일 수 있으므로 업로드는 허용
+          logger.warn('EXIF 검사 중 오류:', error);
+          rejectedNoExif.push(file.name);
+          continue;
         }
         imageFiles.push(file);
       }
+    }
+
+    if (rejectedNoExif.length > 0 && imageFiles.length === 0 && videoFiles.length === 0) {
+      alert(
+        `사진에 촬영 시각(EXIF)이 없으면 실시간 피드에 올릴 수 없어요. 카메라·휴대폰으로 찍은 원본을 선택해 주세요.\n\n제외: ${rejectedNoExif.join(', ')}`
+      );
+      return;
+    }
+
+    if (rejectedNoExif.length > 0 && (imageFiles.length > 0 || videoFiles.length > 0)) {
+      alert(`촬영 시각을 읽을 수 없는 사진은 제외했어요.\n\n제외: ${rejectedNoExif.join(', ')}`);
     }
 
     if (rejectedOldImages.length > 0 && imageFiles.length === 0 && videoFiles.length === 0) {
@@ -815,17 +830,22 @@ const UploadScreen = () => {
       return;
     }
 
-    // 업로드 직전 한 번 더 검증: EXIF 촬영시간이 있는 경우에만 48시간 이내인지 확인
+    // 업로드 직전 검증: 사진은 EXIF 촬영 시각 필수 + 48시간 이내만 허용 (실시간 피드)
     const MAX_DIFF_MS = 48 * 60 * 60 * 1000;
     for (const file of formData.imageFiles || []) {
       try {
         const exif = await extractExifData(file);
-        if (exif?.photoTimestamp && (Date.now() - exif.photoTimestamp) > MAX_DIFF_MS) {
+        if (!exif?.photoTimestamp) {
+          alert('촬영 시각(EXIF)이 없는 사진은 올릴 수 없어요. 카메라로 찍은 원본 사진을 사용해 주세요.');
+          return;
+        }
+        if ((Date.now() - exif.photoTimestamp) > MAX_DIFF_MS) {
           alert('촬영 후 48시간이 지난 사진은 업로드할 수 없어요.');
           return;
         }
       } catch (_) {
-        // 메타데이터를 읽지 못해도, 촬영 시간이 최근일 수 있으므로 업로드는 허용
+        alert('사진 메타데이터를 읽을 수 없어요. 다른 파일로 다시 시도해 주세요.');
+        return;
       }
     }
 
@@ -1020,7 +1040,7 @@ const UploadScreen = () => {
         }
       }
       if (!coordinates) {
-        coordinates = { lat: 37.5665, lng: 126.9780 };
+        logger.warn('📍 좌표를 확정하지 못했습니다. 지도에서는 장소명 검색으로 표시됩니다.');
       }
 
       const postData = {
@@ -1029,8 +1049,8 @@ const UploadScreen = () => {
         content: formData.note || `${formData.location}에서의 여행 기록`,
         location: {
           name: formData.verifiedLocation || formData.location,
-          lat: coordinates.lat,
-          lon: coordinates.lng,
+          lat: coordinates?.lat ?? null,
+          lon: coordinates?.lng ?? null,
           region: normalizeRegionName(formData.location?.split(' ')[0] || '지역'),
           country: '대한민국'
         },
@@ -1098,11 +1118,14 @@ const UploadScreen = () => {
           try {
             const weatherResult = await getWeatherByRegion(region);
             if (weatherResult?.success && weatherResult.weather) {
+              const snapshotAt = new Date().toISOString();
               weatherAtUpload = {
                 icon: weatherResult.weather.icon,
                 condition: weatherResult.weather.condition,
                 temperature: weatherResult.weather.temperature,
-                fetchedAt: Date.now() // 날씨 정보를 가져온 시점
+                fetchedAt: Date.now(),
+                snapshotAt,
+                snapshotLabel: '업로드 시점 기준 기록(고정)',
               };
             }
           } catch (weatherError) {
@@ -1132,11 +1155,12 @@ const UploadScreen = () => {
             category: aiCategory,
             categories: Array.isArray(formData.aiCategories) ? formData.aiCategories : [aiCategory],
             categoryName: aiCategoryName,
-            coordinates,
+            coordinates: coordinates || null,
             detailedLocation: formData.verifiedLocation || formData.location,
             placeName: formData.location,
             region: region, // 지역 정보 추가
-            weather: weatherAtUpload, // 업로드 시점의 날씨 정보 저장
+            weather: weatherAtUpload,
+            weatherSnapshot: weatherAtUpload,
             exifData: formData.exifData ? {
               photoDate: formData.exifData.photoDate,
               gpsCoordinates: formData.exifData.gpsCoordinates,
@@ -1597,7 +1621,7 @@ const UploadScreen = () => {
                     사진, 동영상 추가하기
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    동영상은 파일당 100MB까지 업로드할 수 있어요
+                    사진은 EXIF 촬영 시각이 있어야 하고, 촬영 후 48시간 이내만 올릴 수 있어요. 동영상은 파일당 100MB까지예요.
                   </p>
                 </button>
               ) : (
@@ -1637,6 +1661,11 @@ const UploadScreen = () => {
                           );
                         })()}
                       </div>
+                    )}
+                    {formData.photoDate && formData.images.length > 0 && (
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                        위 시각은 파일 메타데이터(EXIF)에서 읽은 값이며, 실시간 피드 규칙(48시간)에 사용돼요.
+                      </p>
                     )}
                   </div>
 

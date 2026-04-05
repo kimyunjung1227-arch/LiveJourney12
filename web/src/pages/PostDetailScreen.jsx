@@ -14,6 +14,7 @@ import { getEarnedBadgesForUser } from '../utils/badgeSystem';
 import { getTrustRawScore, getTrustGrade } from '../utils/trustIndex';
 import { follow, unfollow, isFollowing } from '../utils/followSystem';
 import { notifyFollowReceived, notifyFollowingStarted } from '../utils/notifications';
+import { setCachedFollowProfile } from '../utils/userProfileHints';
 import { recordConversion, CONVERSION_TYPES } from '../utils/conversionEvents';
 import { logger } from '../utils/logger';
 import { buildMediaItemsFromPost } from '../utils/postMedia';
@@ -962,12 +963,13 @@ const PostDetailScreen = () => {
   useEffect(() => {
     if (!post) return;
 
-    if (post.weather) {
-      // 저장된 업로드 시점 날씨 사용 (몇 시간이 지나도 변경하지 않음)
+    const frozen = post.weatherSnapshot || post.weather;
+    if (frozen) {
+      // 저장된 업로드 시점 날씨 스냅샷 (시간이 지나도 변경하지 않음)
       setWeatherInfo({
-        icon: post.weather.icon,
-        condition: post.weather.condition,
-        temperature: post.weather.temperature,
+        icon: frozen.icon,
+        condition: frozen.condition,
+        temperature: frozen.temperature,
         loading: false
       });
       return;
@@ -1088,7 +1090,10 @@ const PostDetailScreen = () => {
                       post?.user;
                     const currentUserId = user?.id;
                     if (postUserId && postUserId !== currentUserId) {
-                      navigate(`/user/${postUserId}`);
+                      setCachedFollowProfile(postUserId, { username: userName, profileImage: authorAvatar || null });
+                      navigate(`/user/${postUserId}`, {
+                        state: { profileHint: { username: userName, profileImage: authorAvatar || null } },
+                      });
                     } else if (postUserId && postUserId === currentUserId) {
                       navigate('/profile');
                     }
@@ -1146,6 +1151,10 @@ const PostDetailScreen = () => {
                           if (r.success) {
                             setIsFollowAuthor(true);
                             const myName = user?.username || '여행자';
+                            setCachedFollowProfile(postUserId, {
+                              username: userName,
+                              profileImage: authorAvatar || null,
+                            });
                             notifyFollowReceived(myName, postUserId);
                             notifyFollowingStarted(userName, user.id);
                           }
@@ -1362,8 +1371,8 @@ const PostDetailScreen = () => {
                         {weatherInfo.temperature
                           ? `${weatherInfo.condition}, ${weatherInfo.temperature}`
                           : weatherInfo.condition}
-                        {post?.weather ? (
-                          <span className="ml-1 text-xs font-normal text-gray-400">(업로드 당시)</span>
+                        {(post?.weatherSnapshot || post?.weather) ? (
+                          <span className="ml-1 text-xs font-normal text-gray-400">(업로드 시점 기록, 고정)</span>
                         ) : null}
                       </span>
                     </>

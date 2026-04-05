@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom';
 import { addNotification } from '../utils/notifications';
 import { getLocationByCoordinates, getCoordinatesByLocation as getCoordsByRegion } from '../utils/locationCoordinates';
+import { searchPlaceWithKakaoFirst } from '../utils/kakaoPlacesGeocode';
 import { getRegionDefaultImage } from '../utils/regionDefaultImages';
 import { filterRecentPosts } from '../utils/timeUtils';
 import { getRecommendedRegions } from '../utils/recommendationEngine';
@@ -22,6 +23,40 @@ const escapeHtmlAttr = (value) => {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 };
+
+/** post.coordinates에서 유효한 { lat, lng }만 추출 */
+function coordsFromPostObject(post) {
+  const raw = post?.coordinates;
+  if (!raw) return null;
+  const lat = Number(raw.lat ?? raw.latitude);
+  const lng = Number(raw.lng ?? raw.longitude);
+  if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+  return { lat, lng };
+}
+
+/** 사전 매칭 실패 시 카카오 키워드 검색으로 좌표 보강 (서울 기본값 사용 안 함) */
+async function enrichPostWithResolvedCoordinates(post) {
+  const existing = coordsFromPostObject(post);
+  if (existing) return { ...post, coordinates: existing };
+  const locStr = [post.detailedLocation, post.placeName, post.location, post.region]
+    .map((s) => (s && String(s).trim()) || '')
+    .find(Boolean);
+  if (!locStr) return post;
+  let coords = getCoordsByRegion(locStr);
+  if (!coords) {
+    const geo = await searchPlaceWithKakaoFirst(locStr);
+    if (geo && geo.lat != null && geo.lng != null && !Number.isNaN(Number(geo.lat)) && !Number.isNaN(Number(geo.lng))) {
+      coords = { lat: Number(geo.lat), lng: Number(geo.lng) };
+    }
+  }
+  if (!coords) return post;
+  return { ...post, coordinates: coords };
+}
+
+async function enrichPostsList(posts) {
+  if (!Array.isArray(posts) || posts.length === 0) return posts;
+  return Promise.all(posts.map((p) => enrichPostWithResolvedCoordinates(p)));
+}
 
 /** 지도 핀: 정지 썸네일 우선(동영상 선행 시 poster·업로드 썸네일) */
 const getPostPinImageUrl = (post) => {
@@ -462,21 +497,29 @@ const MapScreen = () => {
         }
       }
     } else if (suggestion.type === 'place' && suggestion.post) {
-      // 게시물 장소의 경우
-      const coords = suggestion.post.coordinates || getCoordsByRegion(suggestion.post.detailedLocation || suggestion.post.location);
-      if (coords && coords.lat && coords.lng && map) {
-        const position = new window.kakao.maps.LatLng(coords.lat, coords.lng);
-        map.panTo(position);
-        map.setLevel(3);
-        createSearchMarker(position, suggestion.name, map);
-        setSearchResults([suggestion.post]);
-        setIsSearching(true);
-        loadPosts(map, { forceSearch: { results: [suggestion.post] } });
-      }
+      void (async () => {
+        const post = await enrichPostWithResolvedCoordinates(suggestion.post);
+        const coords = coordsFromPostObject(post);
+        if (coords && coords.lat && coords.lng && map) {
+          const position = new window.kakao.maps.LatLng(coords.lat, coords.lng);
+          map.panTo(position);
+          map.setLevel(3);
+          createSearchMarker(position, suggestion.name, map);
+          setSearchResults([post]);
+          setIsSearching(true);
+          loadPosts(map, { forceSearch: { results: [post] } });
+        }
+      })();
     } else if (suggestion.type === 'recommended_region' && suggestion.regionName) {
-      // 완성된 단어 기반 추천 지역: 해당 지역으로 이동하고, 그 지역 게시물만 표시
-      const coords = getCoordsByRegion(suggestion.regionName);
-      if (coords && map) {
+      void (async () => {
+        let coords = getCoordsByRegion(suggestion.regionName);
+        if (!coords) {
+          const geo = await searchPlaceWithKakaoFirst(suggestion.regionName);
+          if (geo && geo.lat != null && geo.lng != null) {
+            coords = { lat: Number(geo.lat), lng: Number(geo.lng) };
+          }
+        }
+        if (!coords || !map) return;
         const position = new window.kakao.maps.LatLng(coords.lat, coords.lng);
         map.panTo(position);
         map.setLevel(4);
@@ -494,7 +537,7 @@ const MapScreen = () => {
         } catch (e) {
           logger.warn('추천 지역 게시물 로드 실패:', e);
         }
-      }
+      })();
     } else if (suggestion.type === 'hashtag') {
       // 해시태그의 경우 - 해시태그 검색 실행
       setTimeout(() => {
@@ -917,7 +960,7 @@ const MapScreen = () => {
       const effectiveSearch = (options?.forceSearch?.results != null)
         ? { active: true, results: options.forceSearch.results }
         : (isSearching && searchResults.length > 0 ? { active: true, results: searchResults } : { active: false, results: [] });
-      if (effectiveSearch.active && effectiveSearch.results.length > 0) {
+        if (effectiveSearch.active && effectiveSearch.results.length > 0) {
         let filteredResults = [...effectiveSearch.results].filter((post) => getPostAgeHours(post) < 48);
 
         // 필터 적용 (중복 선택 가능)
@@ -935,8 +978,9 @@ const MapScreen = () => {
           });
         }
 
-        setPosts(filteredResults);
-        createMarkers(filteredResults, kakaoMap, selectedRoutePins, selectedPinId);
+        const searchEnriched = await enrichPostsList(filteredResults);
+        setPosts(searchEnriched);
+        createMarkers(searchEnriched, kakaoMap, selectedRoutePins, selectedPinId);
         return;
       }
 
@@ -972,8 +1016,9 @@ const MapScreen = () => {
         });
       }
 
-      setPosts(validPosts);
-      createMarkers(validPosts, kakaoMap, selectedRoutePins, selectedPinId);
+      const mapEnriched = await enrichPostsList(validPosts);
+      setPosts(mapEnriched);
+      createMarkers(mapEnriched, kakaoMap, selectedRoutePins, selectedPinId);
     } catch (error) {
       logger.error('게시물 로드 실패:', error);
     }
@@ -1329,25 +1374,20 @@ const MapScreen = () => {
     const matchingPosts = searchInPosts(query);
 
     if (matchingPosts.length > 0) {
-      // 검색 결과가 있으면 해당 게시물만 표시
-      setSearchResults(matchingPosts);
-      setIsSearching(true);
-
-      // 첫 번째 게시물의 위치로 지도 이동
-      const firstPost = matchingPosts[0];
-      const coords = firstPost.coordinates || getCoordsByRegion(firstPost.detailedLocation || firstPost.location);
-
-      if (coords && coords.lat && coords.lng) {
-        const position = new window.kakao.maps.LatLng(coords.lat, coords.lng);
-        map.panTo(position);
-        map.setLevel(3);
-
-        // 검색 마커 표시
-        createSearchMarker(position, firstPost.placeName || firstPost.location, map);
-
-        // 검색 결과 게시물만 마커로 표시
-        createMarkers(matchingPosts, map, selectedRoutePins, selectedPinId);
-      }
+      void (async () => {
+        const enriched = await enrichPostsList(matchingPosts);
+        setSearchResults(enriched);
+        setIsSearching(true);
+        const firstPost = enriched[0];
+        const coords = coordsFromPostObject(firstPost);
+        if (coords && coords.lat && coords.lng) {
+          const position = new window.kakao.maps.LatLng(coords.lat, coords.lng);
+          map.panTo(position);
+          map.setLevel(3);
+          createSearchMarker(position, firstPost.placeName || firstPost.location, map);
+        }
+        createMarkers(enriched, map, selectedRoutePins, selectedPinId);
+      })();
     } else {
       // 관광지 키워드 확인
       const isTouristKeyword = ['관광지', '명소', 'tourist', 'attraction', 'landmark'].some(keyword =>
@@ -1478,7 +1518,7 @@ const MapScreen = () => {
             }
           } else {
             // Kakao 검색도 실패하면 기본 지역명 검색 시도
-            const coords = getCoordinatesByLocation(query);
+            const coords = getCoordsByRegion(query);
             if (coords) {
               setSearchResults([]);
               setIsSearching(false);

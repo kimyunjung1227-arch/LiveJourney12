@@ -352,7 +352,8 @@ const MainScreen = () => {
                 likes: likesNum,
                 likeCount: likesNum,
                 comments: commentsArr,
-                weather: post.weather || null,
+                weather: post.weatherSnapshot || post.weather || null,
+                weatherSnapshot: post.weatherSnapshot || null,
                 surgeIndicator,
                 surgePercent,
                 // 메타데이터 기반 촬영 시간 라벨
@@ -713,7 +714,7 @@ const MainScreen = () => {
     useEffect(() => {
         const regions = new Set();
         [...realtimeData, ...crowdedData].forEach((p) => {
-            if (p && !p.weather && (p.region || p.location)) {
+            if (p && !p.weather && !p.weatherSnapshot && (p.region || p.location)) {
                 const r = (p.region || p.location || '').trim().split(/\s+/)[0] || p.region || p.location;
                 if (r) regions.add(r);
             }
@@ -995,7 +996,7 @@ const MainScreen = () => {
                             // 동영상이 없을 때만 이미지 사용
                             const firstImage = firstVideo ? null : getDisplayImageUrl(Array.isArray(post.images) && post.images.length > 0 ? post.images[0] : (post.image || post.thumbnail || ''));
                             const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
-                            const weather = post.weather || weatherByRegion[regionKey] || null;
+                            const weather = post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
                             const hasWeather = weather && (weather.icon || weather.temperature);
                             const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
                             const commentCount = Array.isArray(post.comments) ? post.comments.length : 0;

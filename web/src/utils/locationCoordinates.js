@@ -66,28 +66,29 @@ export const locationCoordinates = {
 };
 
 /**
- * 지역명으로 좌표 가져오기
+ * 지역명으로 좌표 가져오기 (사전 매칭만). 매칭 실패 시 null — 잘못된 기본 좌표(서울)로 핀을 찍지 않음.
  * @param {string} locationName - 지역명 (예: '서울', '부산 해운대')
- * @returns {Object} { lat, lng } 좌표 객체
+ * @returns {{ lat: number, lng: number } | null}
  */
 export const getCoordinatesByLocation = (locationName) => {
-  if (!locationName) {
-    return { lat: 37.5665, lng: 126.9780 }; // 기본값: 서울
+  if (!locationName || !String(locationName).trim()) {
+    return null;
   }
 
+  const trimmed = String(locationName).trim();
+
   // 정확한 매치
-  if (locationCoordinates[locationName]) {
-    return locationCoordinates[locationName];
+  if (locationCoordinates[trimmed]) {
+    return locationCoordinates[trimmed];
   }
 
   // 부분 매치: 긴 키(구체적 지명) 우선
   const entries = Object.entries(locationCoordinates).sort((a, b) => b[0].length - a[0].length);
   for (const [key, value] of entries) {
-    if (locationName.includes(key)) return value;
+    if (trimmed.includes(key)) return value;
   }
 
-  // 기본값: 서울
-  return { lat: 37.5665, lng: 126.9780 };
+  return null;
 };
 
 /**
