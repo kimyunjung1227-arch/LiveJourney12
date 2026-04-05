@@ -34,6 +34,17 @@ export const feedGridImageBoxFlat = {
   paddingBottom: '118%',
 };
 
+/** 지역 상세 — 메인 배경 위 플랫 카드용. 세로는 기본(88%)보다 살짝 크게, 라운드 18px 상·하 동일 */
+export const feedGridImageBoxRegion = {
+  width: '100%',
+  paddingBottom: '96%',
+  height: 0,
+  position: 'relative',
+  background: '#e5e7eb',
+  overflow: 'hidden',
+  borderRadius: 18,
+};
+
 export const feedGridInfoBox = {
   padding: '10px 12px 12px',
   minHeight: 0,

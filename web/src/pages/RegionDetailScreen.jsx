@@ -13,12 +13,8 @@ import { getRegionDefaultImage } from '../utils/regionDefaultImages';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import { getGridCoverDisplay } from '../utils/postMedia';
 import {
-  feedGridCardBox,
-  feedGridImageBox,
-  feedGridInfoBox,
-  feedGridTitleStyle,
-  feedGridDescStyle,
-  feedGridMetaRow,
+  feedGridCardBoxFlat,
+  feedGridImageBoxRegion,
 } from '../utils/feedGridCardStyles';
 import { normalizeRegionName, postMatchesCanonicalRegion } from '../utils/regionNames';
 
@@ -502,13 +498,14 @@ const RegionDetailScreen = () => {
                             });
                           }}
                           style={{
-                            ...feedGridCardBox,
+                            ...feedGridCardBoxFlat,
                             cursor: 'pointer',
                             display: 'flex',
                             flexDirection: 'column',
+                            gap: '6px',
                           }}
                         >
-                          <div style={feedGridImageBox}>
+                          <div style={feedGridImageBoxRegion}>
                             {gridCover.mode === 'img' && gridCover.src ? (
                               <img
                                 src={gridCover.src}
@@ -551,19 +548,19 @@ const RegionDetailScreen = () => {
                             </div>
                           </div>
 
-                          <div style={feedGridInfoBox}>
-                            <div style={feedGridTitleStyle}>
+                          <div className="min-h-0 flex flex-col gap-0.5 overflow-hidden px-0.5 pb-0.5 pt-0">
+                            <div className="text-[13px] font-bold text-gray-900 dark:text-gray-100 truncate shrink-0">
                               {photo.detailedLocation || photo.placeName || photo.location || region.name}
                             </div>
                             {(photo.note || photo.content) && (
-                              <div style={feedGridDescStyle}>
+                              <div className="text-xs text-gray-600 dark:text-gray-300 leading-snug max-h-[2.7em] overflow-hidden line-clamp-2">
                                 {photo.note || photo.content}
                               </div>
                             )}
-                            <div style={feedGridMetaRow}>
+                            <div className="flex justify-between items-center mt-0.5 shrink-0 text-[11px] text-gray-500 dark:text-gray-400">
                               <span>{photo.time}</span>
                               {hasWeather && (
-                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span className="inline-flex items-center gap-1">
                                   {weather.icon && <span>{weather.icon}</span>}
                                   {weather.temperature && <span>{weather.temperature}</span>}
                                 </span>
