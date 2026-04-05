@@ -50,8 +50,6 @@ const MainScreen = () => {
     const [selectedRecommendTag, setSelectedRecommendTag] = useState('active');
     const [hotFeedSlideIndex, setHotFeedSlideIndex] = useState(0);
     const [hotFeedSocialIdx, setHotFeedSocialIdx] = useState(0);
-    const [headerLogoFailed, setHeaderLogoFailed] = useState(false);
-
     const { handleDragStart, hasMovedRef } = useHorizontalDragScroll();
     const videoRefs = useRef(new Map());
     const currentlyPlayingVideo = useRef(null);
@@ -780,88 +778,59 @@ const MainScreen = () => {
                         style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 8,
+                            gap: 6,
                             flexShrink: 0,
-                            minWidth: 0,
                         }}
                     >
-                        {!headerLogoFailed ? (
-                            <img
-                                src={`${import.meta.env.BASE_URL}livejourney-logo.png`}
-                                alt="Live Journey"
-                                style={{
-                                    height: 26,
-                                    width: 'auto',
-                                    maxWidth: 90,
-                                    objectFit: 'contain',
-                                    display: 'block',
-                                    flexShrink: 0,
-                                }}
-                                onError={() => setHeaderLogoFailed(true)}
-                            />
-                        ) : (
-                            <span
-                                className="logo-text"
-                                style={{
-                                    fontSize: '13px',
-                                    fontWeight: 700,
-                                    color: '#0f172a',
-                                    letterSpacing: '-0.3px',
-                                    lineHeight: '26px',
-                                    flexShrink: 0,
-                                }}
-                            >
-                                Live Journey
-                            </span>
-                        )}
+                        <span
+                            className="logo-text"
+                            style={{
+                                fontSize: '15px',
+                                fontWeight: 700,
+                                color: '#0f172a',
+                                letterSpacing: '-0.04em',
+                                lineHeight: 1.1,
+                                flexShrink: 0,
+                            }}
+                        >
+                            라이브저니
+                        </span>
                         <button
                             type="button"
                             onClick={() => navigate('/coupons')}
                             style={{
-                                flex: '1 1 auto',
-                                minWidth: 0,
-                                maxWidth: 168,
-                                height: 32,
-                                padding: '0 10px',
+                                flexShrink: 0,
+                                height: 26,
+                                minWidth: 44,
+                                padding: '0 8px',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                gap: 6,
                                 borderRadius: 9999,
-                                border: '1px solid rgba(0, 188, 212, 0.45)',
-                                background: 'rgba(0, 188, 212, 0.08)',
-                                color: '#0f766e',
-                                fontSize: 11,
-                                fontWeight: 600,
+                                border: '1px solid rgba(0, 188, 212, 0.4)',
+                                background: 'rgba(0, 188, 212, 0.07)',
+                                color: '#0d9488',
+                                fontSize: 10,
+                                fontWeight: 700,
+                                letterSpacing: '-0.02em',
                                 cursor: 'pointer',
-                                overflow: 'hidden',
                             }}
-                            aria-label="래플·혜택 보기"
+                            aria-label="래플"
                         >
-                            <span aria-hidden style={{ flexShrink: 0 }}>🎁</span>
-                            <span
-                                style={{
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                    textAlign: 'left',
-                                }}
-                            >
-                                래플창 · 혜택·쿠폰
-                            </span>
+                            래플
                         </button>
                     </div>
-                    {/* 중앙 검색창 (예시 이미지 스타일 참고) */}
+                    {/* 중앙 검색창 */}
                     <button
                         type="button"
                         onClick={() => navigate('/search')}
                         style={{
                             flex: 1,
                             minWidth: 0,
-                            maxWidth: 260,
-                            height: 32,
-                            marginLeft: 8,
-                            marginRight: 8,
+                            maxWidth: 228,
+                            height: 28,
+                            marginLeft: 6,
+                            marginRight: 6,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
@@ -870,7 +839,7 @@ const MainScreen = () => {
                             border: 'none',
                             borderBottom: '1px solid #e2e8f0',
                             color: '#94a3b8',
-                            fontSize: 14,
+                            fontSize: 13,
                             cursor: 'pointer'
                         }}
                         aria-label="검색으로 이동"
@@ -878,7 +847,7 @@ const MainScreen = () => {
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             어디로 떠나볼까요?
                         </span>
-                        <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#94a3b8' }}>search</span>
+                        <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#94a3b8', flexShrink: 0 }}>search</span>
                     </button>
                     <button
                         onClick={() => navigate('/notifications')}
