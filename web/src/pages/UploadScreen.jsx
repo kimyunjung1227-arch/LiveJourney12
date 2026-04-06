@@ -1487,6 +1487,19 @@ const UploadScreen = () => {
             >
               알겠어요
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (dontShowGuideAgain) {
+                  localStorage.setItem('uploadGuideNeverShow', '1');
+                }
+                setShowUploadGuide(false);
+                navigate('/upload/guide');
+              }}
+              className="w-full py-3.5 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 border-t border-gray-100 dark:border-gray-800 transition-colors"
+            >
+              전체 가이드 보기
+            </button>
           </div>
         </div>
       )}
@@ -1568,7 +1581,7 @@ const UploadScreen = () => {
               </h3>
               <button
                 type="button"
-                onClick={() => setShowUploadGuide(true)}
+                onClick={() => navigate('/upload/guide')}
                 className="inline-flex items-center gap-1 rounded-full border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-[11px] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               >
                 <span>업로드 가이드</span>

@@ -52,6 +52,7 @@ const MarketingConsentScreen = lazy(() => import('./pages/MarketingConsentScreen
 const OpenSourceLicensesScreen = lazy(() => import('./pages/OpenSourceLicensesScreen'))
 const BusinessInfoScreen = lazy(() => import('./pages/BusinessInfoScreen'))
 const TermsOfServiceScreen = lazy(() => import('./pages/TermsOfServiceScreen'))
+const UploadGuideScreen = lazy(() => import('./pages/UploadGuideScreen'))
 const NotificationsScreen = lazy(() => import('./pages/NotificationsScreen'))
 const MyMissionsScreen = lazy(() => import('./pages/MyMissionsScreen'))
 const InterestPlacesScreen = lazy(() => import('./pages/InterestPlacesScreen'))
@@ -128,6 +129,7 @@ function App() {
                 <Route path="/post/:id" element={<PostDetailScreen />} />
                 <Route path="/region/:regionName" element={<RegionDetailScreen />} />
                 <Route path="/upload" element={<UploadScreen />} />
+                <Route path="/upload/guide" element={<UploadGuideScreen />} />
                 <Route path="/map" element={<MapScreen />} />
                 <Route path="/map/photos" element={<MapPhotoGridScreen />} />
                 <Route path="/profile" element={<ProfileScreen />} />
