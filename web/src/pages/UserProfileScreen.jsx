@@ -332,7 +332,7 @@ const UserProfileScreen = () => {
       return;
     }
     if (!window.kakao || !window.kakao.maps) {
-      setMapLoading(false);
+      setTimeout(initTravelMap, 120);
       return;
     }
 
@@ -674,7 +674,7 @@ const UserProfileScreen = () => {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 {filteredUserPosts.map((post, index) => (
                   <button
                     key={post.id || index}
@@ -713,10 +713,6 @@ const UserProfileScreen = () => {
                         />
                       )}
                     </div>
-                    {/* 사진 하단 한 줄 설명 */}
-                    <p className="mt-1 text-[10px] text-gray-500 dark:text-gray-400 truncate">
-                      {post.detailedLocation || post.location || post.note || '사진'}
-                    </p>
                   </button>
                 ))}
               </div>
