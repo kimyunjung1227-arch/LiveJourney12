@@ -8,15 +8,21 @@ import './MainScreen.css';
 import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
 import { fetchPostsSupabase } from '../api/postsSupabase';
+import { getWeatherByRegion } from '../api/weather';
 import { getGridCoverDisplay } from '../utils/postMedia';
 import {
   feedGridCardBoxFlat,
   feedGridImageBoxFlat,
+  feedGridInfoBox,
+  feedGridTitleStyle,
+  feedGridDescStyle,
+  feedGridMetaRow,
 } from '../utils/feedGridCardStyles';
 
 const RealtimeFeedScreen = () => {
   const navigate = useNavigate();
   const [realtimeData, setRealtimeData] = useState([]);
+  const [weatherByRegion, setWeatherByRegion] = useState({});
   const contentRef = useRef(null);
   const [visibleCount, setVisibleCount] = useState(8);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -53,6 +59,33 @@ const RealtimeFeedScreen = () => {
     };
     loadData();
   }, [refreshKey]);
+
+  useEffect(() => {
+    const regions = new Set();
+    realtimeData.forEach((p) => {
+      if (p && !p.weather && !p.weatherSnapshot && (p.region || p.location)) {
+        const r = (p.region || p.location || '').trim().split(/\s+/)[0] || p.region || p.location;
+        if (r) regions.add(r);
+      }
+    });
+    if (regions.size === 0) return;
+    let cancelled = false;
+    const map = {};
+    Promise.all(
+      Array.from(regions).map(async (region) => {
+        try {
+          const res = await getWeatherByRegion(region);
+          if (!cancelled && res?.success && res.weather) return { region, weather: res.weather };
+        } catch (_) {}
+        return null;
+      })
+    ).then((results) => {
+      if (cancelled) return;
+      results.forEach((r) => { if (r) map[r.region] = r.weather; });
+      setWeatherByRegion((prev) => ({ ...prev, ...map }));
+    });
+    return () => { cancelled = true; };
+  }, [realtimeData]);
 
   useEffect(() => {
     const handler = () => setRefreshKey((k) => k + 1);
@@ -167,6 +200,9 @@ const RealtimeFeedScreen = () => {
             }}
           >
             {displayedPosts.map((post, index) => {
+              const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
+              const weather = post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
+              const hasWeather = weather && (weather.icon || weather.temperature);
               const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
               return (
                 <div
@@ -219,6 +255,22 @@ const RealtimeFeedScreen = () => {
                         </span>
                         <span>{likeCount}</span>
                       </span>
+                    </div>
+                  </div>
+
+                  <div style={feedGridInfoBox}>
+                    <div style={feedGridTitleStyle}>{post.location || '어딘가의 지금'}</div>
+                    {(post.content || post.note) && (
+                      <div style={feedGridDescStyle}>{post.content || post.note}</div>
+                    )}
+                    <div style={feedGridMetaRow}>
+                      <span>{post.time}</span>
+                      {hasWeather && (weather.icon || weather.temperature) && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {weather.icon && <span>{weather.icon}</span>}
+                          {weather.temperature && <span>{weather.temperature}</span>}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

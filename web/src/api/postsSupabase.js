@@ -186,20 +186,6 @@ export const updatePostLikesSupabase = async (postId, delta) => {
   }
 };
 
-/** JSON 컬럼이 문자열로 올 때 대비 */
-const normalizeCommentsFromRow = (raw) => {
-  if (Array.isArray(raw)) return raw;
-  if (typeof raw === 'string') {
-    try {
-      const p = JSON.parse(raw);
-      return Array.isArray(p) ? p : [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
-};
-
 // Supabase에서 단일 게시물 조회 (상세 화면 진입 시 최신 좋아요·미디어 반영용)
 const mapRowToPost = (row) => {
   if (!row) return null;
@@ -226,7 +212,7 @@ const mapRowToPost = (row) => {
     photoDate: row.captured_at || row.created_at || null,
     likes: Number(row.likes_count) || 0,
     likeCount: Number(row.likes_count) || 0,
-    comments: normalizeCommentsFromRow(row.comments),
+    comments: Array.isArray(row.comments) ? row.comments : [],
     category: row.category || null,
     categoryName: row.category_name || null,
     thumbnail: (Array.isArray(row.images) && row.images[0]) || row.images || null,
@@ -345,7 +331,7 @@ export const fetchPostsByUserIdSupabase = async (userId) => {
         photoDate: row.captured_at || row.created_at || null,
         likes: Number(row.likes_count) || 0,
         likeCount: Number(row.likes_count) || 0,
-        comments: normalizeCommentsFromRow(row.comments),
+        comments: Array.isArray(row.comments) ? row.comments : [],
         category: row.category || null,
         categoryName: row.category_name || null,
         thumbnail: (Array.isArray(row.images) && row.images[0]) || null,
@@ -406,7 +392,7 @@ export const fetchPostsSupabase = async () => {
       photoDate: row.captured_at || row.created_at || null,
       likes: Number(row.likes_count) || 0,
       likeCount: Number(row.likes_count) || 0,
-      comments: normalizeCommentsFromRow(row.comments),
+      comments: Array.isArray(row.comments) ? row.comments : [],
       category: row.category || null,
       categoryName: row.category_name || null,
       thumbnail: (Array.isArray(row.images) && row.images[0]) || null,

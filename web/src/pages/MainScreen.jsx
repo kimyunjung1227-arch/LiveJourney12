@@ -1010,126 +1010,6 @@ const MainScreen = () => {
                     </div>
                 </div>
 
-                {!selectedInterest && (
-                <div style={{ padding: '6px 16px 8px', background: '#ffffff' }}>
-                        {/* ✨ 추천 여행지 — 메인 상단에 바로 노출 */}
-                        <div style={{ marginBottom: '8px', background: '#ffffff' }}>
-                            <div style={{ padding: '0 0 8px 0' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#374151' }}>추천 여행지</h3>
-                                </div>
-                                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>
-                                    {RECOMMENDATION_TYPES.find(t => t.id === selectedRecommendTag)?.description}
-                                </p>
-                            </div>
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    gap: 8,
-                                    padding: '0 0 8px 0',
-                                    overflowX: 'auto',
-                                    scrollbarWidth: 'none',
-                                    WebkitOverflowScrolling: 'touch',
-                                    cursor: 'grab',
-                                    scrollSnapType: 'x mandatory',
-                                }}
-                                className="hide-scrollbar"
-                                onMouseDown={handleDragStart}
-                            >
-                                {RECOMMENDATION_TYPES.map((tag) => {
-                                    const isActive = selectedRecommendTag === tag.id;
-                                    return (
-                                        <button
-                                            key={tag.id}
-                                            type="button"
-                                            onClick={withDragCheck(() => setSelectedRecommendTag(tag.id))}
-                                            style={{
-                                                flexShrink: 0,
-                                                scrollSnapAlign: 'start',
-                                                padding: '6px 12px',
-                                                borderRadius: 999,
-                                                border: isActive ? '1px solid #26C6DA' : '1px solid #e2e8f0',
-                                                backgroundColor: isActive ? 'rgba(38,198,218,0.08)' : '#ffffff',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                gap: 4,
-                                                fontSize: 12,
-                                                fontWeight: isActive ? 700 : 500,
-                                                color: isActive ? '#0f172a' : '#64748b',
-                                                whiteSpace: 'nowrap',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.18s ease-out',
-                                            }}
-                                        >
-                                            <span>{tag.name}</span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    gap: '10px',
-                                    padding: '0 0 4px 0',
-                                    overflowX: 'auto',
-                                    scrollbarWidth: 'none',
-                                    WebkitOverflowScrolling: 'touch',
-                                    cursor: 'grab'
-                                }}
-                                className="hide-scrollbar"
-                                onMouseDown={handleDragStart}
-                            >
-                                {recommendedData.map((item, idx) => {
-                                    const regionPosts = allPostsForRecommend.filter(p =>
-                                        (typeof p.location === 'string' && p.location.includes(item.regionName)) ||
-                                        (p.detailedLocation && String(p.detailedLocation).includes(item.regionName)) ||
-                                        (p.placeName && String(p.placeName).includes(item.regionName))
-                                    );
-                                    const rawImages = [
-                                        item.image,
-                                        ...regionPosts.flatMap(p => (p.images && p.images.length ? p.images : [p.thumbnail || p.image].filter(Boolean)))
-                                    ].filter(Boolean).slice(0, 5);
-                                    const displayImages = rawImages.map(url => getDisplayImageUrl(url)).filter(Boolean);
-                                    const mainSrc = displayImages[0] || 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80';
-
-                                    return (
-                                        <div
-                                            key={idx}
-                                            onClick={withDragCheck(() => navigate(`/region/${item.regionName}`))}
-                                            style={{
-                                                minWidth: '74%',
-                                                width: '74%',
-                                                cursor: 'pointer',
-                                                overflow: 'visible',
-                                                background: 'transparent'
-                                            }}
-                                        >
-                                            <div style={{ width: '100%', height: '160px', overflow: 'hidden', borderRadius: '14px', background: '#e5e7eb' }}>
-                                                <img
-                                                    src={mainSrc}
-                                                    alt={item.title}
-                                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80'; }}
-                                                />
-                                            </div>
-                                            <div style={{ padding: '6px 2px 10px' }}>
-                                                <div style={{ fontSize: '11px', fontWeight: 700, color: '#06b6d4', marginBottom: '3px' }}>추천</div>
-                                                <div style={{ color: '#111827', fontSize: '14px', fontWeight: 800, marginBottom: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                    {item.title}
-                                                </div>
-                                                <div style={{ color: '#4b5563', fontSize: '12px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                    {item.description}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                </div>
-                )}
-
                 {/* 지금 여기는 — 관심 지역 선택 시 숨김, 한 화면에 핫플까지 보이도록 높이 축소 */}
                 {!selectedInterest && (
                     <div style={{ padding: '2px 16px 6px', background: '#ffffff' }}>
@@ -1370,6 +1250,121 @@ const MainScreen = () => {
                             )}
                         </div>
 
+                        {/* ✨ 추천 여행지 */}
+                        <div style={{ marginBottom: '16px', background: '#ffffff' }}>
+                            <div style={{ padding: '0 0 8px 0' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#374151' }}>추천 여행지</h3>
+                                </div>
+                                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                                    {RECOMMENDATION_TYPES.find(t => t.id === selectedRecommendTag)?.description}
+                                </p>
+                            </div>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    gap: 8,
+                                    padding: '0 0 8px 0',
+                                    overflowX: 'auto',
+                                    scrollbarWidth: 'none',
+                                    WebkitOverflowScrolling: 'touch',
+                                    cursor: 'grab',
+                                    scrollSnapType: 'x mandatory',
+                                }}
+                                className="hide-scrollbar"
+                                onMouseDown={handleDragStart}
+                            >
+                                {RECOMMENDATION_TYPES.map((tag) => {
+                                    const isActive = selectedRecommendTag === tag.id;
+                                    return (
+                                        <button
+                                            key={tag.id}
+                                            type="button"
+                                            onClick={withDragCheck(() => setSelectedRecommendTag(tag.id))}
+                                            style={{
+                                                flexShrink: 0,
+                                                scrollSnapAlign: 'start',
+                                                padding: '6px 12px',
+                                                borderRadius: 999,
+                                                border: isActive ? '1px solid #26C6DA' : '1px solid #e2e8f0',
+                                                backgroundColor: isActive ? 'rgba(38,198,218,0.08)' : '#ffffff',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: 4,
+                                                fontSize: 12,
+                                                fontWeight: isActive ? 700 : 500,
+                                                color: isActive ? '#0f172a' : '#64748b',
+                                                whiteSpace: 'nowrap',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.18s ease-out',
+                                            }}
+                                        >
+                                            <span>{tag.name}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    gap: '10px',
+                                    padding: '0 0 10px 0',
+                                    overflowX: 'auto',
+                                    scrollbarWidth: 'none',
+                                    WebkitOverflowScrolling: 'touch',
+                                    cursor: 'grab'
+                                }}
+                                className="hide-scrollbar"
+                                onMouseDown={handleDragStart}
+                            >
+                                {recommendedData.map((item, idx) => {
+                                    const regionPosts = allPostsForRecommend.filter(p =>
+                                        (typeof p.location === 'string' && p.location.includes(item.regionName)) ||
+                                        (p.detailedLocation && String(p.detailedLocation).includes(item.regionName)) ||
+                                        (p.placeName && String(p.placeName).includes(item.regionName))
+                                    );
+                                    const rawImages = [
+                                        item.image,
+                                        ...regionPosts.flatMap(p => (p.images && p.images.length ? p.images : [p.thumbnail || p.image].filter(Boolean)))
+                                    ].filter(Boolean).slice(0, 5);
+                                    const displayImages = rawImages.map(url => getDisplayImageUrl(url)).filter(Boolean);
+                                    const mainSrc = displayImages[0] || 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80';
+
+                                    return (
+                                        <div
+                                            key={idx}
+                                            onClick={withDragCheck(() => navigate(`/region/${item.regionName}`))}
+                                            style={{
+                                                minWidth: '74%',
+                                                width: '74%',
+                                                cursor: 'pointer',
+                                                overflow: 'visible',
+                                                background: 'transparent'
+                                            }}
+                                        >
+                                            <div style={{ width: '100%', height: '160px', overflow: 'hidden', borderRadius: '14px', background: '#e5e7eb' }}>
+                                                <img
+                                                    src={mainSrc}
+                                                    alt={item.title}
+                                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80'; }}
+                                                />
+                                            </div>
+                                            <div style={{ padding: '6px 2px 10px' }}>
+                                                <div style={{ fontSize: '11px', fontWeight: 700, color: '#06b6d4', marginBottom: '3px' }}>추천</div>
+                                                <div style={{ color: '#111827', fontSize: '14px', fontWeight: 800, marginBottom: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {item.title}
+                                                </div>
+                                                <div style={{ color: '#4b5563', fontSize: '12px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {item.description}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
                         {/* 여행 매거진 (발행 매거진 모아보기) */}
                         <div style={{ marginBottom: '16px', background: '#ffffff' }}>
                             <div style={{ padding: '0 0 6px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
