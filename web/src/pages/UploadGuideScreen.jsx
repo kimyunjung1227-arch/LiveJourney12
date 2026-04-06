@@ -23,9 +23,9 @@ const UploadGuideScreen = () => {
 
       <main className="screen-content flex-1 overflow-auto px-4 pb-24 pt-4 bg-background-light dark:bg-background-dark">
         <div className="mx-auto w-full max-w-[520px]">
-          <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <div className="px-1">
             <div className="flex items-start justify-between gap-3">
-              <div>
+              <div className="min-w-0">
                 <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400">
                   📸 라이브저니(LiveJourney) 업로드 가이드
                 </p>
@@ -33,7 +33,7 @@ const UploadGuideScreen = () => {
                   당신의 지금 이 순간이 누군가의 여행을 완벽하게 만듭니다.
                 </h1>
               </div>
-              <div className="shrink-0 rounded-xl bg-primary/10 px-3 py-2 text-primary text-xs font-bold">
+              <div className="shrink-0 text-primary text-xs font-bold">
                 Live
               </div>
             </div>
@@ -44,7 +44,7 @@ const UploadGuideScreen = () => {
             </p>
 
             <div className="mt-5 space-y-3">
-              <section className="rounded-2xl bg-gray-50 px-4 py-3 dark:bg-gray-800/70">
+              <section className="px-1 py-2">
                 <div className="flex items-center justify-between gap-2">
                   <h2 className="text-sm font-bold text-gray-900 dark:text-white">
                     1. ‘지금’의 진실을 담아주세요 <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">(Real-time)</span>
@@ -60,7 +60,7 @@ const UploadGuideScreen = () => {
                 </ul>
               </section>
 
-              <section className="rounded-2xl bg-gray-50 px-4 py-3 dark:bg-gray-800/70">
+              <section className="px-1 py-2">
                 <h2 className="text-sm font-bold text-gray-900 dark:text-white">
                   2. 필터는 빼고, 생생함은 더하고 <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">(No Filter, Just Truth)</span>
                 </h2>
@@ -74,23 +74,21 @@ const UploadGuideScreen = () => {
                 </ul>
               </section>
 
-              <section className="rounded-2xl bg-gray-50 px-4 py-3 dark:bg-gray-800/70">
+              <section className="px-1 py-2">
                 <h2 className="text-sm font-bold text-gray-900 dark:text-white">
                   3. 실패를 줄여주는 ‘한 줄 꿀팁’ <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">(Value-added Info)</span>
                 </h2>
                 <p className="mt-2 text-sm text-gray-700 dark:text-gray-200 leading-relaxed">
                   단순히 “좋아요”라는 말보다, 다른 여행자의 발걸음을 가치 있게 만드는 정보를 덧붙여주세요.
                 </p>
-                <div className="mt-3 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                  <p className="text-[12px] font-semibold text-gray-900 dark:text-white">예시</p>
-                  <ul className="mt-1 space-y-1 text-[13px] leading-relaxed">
-                    <li>“지금 줄 10미터 정도 있어요. 15분 기다렸습니다!”</li>
-                    <li>“블로그엔 만개라고 했는데 아직 50%만 폈어요. 내일 오시는 게 좋을 듯!”</li>
-                  </ul>
-                </div>
+                <p className="mt-3 text-[12px] font-semibold text-gray-900 dark:text-white">예시</p>
+                <ul className="mt-1 space-y-1 text-[13px] leading-relaxed text-gray-700 dark:text-gray-200">
+                  <li>“지금 줄 10미터 정도 있어요. 15분 기다렸습니다!”</li>
+                  <li>“블로그엔 만개라고 했는데 아직 50%만 폈어요. 내일 오시는 게 좋을 듯!”</li>
+                </ul>
               </section>
 
-              <section className="rounded-2xl bg-gray-50 px-4 py-3 dark:bg-gray-800/70">
+              <section className="px-1 py-2">
                 <h2 className="text-sm font-bold text-gray-900 dark:text-white">
                   4. 현명하고 즐거운 여행자의 매너 <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">(Pleasant Manners)</span>
                 </h2>
