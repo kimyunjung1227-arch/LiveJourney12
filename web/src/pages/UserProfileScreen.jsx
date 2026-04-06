@@ -373,6 +373,10 @@ const UserProfileScreen = () => {
         map.setCenter(new window.kakao.maps.LatLng(centerLat, centerLng));
         map.setLevel(level);
       }
+      // 컨테이너 크기/레이아웃 변경 후에도 타일이 제대로 뜨도록 강제 리레이아웃
+      try {
+        map.relayout();
+      } catch (_) {}
 
       const pathCoordinates = [];
       const sorted = [...postsForMap].sort((a, b) =>
@@ -438,8 +442,16 @@ const UserProfileScreen = () => {
   useEffect(() => {
     if (postsForMap.length > 0) {
       const t = setTimeout(initTravelMap, 100);
+      const onResize = () => {
+        if (mapInstance.current) {
+          try { mapInstance.current.relayout(); } catch (_) {}
+        }
+        initTravelMap();
+      };
+      window.addEventListener('resize', onResize);
       return () => {
         clearTimeout(t);
+        window.removeEventListener('resize', onResize);
         markersRef.current.forEach(md => {
           try {
             if (md.overlay) md.overlay.setMap(null);
@@ -662,7 +674,7 @@ const UserProfileScreen = () => {
             </div>
           )}
 
-          {/* 사진 피드 - 2열 + 반복(스크롤 채우기) */}
+          {/* 사진 피드 - 2열 (실제 게시물 개수만) */}
           <div className="bg-white dark:bg-gray-900 px-4 py-4 border-t border-gray-100 dark:border-gray-800">
             {userPosts.length === 0 ? (
               <div className="text-center py-8">
@@ -675,22 +687,16 @@ const UserProfileScreen = () => {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
-                {(() => {
-                  const list = filteredUserPosts;
-                  const len = list.length;
-                  const renderCount = len <= 0 ? 0 : Math.max(12, len * 3);
-                  return Array.from({ length: renderCount }, (_, i) => {
-                    const post = list[i % len];
-                    return (
+                {filteredUserPosts.map((post, index) => (
                   <button
-                    key={`${post.id || 'post'}-${i}`}
+                    key={post.id || index}
                     type="button"
                     onClick={() => {
-                      const currentIndex = list.findIndex(p => p.id === post.id);
+                      const currentIndex = filteredUserPosts.findIndex(p => p.id === post.id);
                       navigate(`/post/${post.id}`, {
                         state: {
                           post: post,
-                          allPosts: list,
+                          allPosts: filteredUserPosts,
                           currentPostIndex: currentIndex >= 0 ? currentIndex : 0
                         }
                       });
@@ -720,9 +726,7 @@ const UserProfileScreen = () => {
                       )}
                     </div>
                   </button>
-                    );
-                  });
-                })()}
+                ))}
               </div>
             )}
           </div>
