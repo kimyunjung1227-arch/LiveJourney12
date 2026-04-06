@@ -225,7 +225,7 @@ export const notifyBadge = (badgeName, difficulty = '중') => {
   });
 };
 
-// 좋아요 알림 (썸네일·게시글 링크는 opts로 전달)
+// 좋아요 알림 (썸네일·게시글 링크는 opts로 전달, recipientUserId가 있으면 해당 유저에게만 표시)
 export const notifyLike = (username, postLocation, opts = {}) => {
   const postId = opts.postId;
   addNotification({
@@ -238,17 +238,26 @@ export const notifyLike = (username, postLocation, opts = {}) => {
     actorUserId: opts.actorUserId ? String(opts.actorUserId) : null,
     thumbnailUrl: opts.thumbnailUrl || null,
     postId: postId || null,
+    recipientUserId: opts.recipientUserId ? String(opts.recipientUserId) : null,
     link: postId ? `/post/${postId}` : '/main',
   });
 };
 
-// 댓글 알림
-export const notifyComment = (username, postLocation, comment) => {
+// 댓글 알림 (recipientUserId/postId 지정 가능)
+export const notifyComment = (username, postLocation, comment, opts = {}) => {
+  const preview =
+    typeof comment === 'string' && comment.trim()
+      ? comment.trim().slice(0, 72) + (comment.trim().length > 72 ? '…' : '')
+      : '';
   addNotification({
     type: 'comment',
     title: '💬 새로운 댓글',
-    message: `${username}님이 "${postLocation}" 게시물에 댓글을 남겼습니다: "${comment}"`,
-    link: '/profile'
+    message: `${username}님이 회원님의 게시물에 댓글을 남겼습니다`,
+    subMessage: preview || postLocation || '',
+    actorUsername: username,
+    recipientUserId: opts.recipientUserId ? String(opts.recipientUserId) : null,
+    postId: opts.postId || null,
+    link: opts.postId ? `/post/${opts.postId}` : '/main'
   });
 };
 

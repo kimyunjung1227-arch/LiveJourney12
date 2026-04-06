@@ -332,7 +332,7 @@ const UserProfileScreen = () => {
       return;
     }
     if (!window.kakao || !window.kakao.maps) {
-      setMapLoading(false);
+      setTimeout(initTravelMap, 120);
       return;
     }
 
@@ -348,8 +348,8 @@ const UserProfileScreen = () => {
       markersRef.current = [];
 
       const container = mapRef.current;
-      if (!container || container.offsetWidth === 0) {
-        setMapLoading(false);
+      if (!container || container.offsetWidth === 0 || container.offsetHeight === 0) {
+        setTimeout(initTravelMap, 160);
         return;
       }
 
@@ -662,7 +662,7 @@ const UserProfileScreen = () => {
             </div>
           )}
 
-          {/* 사진 피드 - 내 사진처럼 4열·가볍게 (날짜 없음) */}
+          {/* 사진 피드 - 2열 + 반복(스크롤 채우기) */}
           <div className="bg-white dark:bg-gray-900 px-4 py-4 border-t border-gray-100 dark:border-gray-800">
             {userPosts.length === 0 ? (
               <div className="text-center py-8">
@@ -674,17 +674,23 @@ const UserProfileScreen = () => {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-4 gap-2">
-                {filteredUserPosts.map((post, index) => (
+              <div className="grid grid-cols-2 gap-3">
+                {(() => {
+                  const list = filteredUserPosts;
+                  const len = list.length;
+                  const renderCount = len <= 0 ? 0 : Math.max(12, len * 3);
+                  return Array.from({ length: renderCount }, (_, i) => {
+                    const post = list[i % len];
+                    return (
                   <button
-                    key={post.id || index}
+                    key={`${post.id || 'post'}-${i}`}
                     type="button"
                     onClick={() => {
-                      const currentIndex = filteredUserPosts.findIndex(p => p.id === post.id);
+                      const currentIndex = list.findIndex(p => p.id === post.id);
                       navigate(`/post/${post.id}`, {
                         state: {
                           post: post,
-                          allPosts: filteredUserPosts,
+                          allPosts: list,
                           currentPostIndex: currentIndex >= 0 ? currentIndex : 0
                         }
                       });
@@ -713,12 +719,10 @@ const UserProfileScreen = () => {
                         />
                       )}
                     </div>
-                    {/* 사진 하단 한 줄 설명 */}
-                    <p className="mt-1 text-[10px] text-gray-500 dark:text-gray-400 truncate">
-                      {post.detailedLocation || post.location || post.note || '사진'}
-                    </p>
                   </button>
-                ))}
+                    );
+                  });
+                })()}
               </div>
             )}
           </div>

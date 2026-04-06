@@ -13,7 +13,8 @@ import { toggleInterestPlace, isInterestPlace } from '../utils/interestPlaces';
 import { getEarnedBadgesForUser } from '../utils/badgeSystem';
 import { getTrustRawScore, getTrustGrade } from '../utils/trustIndex';
 import { follow, unfollow, isFollowing } from '../utils/followSystem';
-import { notifyFollowReceived, notifyFollowingStarted } from '../utils/notifications';
+import { notifyFollowReceived, notifyFollowingStarted, notifyLike, notifyComment } from '../utils/notifications';
+import { mergeCommentsWithCache, setCommentsCacheForPost } from '../utils/postCommentsCache';
 import { setCachedFollowProfile } from '../utils/userProfileHints';
 import { recordConversion, CONVERSION_TYPES } from '../utils/conversionEvents';
 import { logger } from '../utils/logger';
@@ -175,7 +176,7 @@ const PostDetailScreen = () => {
     if (passedPost) {
       setPost(passedPost);
       const allComments = [...(passedPost.comments || []), ...(passedPost.qnaList || [])];
-      setComments(allComments);
+      setComments(mergeCommentsWithCache(passedPost.id, allComments));
       setLikeCount(passedPost.likes || 0);
       setLiked(isPostLiked(passedPost.id));
       setIsFavorited(isInterestPlace(passedPost.location || passedPost.placeName));
@@ -196,7 +197,7 @@ const PostDetailScreen = () => {
         if (fresh) {
           logger.log('✅ Supabase에서 게시물·댓글 로드:', fresh.id);
           setPost(fresh);
-          setComments(Array.isArray(fresh.comments) ? fresh.comments : []);
+          setComments(mergeCommentsWithCache(fresh.id, Array.isArray(fresh.comments) ? fresh.comments : []));
           setLikeCount(fresh.likes ?? fresh.likeCount ?? 0);
           setLiked(isPostLiked(fresh.id));
           setIsFavorited(isInterestPlace(fresh.location || fresh.placeName));
@@ -221,7 +222,7 @@ const PostDetailScreen = () => {
         logger.log('✅ localStorage에서 게시물 찾음:', localPost.id);
         setPost(localPost);
         const allComments = [...(localPost.comments || []), ...(localPost.qnaList || [])];
-        setComments(allComments);
+        setComments(mergeCommentsWithCache(localPost.id, allComments));
         setLikeCount(localPost.likes || 0);
         setLiked(isPostLiked(localPost.id));
         setIsFavorited(isInterestPlace(localPost.location || localPost.placeName));
@@ -239,7 +240,7 @@ const PostDetailScreen = () => {
         setPost(serverPost);
         const serverComments = Array.isArray(serverPost.comments) ? serverPost.comments : [];
         const qnaFormatted = formatQnA(serverPost.questions || []);
-        setComments([...serverComments, ...qnaFormatted]);
+        setComments(mergeCommentsWithCache(serverPost.id, [...serverComments, ...qnaFormatted]));
         setLikeCount(serverPost.likesCount ?? serverPost.likes ?? 0);
         setLiked(isPostLiked(serverPost.id));
         setIsFavorited(isInterestPlace(serverPost.location || serverPost.placeName));
@@ -291,10 +292,10 @@ const PostDetailScreen = () => {
         ...fresh,
         likes: fresh.likes ?? fresh.likeCount ?? prev?.likes,
         likeCount: fresh.likeCount ?? fresh.likes ?? prev?.likeCount,
-        comments: Array.isArray(fresh.comments) ? fresh.comments : (prev?.comments ?? [])
+        comments: mergeCommentsWithCache(postId, Array.isArray(fresh.comments) ? fresh.comments : (prev?.comments ?? []))
       }));
       setLikeCount(fresh.likes ?? fresh.likeCount ?? 0);
-      if (Array.isArray(fresh.comments)) setComments(fresh.comments);
+      if (Array.isArray(fresh.comments)) setComments(mergeCommentsWithCache(postId, fresh.comments));
     });
   }, [postId]);
 
@@ -310,10 +311,10 @@ const PostDetailScreen = () => {
         ...fresh,
         likes: fresh.likes ?? fresh.likeCount ?? prev?.likes,
         likeCount: fresh.likeCount ?? fresh.likes ?? prev?.likeCount,
-        comments: Array.isArray(fresh.comments) ? fresh.comments : (prev?.comments ?? [])
+        comments: mergeCommentsWithCache(postId, Array.isArray(fresh.comments) ? fresh.comments : (prev?.comments ?? []))
       }));
       setLikeCount(fresh.likes ?? fresh.likeCount ?? 0);
-      if (Array.isArray(fresh.comments)) setComments(fresh.comments);
+      if (Array.isArray(fresh.comments)) setComments(mergeCommentsWithCache(postId, fresh.comments));
     });
     return () => { cancelled = true; };
   }, [postId]);
@@ -383,6 +384,19 @@ const PostDetailScreen = () => {
       setLiked(optimisticLiked);
     }
 
+    // 타인 게시물에 좋아요 시 작성자에게 인앱 알림(동일 브라우저/저장소 기준)
+    if (!wasLiked && optimisticLiked && user?.id && post.userId && String(post.userId) !== String(user.id)) {
+      const actorName = user.username || user.email?.split('@')[0] || '여행자';
+      const thumbRaw = Array.isArray(post.images) && post.images[0] ? post.images[0] : (post.image || post.thumbnail || null);
+      notifyLike(actorName, post.location || post.placeName || '게시물', {
+        recipientUserId: post.userId,
+        postId: post.id,
+        actorUserId: user.id,
+        actorAvatar: user.profileImage || null,
+        thumbnailUrl: thumbRaw ? getDisplayImageUrl(thumbRaw) : null,
+      });
+    }
+
     // 좋아요를 누를 때만 애니메이션 표시 (좋아요 취소가 아닐 때)
     if (result.isLiked && !wasLiked) {
       // 애니메이션이 끝난 뒤에도 항상 가득 찬 하트 상태 유지
@@ -397,7 +411,7 @@ const PostDetailScreen = () => {
     }
 
     logger.log(result.isLiked ? '❤️ 좋아요!' : '💔 좋아요 취소');
-  }, [post, liked]);
+  }, [post, liked, user, likeCount]);
 
 
   // 이미지 스와이프 (useCallback)
@@ -445,24 +459,47 @@ const PostDetailScreen = () => {
       const res = await addCommentToPostSupabase(post.id, newComment);
       if (res?.success && Array.isArray(res.comments)) {
         setComments(res.comments);
+        setCommentsCacheForPost(post.id, res.comments);
         window.dispatchEvent(new CustomEvent('postCommentsUpdated', { detail: { postId: post.id, comments: res.comments } }));
+        if (user?.id && post.userId && String(post.userId) !== String(user.id)) {
+          notifyComment(username, post.location || post.placeName || '', text, {
+            recipientUserId: post.userId,
+            postId: post.id,
+          });
+        }
       } else {
-        setComments((prev) => [...prev, newComment]);
+        const merged = mergeCommentsWithCache(post.id, [...comments, newComment]);
+        setComments(merged);
+        setCommentsCacheForPost(post.id, merged);
       }
     } else {
       const uploadedPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
       const existsInStorage = uploadedPosts.some((p) => p.id === post.id);
       if (existsInStorage) {
         const newComments = addComment(post.id, text, username, userId);
-        if (Array.isArray(newComments) && newComments.length > 0) setComments(newComments);
-        else setComments((prev) => [...prev, newComment]);
+        if (Array.isArray(newComments) && newComments.length > 0) {
+          setComments(newComments);
+          setCommentsCacheForPost(post.id, newComments);
+        } else {
+          const merged = mergeCommentsWithCache(post.id, [...comments, newComment]);
+          setComments(merged);
+          setCommentsCacheForPost(post.id, merged);
+        }
+        if (user?.id && post.userId && String(post.userId) !== String(user.id)) {
+          notifyComment(username, post.location || post.placeName || '', text, {
+            recipientUserId: post.userId,
+            postId: post.id,
+          });
+        }
       } else {
-        setComments((prev) => [...prev, newComment]);
+        const merged = mergeCommentsWithCache(post.id, [...comments, newComment]);
+        setComments(merged);
+        setCommentsCacheForPost(post.id, merged);
       }
     }
 
     setCommentText('');
-  }, [post, commentText, user]);
+  }, [post, commentText, user, comments]);
 
   const isSupabasePost = post && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(post.id || '').trim());
   const isPostAuthor = post && user && String(post.userId || post.user?.id || post.user) === String(user.id);
@@ -475,11 +512,13 @@ const PostDetailScreen = () => {
       const res = await updateCommentsInPostSupabase(post.id, next);
       if (res?.success) {
         setComments(res.comments);
+        setCommentsCacheForPost(post.id, res.comments);
         window.dispatchEvent(new CustomEvent('postCommentsUpdated', { detail: { postId: post.id, comments: res.comments } }));
       }
     } else {
       const next = deleteCommentFromPost(post.id, commentId);
       setComments(next);
+      setCommentsCacheForPost(post.id, next);
     }
   }, [post, comments, isSupabasePost]);
 
@@ -496,11 +535,13 @@ const PostDetailScreen = () => {
       const res = await updateCommentsInPostSupabase(post.id, next);
       if (res?.success) {
         setComments(res.comments);
+        setCommentsCacheForPost(post.id, res.comments);
         window.dispatchEvent(new CustomEvent('postCommentsUpdated', { detail: { postId: post.id, comments: res.comments } }));
       }
     } else {
       const next = updateCommentInPost(post.id, editingCommentId, text);
       setComments(next);
+      setCommentsCacheForPost(post.id, next);
     }
     setEditingCommentId(null);
     setEditCommentText('');

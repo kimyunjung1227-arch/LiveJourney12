@@ -8,6 +8,7 @@ import { notifyLikeMilestone, notifyTotalLikesMilestone, notifyNewLike, notifyPo
 import { checkNewBadges, awardBadge, calculateUserStats, getEarnedBadges, BADGES } from './badgeSystem';
 import { getTrustRawScore, getTrustGrade, getTrustBadgeIdForScore } from './trustIndex';
 import { logger } from './logger';
+import { notifyLike, notifyComment } from './notifications';
 
 // 좋아요 토글
 // currentLikes: 현재 화면에서 보이는 좋아요 수 (Supabase 게시물용, 선택 인자)
@@ -76,7 +77,19 @@ export const toggleLike = (postId, currentLikes) => {
   }
 
   // 좋아요가 증가했고, 내 게시물인 경우 알림 발송 및 뱃지 체크
+  // (알림도 현재 사용자에게만 노출되도록 recipientUserId 지정)
   if (!isLiked && isMyPost && newLikeCount > oldLikes) {
+    const actorName = currentUser?.username || currentUser?.email?.split('@')[0] || '여행자';
+    // 내 게시물에 "다른 사용자"가 좋아요한 것처럼 보이게 하려면, 실제 멀티유저 서버가 필요합니다.
+    // 현재 구현은 동일 브라우저 localStorage 기반이므로 actor는 현재 사용자 정보로만 표시됩니다.
+    notifyLike(actorName, post.location || '여행지', {
+      recipientUserId: userId,
+      postId,
+      actorUserId: currentUser?.id || null,
+      actorAvatar: currentUser?.profileImage || null,
+      thumbnailUrl: post?.images?.[0] || post?.image || post?.thumbnail || null,
+    });
+
     // 내 게시물이 도움되었습니다 알림 (앱 내부 + 브라우저 푸시)
     notifyPostHelped(postId, post.location || '여행지', newLikeCount);
 
@@ -217,6 +230,17 @@ export const addComment = (postId, comment, username = '익명', userId = null) 
 
   // 게시물 업데이트 이벤트 발생
   window.dispatchEvent(new CustomEvent('postsUpdated', { detail: { postId, comments: targetPosts[postIndex].comments } }));
+
+  // 댓글 알림: 작성자에게만 (localStorage 게시물은 userId 필드가 있으면 사용)
+  try {
+    const postAuthorId = targetPosts[postIndex]?.userId || targetPosts[postIndex]?.user?.id || targetPosts[postIndex]?.user;
+    if (postAuthorId && String(postAuthorId) !== String(userId)) {
+      notifyComment(username, targetPosts[postIndex]?.location || targetPosts[postIndex]?.placeName || '', comment, {
+        recipientUserId: postAuthorId,
+        postId,
+      });
+    }
+  } catch (_) {}
 
   return targetPosts[postIndex].comments || [];
 };
