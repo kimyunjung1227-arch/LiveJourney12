@@ -298,17 +298,6 @@ const ProfileScreen = () => {
       repBadge = null;
     }
 
-    // 대표 뱃지가 없고, 획득한 뱃지가 있다면 그 안에서 하나를 대표로 선택
-    if (!repBadge && badges && badges.length > 0) {
-      let badgeIndex = 0;
-      if (userId) {
-        const hash = userId.toString().split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        badgeIndex = hash % badges.length;
-      }
-      repBadge = badges[badgeIndex];
-      localStorage.setItem(`representativeBadge_${userId}`, JSON.stringify(repBadge));
-    }
-
     if (repBadge) {
       setRepresentativeBadge(repBadge);
     }

@@ -42,8 +42,19 @@ export function buildHotFeedCardProps(post, weatherByRegion = {}) {
         whyHotLine = tagHint ? `실시간으로 올라온 정보예요. ${tagHint}` : '실시간으로 올라온 핫플 정보예요.';
     }
     const cityDongLine = getCityDongLine(post);
-    const hotReasonLabel = engagementTier === '사람 많음' ? '인파 많음' : engagementTier;
+    const tierLabel = engagementTier === '사람 많음' ? '인파 많음' : engagementTier;
+    const hotReasonLabel = tagHint ? `${tierLabel} · ${tagHint}` : tierLabel;
     const hotReasonIcon = (() => {
+        const hint = String(tagHint || '').replace(/\s+/g, '').trim();
+        if (hint.includes('웨이팅') || hint.includes('대기') || hint.includes('줄')) return 'timer';
+        if (hint.includes('재고') || hint.includes('소진') || hint.includes('품절')) return 'shopping_cart';
+        if (hint.includes('벚꽃') || hint.includes('만개') || hint.includes('절정') || hint.includes('단풍') || hint.includes('개화')) return 'local_florist';
+        if (hint.includes('바다') || hint.includes('파도') || hint.includes('윤슬') || hint.includes('해변') || hint.includes('물멍')) return 'waves';
+        if (hint.includes('팝업')) return 'campaign';
+        if (hint.includes('신메뉴') || hint.includes('신상')) return 'new_releases';
+        if (hint.includes('야경')) return 'dark_mode';
+        if (hint.includes('주차')) return 'local_parking';
+        if (hint.includes('사진') || hint.includes('포토')) return 'photo_camera';
         switch (engagementTier) {
             case '급상승':
                 return 'trending_up';

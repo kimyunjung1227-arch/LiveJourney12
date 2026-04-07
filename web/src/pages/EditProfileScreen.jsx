@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import BottomNavigation from '../components/BottomNavigation';
 import { logger } from '../utils/logger';
+import { setCachedFollowProfile } from '../utils/userProfileHints';
 
 const EditProfileScreen = () => {
   const navigate = useNavigate();
@@ -153,6 +154,14 @@ const EditProfileScreen = () => {
       // AuthContext 업데이트
       if (updateUser) {
         updateUser(updatedUser);
+      }
+
+      // 댓글/피드 등에서 작성자 표시 최신화 힌트 저장
+      if (updatedUser?.id) {
+        setCachedFollowProfile(updatedUser.id, {
+          username: updatedUser.username,
+          profileImage: updatedUser.profileImage && updatedUser.profileImage !== 'default' ? updatedUser.profileImage : null,
+        });
       }
 
       // userUpdated 이벤트 발생 (다른 컴포넌트에서 감지)

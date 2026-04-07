@@ -15,7 +15,7 @@ import { getTrustRawScore, getTrustGrade } from '../utils/trustIndex';
 import { follow, unfollow, isFollowing } from '../utils/followSystem';
 import { notifyFollowReceived, notifyFollowingStarted, notifyLike, notifyComment } from '../utils/notifications';
 import { mergeCommentsWithCache, setCommentsCacheForPost } from '../utils/postCommentsCache';
-import { setCachedFollowProfile } from '../utils/userProfileHints';
+import { getCachedFollowProfile, setCachedFollowProfile } from '../utils/userProfileHints';
 import { recordConversion, CONVERSION_TYPES } from '../utils/conversionEvents';
 import { logger } from '../utils/logger';
 import { buildMediaItemsFromPost } from '../utils/postMedia';
@@ -1661,23 +1661,45 @@ const PostDetailScreen = () => {
                     const commentAuthorId = comment.userId || (comment.user && typeof comment.user === 'object' ? comment.user.id : null);
                     const canEditComment = user && (String(commentAuthorId) === String(user.id));
                     const isEditing = editingCommentId === comment.id;
+                    const resolved = (() => {
+                      const uid = commentAuthorId != null ? String(commentAuthorId) : '';
+                      const cached = uid ? getCachedFollowProfile(uid) : null;
+                      let savedMe = null;
+                      try {
+                        const saved = JSON.parse(localStorage.getItem('user') || '{}');
+                        if (saved?.id != null && uid && String(saved.id) === uid) savedMe = saved;
+                      } catch {
+                        // ignore
+                      }
+                      const displayName =
+                        (savedMe?.username || null) ??
+                        (cached?.username || null) ??
+                        comment.user?.username ??
+                        (typeof comment.user === 'string' ? comment.user : null) ??
+                        '유저';
+                      const displayAvatar =
+                        (savedMe?.profileImage && savedMe.profileImage !== 'default' ? savedMe.profileImage : null) ??
+                        (cached?.profileImage ?? null) ??
+                        (comment.avatar || null);
+                      return { displayName, displayAvatar };
+                    })();
                     return (
                       <div key={comment.id} className="flex gap-3">
-                        {comment.avatar ? (
+                        {resolved.displayAvatar ? (
                           <div
                             className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-8 w-8 flex-shrink-0"
-                            style={{ backgroundImage: `url("${comment.avatar}")` }}
+                            style={{ backgroundImage: `url("${resolved.displayAvatar}")` }}
                           />
                         ) : (
                           <div className="rounded-full h-8 w-8 flex-shrink-0 bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] font-semibold text-gray-700 dark:text-gray-100">
-                            {String(comment.user?.username ?? comment.user ?? '유저').charAt(0)}
+                            {String(resolved.displayName ?? '유저').charAt(0)}
                           </div>
                         )}
                         <div className="flex flex-col flex-1">
                           <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg rounded-tl-none flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-bold text-[#181410] dark:text-white">
-                                {comment.user?.username ?? comment.user ?? '유저'}
+                                {resolved.displayName}
                               </p>
                               {isEditing ? (
                                 <div className="mt-2 flex flex-col gap-2">

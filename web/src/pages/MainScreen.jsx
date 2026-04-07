@@ -280,6 +280,29 @@ const MainScreen = () => {
                 totalAll: 0,
             };
 
+            // 게시물 "자체" 텍스트 기반 이유 태그(장소 누적 통계보다 우선)
+            const postReasonTags = [];
+            const text = collectTextForPost(post);
+            const hasWaiting = text.includes('웨이팅') || text.includes('대기') || text.includes('줄') || text.includes('북적');
+            const hasSoldout = text.includes('재고') || text.includes('소진') || text.includes('품절');
+            const hasBlossom = text.includes('벚꽃') || text.includes('개화') || text.includes('만개');
+            const hasNewMenu = text.includes('신메뉴') || text.includes('신상') || text.includes('한정') || text.includes('시즌메뉴');
+            const hasPopup = text.includes('팝업') || text.includes('팝업스토어');
+            const hasNightView = text.includes('야경');
+            const hasParking = text.includes('주차');
+            const hasSea = text.includes('바다') || text.includes('해변') || text.includes('파도') || text.includes('윤슬') || text.includes('물멍');
+            const hasPhotoSpot = text.includes('포토존') || text.includes('사진 맛집') || text.includes('사진맛집') || text.includes('인스타');
+
+            if (hasWaiting) postReasonTags.push('#지금_웨이팅');
+            if (hasSoldout) postReasonTags.push('#재고_소진');
+            if (hasBlossom) postReasonTags.push('#지금_절정');
+            if (hasSea) postReasonTags.push('#바다_무드');
+            if (hasPopup) postReasonTags.push('#팝업');
+            if (hasNewMenu) postReasonTags.push('#신상');
+            if (hasNightView) postReasonTags.push('#야경');
+            if (hasParking) postReasonTags.push('#주차');
+            if (hasPhotoSpot) postReasonTags.push('#사진_맛집');
+
             const reasonTags = [];
 
             // 1) 실시간 상태 (Live) - 최우선
@@ -329,7 +352,7 @@ const MainScreen = () => {
                 .map((t) => `#${t}`);
 
             // 아무 태그도 없으면 가벼운 기본 태그로 보완 (정보 과부하 방지용 1~2개)
-            const uniqueReasons = [...new Set(reasonTags)];
+            const uniqueReasons = [...new Set([...postReasonTags, ...reasonTags])];
             if (uniqueReasons.length === 0) {
                 const fallback = ['#추천_맛집', '#SNS_화제', '#오늘_특가', '#사진_맛집', '#지금_핫플'];
                 uniqueReasons.push(fallback[getDeterministicValue(post.id, 0, fallback.length - 1)]);
@@ -1257,7 +1280,7 @@ const MainScreen = () => {
                                     <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#374151' }}>추천 여행지</h3>
                                 </div>
                                 <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>
-                                    {RECOMMENDATION_TYPES.find(t => t.id === selectedRecommendTag)?.description}
+                                    지금, 이 순간 꼭 가야 할 곳
                                 </p>
                             </div>
                             <div

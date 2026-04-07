@@ -198,9 +198,9 @@ export const addComment = (postId, comment, username = '익명', userId = null) 
   const posts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
 
   // 현재 사용자 정보 가져오기
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
   if (!userId) {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    userId = user.id;
+    userId = currentUser.id;
   }
 
   // 게시물이 uploadedPosts에 있는지 확인
@@ -218,7 +218,7 @@ export const addComment = (postId, comment, username = '익명', userId = null) 
     userId: userId,
     content: comment,
     timestamp: new Date().toISOString(),
-    avatar: null
+    avatar: currentUser?.profileImage && currentUser.profileImage !== 'default' ? currentUser.profileImage : null
   };
 
   targetPosts[postIndex] = {

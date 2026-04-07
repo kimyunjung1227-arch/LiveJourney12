@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, useMemo } from 'react';
+import React, { createContext, useState, useContext, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
 import { syncEarnedBadgesFromSupabase } from '../utils/badgeSystem';
@@ -16,6 +16,14 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [supabaseUser, setSupabaseUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [localUserOverride, setLocalUserOverride] = useState(() => {
+    try {
+      const s = localStorage.getItem('user');
+      return s ? JSON.parse(s) : null;
+    } catch {
+      return null;
+    }
+  });
 
   // Supabase 세션 초기화 + 상태 구독
   useEffect(() => {
@@ -50,14 +58,24 @@ export const AuthProvider = ({ children }) => {
     if (!supabaseUser) return null;
     const meta = supabaseUser.user_metadata || {};
     const email = supabaseUser.email || meta.email || '';
-    return {
+    const base = {
       id: supabaseUser.id,
       email,
       username: meta.name || email.split('@')[0] || '여행자',
       profileImage: meta.picture || meta.avatar_url || null,
       provider: supabaseUser.app_metadata?.provider || 'supabase',
     };
-  }, [supabaseUser]);
+    const o = (localUserOverride && String(localUserOverride.id) === String(base.id)) ? localUserOverride : null;
+    if (!o || typeof o !== 'object') return base;
+    return {
+      ...base,
+      // 사용자가 편집한 값은 로컬 우선(새로고침 초기화 방지)
+      username: o.username ?? base.username,
+      profileImage: o.profileImage !== undefined ? o.profileImage : base.profileImage,
+      bio: o.bio ?? base.bio,
+      representativeBadge: o.representativeBadge ?? base.representativeBadge,
+    };
+  }, [supabaseUser, localUserOverride]);
 
   // localStorage 에 user 저장 (기존 코드와 호환을 위해)
   useEffect(() => {
@@ -133,6 +151,30 @@ export const AuthProvider = ({ children }) => {
     logger.log('✅ 스토리지 초기화 완료');
   };
 
+  const updateUser = useCallback(async (userObj) => {
+    if (!userObj || typeof userObj !== 'object') return;
+    try {
+      localStorage.setItem('user', JSON.stringify(userObj));
+    } catch {
+      /* ignore */
+    }
+    setLocalUserOverride(userObj);
+
+    // 로그인 사용자면 Supabase 메타데이터도 best-effort로 갱신(가능한 경우만)
+    try {
+      if (supabaseUser?.id && String(userObj.id) === String(supabaseUser.id)) {
+        const nextMeta = {
+          name: userObj.username,
+          picture: userObj.profileImage && userObj.profileImage !== 'default' ? userObj.profileImage : null,
+        };
+        await supabase.auth.updateUser({ data: nextMeta });
+      }
+    } catch (e) {
+      // 실패해도 로컬은 유지되어야 함
+      logger.warn('Supabase user_metadata 업데이트 실패(로컬은 유지):', e);
+    }
+  }, [supabaseUser?.id]);
+
   // AuthCallbackScreen 과의 호환을 위한 setUser (실제로는 사용하지 않음)
   const setUserFromCallback = (userObj) => {
     if (!userObj) {
@@ -141,6 +183,7 @@ export const AuthProvider = ({ children }) => {
     }
     // Supabase User와 구조가 다르지만, 최소한 localStorage 용도로만 저장
     localStorage.setItem('user', JSON.stringify(userObj));
+    setLocalUserOverride(userObj);
   };
 
   const value = {
@@ -149,6 +192,7 @@ export const AuthProvider = ({ children }) => {
     loginWithProvider,
     logout,
     isAuthenticated: !!appUser,
+    updateUser,
     // 구 코드 호환용
     setUser: setUserFromCallback,
   };
