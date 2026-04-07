@@ -1360,14 +1360,6 @@ const MainScreen = () => {
                                                 )}
                                             </div>
                                             <div style={{ padding: '6px 2px 10px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
-                                                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#06b6d4' }}>추천</div>
-                                                    {item?.trustText && (
-                                                        <div style={{ fontSize: 11, fontWeight: 800, color: '#0f172a', background: 'rgba(15,23,42,0.06)', padding: '3px 8px', borderRadius: 999, whiteSpace: 'nowrap' }}>
-                                                            {item.trustText}
-                                                        </div>
-                                                    )}
-                                                </div>
                                                 <div style={{ color: '#111827', fontSize: '14px', fontWeight: 800, marginBottom: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {item.title}
                                                 </div>

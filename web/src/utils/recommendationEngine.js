@@ -39,9 +39,10 @@ const getPostTextBlob = (post) => {
 };
 
 /**
- * 추천 카드의 "지역 단위" 키 추출
- * - 목표: 시/군/구 또는 읍/면(가능하면 더 구체적으로) 단위
- * - 입력 소스 우선순위: detailedLocation/address → location/placeName
+ * 추천 카드의 "지역 단위" 키 추출 (시/군/구로 묶기)
+ * - 예: "구미시 금오천" -> "구미"
+ * - 예: "강원도 고성군 토성면" -> "고성"
+ * - 예: "서울특별시 강남구" -> "강남"
  */
 const getRegionUnitKey = (post) => {
   const raw =
@@ -54,39 +55,24 @@ const getRegionUnitKey = (post) => {
   const text = String(raw || '').replace(/\s+/g, ' ').trim();
   if (!text) return '기록';
 
-  // 이미 "강원도 고성군 토성면"처럼 공백 단위로 들어오는 케이스가 많아서
-  // 앞 2~4토큰을 보수적으로 잘라서 행정구역 단위로 맞춥니다.
-  const tokens = text.split(' ').filter(Boolean);
-  if (tokens.length === 0) return '기록';
+  const stripProvinceSuffix = (s) =>
+    String(s || '')
+      .replace(/(특별자치도|특별자치시|특별시|광역시)$/g, '')
+      .replace(/도$/g, '')
+      .trim();
 
-  const isProvince = (t) => /(?:특별시|광역시|특별자치시|특별자치도|도|시)$/.test(t);
-  const isCounty = (t) => /(?:시|군|구)$/.test(t);
-  const isTown = (t) => /(?:읍|면|동|리)$/.test(t);
-
-  // 규칙:
-  // 1) [도/시] + [시/군/구] + ([읍/면/동] 있으면 포함)
-  // 2) 최소 2토큰(목적지 명확) 확보, 최대 4토큰까지만 노출
-  const out = [];
-  for (let i = 0; i < tokens.length && out.length < 4; i += 1) {
-    const t = tokens[i];
-    if (out.length === 0) {
-      out.push(t);
-      continue;
-    }
-    if (out.length === 1) {
-      out.push(t);
-      continue;
-    }
-    // 3번째부터는 읍/면/동/리만 우선 포함 (너무 상세 주소 방지)
-    if (isTown(t)) out.push(t);
-    else if (out.length < 3 && (isProvince(t) || isCounty(t))) out.push(t);
-    else break;
+  const matches = Array.from(text.matchAll(/([가-힣]{1,})\s*(시|군|구)/g));
+  if (matches.length > 0) {
+    const last = matches[matches.length - 1];
+    const name = String(last?.[1] || '').trim();
+    return name || '기록';
   }
 
-  // 만약 첫 토큰이 일반 장소명(예: "연화지")이고 뒤에 지역이 없으면, 그냥 location의 앞 토큰 2개를 사용
-  const result = out.join(' ').trim();
-  if (result.split(' ').length >= 2) return result;
-  return tokens.slice(0, Math.min(2, tokens.length)).join(' ').trim() || '기록';
+  // 시/군/구가 텍스트에 없으면: 첫 토큰(도/광역 단위)을 축약해서 사용
+  const tokens = text.split(' ').filter(Boolean);
+  const first = tokens[0] || '';
+  const shortened = stripProvinceSuffix(first);
+  return shortened || first || '기록';
 };
 
 const hasCategory = (post, slug) =>
@@ -341,18 +327,6 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming') =>
     return out.slice(0, 3);
   };
 
-  const buildTrust = (stat) => {
-    const postsForRegion = Array.isArray(stat.regionPosts) ? stat.regionPosts : [];
-    const acc = postsForRegion.reduce((s, p) => s + (Number(p?.accuracyCount) || 0), 0);
-    const recentBoost = Math.min(20, (stat.recent1hCount || 0) * 4 + (stat.recent3hCount || 0) * 2);
-    const score = Math.max(0, Math.min(100, 40 + acc * 2 + recentBoost));
-    const failure = Math.max(3, Math.min(25, Math.round(30 - score * 0.25)));
-    return {
-      trustScore: score,
-      trustText: `여행 실패 확률 ${failure}% 미만`,
-    };
-  };
-
   const pickLiveImage = (stat) => {
     const recent = Array.isArray(stat.recent1hPosts) ? stat.recent1hPosts : [];
     const sorted = recent
@@ -409,7 +383,6 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming') =>
 
   return ranked.map(({ stat, score, extra }) => {
     const liveImage = pickLiveImage(stat) || stat.representativeImage;
-    const { trustScore, trustText } = buildTrust(stat);
     const { proofSummary, timelineThumbs } = buildProof(stat, type, extra);
     const statusBadges = buildStatusBadges(type, stat, extra);
     const edgePointScript = buildEdgePointScript(type, stat.regionKey, extra);
@@ -423,8 +396,6 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming') =>
       liveImage,
       badge: toBadge(type),
       statusBadges,
-      trustScore,
-      trustText,
       proofSummary,
       timelineThumbs,
       _score: score,

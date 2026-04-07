@@ -175,11 +175,6 @@ const RecommendedPlaceScreen = () => {
                         ))}
                       </div>
                     )}
-                    {item?.trustText && (
-                      <div style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: '#0f172a' }}>
-                        {item.trustText}
-                      </div>
-                    )}
                     {proofSummary && (
                       <div style={{ marginTop: 6, fontSize: 11, fontWeight: 700, color: '#334155', lineHeight: 1.35 }}>
                         {proofSummary}
