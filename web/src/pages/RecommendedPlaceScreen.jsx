@@ -44,7 +44,7 @@ const RecommendedPlaceScreen = () => {
           <span className="material-symbols-outlined" style={{ color: '#333' }}>arrow_back</span>
         </button>
         <div>
-          <h1 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#1f2937' }}>실시간 추천 여행지</h1>
+          <h1 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#1f2937' }}>지금, 이 순간 꼭 가야 할 곳</h1>
           <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>
             지금, 이 순간 꼭 가야 할 곳
           </p>
