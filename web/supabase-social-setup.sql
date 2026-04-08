@@ -1,5 +1,9 @@
 -- LiveJourney: 멀티계정 동기화용 소셜 테이블
--- Supabase SQL Editor에서 실행하세요.
+-- Supabase SQL Editor에서 "전체를 그대로" 실행하세요.
+-- (Postgres는 `create policy if not exists`를 지원하지 않아서 drop→create로 구성합니다.)
+
+-- gen_random_uuid() 사용을 위해 필요
+create extension if not exists pgcrypto;
 
 -- 1) 게시물 좋아요(사용자별)
 create table if not exists public.post_likes (
@@ -12,16 +16,103 @@ create table if not exists public.post_likes (
 alter table public.post_likes enable row level security;
 
 -- 로그인한 사용자는 좋아요를 생성/삭제/조회 가능 (RLS)
-create policy if not exists "post_likes_select" on public.post_likes
+drop policy if exists "post_likes_select" on public.post_likes;
+create policy "post_likes_select" on public.post_likes
 for select using (auth.uid() is not null);
 
-create policy if not exists "post_likes_insert_own" on public.post_likes
+drop policy if exists "post_likes_insert_own" on public.post_likes;
+create policy "post_likes_insert_own" on public.post_likes
 for insert with check (auth.uid() = user_id);
 
-create policy if not exists "post_likes_delete_own" on public.post_likes
+drop policy if exists "post_likes_delete_own" on public.post_likes;
+create policy "post_likes_delete_own" on public.post_likes
 for delete using (auth.uid() = user_id);
 
 -- 2) 사용자 알림(수신자 기준)
+-- 기존 notifications 테이블이 이미 있고 컬럼명이 다르면(예: 과거 스키마)
+-- 필요한 컬럼을 추가해 호환되게 만듭니다.
+do $$
+begin
+  if to_regclass('public.notifications') is not null then
+    -- recipient_user_id
+    if not exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'notifications' and column_name = 'recipient_user_id'
+    ) then
+      alter table public.notifications add column recipient_user_id uuid;
+      -- best-effort 백필(컬럼명이 다를 수 있어 예외는 무시)
+      begin
+        if exists (
+          select 1 from information_schema.columns
+          where table_schema='public' and table_name='notifications' and column_name='recipientuserid'
+        ) then
+          execute 'update public.notifications set recipient_user_id = recipientuserid::uuid where recipient_user_id is null';
+        end if;
+      exception when others then
+        null;
+      end;
+      begin
+        if exists (
+          select 1 from information_schema.columns
+          where table_schema='public' and table_name='notifications' and column_name='user_id'
+        ) then
+          execute 'update public.notifications set recipient_user_id = user_id::uuid where recipient_user_id is null';
+        end if;
+      exception when others then
+        null;
+      end;
+    end if;
+
+    -- actor_user_id
+    if not exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'notifications' and column_name = 'actor_user_id'
+    ) then
+      alter table public.notifications add column actor_user_id uuid;
+    end if;
+
+    -- type
+    if not exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'notifications' and column_name = 'type'
+    ) then
+      alter table public.notifications add column type text;
+    end if;
+
+    -- post_id
+    if not exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'notifications' and column_name = 'post_id'
+    ) then
+      alter table public.notifications add column post_id uuid;
+    end if;
+
+    -- message
+    if not exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'notifications' and column_name = 'message'
+    ) then
+      alter table public.notifications add column message text;
+    end if;
+
+    -- read
+    if not exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'notifications' and column_name = 'read'
+    ) then
+      alter table public.notifications add column read boolean not null default false;
+    end if;
+
+    -- created_at
+    if not exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'notifications' and column_name = 'created_at'
+    ) then
+      alter table public.notifications add column created_at timestamptz not null default now();
+    end if;
+  end if;
+end $$;
+
 create table if not exists public.notifications (
   id uuid primary key default gen_random_uuid(),
   recipient_user_id uuid not null references auth.users(id) on delete cascade,
@@ -42,18 +133,22 @@ create index if not exists notifications_recipient_created_idx
 alter table public.notifications enable row level security;
 
 -- 수신자는 자기 알림만 조회/읽음/삭제 가능
-create policy if not exists "notifications_select_own" on public.notifications
+drop policy if exists "notifications_select_own" on public.notifications;
+create policy "notifications_select_own" on public.notifications
 for select using (auth.uid() = recipient_user_id);
 
-create policy if not exists "notifications_update_own" on public.notifications
+drop policy if exists "notifications_update_own" on public.notifications;
+create policy "notifications_update_own" on public.notifications
 for update using (auth.uid() = recipient_user_id) with check (auth.uid() = recipient_user_id);
 
-create policy if not exists "notifications_delete_own" on public.notifications
+drop policy if exists "notifications_delete_own" on public.notifications;
+create policy "notifications_delete_own" on public.notifications
 for delete using (auth.uid() = recipient_user_id);
 
 -- 알림 생성은 로그인한 사용자라면 가능(시연/테스트 용도)
 -- 운영에서는 더 엄격하게(예: RPC/서버)로 바꿀 수 있습니다.
-create policy if not exists "notifications_insert_auth" on public.notifications
+drop policy if exists "notifications_insert_auth" on public.notifications;
+create policy "notifications_insert_auth" on public.notifications
 for insert with check (auth.uid() is not null);
 
 -- 3) 팔로우(사용자별)
@@ -66,13 +161,16 @@ create table if not exists public.follows (
 
 alter table public.follows enable row level security;
 
-create policy if not exists "follows_select" on public.follows
+drop policy if exists "follows_select" on public.follows;
+create policy "follows_select" on public.follows
 for select using (auth.uid() is not null);
 
-create policy if not exists "follows_insert_own" on public.follows
+drop policy if exists "follows_insert_own" on public.follows;
+create policy "follows_insert_own" on public.follows
 for insert with check (auth.uid() = follower_id);
 
-create policy if not exists "follows_delete_own" on public.follows
+drop policy if exists "follows_delete_own" on public.follows;
+create policy "follows_delete_own" on public.follows
 for delete using (auth.uid() = follower_id);
 
 -- 4) 댓글(경합 방지: posts.comments 배열 대신 테이블로 저장)
@@ -92,16 +190,20 @@ create index if not exists post_comments_post_created_idx
 
 alter table public.post_comments enable row level security;
 
-create policy if not exists "post_comments_select" on public.post_comments
+drop policy if exists "post_comments_select" on public.post_comments;
+create policy "post_comments_select" on public.post_comments
 for select using (auth.uid() is not null);
 
-create policy if not exists "post_comments_insert_auth" on public.post_comments
+drop policy if exists "post_comments_insert_auth" on public.post_comments;
+create policy "post_comments_insert_auth" on public.post_comments
 for insert with check (auth.uid() is not null);
 
-create policy if not exists "post_comments_update_own" on public.post_comments
+drop policy if exists "post_comments_update_own" on public.post_comments;
+create policy "post_comments_update_own" on public.post_comments
 for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
-create policy if not exists "post_comments_delete_own" on public.post_comments
+drop policy if exists "post_comments_delete_own" on public.post_comments;
+create policy "post_comments_delete_own" on public.post_comments
 for delete using (auth.uid() = user_id);
 
 -- 5) likes_count 자동 유지(재진입/동기화 안정화)
