@@ -6,6 +6,7 @@
 create extension if not exists pgcrypto;
 
 -- 1) 게시물 좋아요(사용자별)
+-- 앱에서는 단순 insert 대신 upsert(onConflict post_id,user_id, ignoreDuplicates)로 409 중복 충돌을 피합니다.
 create table if not exists public.post_likes (
   post_id uuid not null references public.posts(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,

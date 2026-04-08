@@ -66,20 +66,17 @@ async function resolveActorDisplayForLike(uid, hint) {
   return { name: '여행자', avatar: null };
 }
 
-export const togglePostLikeSupabase = async (userId, postId, actorHint = null) => {
+/**
+ * 좋아요 토글. `likedBeforeClick`은 클릭 직전 UI/캐시 상태(필수) — DB 선조회와 어긋나 409가 나지 않도록 함.
+ * 좋아요 추가는 upsert + ignoreDuplicates 로 (post_id,user_id) 중복 시 409 대신 멱등 성공.
+ */
+export const togglePostLikeSupabase = async (userId, postId, actorHint = null, opts = {}) => {
   const uid = String(userId || '').trim();
   const pid = String(postId || '').trim();
   if (!isValidUuid(uid) || !isValidUuid(pid)) return { success: false, isLiked: false };
+  const likedBeforeClick = opts.likedBeforeClick;
   try {
-    const { data: existing, error: existErr } = await supabase
-      .from('post_likes')
-      .select('post_id')
-      .eq('user_id', uid)
-      .eq('post_id', pid)
-      .maybeSingle();
-    if (existErr) throw existErr;
-
-    if (existing) {
+    if (likedBeforeClick === true) {
       const { error: delErr } = await supabase
         .from('post_likes')
         .delete()
@@ -90,12 +87,14 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null) =
       return { success: true, isLiked: false };
     }
 
-    const { error: insErr } = await supabase
+    const { data: insData, error: insErr } = await supabase
       .from('post_likes')
-      .insert({ user_id: uid, post_id: pid });
+      .upsert({ user_id: uid, post_id: pid }, { onConflict: 'post_id,user_id', ignoreDuplicates: true })
+      .select('post_id');
     if (insErr) throw insErr;
 
     setLikedPostLocalCache(pid, true);
+    const insertedFresh = Array.isArray(insData) ? insData.length > 0 : !!insData;
 
     const { data: postRow } = await supabase
       .from('posts')
@@ -103,7 +102,7 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null) =
       .eq('id', pid)
       .maybeSingle();
     const ownerId = postRow?.user_id ? String(postRow.user_id) : null;
-    if (ownerId && ownerId !== uid) {
+    if (insertedFresh && ownerId && ownerId !== uid) {
       const { name: actorName, avatar: actorAv } = await resolveActorDisplayForLike(uid, actorHint);
       const imgs = postRow?.images;
       const thumb =
@@ -126,7 +125,7 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null) =
 
     return { success: true, isLiked: true };
   } catch (e) {
-    logger.warn('togglePostLikeSupabase 실패:', e?.message);
+    logger.warn('togglePostLikeSupabase 실패:', e?.message, e?.code || e?.status || '');
     return { success: false, isLiked: false };
   }
 };
@@ -161,7 +160,10 @@ export const addCommentSupabase = async ({ postId, userId, username, avatarUrl, 
       content: String(content).trim(),
     };
     const { data, error } = await supabase.from('post_comments').insert(payload).select('*').single();
-    if (error) throw error;
+    if (error) {
+      logger.warn('addCommentSupabase:', error.code, error.message, error.status ?? error.statusCode);
+      throw error;
+    }
 
     const { data: postRow } = await supabase
       .from('posts')
@@ -253,7 +255,9 @@ export const followSupabase = async (followerId, followingId) => {
   const tid = String(followingId || '').trim();
   if (!isValidUuid(fid) || !isValidUuid(tid) || fid === tid) return { success: false };
   try {
-    const { error } = await supabase.from('follows').insert({ follower_id: fid, following_id: tid });
+    const { error } = await supabase
+      .from('follows')
+      .upsert({ follower_id: fid, following_id: tid }, { onConflict: 'follower_id,following_id', ignoreDuplicates: true });
     if (error) throw error;
     return { success: true };
   } catch (e) {

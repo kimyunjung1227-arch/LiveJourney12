@@ -659,10 +659,15 @@ const MainScreen = () => {
         } else {
             // 멀티계정: post_likes 토글 → 트리거로 posts.likes_count 갱신
             if (canUseSupabase) {
-                const sup = await togglePostLikeSupabase(String(user.id), String(post.id), {
-                    username: user.username,
-                    avatarUrl: user.profileImage || null,
-                });
+                const sup = await togglePostLikeSupabase(
+                    String(user.id),
+                    String(post.id),
+                    {
+                        username: user.username,
+                        avatarUrl: user.profileImage || null,
+                    },
+                    { likedBeforeClick: wasLiked }
+                );
                 if (sup.success) {
                     const fromDb = await fetchPostLikesCountSupabase(post.id);
                     const delta = (sup.isLiked ? 1 : 0) - (wasLiked ? 1 : 0);

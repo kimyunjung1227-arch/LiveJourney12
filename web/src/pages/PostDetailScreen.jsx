@@ -406,10 +406,15 @@ const PostDetailScreen = () => {
       setLikeCount(result.newCount);
     } else {
       if (shouldUseSupabase) {
-        togglePostLikeSupabase(user.id, post.id, {
-          username: user.username,
-          avatarUrl: user.profileImage || null,
-        }).then(async (sup) => {
+        togglePostLikeSupabase(
+          user.id,
+          post.id,
+          {
+            username: user.username,
+            avatarUrl: user.profileImage || null,
+          },
+          { likedBeforeClick: wasLiked }
+        ).then(async (sup) => {
           if (!sup?.success) {
             setLiked(wasLiked);
             setLikeCount((prev) => {
