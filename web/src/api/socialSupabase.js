@@ -1,10 +1,12 @@
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
 import { sendNotificationToUser } from '../utils/notifications';
+import { setLikedPostLocalCache } from '../utils/socialInteractions';
 
 const isValidUuid = (v) =>
   typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
 
+/** @returns {string[]|null} 실패 시 null(로컬 likedPosts 캐시를 잘못 덮어쓰지 않음) */
 export const fetchLikedPostIdsSupabase = async (userId, postIds) => {
   const uid = String(userId || '').trim();
   if (!isValidUuid(uid)) return [];
@@ -20,7 +22,7 @@ export const fetchLikedPostIdsSupabase = async (userId, postIds) => {
     return (Array.isArray(data) ? data : []).map((r) => String(r.post_id));
   } catch (e) {
     logger.warn('fetchLikedPostIdsSupabase 실패:', e?.message);
-    return [];
+    return null;
   }
 };
 
@@ -84,6 +86,7 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null) =
         .eq('user_id', uid)
         .eq('post_id', pid);
       if (delErr) throw delErr;
+      setLikedPostLocalCache(pid, false);
       return { success: true, isLiked: false };
     }
 
@@ -91,6 +94,8 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null) =
       .from('post_likes')
       .insert({ user_id: uid, post_id: pid });
     if (insErr) throw insErr;
+
+    setLikedPostLocalCache(pid, true);
 
     const { data: postRow } = await supabase
       .from('posts')

@@ -10,6 +10,50 @@ import { getTrustRawScore, getTrustGrade, getTrustBadgeIdForScore } from './trus
 import { logger } from './logger';
 import { notifyLike, notifyComment } from './notifications';
 
+const POST_ID_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * isPostLiked()가 읽는 likedPosts 캐시 갱신 — Supabase post_likes 토글 직후 호출 필수
+ */
+export const setLikedPostLocalCache = (postId, isLiked) => {
+  try {
+    const id = String(postId || '');
+    if (!id) return;
+    const likes = JSON.parse(localStorage.getItem('likedPosts') || '{}');
+    likes[id] = !!isLiked;
+    localStorage.setItem('likedPosts', JSON.stringify(likes));
+    window.dispatchEvent(new CustomEvent('likedPostsCacheUpdated', { detail: { postId: id, liked: !!isLiked } }));
+  } catch {
+    /* ignore */
+  }
+};
+
+/**
+ * 피드 로드 시 post_likes 조회 결과를 반영. 비-UUID(로컬 전용) 좋아요 키는 유지.
+ * @param {string[]} queriedPostIds - 이번에 서버와 맞출 UUID 게시물 id 목록
+ * @param {string[]} likedIdsFromServer - 현재 사용자가 좋아요한 id 목록
+ */
+export const mergeLikedPostsFromServer = (queriedPostIds, likedIdsFromServer) => {
+  try {
+    const prev = JSON.parse(localStorage.getItem('likedPosts') || '{}');
+    const likedSet = new Set((likedIdsFromServer || []).map((x) => String(x)));
+    const next = {};
+    Object.keys(prev).forEach((k) => {
+      if (!POST_ID_UUID_RE.test(k)) next[k] = prev[k];
+    });
+    (queriedPostIds || []).forEach((pid) => {
+      const id = String(pid);
+      if (!POST_ID_UUID_RE.test(id)) return;
+      next[id] = likedSet.has(id);
+    });
+    localStorage.setItem('likedPosts', JSON.stringify(next));
+    window.dispatchEvent(new CustomEvent('postLikesSynced', { detail: { count: likedIdsFromServer?.length || 0 } }));
+  } catch {
+    /* ignore */
+  }
+};
+
 // 좋아요 토글
 // currentLikes: 현재 화면에서 보이는 좋아요 수 (Supabase 게시물용, 선택 인자)
 export const toggleLike = (postId, currentLikes) => {
