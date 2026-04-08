@@ -1,5 +1,6 @@
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
+import { sendNotificationToUser } from '../utils/notifications';
 
 const isValidUuid = (v) =>
   typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
@@ -42,7 +43,28 @@ export const isPostLikedSupabase = async (userId, postId) => {
   }
 };
 
-export const togglePostLikeSupabase = async (userId, postId) => {
+async function resolveActorDisplayForLike(uid, hint) {
+  if (hint?.username && String(hint.username).trim()) {
+    return { name: String(hint.username).trim(), avatar: hint.avatarUrl || null };
+  }
+  try {
+    const { data: row } = await supabase
+      .from('posts')
+      .select('author_username, author_avatar_url')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (row?.author_username) {
+      return { name: String(row.author_username), avatar: row.author_avatar_url || null };
+    }
+  } catch {
+    // ignore
+  }
+  return { name: '여행자', avatar: null };
+}
+
+export const togglePostLikeSupabase = async (userId, postId, actorHint = null) => {
   const uid = String(userId || '').trim();
   const pid = String(postId || '').trim();
   if (!isValidUuid(uid) || !isValidUuid(pid)) return { success: false, isLiked: false };
@@ -69,6 +91,34 @@ export const togglePostLikeSupabase = async (userId, postId) => {
       .from('post_likes')
       .insert({ user_id: uid, post_id: pid });
     if (insErr) throw insErr;
+
+    const { data: postRow } = await supabase
+      .from('posts')
+      .select('user_id, images')
+      .eq('id', pid)
+      .maybeSingle();
+    const ownerId = postRow?.user_id ? String(postRow.user_id) : null;
+    if (ownerId && ownerId !== uid) {
+      const { name: actorName, avatar: actorAv } = await resolveActorDisplayForLike(uid, actorHint);
+      const imgs = postRow?.images;
+      const thumb =
+        Array.isArray(imgs) && imgs[0]
+          ? imgs[0]
+          : imgs && typeof imgs === 'string'
+            ? imgs
+            : null;
+      await sendNotificationToUser({
+        recipientUserId: ownerId,
+        actorUserId: uid,
+        actorUsername: actorName,
+        actorAvatar: actorAv,
+        postId: pid,
+        thumbnailUrl: thumb || null,
+        type: 'like',
+        message: `${actorName}님이 회원님이 올린 정보를 좋아합니다.`,
+      });
+    }
+
     return { success: true, isLiked: true };
   } catch (e) {
     logger.warn('togglePostLikeSupabase 실패:', e?.message);
@@ -107,6 +157,34 @@ export const addCommentSupabase = async ({ postId, userId, username, avatarUrl, 
     };
     const { data, error } = await supabase.from('post_comments').insert(payload).select('*').single();
     if (error) throw error;
+
+    const { data: postRow } = await supabase
+      .from('posts')
+      .select('user_id, images')
+      .eq('id', pid)
+      .maybeSingle();
+    const ownerId = postRow?.user_id ? String(postRow.user_id) : null;
+    if (ownerId && ownerId !== uid) {
+      const actorName = String(username || '').trim() || '여행자';
+      const imgs = postRow?.images;
+      const thumb =
+        Array.isArray(imgs) && imgs[0]
+          ? imgs[0]
+          : imgs && typeof imgs === 'string'
+            ? imgs
+            : null;
+      await sendNotificationToUser({
+        recipientUserId: ownerId,
+        actorUserId: uid,
+        actorUsername: actorName,
+        actorAvatar: avatarUrl || null,
+        postId: pid,
+        thumbnailUrl: thumb || null,
+        type: 'comment',
+        message: `${actorName}님이 회원님이 올린 정보에 댓글을 남겼습니다.`,
+      });
+    }
+
     return { success: true, row: data };
   } catch (e) {
     logger.warn('addCommentSupabase 실패:', e?.message);

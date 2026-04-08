@@ -13,7 +13,7 @@ import { toggleInterestPlace, isInterestPlace } from '../utils/interestPlaces';
 import { getEarnedBadgesForUser } from '../utils/badgeSystem';
 import { getTrustRawScore, getTrustGrade } from '../utils/trustIndex';
 import { follow, unfollow, isFollowing } from '../utils/followSystem';
-import { notifyFollowReceived, notifyFollowingStarted, notifyLike, notifyComment, sendNotificationToUser } from '../utils/notifications';
+import { notifyFollowingStarted, notifyLike, notifyComment } from '../utils/notifications';
 import { mergeCommentsWithCache, setCommentsCacheForPost } from '../utils/postCommentsCache';
 import { getCachedFollowProfile, setCachedFollowProfile } from '../utils/userProfileHints';
 import { recordConversion, CONVERSION_TYPES } from '../utils/conversionEvents';
@@ -396,7 +396,10 @@ const PostDetailScreen = () => {
       setLikeCount(result.newCount);
     } else {
       if (shouldUseSupabase) {
-        togglePostLikeSupabase(user.id, post.id).then(() => {
+        togglePostLikeSupabase(user.id, post.id, {
+          username: user.username,
+          avatarUrl: user.profileImage || null,
+        }).then(() => {
           // 트리거가 posts.likes_count를 갱신하므로 최신값을 다시 조회
           refreshPostFromSupabase();
         });
@@ -413,8 +416,8 @@ const PostDetailScreen = () => {
       }
     }
 
-    // 타인 게시물에 좋아요 시 작성자에게 인앱 알림(동일 브라우저/저장소 기준)
-    if (!wasLiked && optimisticLiked && user?.id && post.userId && String(post.userId) !== String(user.id)) {
+    // 타인 게시물에 좋아요 — Supabase 게시물은 togglePostLikeSupabase에서 원격 알림 삽입
+    if (!shouldUseSupabase && !wasLiked && optimisticLiked && user?.id && post.userId && String(post.userId) !== String(user.id)) {
       const actorName = user.username || user.email?.split('@')[0] || '여행자';
       const thumbRaw = Array.isArray(post.images) && post.images[0] ? post.images[0] : (post.image || post.thumbnail || null);
       notifyLike(actorName, post.location || post.placeName || '게시물', {
@@ -423,16 +426,6 @@ const PostDetailScreen = () => {
         actorUserId: user.id,
         actorAvatar: user.profileImage || null,
         thumbnailUrl: thumbRaw ? getDisplayImageUrl(thumbRaw) : null,
-      });
-      sendNotificationToUser({
-        type: 'like',
-        message: `${actorName}님이 회원님의 게시물을 좋아합니다`,
-        actorUsername: actorName,
-        actorUserId: user.id,
-        actorAvatar: user.profileImage || null,
-        thumbnailUrl: thumbRaw ? getDisplayImageUrl(thumbRaw) : null,
-        postId: post.id,
-        recipientUserId: post.userId,
       });
     }
 
@@ -518,18 +511,7 @@ const PostDetailScreen = () => {
           setComments(mapped);
           setCommentsCacheForPost(post.id, mapped);
           window.dispatchEvent(new CustomEvent('postCommentsUpdated', { detail: { postId: post.id, comments: mapped } }));
-          if (post.userId && String(post.userId) !== String(user.id)) {
-            notifyComment(username, post.location || post.placeName || '', text, { recipientUserId: post.userId, postId: post.id });
-            sendNotificationToUser({
-              type: 'comment',
-              message: `${username}님이 회원님의 게시물에 댓글을 남겼습니다`,
-              actorUsername: username,
-              actorUserId: user?.id || null,
-              actorAvatar: user?.profileImage || null,
-              postId: post.id,
-              recipientUserId: post.userId,
-            });
-          }
+          /* addCommentSupabase에서 게시물 작성자에게 Supabase 알림 삽입 */
         } else {
           const merged = mergeCommentsWithCache(post.id, [...comments, newComment]);
           setComments(merged);
@@ -563,7 +545,7 @@ const PostDetailScreen = () => {
     }
 
     setCommentText('');
-  }, [post, commentText, user, comments, sendNotificationToUser]);
+  }, [post, commentText, user, comments]);
 
   const isSupabasePost = post && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(post.id || '').trim());
   const isPostAuthor = post && user && String(post.userId || post.user?.id || post.user) === String(user.id);
@@ -1269,18 +1251,7 @@ const PostDetailScreen = () => {
                               username: userName,
                               profileImage: authorAvatar || null,
                             });
-                            notifyFollowReceived(myName, postUserId, {
-                              actorUserId: user.id,
-                              actorAvatar: user?.profileImage || null,
-                            });
-                            sendNotificationToUser({
-                              type: 'follow',
-                              message: `${myName}님이 회원님을 팔로우하기 시작했습니다`,
-                              actorUsername: myName,
-                              actorUserId: user.id,
-                              actorAvatar: user?.profileImage || null,
-                              recipientUserId: postUserId,
-                            });
+                            /* followSystem → followSupabase에서 수신자에게 원격 알림 */
                             notifyFollowingStarted(userName, user.id, {
                               targetUserId: postUserId,
                               targetAvatar: authorAvatar || null,

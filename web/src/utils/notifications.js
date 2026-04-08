@@ -86,22 +86,30 @@ export const syncNotificationsFromSupabase = async (userId) => {
   const uid = String(userId || '').trim();
   if (!uid) return [];
   const rows = await fetchNotificationsSupabase(uid, { limit: 100 });
-  const mapped = (rows || []).map((r) => ({
-    id: String(r.id),
-    read: !!r.read,
-    time: r.created_at ? getTimeAgo(r.created_at) : '방금',
-    timestamp: r.created_at || new Date().toISOString(),
-    type: r.type || 'system',
-    title: '',
-    message: r.message || '',
-    actorUsername: r.actor_username || null,
-    actorAvatar: r.actor_avatar_url || null,
-    actorUserId: r.actor_user_id ? String(r.actor_user_id) : null,
-    thumbnailUrl: r.thumbnail_url || null,
-    postId: r.post_id ? String(r.post_id) : null,
-    recipientUserId: r.recipient_user_id ? String(r.recipient_user_id) : null,
-    link: r.post_id ? `/post/${r.post_id}` : '/main',
-  }));
+  const mapped = (rows || []).map((r) => {
+    const typ = r.type || 'system';
+    const actorId = r.actor_user_id ? String(r.actor_user_id) : null;
+    let link = '/main';
+    if (r.post_id) link = `/post/${r.post_id}`;
+    else if (typ === 'follow' && actorId) link = `/user/${actorId}`;
+    return {
+      id: String(r.id),
+      read: !!r.read,
+      time: r.created_at ? getTimeAgo(r.created_at) : '방금',
+      timestamp: r.created_at || new Date().toISOString(),
+      type: typ,
+      title: '',
+      message: r.message || '',
+      actorUsername: r.actor_username || null,
+      actorAvatar: r.actor_avatar_url || null,
+      actorUserId: actorId,
+      thumbnailUrl: r.thumbnail_url || null,
+      postId: r.post_id ? String(r.post_id) : null,
+      recipientUserId: r.recipient_user_id ? String(r.recipient_user_id) : null,
+      kind: typ === 'follow' ? 'follow_received' : undefined,
+      link,
+    };
+  });
   try {
     localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(mapped));
   } catch {
@@ -297,7 +305,7 @@ export const notifyLike = (username, postLocation, opts = {}) => {
   addNotification({
     type: 'like',
     title: '',
-    message: `${username}님이 회원님의 게시물을 좋아합니다`,
+    message: `${username}님이 회원님이 올린 정보를 좋아합니다`,
     subMessage: postLocation || '',
     actorUsername: username,
     actorAvatar: opts.actorAvatar || null,
@@ -317,8 +325,8 @@ export const notifyComment = (username, postLocation, comment, opts = {}) => {
       : '';
   addNotification({
     type: 'comment',
-    title: '💬 새로운 댓글',
-    message: `${username}님이 회원님의 게시물에 댓글을 남겼습니다`,
+    title: '',
+    message: `${username}님이 회원님이 올린 정보에 댓글을 남겼습니다`,
     subMessage: preview || postLocation || '',
     actorUsername: username,
     recipientUserId: opts.recipientUserId ? String(opts.recipientUserId) : null,

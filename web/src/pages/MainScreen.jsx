@@ -663,7 +663,10 @@ const MainScreen = () => {
         } else {
             // 멀티계정: post_likes 토글 → 트리거로 posts.likes_count 갱신
             if (canUseSupabase) {
-                await togglePostLikeSupabase(String(user.id), String(post.id));
+                await togglePostLikeSupabase(String(user.id), String(post.id), {
+                    username: user.username,
+                    avatarUrl: user.profileImage || null,
+                });
             } else {
                 const delta = wasLiked ? -1 : 1;
                 await updatePostLikesSupabase(post.id, delta);
@@ -1308,9 +1311,6 @@ const MainScreen = () => {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#374151' }}>지금, 이 순간 꼭 가야 할 곳</h3>
                                 </div>
-                                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>
-                                    지금, 이 순간 꼭 가야 할 곳
-                                </p>
                             </div>
                             <div
                                 style={{

@@ -5,6 +5,7 @@
 
 import { logger } from './logger';
 import { followSupabase, isFollowingSupabase, unfollowSupabase } from '../api/socialSupabase';
+import { sendNotificationToUser } from './notifications';
 
 const STORAGE_KEY = 'follows_v1';
 
@@ -54,8 +55,24 @@ export const follow = (targetUserId) => {
       arr.push({ followerId: me, followingId: t });
       setRaw(arr);
     }
-    followSupabase(me, t).then(() => {
+    followSupabase(me, t).then(async (res) => {
       window.dispatchEvent(new CustomEvent('followsUpdated'));
+      if (!res?.success) return;
+      try {
+        const u = JSON.parse(localStorage.getItem('user') || '{}');
+        const uname = u.username || (u.email && u.email.split('@')[0]) || '여행자';
+        const avatar = u.profileImage || u.avatar_url || null;
+        await sendNotificationToUser({
+          recipientUserId: t,
+          actorUserId: me,
+          actorUsername: uname,
+          actorAvatar: avatar || null,
+          type: 'follow',
+          message: `${uname}님이 회원님을 팔로우하기 시작했습니다`,
+        });
+      } catch (e) {
+        logger.warn('follow 알림 전송 실패:', e?.message);
+      }
     });
     return { success: true, isFollowing: true };
   }

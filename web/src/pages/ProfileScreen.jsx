@@ -5,7 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import BackButton from '../components/BackButton';
 import { useAuth } from '../contexts/AuthContext';
 import BottomNavigation from '../components/BottomNavigation';
-import { getUnreadCount, notifyFollowReceived, notifyFollowingStarted, sendNotificationToUser } from '../utils/notifications';
+import { getUnreadCount, notifyFollowingStarted } from '../utils/notifications';
 import { getEarnedBadgesForDisplay, getBadgeDisplayName } from '../utils/badgeSystem';
 import { getTrustScore, getTrustRawScore, getTrustGrade, TRUST_GRADES } from '../utils/trustIndex';
 import { getCoordinatesByLocation } from '../utils/regionLocationMapping';
@@ -31,6 +31,9 @@ const escapeHtmlAttr = (value) => {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 };
+
+/** false면 프로필의 저장된 경로(라이브 코스) 탭을 숨깁니다. */
+const LIVE_COURSE_UI_ENABLED = false;
 
 /** 게시물에서 지도 핀/썸네일에 쓸 이미지 URL 하나 반환 (동영상만 있으면 빈 문자열 → 플레이스홀더 사용) */
 const getPostPinImageUrl = (post) => {
@@ -142,8 +145,13 @@ const ProfileScreen = () => {
 
   useEffect(() => {
     const tab = location.state?.tab;
-    if (tab === 'savedRoutes' || tab === 'map') setActiveTab(tab);
+    if (tab === 'map') setActiveTab(tab);
+    if (LIVE_COURSE_UI_ENABLED && tab === 'savedRoutes') setActiveTab('savedRoutes');
   }, [location.state?.tab]);
+
+  useEffect(() => {
+    if (!LIVE_COURSE_UI_ENABLED && activeTab === 'savedRoutes') setActiveTab('my');
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab === 'savedRoutes') {
@@ -1559,6 +1567,7 @@ const ProfileScreen = () => {
               >
                 나의 기록 지도
               </button>
+              {LIVE_COURSE_UI_ENABLED && (
               <button
                 onClick={() => setActiveTab('savedRoutes')}
                 className={`flex-1 py-3 px-2 rounded-xl font-semibold transition-all text-sm whitespace-nowrap ${activeTab === 'savedRoutes'
@@ -1568,6 +1577,7 @@ const ProfileScreen = () => {
               >
                 저장된 경로
               </button>
+              )}
             </div>
 
             {/* 내 사진 탭 - 보기 모드 선택 (모아보기 / 날짜 순) + 공통 편집 버튼 */}
@@ -2060,7 +2070,7 @@ const ProfileScreen = () => {
             )}
 
             {/* 저장된 경로 탭 - 바로 보기 */}
-            {activeTab === 'savedRoutes' && (() => {
+            {LIVE_COURSE_UI_ENABLED && activeTab === 'savedRoutes' && (() => {
               const deleteRoute = (routeId) => {
                 if (!confirm('이 경로를 삭제하시겠습니까?')) return;
                 const updated = savedRoutes.filter((r) => r.id !== routeId);
@@ -2313,18 +2323,6 @@ const ProfileScreen = () => {
                                   if (r.success) {
                                     const me = currentUserData?.username || '여행자';
                                     setCachedFollowProfile(uid, { username, profileImage });
-                                    notifyFollowReceived(me, uid, {
-                                      actorUserId: myId,
-                                      actorAvatar: currentUserData?.profileImage || null,
-                                    });
-                                    sendNotificationToUser({
-                                      type: 'follow',
-                                      message: `${me}님이 회원님을 팔로우하기 시작했습니다`,
-                                      actorUsername: me,
-                                      actorUserId: myId,
-                                      actorAvatar: currentUserData?.profileImage || null,
-                                      recipientUserId: uid,
-                                    });
                                     notifyFollowingStarted(username, myId, {
                                       targetUserId: uid,
                                       targetAvatar: profileImage || null,

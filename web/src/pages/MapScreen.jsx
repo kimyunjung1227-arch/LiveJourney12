@@ -14,6 +14,9 @@ import { getMapThumbnailUri, getFirstVideoUriFromPost } from '../utils/postMedia
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import { appendSOSMission, getSOSMissions } from '../utils/sosMissionStore';
 
+/** false면 라이브 코스(경로 만들기·저장·최근 경로) UI를 숨깁니다. */
+const LIVE_COURSE_UI_ENABLED = false;
+
 // HTML 속성에 넣을 URL/텍스트 이스케이프 (핀 img src가 깨지지 않도록)
 const escapeHtmlAttr = (value) => {
   if (value == null) return '';
@@ -2523,6 +2526,7 @@ const MapScreen = () => {
 
   // 경로 모드 토글
   const toggleRouteMode = () => {
+    if (!LIVE_COURSE_UI_ENABLED) return;
     const newMode = !isRouteMode;
     setIsRouteMode(newMode);
 
@@ -3174,7 +3178,8 @@ const MapScreen = () => {
           <div style={{ width: '16px', flexShrink: 0 }} aria-hidden="true" />
         </div>
 
-        {/* 경로 모드 토글·초기화 — 시트 접힘과 무관하게 항상 표시 (활성 상태 추적·취소 가능) */}
+        {/* 경로 모드 토글·초기화 — LIVE_COURSE_UI_ENABLED 가 꺼지면 숨김 */}
+        {LIVE_COURSE_UI_ENABLED && (
         <div style={{
             position: 'absolute',
             left: '16px',
@@ -3349,9 +3354,10 @@ const MapScreen = () => {
               </button>
             )}
           </div>
+        )}
 
         {/* 저장된 경로 패널 — 최근 2개만, 사이즈 축소 */}
-        {showSavedRoutesPanel && !isRouteMode && (
+        {LIVE_COURSE_UI_ENABLED && showSavedRoutesPanel && !isRouteMode && (
           <div
             style={{
               position: 'absolute',
@@ -3423,7 +3429,7 @@ const MapScreen = () => {
         )}
 
         {/* 저장·공유 — 경로 모드에서 항상 보이도록 z-index 상향, 시트 높이와 동기화 */}
-        {isRouteMode && selectedRoutePins.length >= 2 && (
+        {LIVE_COURSE_UI_ENABLED && isRouteMode && selectedRoutePins.length >= 2 && (
           <div style={{
             position: 'absolute',
             left: '16px',
@@ -3500,7 +3506,7 @@ const MapScreen = () => {
         )}
 
         {/* 경로 저장 완료 토스트 - 사진 시트 on 위치에 겹쳐서 표시 */}
-        {showRouteSavedToast && (
+        {LIVE_COURSE_UI_ENABLED && showRouteSavedToast && (
           <div
             style={{
               position: 'absolute',
@@ -3528,7 +3534,7 @@ const MapScreen = () => {
               type="button"
               onClick={() => {
                 setShowRouteSavedToast(false);
-                navigate('/profile', { state: { tab: 'savedRoutes' } });
+                navigate('/profile', LIVE_COURSE_UI_ENABLED ? { state: { tab: 'savedRoutes' } } : undefined);
               }}
               style={{
                 marginLeft: 4,
