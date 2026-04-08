@@ -1308,6 +1308,9 @@ const MainScreen = () => {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#374151' }}>지금, 이 순간 꼭 가야 할 곳</h3>
                                 </div>
+                                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                                    지금, 이 순간 꼭 가야 할 곳
+                                </p>
                             </div>
                             <div
                                 style={{

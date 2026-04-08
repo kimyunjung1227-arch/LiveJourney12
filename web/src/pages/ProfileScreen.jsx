@@ -1559,7 +1559,15 @@ const ProfileScreen = () => {
               >
                 나의 기록 지도
               </button>
-              {/* 저장된 경로(코스 저장) 기능은 현재 숨김 */}
+              <button
+                onClick={() => setActiveTab('savedRoutes')}
+                className={`flex-1 py-3 px-2 rounded-xl font-semibold transition-all text-sm whitespace-nowrap ${activeTab === 'savedRoutes'
+                    ? 'bg-primary text-white shadow-lg'
+                    : 'bg-gray-100 dark:bg-gray-800 text-text-secondary-light dark:text-text-secondary-dark hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+              >
+                저장된 경로
+              </button>
             </div>
 
             {/* 내 사진 탭 - 보기 모드 선택 (모아보기 / 날짜 순) + 공통 편집 버튼 */}
@@ -2051,8 +2059,8 @@ const ProfileScreen = () => {
               </div>
             )}
 
-            {/* 저장된 경로 탭 - 현재 숨김 */}
-            {false && activeTab === 'savedRoutes' && (() => {
+            {/* 저장된 경로 탭 - 바로 보기 */}
+            {activeTab === 'savedRoutes' && (() => {
               const deleteRoute = (routeId) => {
                 if (!confirm('이 경로를 삭제하시겠습니까?')) return;
                 const updated = savedRoutes.filter((r) => r.id !== routeId);

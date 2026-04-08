@@ -123,7 +123,6 @@ const MAP_PIN_PLACEHOLDER_SVG =
   'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiByeD0iNCIgZmlsbD0iI0YzRjRGNiIvPgo8cGF0aCBkPSJNMjAgMTNDMTcuMjQgMTMgMTUgMTUuMjQgMTUgMThDMTUgMjAuNzYgMTcuMjQgMjMgMjAgMjNDMjIuNzYgMjMgMjUgMjAuNzYgMjUgMThDMjUgMTUuMjQgMjIuNzYgMTMgMjAgMTNaIiBmaWxsPSIjOUI5Q0E1Ii8+Cjwvc3ZnPg==';
 
 const MapScreen = () => {
-  const ENABLE_LIVE_COURSE = false;
   const navigate = useNavigate();
   const location = useLocation();
   const mapRef = useRef(null);
@@ -3175,8 +3174,7 @@ const MapScreen = () => {
           <div style={{ width: '16px', flexShrink: 0 }} aria-hidden="true" />
         </div>
 
-        {/* 경로/코스 기능은 현재 숨김 */}
-        {ENABLE_LIVE_COURSE && (
+        {/* 경로 모드 토글·초기화 — 시트 접힘과 무관하게 항상 표시 (활성 상태 추적·취소 가능) */}
         <div style={{
             position: 'absolute',
             left: '16px',
@@ -3351,10 +3349,9 @@ const MapScreen = () => {
               </button>
             )}
           </div>
-        )}
 
-        {/* 저장된 경로 패널 — 현재 숨김 */}
-        {ENABLE_LIVE_COURSE && showSavedRoutesPanel && !isRouteMode && (
+        {/* 저장된 경로 패널 — 최근 2개만, 사이즈 축소 */}
+        {showSavedRoutesPanel && !isRouteMode && (
           <div
             style={{
               position: 'absolute',
@@ -3425,8 +3422,8 @@ const MapScreen = () => {
           </div>
         )}
 
-        {/* 저장·공유 — 현재 숨김 */}
-        {ENABLE_LIVE_COURSE && isRouteMode && selectedRoutePins.length >= 2 && (
+        {/* 저장·공유 — 경로 모드에서 항상 보이도록 z-index 상향, 시트 높이와 동기화 */}
+        {isRouteMode && selectedRoutePins.length >= 2 && (
           <div style={{
             position: 'absolute',
             left: '16px',
@@ -3502,8 +3499,8 @@ const MapScreen = () => {
           </div>
         )}
 
-        {/* 경로 저장 완료 토스트 - 현재 숨김 */}
-        {ENABLE_LIVE_COURSE && showRouteSavedToast && (
+        {/* 경로 저장 완료 토스트 - 사진 시트 on 위치에 겹쳐서 표시 */}
+        {showRouteSavedToast && (
           <div
             style={{
               position: 'absolute',
