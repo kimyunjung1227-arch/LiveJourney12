@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import BottomNavigation from '../components/BottomNavigation';
 import {
   getNotificationsForCurrentUser,
+  syncNotificationsFromSupabase,
   markAllNotificationsAsRead,
   markNotificationAsRead,
   deleteNotification,
@@ -44,7 +45,12 @@ const NotificationsScreen = () => {
   const [, setTick] = useState(0);
 
   useEffect(() => {
-    loadNotifications();
+    // 멀티계정 알림 동기화(Supabase → localStorage 캐시) 후 렌더
+    if (user?.id) {
+      syncNotificationsFromSupabase(user.id).finally(() => loadNotifications());
+    } else {
+      loadNotifications();
+    }
     const handleNotificationUpdate = () => loadNotifications();
     window.addEventListener('notificationUpdate', handleNotificationUpdate);
     return () => window.removeEventListener('notificationUpdate', handleNotificationUpdate);

@@ -13,7 +13,7 @@ import { toggleInterestPlace, isInterestPlace } from '../utils/interestPlaces';
 import { getEarnedBadgesForUser } from '../utils/badgeSystem';
 import { getTrustRawScore, getTrustGrade } from '../utils/trustIndex';
 import { follow, unfollow, isFollowing } from '../utils/followSystem';
-import { notifyFollowReceived, notifyFollowingStarted, notifyLike, notifyComment } from '../utils/notifications';
+import { notifyFollowReceived, notifyFollowingStarted, notifyLike, notifyComment, sendNotificationToUser } from '../utils/notifications';
 import { mergeCommentsWithCache, setCommentsCacheForPost } from '../utils/postCommentsCache';
 import { getCachedFollowProfile, setCachedFollowProfile } from '../utils/userProfileHints';
 import { recordConversion, CONVERSION_TYPES } from '../utils/conversionEvents';
@@ -21,6 +21,14 @@ import { logger } from '../utils/logger';
 import { buildMediaItemsFromPost } from '../utils/postMedia';
 import { tagTranslations } from '../utils/tagTranslations';
 import { getCategoryChipsFromPost } from '../utils/travelCategories';
+import {
+  addCommentSupabase,
+  deleteCommentSupabase,
+  fetchCommentsForPostSupabase,
+  isPostLikedSupabase,
+  togglePostLikeSupabase,
+  updateCommentSupabase,
+} from '../api/socialSupabase';
 import 'swiper/css';
 
 const PostDetailScreen = () => {
@@ -199,7 +207,12 @@ const PostDetailScreen = () => {
           setPost(fresh);
           setComments(mergeCommentsWithCache(fresh.id, Array.isArray(fresh.comments) ? fresh.comments : []));
           setLikeCount(fresh.likes ?? fresh.likeCount ?? 0);
-          setLiked(isPostLiked(fresh.id));
+          if (user?.id) {
+            const likedDb = await isPostLikedSupabase(user.id, fresh.id);
+            setLiked(likedDb);
+          } else {
+            setLiked(isPostLiked(fresh.id));
+          }
           setIsFavorited(isInterestPlace(fresh.location || fresh.placeName));
           setAccuracyMarked(hasUserMarkedAccurate(fresh.id));
           setAccuracyCount(getPostAccuracyCount(fresh.id));
@@ -371,21 +384,33 @@ const PostDetailScreen = () => {
       return Math.max(0, base + (optimisticLiked ? 1 : -1));
     });
 
-    const result = toggleLike(post.id, likeCount);
+    const isSupabasePost = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(post.id || '').trim());
+    const shouldUseSupabase = isSupabasePost && !!user?.id;
+    const result = shouldUseSupabase
+      ? { isLiked: optimisticLiked, newCount: likeCount + (optimisticLiked ? 1 : -1), existsInStorage: false }
+      : toggleLike(post.id, likeCount);
 
     // localStorage 기반 게시물이면 util에서 계산한 카운트를 신뢰
     if (result.existsInStorage) {
       setLiked(result.isLiked);
       setLikeCount(result.newCount);
     } else {
-      // Supabase 게시물: DB에 좋아요 수 반영 (실패해도 화면/이벤트는 이미 로컬 기준으로 처리됨)
-      const delta = optimisticLiked ? 1 : -1;
-      updatePostLikesSupabase(post.id, delta).then((res) => {
-        if (res && res.success && typeof res.likesCount === 'number') {
-          setLikeCount(res.likesCount);
-        }
-      });
-      setLiked(optimisticLiked);
+      if (shouldUseSupabase) {
+        togglePostLikeSupabase(user.id, post.id).then(() => {
+          // 트리거가 posts.likes_count를 갱신하므로 최신값을 다시 조회
+          refreshPostFromSupabase();
+        });
+        setLiked(optimisticLiked);
+      } else {
+        // Supabase 게시물(레거시): DB에 좋아요 수 반영
+        const delta = optimisticLiked ? 1 : -1;
+        updatePostLikesSupabase(post.id, delta).then((res) => {
+          if (res && res.success && typeof res.likesCount === 'number') {
+            setLikeCount(res.likesCount);
+          }
+        });
+        setLiked(optimisticLiked);
+      }
     }
 
     // 타인 게시물에 좋아요 시 작성자에게 인앱 알림(동일 브라우저/저장소 기준)
@@ -398,6 +423,16 @@ const PostDetailScreen = () => {
         actorUserId: user.id,
         actorAvatar: user.profileImage || null,
         thumbnailUrl: thumbRaw ? getDisplayImageUrl(thumbRaw) : null,
+      });
+      sendNotificationToUser({
+        type: 'like',
+        message: `${actorName}님이 회원님의 게시물을 좋아합니다`,
+        actorUsername: actorName,
+        actorUserId: user.id,
+        actorAvatar: user.profileImage || null,
+        thumbnailUrl: thumbRaw ? getDisplayImageUrl(thumbRaw) : null,
+        postId: post.id,
+        recipientUserId: post.userId,
       });
     }
 
@@ -415,7 +450,7 @@ const PostDetailScreen = () => {
     }
 
     logger.log(result.isLiked ? '❤️ 좋아요!' : '💔 좋아요 취소');
-  }, [post, liked, user, likeCount]);
+  }, [post, liked, user, likeCount, refreshPostFromSupabase]);
 
 
   // 이미지 스와이프 (useCallback)
@@ -460,21 +495,46 @@ const PostDetailScreen = () => {
 
     const isSupabasePost = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(post.id || '').trim());
     if (isSupabasePost) {
-      const res = await addCommentToPostSupabase(post.id, newComment);
-      if (res?.success && Array.isArray(res.comments)) {
-        setComments(res.comments);
-        setCommentsCacheForPost(post.id, res.comments);
-        window.dispatchEvent(new CustomEvent('postCommentsUpdated', { detail: { postId: post.id, comments: res.comments } }));
-        if (user?.id && post.userId && String(post.userId) !== String(user.id)) {
-          notifyComment(username, post.location || post.placeName || '', text, {
-            recipientUserId: post.userId,
-            postId: post.id,
-          });
+      // 멀티계정: post_comments 테이블에 insert → 목록 재조회
+      if (user?.id) {
+        const ins = await addCommentSupabase({
+          postId: post.id,
+          userId: user.id,
+          username,
+          avatarUrl: user?.profileImage || null,
+          content: text,
+        });
+        if (ins?.success) {
+          const rows = await fetchCommentsForPostSupabase(post.id);
+          const mapped = (rows || []).map((c) => ({
+            id: String(c.id),
+            userId: c.user_id ? String(c.user_id) : null,
+            user: c.user_id ? { id: String(c.user_id), username: c.username || null, profileImage: c.avatar_url || null } : (c.username || '유저'),
+            content: c.content || '',
+            timestamp: c.created_at || new Date().toISOString(),
+            createdAt: c.created_at || new Date().toISOString(),
+            avatar: c.avatar_url || null,
+          }));
+          setComments(mapped);
+          setCommentsCacheForPost(post.id, mapped);
+          window.dispatchEvent(new CustomEvent('postCommentsUpdated', { detail: { postId: post.id, comments: mapped } }));
+          if (post.userId && String(post.userId) !== String(user.id)) {
+            notifyComment(username, post.location || post.placeName || '', text, { recipientUserId: post.userId, postId: post.id });
+            sendNotificationToUser({
+              type: 'comment',
+              message: `${username}님이 회원님의 게시물에 댓글을 남겼습니다`,
+              actorUsername: username,
+              actorUserId: user?.id || null,
+              actorAvatar: user?.profileImage || null,
+              postId: post.id,
+              recipientUserId: post.userId,
+            });
+          }
+        } else {
+          const merged = mergeCommentsWithCache(post.id, [...comments, newComment]);
+          setComments(merged);
+          setCommentsCacheForPost(post.id, merged);
         }
-      } else {
-        const merged = mergeCommentsWithCache(post.id, [...comments, newComment]);
-        setComments(merged);
-        setCommentsCacheForPost(post.id, merged);
       }
     } else {
       const uploadedPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
@@ -503,7 +563,7 @@ const PostDetailScreen = () => {
     }
 
     setCommentText('');
-  }, [post, commentText, user, comments]);
+  }, [post, commentText, user, comments, sendNotificationToUser]);
 
   const isSupabasePost = post && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(post.id || '').trim());
   const isPostAuthor = post && user && String(post.userId || post.user?.id || post.user) === String(user.id);
@@ -512,12 +572,23 @@ const PostDetailScreen = () => {
     if (!post || !commentId) return;
     if (!window.confirm('이 댓글을 삭제할까요?')) return;
     if (isSupabasePost) {
-      const next = comments.filter((c) => c.id !== commentId);
-      const res = await updateCommentsInPostSupabase(post.id, next);
+      const uid = user?.id || null;
+      if (!uid) return;
+      const res = await deleteCommentSupabase({ commentId, userId: uid });
       if (res?.success) {
-        setComments(res.comments);
-        setCommentsCacheForPost(post.id, res.comments);
-        window.dispatchEvent(new CustomEvent('postCommentsUpdated', { detail: { postId: post.id, comments: res.comments } }));
+        const rows = await fetchCommentsForPostSupabase(post.id);
+        const mapped = (rows || []).map((c) => ({
+          id: String(c.id),
+          userId: c.user_id ? String(c.user_id) : null,
+          user: c.user_id ? { id: String(c.user_id), username: c.username || null, profileImage: c.avatar_url || null } : (c.username || '유저'),
+          content: c.content || '',
+          timestamp: c.created_at || new Date().toISOString(),
+          createdAt: c.created_at || new Date().toISOString(),
+          avatar: c.avatar_url || null,
+        }));
+        setComments(mapped);
+        setCommentsCacheForPost(post.id, mapped);
+        window.dispatchEvent(new CustomEvent('postCommentsUpdated', { detail: { postId: post.id, comments: mapped } }));
       }
     } else {
       const next = deleteCommentFromPost(post.id, commentId);
@@ -535,12 +606,23 @@ const PostDetailScreen = () => {
     if (!post || !editingCommentId || editCommentText.trim() === '') return;
     const text = editCommentText.trim();
     if (isSupabasePost) {
-      const next = comments.map((c) => (c.id === editingCommentId ? { ...c, content: text } : c));
-      const res = await updateCommentsInPostSupabase(post.id, next);
+      const uid = user?.id || null;
+      if (!uid) return;
+      const res = await updateCommentSupabase({ commentId: editingCommentId, userId: uid, content: text });
       if (res?.success) {
-        setComments(res.comments);
-        setCommentsCacheForPost(post.id, res.comments);
-        window.dispatchEvent(new CustomEvent('postCommentsUpdated', { detail: { postId: post.id, comments: res.comments } }));
+        const rows = await fetchCommentsForPostSupabase(post.id);
+        const mapped = (rows || []).map((c) => ({
+          id: String(c.id),
+          userId: c.user_id ? String(c.user_id) : null,
+          user: c.user_id ? { id: String(c.user_id), username: c.username || null, profileImage: c.avatar_url || null } : (c.username || '유저'),
+          content: c.content || '',
+          timestamp: c.created_at || new Date().toISOString(),
+          createdAt: c.created_at || new Date().toISOString(),
+          avatar: c.avatar_url || null,
+        }));
+        setComments(mapped);
+        setCommentsCacheForPost(post.id, mapped);
+        window.dispatchEvent(new CustomEvent('postCommentsUpdated', { detail: { postId: post.id, comments: mapped } }));
       }
     } else {
       const next = updateCommentInPost(post.id, editingCommentId, text);
@@ -1190,6 +1272,14 @@ const PostDetailScreen = () => {
                             notifyFollowReceived(myName, postUserId, {
                               actorUserId: user.id,
                               actorAvatar: user?.profileImage || null,
+                            });
+                            sendNotificationToUser({
+                              type: 'follow',
+                              message: `${myName}님이 회원님을 팔로우하기 시작했습니다`,
+                              actorUsername: myName,
+                              actorUserId: user.id,
+                              actorAvatar: user?.profileImage || null,
+                              recipientUserId: postUserId,
                             });
                             notifyFollowingStarted(userName, user.id, {
                               targetUserId: postUserId,

@@ -1,5 +1,6 @@
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
+import { fetchCommentsForPostSupabase } from './socialSupabase';
 
 const POST_LIKES_OVERRIDE_KEY = 'postLikesOverride_v1';
 const readLikesOverrideMap = () => {
@@ -278,7 +279,20 @@ export const fetchPostByIdSupabase = async (postId) => {
       .eq('id', trimmed)
       .single();
     if (error || !data) return null;
-    return mapRowToPost(data);
+    const mapped = mapRowToPost(data);
+    const liveComments = await fetchCommentsForPostSupabase(trimmed);
+    const fromTable = Array.isArray(liveComments) && liveComments.length > 0
+      ? liveComments.map((c) => ({
+        id: String(c.id),
+        userId: c.user_id ? String(c.user_id) : null,
+        user: c.user_id ? { id: String(c.user_id), username: c.username || null, profileImage: c.avatar_url || null } : (c.username || '유저'),
+        content: c.content || '',
+        timestamp: c.created_at || new Date().toISOString(),
+        createdAt: c.created_at || new Date().toISOString(),
+        avatar: c.avatar_url || null,
+      }))
+      : (mapped?.comments || []);
+    return mapped ? { ...mapped, comments: fromTable } : null;
   } catch (e) {
     logger.warn('fetchPostByIdSupabase 예외:', e?.message);
     return null;
@@ -287,54 +301,23 @@ export const fetchPostByIdSupabase = async (postId) => {
 
 // Supabase 게시물에 댓글 추가 (DB 기준 추적)
 export const addCommentToPostSupabase = async (postId, commentPayload) => {
+  // (Deprecated) 기존 posts.comments 배열 업데이트 방식은 경합이 있어 사용하지 않습니다.
+  // 호출부 호환을 위해 실패 반환.
   if (!postId || typeof postId !== 'string' || !commentPayload) return { success: false, comments: [] };
   const trimmed = postId.trim();
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
   if (!isUuid) return { success: false, comments: [] };
-  try {
-    const { data: row, error: fetchErr } = await supabase
-      .from('posts')
-      .select('*')
-      .eq('id', trimmed)
-      .single();
-    if (fetchErr || row == null) {
-      logger.warn('addCommentToPostSupabase: fetch 실패', fetchErr?.message);
-      return { success: false, comments: [] };
-    }
-    const current = Array.isArray(row.comments) ? row.comments : (row.comments ? [row.comments] : []);
-    const next = [...current, { ...commentPayload, createdAt: commentPayload.timestamp || new Date().toISOString() }];
-    const { error: updateErr } = await supabase
-      .from('posts')
-      .update({ comments: next })
-      .eq('id', trimmed);
-    if (updateErr) {
-      logger.warn('addCommentToPostSupabase: update 실패', updateErr.message);
-      return { success: false, comments: current };
-    }
-    return { success: true, comments: next };
-  } catch (e) {
-    logger.warn('addCommentToPostSupabase 예외:', e?.message);
-    return { success: false, comments: [] };
-  }
+  return { success: false, comments: [] };
 };
 
 // Supabase 게시물 댓글 목록 일괄 갱신 (수정·삭제 후 호출)
 export const updateCommentsInPostSupabase = async (postId, commentsArray) => {
+  // (Deprecated) 기존 posts.comments 배열 업데이트 방식은 경합이 있어 사용하지 않습니다.
   if (!postId || typeof postId !== 'string' || !Array.isArray(commentsArray)) return { success: false, comments: [] };
   const trimmed = postId.trim();
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
   if (!isUuid) return { success: false, comments: [] };
-  try {
-    const { error } = await supabase
-      .from('posts')
-      .update({ comments: commentsArray })
-      .eq('id', trimmed);
-    if (error) throw error;
-    return { success: true, comments: commentsArray };
-  } catch (e) {
-    logger.warn('updateCommentsInPostSupabase 예외:', e?.message);
-    return { success: false, comments: [] };
-  }
+  return { success: false, comments: [] };
 };
 
 // Supabase에서 특정 사용자(user_id)가 올린 게시물만 조회 (프로필 기록용, 로그아웃 후 재로그인해도 유지)

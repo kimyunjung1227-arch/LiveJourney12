@@ -21,10 +21,14 @@ import { getWeatherByRegion } from '../api/weather';
 import { listPublishedMagazines } from '../utils/magazinesStore';
 import HotFeedCard from '../components/HotFeedCard';
 import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCardModel';
+import { useAuth } from '../contexts/AuthContext';
+import { fetchLikedPostIdsSupabase } from '../api/socialSupabase';
+import { togglePostLikeSupabase } from '../api/socialSupabase';
 
 const MainScreen = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { user } = useAuth();
     const [selectedTag, setSelectedTag] = useState(null);
     const [popularTags, setPopularTags] = useState([]);
 
@@ -141,6 +145,22 @@ const MainScreen = () => {
         } catch (_) {}
         const combinedFiltered = combined.filter((p) => p && p.id && !deletedIds.has(String(p.id)));
         const allPosts = getCombinedPosts(combinedFiltered);
+
+        // 멀티계정: 현재 사용자 기준 좋아요 상태(post_likes)를 로컬 캐시에 반영
+        try {
+            const uid = user?.id ? String(user.id) : '';
+            const isUuid = uid && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uid);
+            if (isUuid) {
+                const ids = allPosts
+                    .map((p) => String(p.id))
+                    .filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+                const likedIds = await fetchLikedPostIdsSupabase(uid, ids);
+                const map = {};
+                likedIds.forEach((id) => { map[String(id)] = true; });
+                localStorage.setItem('likedPosts', JSON.stringify(map));
+                window.dispatchEvent(new CustomEvent('postLikesSynced', { detail: { count: likedIds.length } }));
+            }
+        } catch (_) {}
 
         // 메인 피드 기준:
         // 1) 기본은 최근 24시간 이내 게시물만 사용해 실시간성을 극대화
@@ -424,7 +444,7 @@ const MainScreen = () => {
         const recs = getRecommendedRegions(allPosts, selectedRecommendTag);
         setRecommendedData(recs.slice(0, 10));
         setAllPostsForRecommend(allPosts);
-    }, [getDeterministicValue]);
+    }, [getDeterministicValue, user?.id]);
 
     const fetchPosts = useCallback(async () => {
         setLoading(true);
@@ -633,20 +653,28 @@ const MainScreen = () => {
         const baseLikes = typeof post.likes === 'number'
             ? post.likes
             : (typeof post.likeCount === 'number' ? post.likeCount : 0);
-        const result = toggleLike(post.id, baseLikes);
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(post.id || '').trim());
+        const canUseSupabase = isUuid && !!user?.id;
+        const result = canUseSupabase ? { existsInStorage: false, newCount: Math.max(0, baseLikes + (wasLiked ? -1 : 1)) } : toggleLike(post.id, baseLikes);
         if (result.existsInStorage) {
             setCrowdedData((prev) =>
                 prev.map((p) => (p && p.id === post.id ? { ...p, likes: result.newCount, likeCount: result.newCount } : p))
             );
         } else {
-            const delta = wasLiked ? -1 : 1;
-            const res = await updatePostLikesSupabase(post.id, delta);
-            const nextCount = (res && res.success && typeof res.likesCount === 'number') ? res.likesCount : result.newCount;
+            // 멀티계정: post_likes 토글 → 트리거로 posts.likes_count 갱신
+            if (canUseSupabase) {
+                await togglePostLikeSupabase(String(user.id), String(post.id));
+            } else {
+                const delta = wasLiked ? -1 : 1;
+                await updatePostLikesSupabase(post.id, delta);
+            }
+            const nextCount = result.newCount;
             setCrowdedData((prev) =>
                 prev.map((p) =>
                     (p && p.id === post.id ? { ...p, likes: nextCount, likeCount: nextCount } : p)
                 )
             );
+            window.dispatchEvent(new Event('postsUpdated'));
         }
     }, []);
 

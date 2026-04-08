@@ -1,0 +1,129 @@
+-- LiveJourney: 멀티계정 동기화용 소셜 테이블
+-- Supabase SQL Editor에서 실행하세요.
+
+-- 1) 게시물 좋아요(사용자별)
+create table if not exists public.post_likes (
+  post_id uuid not null references public.posts(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (post_id, user_id)
+);
+
+alter table public.post_likes enable row level security;
+
+-- 로그인한 사용자는 좋아요를 생성/삭제/조회 가능 (RLS)
+create policy if not exists "post_likes_select" on public.post_likes
+for select using (auth.uid() is not null);
+
+create policy if not exists "post_likes_insert_own" on public.post_likes
+for insert with check (auth.uid() = user_id);
+
+create policy if not exists "post_likes_delete_own" on public.post_likes
+for delete using (auth.uid() = user_id);
+
+-- 2) 사용자 알림(수신자 기준)
+create table if not exists public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  recipient_user_id uuid not null references auth.users(id) on delete cascade,
+  actor_user_id uuid null references auth.users(id) on delete set null,
+  type text not null check (type in ('like','comment','follow','system')),
+  post_id uuid null references public.posts(id) on delete cascade,
+  actor_username text null,
+  actor_avatar_url text null,
+  thumbnail_url text null,
+  message text not null,
+  read boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists notifications_recipient_created_idx
+  on public.notifications (recipient_user_id, created_at desc);
+
+alter table public.notifications enable row level security;
+
+-- 수신자는 자기 알림만 조회/읽음/삭제 가능
+create policy if not exists "notifications_select_own" on public.notifications
+for select using (auth.uid() = recipient_user_id);
+
+create policy if not exists "notifications_update_own" on public.notifications
+for update using (auth.uid() = recipient_user_id) with check (auth.uid() = recipient_user_id);
+
+create policy if not exists "notifications_delete_own" on public.notifications
+for delete using (auth.uid() = recipient_user_id);
+
+-- 알림 생성은 로그인한 사용자라면 가능(시연/테스트 용도)
+-- 운영에서는 더 엄격하게(예: RPC/서버)로 바꿀 수 있습니다.
+create policy if not exists "notifications_insert_auth" on public.notifications
+for insert with check (auth.uid() is not null);
+
+-- 3) 팔로우(사용자별)
+create table if not exists public.follows (
+  follower_id uuid not null references auth.users(id) on delete cascade,
+  following_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (follower_id, following_id)
+);
+
+alter table public.follows enable row level security;
+
+create policy if not exists "follows_select" on public.follows
+for select using (auth.uid() is not null);
+
+create policy if not exists "follows_insert_own" on public.follows
+for insert with check (auth.uid() = follower_id);
+
+create policy if not exists "follows_delete_own" on public.follows
+for delete using (auth.uid() = follower_id);
+
+-- 4) 댓글(경합 방지: posts.comments 배열 대신 테이블로 저장)
+create table if not exists public.post_comments (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references public.posts(id) on delete cascade,
+  user_id uuid null references auth.users(id) on delete set null,
+  username text null,
+  avatar_url text null,
+  content text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz null
+);
+
+create index if not exists post_comments_post_created_idx
+  on public.post_comments (post_id, created_at asc);
+
+alter table public.post_comments enable row level security;
+
+create policy if not exists "post_comments_select" on public.post_comments
+for select using (auth.uid() is not null);
+
+create policy if not exists "post_comments_insert_auth" on public.post_comments
+for insert with check (auth.uid() is not null);
+
+create policy if not exists "post_comments_update_own" on public.post_comments
+for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create policy if not exists "post_comments_delete_own" on public.post_comments
+for delete using (auth.uid() = user_id);
+
+-- 5) likes_count 자동 유지(재진입/동기화 안정화)
+create or replace function public.recalc_post_likes_count(p_post_id uuid)
+returns void language plpgsql as $$
+begin
+  update public.posts
+  set likes_count = (select count(*) from public.post_likes where post_id = p_post_id)
+  where id = p_post_id;
+end;
+$$;
+
+create or replace function public.on_post_likes_changed()
+returns trigger language plpgsql as $$
+begin
+  perform public.recalc_post_likes_count(coalesce(new.post_id, old.post_id));
+  return null;
+end;
+$$;
+
+drop trigger if exists post_likes_after_change on public.post_likes;
+create trigger post_likes_after_change
+after insert or delete on public.post_likes
+for each row execute function public.on_post_likes_changed();
+

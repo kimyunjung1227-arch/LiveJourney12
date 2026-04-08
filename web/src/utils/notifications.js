@@ -1,5 +1,12 @@
 // 알림 관리 유틸리티
 import { logger } from './logger';
+import {
+  fetchNotificationsSupabase,
+  insertNotificationSupabase,
+  markAllNotificationsReadSupabase,
+  markNotificationReadSupabase,
+  deleteNotificationSupabase,
+} from '../api/notificationsSupabase';
 
 const NOTIFICATIONS_KEY = 'notifications';
 
@@ -74,6 +81,55 @@ export const getNotificationsForCurrentUser = () => {
   return all.filter((n) => !n.recipientUserId || String(n.recipientUserId) === uid);
 };
 
+// Supabase(멀티계정) 알림을 localStorage 캐시에 동기화
+export const syncNotificationsFromSupabase = async (userId) => {
+  const uid = String(userId || '').trim();
+  if (!uid) return [];
+  const rows = await fetchNotificationsSupabase(uid, { limit: 100 });
+  const mapped = (rows || []).map((r) => ({
+    id: String(r.id),
+    read: !!r.read,
+    time: r.created_at ? getTimeAgo(r.created_at) : '방금',
+    timestamp: r.created_at || new Date().toISOString(),
+    type: r.type || 'system',
+    title: '',
+    message: r.message || '',
+    actorUsername: r.actor_username || null,
+    actorAvatar: r.actor_avatar_url || null,
+    actorUserId: r.actor_user_id ? String(r.actor_user_id) : null,
+    thumbnailUrl: r.thumbnail_url || null,
+    postId: r.post_id ? String(r.post_id) : null,
+    recipientUserId: r.recipient_user_id ? String(r.recipient_user_id) : null,
+    link: r.post_id ? `/post/${r.post_id}` : '/main',
+  }));
+  try {
+    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(mapped));
+  } catch {
+    // ignore
+  }
+  window.dispatchEvent(new Event('notificationUpdate'));
+  window.dispatchEvent(new Event('notificationCountChanged'));
+  return mapped;
+};
+
+// 다른 사용자에게 보내는 알림은 Supabase로 전송(수신자 계정에서 보이도록)
+export const sendNotificationToUser = async (notification) => {
+  const recipient = notification?.recipientUserId ? String(notification.recipientUserId) : null;
+  if (!recipient) return { success: false };
+  const payload = {
+    recipient_user_id: recipient,
+    actor_user_id: notification.actorUserId ? String(notification.actorUserId) : null,
+    type: notification.type || 'system',
+    post_id: notification.postId ? String(notification.postId) : null,
+    actor_username: notification.actorUsername || null,
+    actor_avatar_url: notification.actorAvatar || null,
+    thumbnail_url: notification.thumbnailUrl || null,
+    message: notification.message || notification.title || '알림',
+    read: false,
+  };
+  return await insertNotificationSupabase(payload);
+};
+
 // 알림 추가
 export const addNotification = (notification) => {
   try {
@@ -123,6 +179,9 @@ export const markNotificationAsRead = (notificationId) => {
     window.dispatchEvent(new Event('notificationUpdate'));
     window.dispatchEvent(new Event('notificationCountChanged'));
 
+    // Supabase에도 best-effort 반영
+    markNotificationReadSupabase(notificationId, true);
+
     return true;
   } catch (error) {
     logger.error('알림 읽음 처리 실패:', error);
@@ -142,6 +201,8 @@ export const markAllNotificationsAsRead = () => {
     window.dispatchEvent(new Event('notificationCountChanged'));
 
     logger.log('✅ 모든 알림 읽음 처리');
+    const uid = getCurrentUserIdFromStorage();
+    if (uid) markAllNotificationsReadSupabase(uid);
     return true;
   } catch (error) {
     logger.error('모든 알림 읽음 처리 실패:', error);
@@ -159,6 +220,9 @@ export const deleteNotification = (notificationId) => {
     // 알림 카운트 업데이트 이벤트 발생
     window.dispatchEvent(new Event('notificationUpdate'));
     window.dispatchEvent(new Event('notificationCountChanged'));
+
+    // Supabase에도 best-effort 반영
+    deleteNotificationSupabase(notificationId);
 
     return true;
   } catch (error) {

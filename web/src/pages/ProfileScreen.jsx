@@ -5,7 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import BackButton from '../components/BackButton';
 import { useAuth } from '../contexts/AuthContext';
 import BottomNavigation from '../components/BottomNavigation';
-import { getUnreadCount, notifyFollowReceived, notifyFollowingStarted } from '../utils/notifications';
+import { getUnreadCount, notifyFollowReceived, notifyFollowingStarted, sendNotificationToUser } from '../utils/notifications';
 import { getEarnedBadgesForDisplay, getBadgeDisplayName } from '../utils/badgeSystem';
 import { getTrustScore, getTrustRawScore, getTrustGrade, TRUST_GRADES } from '../utils/trustIndex';
 import { getCoordinatesByLocation } from '../utils/regionLocationMapping';
@@ -2316,6 +2316,14 @@ const ProfileScreen = () => {
                                     notifyFollowReceived(me, uid, {
                                       actorUserId: myId,
                                       actorAvatar: currentUserData?.profileImage || null,
+                                    });
+                                    sendNotificationToUser({
+                                      type: 'follow',
+                                      message: `${me}님이 회원님을 팔로우하기 시작했습니다`,
+                                      actorUsername: me,
+                                      actorUserId: myId,
+                                      actorAvatar: currentUserData?.profileImage || null,
+                                      recipientUserId: uid,
                                     });
                                     notifyFollowingStarted(username, myId, {
                                       targetUserId: uid,

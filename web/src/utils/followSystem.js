@@ -4,6 +4,7 @@
  */
 
 import { logger } from './logger';
+import { followSupabase, isFollowingSupabase, unfollowSupabase } from '../api/socialSupabase';
 
 const STORAGE_KEY = 'follows_v1';
 
@@ -42,6 +43,23 @@ export const follow = (targetUserId) => {
   if (!me) return { success: false, isFollowing: false };
   const t = String(targetUserId);
   if (me === t) return { success: false, isFollowing: false };
+
+  // Supabase UUID면 DB 기반 동기화(멀티계정)
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(me) &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t);
+  if (isUuid) {
+    // 로컬 캐시도 즉시 갱신(버튼 상태/배지)
+    const arr = getRaw();
+    if (!arr.some((x) => String(x.followerId) === me && String(x.followingId) === t)) {
+      arr.push({ followerId: me, followingId: t });
+      setRaw(arr);
+    }
+    followSupabase(me, t).then(() => {
+      window.dispatchEvent(new CustomEvent('followsUpdated'));
+    });
+    return { success: true, isFollowing: true };
+  }
+
   const arr = getRaw();
   if (arr.some((x) => String(x.followerId) === me && String(x.followingId) === t)) {
     return { success: true, isFollowing: true };
@@ -56,6 +74,21 @@ export const unfollow = (targetUserId) => {
   const me = getCurrentUserId();
   if (!me) return { success: false, isFollowing: false };
   const t = String(targetUserId);
+
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(me) &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t);
+  if (isUuid) {
+    // 로컬 캐시도 즉시 갱신
+    const nextLocal = getRaw().filter(
+      (x) => !(String(x.followerId) === me && String(x.followingId) === t)
+    );
+    setRaw(nextLocal);
+    unfollowSupabase(me, t).then(() => {
+      window.dispatchEvent(new CustomEvent('followsUpdated'));
+    });
+    return { success: true, isFollowing: false };
+  }
+
   const arr = getRaw().filter(
     (x) => !(String(x.followerId) === me && String(x.followingId) === t)
   );
@@ -78,6 +111,18 @@ export const isFollowing = (followerId, followingId) => {
   const fid = followerId ? String(followerId) : getCurrentUserId();
   if (!fid || !followingId) return false;
   const t = String(followingId);
+
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fid) &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t);
+  if (isUuid) {
+    // sync API가 아니라서 캐시 없이 best-effort(버튼 UI는 이후 이벤트로 갱신됨)
+    // 기본은 로컬값을 사용하되, 없으면 false.
+    // 화면에서 필요 시 별도 로딩로직(프로필 화면 등)에서 보정 가능.
+    return getRaw().some(
+      (x) => String(x.followerId) === fid && String(x.followingId) === t
+    );
+  }
+
   return getRaw().some(
     (x) => String(x.followerId) === fid && String(x.followingId) === t
   );
