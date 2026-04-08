@@ -99,8 +99,8 @@ export const checkAndNotifyInterestPlace = async (post) => {
       if ('Notification' in window && Notification.permission === 'granted') {
         const notification = new Notification(`⭐ ${matchedPlace.name} 실시간 정보`, {
           body: post.note || `${matchedPlace.name}에 새로운 정보가 올라왔어요!`,
-          icon: '/favicon.svg',
-          badge: '/favicon.svg',
+          icon: '/logo.svg',
+          badge: '/logo.svg',
           tag: `interest-${matchedPlace.name}-${post.id}`,
           data: { postId: post.id, place: matchedPlace.name }
         });
