@@ -312,7 +312,7 @@ begin
 
   if auth.uid() is null then
     return query
-      select false, coalesce((select likes_count from public.posts where id = v_post_id), 0);
+      select false, coalesce((select p.likes_count from public.posts p where p.id = v_post_id), 0);
     return;
   end if;
 
@@ -338,7 +338,7 @@ begin
   return query
     select
       exists(select 1 from public.post_likes where post_id = v_post_id and user_id = auth.uid()) as is_liked,
-      coalesce((select likes_count from public.posts where id = v_post_id), 0) as likes_count;
+      coalesce((select p.likes_count from public.posts p where p.id = v_post_id), 0) as likes_count;
 end;
 $$;
 
