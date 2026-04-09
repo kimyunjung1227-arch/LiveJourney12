@@ -426,6 +426,7 @@ set search_path = public
 as $$
 declare
   inserted boolean := false;
+  rc integer := 0;
 begin
   if auth.uid() is null then
     raise exception 'not authenticated';
@@ -435,7 +436,8 @@ begin
   values (p_post_id, auth.uid())
   on conflict (post_id, user_id) do nothing;
 
-  get diagnostics inserted = row_count > 0;
+  get diagnostics rc = row_count;
+  inserted := (rc > 0);
 
   perform public.recalc_post_likes_count(p_post_id);
   return inserted;
@@ -450,6 +452,7 @@ set search_path = public
 as $$
 declare
   deleted boolean := false;
+  rc integer := 0;
 begin
   if auth.uid() is null then
     raise exception 'not authenticated';
@@ -458,7 +461,8 @@ begin
   delete from public.post_likes
   where post_id = p_post_id and user_id = auth.uid();
 
-  get diagnostics deleted = row_count > 0;
+  get diagnostics rc = row_count;
+  deleted := (rc > 0);
 
   perform public.recalc_post_likes_count(p_post_id);
   return deleted;
