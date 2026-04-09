@@ -148,8 +148,10 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null, o
       // RPC가 409/23505로 터져도 "이미 좋아요"로 멱등 성공 처리
       return { success: true, isLiked: true };
     } else {
-      // RPC가 실패하면 direct insert로 fallback 하지 않음(409/중복 스팸 방지)
-      throw rpcErr;
+      // RPC가 실패해도 UI가 즉시 "초기화"되지 않게 optimistic을 유지하고 성공으로 처리.
+      // 이후 피드 동기화(fetchLikedPostIdsSupabase)가 실제 상태로 확정함.
+      logger.warn('like_post RPC 실패(optimistic 유지):', rpcErr?.message || rpcErr);
+      return { success: true, isLiked: true };
     }
 
     const { data: postRow } = await supabase
@@ -181,13 +183,13 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null, o
 
     return { success: true, isLiked: true };
   } catch (e) {
-    logger.warn('togglePostLikeSupabase 실패:', e?.message, e?.code || e?.status || '');
-    // optimistic 롤백(최소화): unknown 에러면 로컬 상태를 원복
+    logger.warn('togglePostLikeSupabase 실패(초기화 방지):', e?.message, e?.code || e?.status || '');
+    // 초기화 방지: 예외가 나도 클릭 의도대로 로컬 상태를 유지
+    const desired = likedBeforeClick === true ? false : true;
     try {
-      if (likedBeforeClick === true) setLikedPostLocalCache(pid, true);
-      else setLikedPostLocalCache(pid, false);
+      setLikedPostLocalCache(pid, desired);
     } catch {}
-    return { success: false, isLiked: false };
+    return { success: true, isLiked: desired };
   }
   });
 };
