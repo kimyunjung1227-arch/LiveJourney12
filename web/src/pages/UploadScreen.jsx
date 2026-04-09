@@ -20,6 +20,8 @@ import { normalizeRegionName } from '../utils/regionNames';
 import { searchPlaceWithKakaoFirst } from '../utils/kakaoPlacesGeocode';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import { addMissionResponse, updateMissionResponseLinkedPostId } from '../utils/sosMissionStore';
+import StatusBadge from '../components/StatusBadge';
+import { usePhotoValidation } from '../hooks/usePhotoValidation';
 const UploadScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -27,6 +29,7 @@ const UploadScreen = () => {
   const editingPostId = editMatch?.params?.id ?? null;
   const { user } = useAuth();
   const { handleDragStart } = useHorizontalDragScroll();
+  const [isInAppCamera, setIsInAppCamera] = useState(false);
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showUploadGuide, setShowUploadGuide] = useState(false);
@@ -68,6 +71,11 @@ const UploadScreen = () => {
   ]);
 
   const normalizeTag = (tag) => (tag || '').replace('#', '').trim();
+
+  const { status: photoStatus, loading: validatingPhoto } = usePhotoValidation({
+    file: formData.imageFiles?.[0] || null,
+    isInAppCamera,
+  });
 
   // "#태그1 #태그2" / "#태그1#태그2" / "태그1, 태그2" 등 입력을 개별 태그로 분리
   const parseTagsFromInput = (text) => {
@@ -688,6 +696,7 @@ const UploadScreen = () => {
 
   const handlePhotoOptionSelect = useCallback((option) => {
     setShowPhotoOptions(false);
+    setIsInAppCamera(option === 'camera');
 
     const input = document.createElement('input');
     input.type = 'file';
@@ -1667,7 +1676,16 @@ const UploadScreen = () => {
                       {formData.videos.length > 0 && (
                         <span>동영상 {formData.videos.length}개</span>
                       )}
+                      {formData.imageFiles?.length > 0 && (
+                        <StatusBadge status={photoStatus} />
+                      )}
                     </div>
+                    {validatingPhoto && formData.imageFiles?.length > 0 && (
+                      <div className="mt-1 inline-flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                        <div className="h-3 w-3 animate-spin rounded-full border border-gray-400 border-t-transparent" />
+                        <span>촬영 정보 확인 중...</span>
+                      </div>
+                    )}
                     {formData.photoDate && (
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         {(() => {
@@ -1697,6 +1715,11 @@ const UploadScreen = () => {
                     {formData.photoDate && formData.images.length > 0 && (
                       <p className="text-[11px] text-gray-500 dark:text-gray-400">
                         선택한 파일에서 읽은 촬영 시각이에요. 업로드되는 이미지 본문에서는 메타데이터가 제거돼요.
+                      </p>
+                    )}
+                    {!validatingPhoto && formData.imageFiles?.length > 0 && photoStatus === 'NONE' && (
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                        정보가 부족하여 인증 배지 없이 공유됩니다.
                       </p>
                     )}
                   </div>
