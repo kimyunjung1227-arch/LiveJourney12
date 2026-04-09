@@ -13,6 +13,9 @@ import { notifyLike, notifyComment } from './notifications';
 const POST_ID_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+const LIKED_POSTS_UPDATED_AT_KEY = 'likedPostsUpdatedAt';
+const SERVER_SYNC_GRACE_MS = 3000;
+
 /**
  * isPostLiked()가 읽는 likedPosts 캐시 갱신 — Supabase post_likes 토글 직후 호출 필수
  */
@@ -23,6 +26,10 @@ export const setLikedPostLocalCache = (postId, isLiked) => {
     const likes = JSON.parse(localStorage.getItem('likedPosts') || '{}');
     likes[id] = !!isLiked;
     localStorage.setItem('likedPosts', JSON.stringify(likes));
+    // 방금 눌렀던 상태가 서버 동기화로 즉시 덮어써지지 않도록 타임스탬프 기록
+    const updatedAt = JSON.parse(localStorage.getItem(LIKED_POSTS_UPDATED_AT_KEY) || '{}');
+    updatedAt[id] = Date.now();
+    localStorage.setItem(LIKED_POSTS_UPDATED_AT_KEY, JSON.stringify(updatedAt));
     window.dispatchEvent(new CustomEvent('likedPostsCacheUpdated', { detail: { postId: id, liked: !!isLiked } }));
   } catch {
     /* ignore */
@@ -37,6 +44,7 @@ export const setLikedPostLocalCache = (postId, isLiked) => {
 export const mergeLikedPostsFromServer = (queriedPostIds, likedIdsFromServer) => {
   try {
     const prev = JSON.parse(localStorage.getItem('likedPosts') || '{}');
+    const updatedAt = JSON.parse(localStorage.getItem(LIKED_POSTS_UPDATED_AT_KEY) || '{}');
     const likedSet = new Set((likedIdsFromServer || []).map((x) => String(x)));
     // 기존 UUID 좋아요 캐시를 지우지 말고(피드에 없다고 삭제하면 "추적이 안됨"으로 보임),
     // 이번에 조회한 ID만 서버 기준으로 덮어쓴다.
@@ -44,6 +52,8 @@ export const mergeLikedPostsFromServer = (queriedPostIds, likedIdsFromServer) =>
     (queriedPostIds || []).forEach((pid) => {
       const id = String(pid);
       if (!POST_ID_UUID_RE.test(id)) return;
+      const ts = Number(updatedAt?.[id] || 0);
+      if (ts && Date.now() - ts < SERVER_SYNC_GRACE_MS) return;
       next[id] = likedSet.has(id);
     });
     localStorage.setItem('likedPosts', JSON.stringify(next));
