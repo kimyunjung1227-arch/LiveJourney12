@@ -114,74 +114,60 @@ async function resolveActorDisplayForLike(uid, hint) {
 export const togglePostLikeSupabase = async (userId, postId, actorHint = null, opts = {}) => {
   const uid = String(userId || '').trim();
   const pid = String(postId || '').trim();
-  if (!isValidUuid(uid) || !isValidUuid(pid)) return { success: false, isLiked: false };
+  if (!isValidUuid(uid) || !isValidUuid(pid)) return { success: false, isLiked: false, likesCount: null };
   const likedBeforeClick = opts.likedBeforeClick;
   const lockKey = `${uid}:${pid}`;
   return await withLikeLock(lockKey, async () => {
     try {
-    if (likedBeforeClick === true) {
-      // optimistic
-      setLikedPostLocalCache(pid, false);
-      // RPC 우선(409 자체 제거). 없으면 기존 delete로 fallback.
-      const { data: rpcOk, error: rpcErr } = await supabase.rpc('unlike_post', { p_post_id: pid });
-      if (rpcErr) {
-        const { error: delErr } = await supabase
-          .from('post_likes')
-          .delete()
-          .eq('user_id', uid)
-          .eq('post_id', pid);
-        if (delErr) throw delErr;
-      } else if (rpcOk !== true && rpcOk !== false) {
-        // ignore unexpected return
-      }
-      return { success: true, isLiked: false };
-    }
-
-    // RPC 우선(409 자체 제거). 반환값: inserted(boolean)
-    let insertedFresh = false;
+    const desired = likedBeforeClick === true ? false : true;
     // optimistic
-    setLikedPostLocalCache(pid, true);
-    const { data: rpcInserted, error: rpcErr } = await supabase.rpc('like_post', { p_post_id: pid });
-    if (!rpcErr) {
-      insertedFresh = rpcInserted === true;
-    } else if (isUniqueConflictError(rpcErr)) {
-      // RPC가 409/23505로 터져도 "이미 좋아요"로 멱등 성공 처리
-      return { success: true, isLiked: true };
-    } else {
-      // RPC가 실패해도 UI가 즉시 "초기화"되지 않게 optimistic을 유지하고 성공으로 처리.
-      // 이후 피드 동기화(fetchLikedPostIdsSupabase)가 실제 상태로 확정함.
-      logger.warn('like_post RPC 실패(optimistic 유지):', rpcErr?.message || rpcErr);
-      return { success: true, isLiked: true };
+    setLikedPostLocalCache(pid, desired);
+
+    // ✅ 최종값(좋아요 여부 + likes_count)을 서버에서 한 번에 받아온다.
+    const { data: rows, error: rpcErr } = await supabase.rpc('set_post_like', { p_post_id: pid, p_like: desired });
+    if (rpcErr) {
+      // 서버가 안 되면 일단 optimistic 유지(초기화 방지)
+      logger.warn('set_post_like RPC 실패(optimistic 유지):', rpcErr?.message || rpcErr);
+      return { success: true, isLiked: desired, likesCount: null };
+    }
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    const isLiked = row?.is_liked != null ? !!row.is_liked : desired;
+    const likesCount = row?.likes_count != null ? Math.max(0, Number(row.likes_count) || 0) : null;
+    setLikedPostLocalCache(pid, isLiked);
+
+    // 알림은 "좋아요가 새로 생성된 경우"에만 보내야 하지만,
+    // set_post_like는 inserted 여부를 주지 않는다.
+    // 안전하게: 좋아요가 true이고, 기존에 안 눌렀던 경우에만 보낸다(중복 알림 방지).
+    if (desired === true && likedBeforeClick !== true) {
+      const { data: postRow } = await supabase
+        .from('posts')
+        .select('user_id, images')
+        .eq('id', pid)
+        .maybeSingle();
+      const ownerId = postRow?.user_id ? String(postRow.user_id) : null;
+      if (ownerId && ownerId !== uid) {
+        const { name: actorName, avatar: actorAv } = await resolveActorDisplayForLike(uid, actorHint);
+        const imgs = postRow?.images;
+        const thumb =
+          Array.isArray(imgs) && imgs[0]
+            ? imgs[0]
+            : imgs && typeof imgs === 'string'
+              ? imgs
+              : null;
+        await sendNotificationToUser({
+          recipientUserId: ownerId,
+          actorUserId: uid,
+          actorUsername: actorName,
+          actorAvatar: actorAv,
+          postId: pid,
+          thumbnailUrl: thumb || null,
+          type: 'like',
+          message: `${actorName}님이 회원님이 올린 정보를 좋아합니다.`,
+        });
+      }
     }
 
-    const { data: postRow } = await supabase
-      .from('posts')
-      .select('user_id, images')
-      .eq('id', pid)
-      .maybeSingle();
-    const ownerId = postRow?.user_id ? String(postRow.user_id) : null;
-    if (insertedFresh && ownerId && ownerId !== uid) {
-      const { name: actorName, avatar: actorAv } = await resolveActorDisplayForLike(uid, actorHint);
-      const imgs = postRow?.images;
-      const thumb =
-        Array.isArray(imgs) && imgs[0]
-          ? imgs[0]
-          : imgs && typeof imgs === 'string'
-            ? imgs
-            : null;
-      await sendNotificationToUser({
-        recipientUserId: ownerId,
-        actorUserId: uid,
-        actorUsername: actorName,
-        actorAvatar: actorAv,
-        postId: pid,
-        thumbnailUrl: thumb || null,
-        type: 'like',
-        message: `${actorName}님이 회원님이 올린 정보를 좋아합니다.`,
-      });
-    }
-
-    return { success: true, isLiked: true };
+    return { success: true, isLiked, likesCount };
   } catch (e) {
     logger.warn('togglePostLikeSupabase 실패(초기화 방지):', e?.message, e?.code || e?.status || '');
     // 초기화 방지: 예외가 나도 클릭 의도대로 로컬 상태를 유지
@@ -189,7 +175,7 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null, o
     try {
       setLikedPostLocalCache(pid, desired);
     } catch {}
-    return { success: true, isLiked: desired };
+    return { success: true, isLiked: desired, likesCount: null };
   }
   });
 };

@@ -16,7 +16,7 @@ import { getDisplayImageUrl } from '../api/upload';
 import { getMapThumbnailUri } from '../utils/postMedia';
 import { getPostAccuracyCount, toggleLike, isPostLiked, mergeLikedPostsFromServer } from '../utils/socialInteractions';
 import { rankHotspotPosts } from '../utils/hotnessEngine';
-import { updatePostLikesSupabase, fetchPostLikesCountSupabaseWithRetry, applyPostLikesCountFromServer } from '../api/postsSupabase';
+import { updatePostLikesSupabase, applyPostLikesCountFromServer } from '../api/postsSupabase';
 import { getWeatherByRegion } from '../api/weather';
 import { listPublishedMagazines } from '../utils/magazinesStore';
 import HotFeedCard from '../components/HotFeedCard';
@@ -671,10 +671,8 @@ const MainScreen = () => {
                 if (sup.success) {
                     const delta = (sup.isLiked ? 1 : 0) - (wasLiked ? 1 : 0);
                     const fallback = Math.max(0, baseLikes + delta);
-                    // UI는 즉시 fallback 반영 후, 서버 likes_count를 재시도 조회로 덮어씀
-                    applyPostLikesCountFromServer(post.id, fallback);
-                    const fromDb = await fetchPostLikesCountSupabaseWithRetry(post.id, { attempts: 5, delayMs: 250 });
-                    const nextCount = fromDb != null ? fromDb : fallback;
+                    // 서버가 최종 likes_count를 함께 내려주면 그걸 신뢰, 없으면 fallback 사용
+                    const nextCount = typeof sup.likesCount === 'number' ? sup.likesCount : fallback;
                     applyPostLikesCountFromServer(post.id, nextCount);
                     window.dispatchEvent(new Event('postsUpdated'));
                 }

@@ -478,3 +478,46 @@ $$;
 grant execute on function public.like_post(uuid) to authenticated;
 grant execute on function public.unlike_post(uuid) to authenticated;
 
+-- ============================================================
+-- 9) 좋아요 설정 RPC (프론트 최종값 즉시 반영용)
+-- - is_liked + likes_count를 함께 반환하여 추가 조회 없이 UI를 확정
+-- ============================================================
+drop function if exists public.set_post_like(uuid, boolean);
+create or replace function public.set_post_like(p_post_id uuid, p_like boolean)
+returns table (is_liked boolean, likes_count integer)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    return query
+      select false, coalesce((select likes_count from public.posts where id = p_post_id), 0);
+    return;
+  end if;
+
+  begin
+    if p_like then
+      insert into public.post_likes (post_id, user_id)
+      values (p_post_id, auth.uid())
+      on conflict (post_id, user_id) do nothing;
+    else
+      delete from public.post_likes
+      where post_id = p_post_id and user_id = auth.uid();
+    end if;
+  exception when others then
+    -- 예외는 밖으로 던지지 않음
+    null;
+  end;
+
+  perform public.recalc_post_likes_count(p_post_id);
+
+  return query
+    select
+      exists(select 1 from public.post_likes where post_id = p_post_id and user_id = auth.uid()) as is_liked,
+      coalesce((select likes_count from public.posts where id = p_post_id), 0) as likes_count;
+end;
+$$;
+
+grant execute on function public.set_post_like(uuid, boolean) to authenticated;
+
