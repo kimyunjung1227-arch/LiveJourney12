@@ -1,6 +1,24 @@
 import exifr from 'exifr';
 import { logger } from './logger';
 
+/**
+ * 안드로이드 WebView·크롬 등에서 갤러리 파일의 `type`이 빈 문자열이거나
+ * `application/octet-stream`으로 오는 경우가 많아, 확장자로 보완한다.
+ * @param {File|Blob} file
+ */
+function isLikelyRasterImageFile(file) {
+  if (!file) return false;
+  const t = String(file.type || '').toLowerCase();
+  if (t.startsWith('image/')) return true;
+  if (t.startsWith('video/')) return false;
+  const name = 'name' in file && typeof file.name === 'string' ? file.name : '';
+  if (/\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/i.test(name)) return true;
+  if (t === 'application/octet-stream' || t === '' || t === 'binary/octet-stream') {
+    return /\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/i.test(name);
+  }
+  return false;
+}
+
 /** @param {unknown} v */
 function toFiniteNumber(v) {
   if (v == null || v === '') return null;
@@ -49,11 +67,44 @@ function resolveCaptureDate(exifData) {
     exifData.DateTimeDigitized ??
     exifData.DateTime ??
     exifData.GPSDateTime ??
+    exifData.MetadataDate ??
+    exifData.DateCreated ??
     exifData.ModifyDate ??
     null;
 
   const base = parseExifDateToDate(primary);
   return base;
+}
+
+/** 첫 파싱에서 빠진 키를 XMP/IPTC 전체 파싱으로 보강 */
+function mergeMissingMetadata(base, extra) {
+  if (!base) return extra || null;
+  if (!extra || typeof extra !== 'object') return base;
+  const out = { ...base };
+  for (const [k, v] of Object.entries(extra)) {
+    if (v == null || v === '') continue;
+    if (out[k] == null || out[k] === '') out[k] = v;
+  }
+  return out;
+}
+
+async function enrichWithXmpIptc(file, existing) {
+  try {
+    const aux = await exifr.parse(file, {
+      xmp: true,
+      iptc: true,
+      mergeOutput: true,
+      reviveValues: true,
+      sanitize: true,
+      translateKeys: false,
+      translateValues: false,
+      firstChunk: false,
+    });
+    return mergeMissingMetadata(existing, aux);
+  } catch (e) {
+    logger.debug('XMP/IPTC 보조 파싱 실패(무시):', e);
+    return existing;
+  }
 }
 
 /**
@@ -112,8 +163,8 @@ export const extractExifData = async (file, options = {}) => {
     if (!allowed) {
       return null;
     }
-    if (!file || !file.type.startsWith('image/')) {
-      logger.debug('EXIF 추출: 이미지 파일이 아님');
+    if (!isLikelyRasterImageFile(file)) {
+      logger.debug('EXIF 추출: 이미지로 보이지 않음 (type/name)', file?.type, file?.name);
       return null;
     }
 
@@ -152,46 +203,53 @@ export const extractExifData = async (file, options = {}) => {
       return null;
     }
 
-    const photoDateObj = resolveCaptureDate(exifData);
+    let merged = exifData;
+    const dateBefore = resolveCaptureDate(merged);
+    const gpsBefore = normalizeGps(merged.GPSLatitude, merged.GPSLongitude);
+    if (!dateBefore || !gpsBefore) {
+      merged = await enrichWithXmpIptc(file, merged);
+    }
 
-    let gpsCoordinates = normalizeGps(exifData.GPSLatitude, exifData.GPSLongitude);
+    const photoDateObj = resolveCaptureDate(merged);
+
+    let gpsCoordinates = normalizeGps(merged.GPSLatitude, merged.GPSLongitude);
 
     logger.debug('📸 EXIF 데이터 추출 성공:', {
       hasDate: !!photoDateObj,
       hasGPS: !!gpsCoordinates,
-      dateTime: exifData.DateTimeOriginal || exifData.CreateDate,
+      dateTime: merged.DateTimeOriginal || merged.CreateDate,
       gps: gpsCoordinates,
     });
 
     const dateTimeOriginalRaw =
-      exifData.DateTimeOriginal != null
-        ? String(exifData.DateTimeOriginal)
-        : exifData.CreateDate != null
-          ? String(exifData.CreateDate)
-          : exifData.DateTimeDigitized != null
-            ? String(exifData.DateTimeDigitized)
+      merged.DateTimeOriginal != null
+        ? String(merged.DateTimeOriginal)
+        : merged.CreateDate != null
+          ? String(merged.CreateDate)
+          : merged.DateTimeDigitized != null
+            ? String(merged.DateTimeDigitized)
             : null;
 
     return {
       photoDate: photoDateObj ? photoDateObj.toISOString() : null,
       photoTimestamp: photoDateObj ? photoDateObj.getTime() : null,
-      dateTimeOriginal: exifData.DateTimeOriginal ?? null,
-      createDate: exifData.CreateDate ?? null,
+      dateTimeOriginal: merged.DateTimeOriginal ?? null,
+      createDate: merged.CreateDate ?? null,
       dateTimeOriginalRaw,
 
       gpsCoordinates,
-      gpsLatitude: gpsCoordinates ? gpsCoordinates.lat : toFiniteNumber(exifData.GPSLatitude),
-      gpsLongitude: gpsCoordinates ? gpsCoordinates.lng : toFiniteNumber(exifData.GPSLongitude),
-      gpsAltitude: toFiniteNumber(exifData.GPSAltitude),
+      gpsLatitude: gpsCoordinates ? gpsCoordinates.lat : toFiniteNumber(merged.GPSLatitude),
+      gpsLongitude: gpsCoordinates ? gpsCoordinates.lng : toFiniteNumber(merged.GPSLongitude),
+      gpsAltitude: toFiniteNumber(merged.GPSAltitude),
 
-      cameraMake: exifData.Make || null,
-      cameraModel: exifData.Model || null,
+      cameraMake: merged.Make || null,
+      cameraModel: merged.Model || null,
 
-      imageWidth: exifData.ImageWidth || null,
-      imageHeight: exifData.ImageHeight || null,
-      orientation: exifData.Orientation || null,
+      imageWidth: merged.ImageWidth || null,
+      imageHeight: merged.ImageHeight || null,
+      orientation: merged.Orientation || null,
 
-      raw: exifData,
+      raw: merged,
     };
   } catch (error) {
     logger.warn('EXIF 데이터 추출 실패:', error);
