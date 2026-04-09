@@ -50,7 +50,7 @@ export default defineConfig({
     assetsDir: 'assets',
     sourcemap: false,
     reportCompressedSize: false,
-    // 이전 false는 번들 비대화 원인 — 프로덕션은 esbuild 압축 권장
+    // 프로덕션은 esbuild 압축 권장 (CI는 Node 20으로 빌드)
     minify: 'esbuild',
     target: 'es2020',
     chunkSizeWarningLimit: 900,
