@@ -492,6 +492,7 @@ set search_path = public
 as $$
 declare
   v_post_id uuid;
+  v_count integer := 0;
 begin
   -- 잘못된 UUID 입력(캐스팅 실패)도 400이 아니라 "실패 false"로 흡수
   begin
@@ -521,8 +522,16 @@ begin
     null;
   end;
 
+  -- ✅ 항상 최신값은 post_likes count(*)가 진실
+  select count(*) into v_count
+  from public.post_likes pl
+  where pl.post_id = v_post_id;
+
+  -- posts.likes_count도 즉시 최신값으로 맞춤(피드 재조회가 와도 0으로 안 돌아가게)
   begin
-    perform public.recalc_post_likes_count(v_post_id);
+    update public.posts p
+    set likes_count = v_count
+    where p.id = v_post_id;
   exception when others then
     null;
   end;
@@ -530,7 +539,7 @@ begin
   return query
     select
       exists(select 1 from public.post_likes where post_id = v_post_id and user_id = auth.uid()) as is_liked,
-      coalesce((select p.likes_count from public.posts p where p.id = v_post_id), 0) as likes_count;
+      v_count as likes_count;
 end;
 $$;
 

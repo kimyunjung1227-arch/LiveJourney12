@@ -302,6 +302,7 @@ set search_path = public
 as $$
 declare
   v_post_id uuid;
+  v_count integer := 0;
 begin
   begin
     v_post_id := p_post_id::uuid;
@@ -329,8 +330,14 @@ begin
     null;
   end;
 
+  select count(*) into v_count
+  from public.post_likes pl
+  where pl.post_id = v_post_id;
+
   begin
-    perform public.recalc_post_likes_count(v_post_id);
+    update public.posts p
+    set likes_count = v_count
+    where p.id = v_post_id;
   exception when others then
     null;
   end;
@@ -338,7 +345,7 @@ begin
   return query
     select
       exists(select 1 from public.post_likes where post_id = v_post_id and user_id = auth.uid()) as is_liked,
-      coalesce((select p.likes_count from public.posts p where p.id = v_post_id), 0) as likes_count;
+      v_count as likes_count;
 end;
 $$;
 
