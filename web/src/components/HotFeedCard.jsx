@@ -1,8 +1,10 @@
 import React from 'react';
 import { getDisplayImageUrl } from '../api/upload';
 import { getMapThumbnailUri } from '../utils/postMedia';
+import { getHotFeedBadgeIconName } from '../utils/hotPlaceDisplay';
 
 const HOT_INDICATOR_BG = '#b91c1c';
+const CATEGORY_INDICATOR_BG = 'rgba(15,23,42,0.68)';
 
 /**
  * 메인 실시간 핫플 / 더보기 화면 — 동일 카드 UI (마크업·스타일 통일)
@@ -29,6 +31,11 @@ const HotFeedCard = ({
         photoCategoryLabels,
         avatars,
     } = cardProps;
+
+    const primaryCategoryLabel = Array.isArray(photoCategoryLabels) && photoCategoryLabels.length > 0
+        ? String(photoCategoryLabels[0] || '').trim()
+        : '';
+    const primaryCategoryIcon = primaryCategoryLabel ? getHotFeedBadgeIconName(primaryCategoryLabel) : 'photo_camera';
 
     return (
         <div
@@ -87,6 +94,27 @@ const HotFeedCard = ({
                         <span className="material-symbols-outlined shrink-0" style={{ fontSize: 14, fontVariationSettings: '"FILL" 1' }}>{hotReasonIcon}</span>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hotReasonLabel}</span>
                     </span>
+                    {primaryCategoryLabel ? (
+                        <span
+                            title="사진 카테고리"
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                background: CATEGORY_INDICATOR_BG,
+                                color: '#fff',
+                                padding: '4px 9px',
+                                borderRadius: 9999,
+                                fontSize: 10,
+                                fontWeight: 800,
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                                maxWidth: '100%',
+                            }}
+                        >
+                            <span className="material-symbols-outlined shrink-0" style={{ fontSize: 14, fontVariationSettings: '"FILL" 1' }}>{primaryCategoryIcon}</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{primaryCategoryLabel}</span>
+                        </span>
+                    ) : null}
                 </div>
                 {hasWeather ? (
                     <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(15,23,42,0.52)', backdropFilter: 'blur(8px)', color: '#f8fafc', padding: '4px 9px', borderRadius: 9999, fontSize: 10, fontWeight: 600, maxWidth: '58%' }}>
