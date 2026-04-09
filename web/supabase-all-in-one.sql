@@ -415,3 +415,56 @@ create trigger post_likes_after_change
 after insert or delete on public.post_likes
 for each row execute procedure public.on_post_likes_changed();
 
+-- ============================================================
+-- 8) 좋아요 RPC (409 완전 제거용)
+-- ============================================================
+create or replace function public.like_post(p_post_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  inserted boolean := false;
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated';
+  end if;
+
+  insert into public.post_likes (post_id, user_id)
+  values (p_post_id, auth.uid())
+  on conflict (post_id, user_id) do nothing;
+
+  get diagnostics inserted = row_count > 0;
+
+  perform public.recalc_post_likes_count(p_post_id);
+  return inserted;
+end;
+$$;
+
+create or replace function public.unlike_post(p_post_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  deleted boolean := false;
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated';
+  end if;
+
+  delete from public.post_likes
+  where post_id = p_post_id and user_id = auth.uid();
+
+  get diagnostics deleted = row_count > 0;
+
+  perform public.recalc_post_likes_count(p_post_id);
+  return deleted;
+end;
+$$;
+
+grant execute on function public.like_post(uuid) to authenticated;
+grant execute on function public.unlike_post(uuid) to authenticated;
+

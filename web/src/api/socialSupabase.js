@@ -101,46 +101,59 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null, o
   const likedBeforeClick = opts.likedBeforeClick;
   try {
     if (likedBeforeClick === true) {
-      const { error: delErr } = await supabase
-        .from('post_likes')
-        .delete()
-        .eq('user_id', uid)
-        .eq('post_id', pid);
-      if (delErr) throw delErr;
+      // RPC 우선(409 자체 제거). 없으면 기존 delete로 fallback.
+      const { data: rpcOk, error: rpcErr } = await supabase.rpc('unlike_post', { p_post_id: pid });
+      if (rpcErr) {
+        const { error: delErr } = await supabase
+          .from('post_likes')
+          .delete()
+          .eq('user_id', uid)
+          .eq('post_id', pid);
+        if (delErr) throw delErr;
+      } else if (rpcOk !== true && rpcOk !== false) {
+        // ignore unexpected return
+      }
       setLikedPostLocalCache(pid, false);
       return { success: true, isLiked: false };
     }
 
-    // 409(중복) 자체가 안 나게: 이미 좋아요면 insert를 호출하지 않음
-    const { data: existsRow, error: existsErr } = await supabase
-      .from('post_likes')
-      .select('post_id')
-      .eq('user_id', uid)
-      .eq('post_id', pid)
-      .maybeSingle();
-    if (existsErr) throw existsErr;
-    if (existsRow) {
+    // RPC 우선(409 자체 제거). 반환값: inserted(boolean)
+    let insertedFresh = false;
+    const { data: rpcInserted, error: rpcErr } = await supabase.rpc('like_post', { p_post_id: pid });
+    if (!rpcErr) {
+      insertedFresh = rpcInserted === true;
       setLikedPostLocalCache(pid, true);
-      return { success: true, isLiked: true };
-    }
-
-    const { data: insData, error: insErr } = await supabase
-      .from('post_likes')
-      .insert({ user_id: uid, post_id: pid })
-      .select('post_id')
-      .maybeSingle();
-
-    if (insErr) {
-      // 레이스/중복 클릭 등으로 409가 나와도 "이미 좋아요"로 멱등 성공 처리
-      if (isUniqueConflictError(insErr)) {
+    } else {
+      // fallback: select→insert (레이스 시 409는 멱등 성공 처리)
+      const { data: existsRow, error: existsErr } = await supabase
+        .from('post_likes')
+        .select('post_id')
+        .eq('user_id', uid)
+        .eq('post_id', pid)
+        .maybeSingle();
+      if (existsErr) throw existsErr;
+      if (existsRow) {
         setLikedPostLocalCache(pid, true);
         return { success: true, isLiked: true };
       }
-      throw insErr;
-    }
 
-    setLikedPostLocalCache(pid, true);
-    const insertedFresh = !!insData;
+      const { data: insData, error: insErr } = await supabase
+        .from('post_likes')
+        .insert({ user_id: uid, post_id: pid })
+        .select('post_id')
+        .maybeSingle();
+
+      if (insErr) {
+        if (isUniqueConflictError(insErr)) {
+          setLikedPostLocalCache(pid, true);
+          return { success: true, isLiked: true };
+        }
+        throw insErr;
+      }
+
+      setLikedPostLocalCache(pid, true);
+      insertedFresh = !!insData;
+    }
 
     const { data: postRow } = await supabase
       .from('posts')
