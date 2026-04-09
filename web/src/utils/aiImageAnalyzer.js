@@ -1,6 +1,7 @@
 // AI 이미지 분석 및 해시태그 자동 생성
 // 클라이언트 측에서 이미지를 분석하여 관련 해시태그를 생성합니다
 import { logger } from './logger';
+import { extractExifData } from './exifExtractor';
 
 // 한국 여행 관련 키워드 데이터베이스 (전문적이고 날씨 중심)
 const koreanTravelKeywords = {
@@ -57,25 +58,13 @@ const koreanTravelKeywords = {
   }
 };
 
-// 이미지 파일에서 EXIF 데이터 읽기
-const readExifData = async (file) => {
-  return new Promise((resolve) => {
-    try {
-      // EXIF 라이브러리 없이 기본 정보만 추출
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        resolve({
-          fileSize: file.size,
-          fileType: file.type,
-          fileName: file.name,
-          lastModified: new Date(file.lastModified)
-        });
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      resolve({});
-    }
-  });
+// 이미지 파일에서 EXIF 데이터 읽기 (호출부에서 미리 넘기지 않은 경우에만 파싱)
+const readExifDataFallback = async (file) => {
+  try {
+    return await extractExifData(file, { allowed: true });
+  } catch (_) {
+    return null;
+  }
 };
 
 // 파일명에서 키워드 추출
@@ -316,14 +305,15 @@ const analyzeImageColors = async (imageFile) => {
 };
 
 // 메인 AI 분석 함수 (멀티모달 AI 우선, 실패 시 기존 방식)
-export const analyzeImageForTags = async (imageFile, location = '', existingNote = '') => {
+export const analyzeImageForTags = async (imageFile, location = '', existingNote = '', precomputedExif = undefined) => {
   try {
     logger.log('🤖 AI 이미지 분석 시작...');
     logger.debug('  📍 위치:', location);
     logger.debug('  📝 노트:', existingNote);
     
-    // EXIF 데이터 추출 (멀티모달 AI에 전달하기 위해)
-    const exifData = await readExifData(imageFile);
+    // EXIF: 업로드 화면에서 이미 추출한 값이 있으면 재파싱하지 않음
+    const exifData =
+      precomputedExif !== undefined ? precomputedExif : await readExifDataFallback(imageFile);
     
     // 1차 시도: 멀티모달 AI 기반 태그 생성 (백엔드 API)
     try {

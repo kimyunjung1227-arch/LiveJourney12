@@ -1,6 +1,7 @@
 import React, { useEffect, Suspense, lazy } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
+import { ExifConsentProvider } from './contexts/ExifConsentContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminRoute from './components/AdminRoute'
 import { initStatusBar } from './utils/statusBar'
@@ -78,6 +79,7 @@ function App() {
   const basename = import.meta.env.PROD ? import.meta.env.BASE_URL : undefined;
 
   return (
+    <ExifConsentProvider>
     <AuthProvider>
       <Router basename={basename}>
         <RootSeo />
@@ -229,6 +231,7 @@ function App() {
         </div>
       </Router>
     </AuthProvider>
+    </ExifConsentProvider>
   )
 }
 

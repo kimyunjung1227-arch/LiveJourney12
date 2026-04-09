@@ -1,0 +1,63 @@
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import ExifConsentModal from '../components/ExifConsentModal';
+
+const STORAGE_KEY = 'lj_exif_consent_v1';
+
+function readStoredConsent() {
+  try {
+    const v = localStorage.getItem(STORAGE_KEY);
+    if (v === 'granted') return 'granted';
+    if (v === 'declined') return 'declined';
+  } catch (_) {}
+  return null;
+}
+
+const ExifConsentContext = createContext(null);
+
+export function ExifConsentProvider({ children }) {
+  const [consent, setConsent] = useState(() => readStoredConsent());
+  const [modalOpen, setModalOpen] = useState(() => readStoredConsent() === null);
+
+  const grant = useCallback(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, 'granted');
+    } catch (_) {}
+    setConsent('granted');
+    setModalOpen(false);
+  }, []);
+
+  const decline = useCallback(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, 'declined');
+    } catch (_) {}
+    setConsent('declined');
+    setModalOpen(false);
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      /** EXIF 읽기에 동의했는지 (명시적 거부면 false) */
+      exifAllowed: consent === 'granted',
+      consentResolved: consent !== null,
+      showConsentModal: modalOpen,
+      grantExifConsent: grant,
+      declineExifConsent: decline,
+    }),
+    [consent, modalOpen, grant, decline]
+  );
+
+  return (
+    <ExifConsentContext.Provider value={value}>
+      {children}
+      {modalOpen && <ExifConsentModal onGrant={grant} onDecline={decline} />}
+    </ExifConsentContext.Provider>
+  );
+}
+
+export function useExifConsent() {
+  const ctx = useContext(ExifConsentContext);
+  if (!ctx) {
+    throw new Error('useExifConsent는 ExifConsentProvider 안에서만 사용할 수 있습니다.');
+  }
+  return ctx;
+}

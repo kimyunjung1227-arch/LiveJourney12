@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation, useMatch } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { createPost } from '../api/posts';
@@ -22,12 +22,15 @@ import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import { addMissionResponse, updateMissionResponseLinkedPostId } from '../utils/sosMissionStore';
 import StatusBadge from '../components/StatusBadge';
 import { usePhotoValidation } from '../hooks/usePhotoValidation';
+import { useExifConsent } from '../contexts/ExifConsentContext';
+
 const UploadScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const editMatch = useMatch({ path: '/post/:id/edit', end: true });
   const editingPostId = editMatch?.params?.id ?? null;
   const { user } = useAuth();
+  const { exifAllowed } = useExifConsent();
   const { handleDragStart } = useHorizontalDragScroll();
   const [isInAppCamera, setIsInAppCamera] = useState(false);
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
@@ -48,9 +51,12 @@ const UploadScreen = () => {
     aiCategoryName: '추천장소',
     aiCategoryIcon: '🏞️',
     exifData: null, // EXIF 데이터 (날짜, GPS 등)
+    exifForFileKey: null, // exifData가 대응하는 첫 이미지 파일 식별자
     photoDate: null, // 사진 촬영 날짜
     verifiedLocation: null // EXIF에서 추출한 검증된 위치
   });
+  const [exifExtracting, setExifExtracting] = useState(false);
+  const locNoteRef = useRef({ location: '', note: '' });
   const [tagInput, setTagInput] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -72,9 +78,34 @@ const UploadScreen = () => {
 
   const normalizeTag = (tag) => (tag || '').replace('#', '').trim();
 
+  useEffect(() => {
+    locNoteRef.current = { location: formData.location, note: formData.note };
+  });
+
+  const firstImageFile = formData.imageFiles?.[0] ?? null;
+  const firstImageFileKey = useMemo(
+    () =>
+      firstImageFile
+        ? `${firstImageFile.name}:${firstImageFile.size}:${firstImageFile.lastModified}`
+        : '',
+    [firstImageFile]
+  );
+
+  const prefetchedExifForValidation = useMemo(() => {
+    if (!firstImageFile || !exifAllowed) return null;
+    return {
+      fileKey: firstImageFileKey,
+      exif: formData.exifForFileKey === firstImageFileKey ? formData.exifData : null,
+    };
+  }, [firstImageFile, firstImageFileKey, exifAllowed, formData.exifForFileKey, formData.exifData]);
+
   const { status: photoStatus, loading: validatingPhoto } = usePhotoValidation({
-    file: formData.imageFiles?.[0] || null,
+    file: firstImageFile,
     isInAppCamera,
+    exifAllowed,
+    exifExtracting,
+    prefetchedExif: prefetchedExifForValidation,
+    serverPhotoDateIso: editingPostId ? formData.photoDate || null : null,
   });
 
   // "#태그1 #태그2" / "#태그1#태그2" / "태그1, 태그2" 등 입력을 개별 태그로 분리
@@ -245,7 +276,8 @@ const UploadScreen = () => {
         aiCategoryIcon: post.categoryIcon || prev.aiCategoryIcon,
         photoDate: post.photoDate || post.exifData?.photoDate || null,
         verifiedLocation: post.verifiedLocation || null,
-        exifData: post.exifData || null
+        exifData: post.exifData || null,
+        exifForFileKey: null
       }));
       setAutoTags([]);
       setEditFormReady(true);
@@ -376,7 +408,7 @@ const UploadScreen = () => {
     }
   }, []);
 
-  const analyzeImageAndGenerateTags = useCallback(async (file, location = '', note = '') => {
+  const analyzeImageAndGenerateTags = useCallback(async (file, location = '', note = '', precomputedExif = undefined) => {
     // 사진 파일이 없으면 분석하지 않음
     if (!file) {
       setAutoTags([]);
@@ -385,7 +417,7 @@ const UploadScreen = () => {
 
     setLoadingAITags(true);
     try {
-      const analysisResult = await analyzeImageForTags(file, location, note);
+      const analysisResult = await analyzeImageForTags(file, location, note, precomputedExif);
       const regionName = location?.split(' ')[0] || location || '';
       let weatherTags = [];
 
@@ -508,6 +540,154 @@ const UploadScreen = () => {
     }
   }, [formData.location, formData.note, formData.tags]);
 
+  const lastExifAiKeyRef = useRef('');
+
+  // 첫 번째 로컬 이미지 EXIF는 한 번만 파싱하고, 동의 없으면 읽지 않음
+  useEffect(() => {
+    const f = formData.imageFiles[0];
+    if (!f || f.type.startsWith('video/')) {
+      setExifExtracting(false);
+      if (!f && !editingPostId) {
+        lastExifAiKeyRef.current = '';
+        setFormData((prev) =>
+          prev.exifForFileKey || prev.exifData
+            ? {
+                ...prev,
+                exifData: null,
+                exifForFileKey: null,
+                photoDate: null,
+                verifiedLocation: null,
+              }
+            : prev
+        );
+      }
+      return;
+    }
+
+    const fk = `${f.name}:${f.size}:${f.lastModified}`;
+
+    if (!exifAllowed) {
+      setExifExtracting(false);
+      if (formData.exifForFileKey === fk) {
+        return;
+      }
+      setFormData((prev) => ({
+        ...prev,
+        exifData: null,
+        exifForFileKey: fk,
+        photoDate: null,
+        verifiedLocation: null,
+      }));
+      if (lastExifAiKeyRef.current !== fk) {
+        lastExifAiKeyRef.current = fk;
+        analyzeImageAndGenerateTags(f, locNoteRef.current.location, locNoteRef.current.note, null);
+      }
+      return;
+    }
+
+    if (formData.exifForFileKey === fk) {
+      setExifExtracting(false);
+      return;
+    }
+
+    let cancelled = false;
+    setExifExtracting(true);
+
+    (async () => {
+      try {
+        logger.log('📸 EXIF 데이터 추출 시작...');
+        const exifData = await extractExifData(f, { allowed: true });
+        if (cancelled) return;
+
+        if (exifData) {
+          logger.log('✅ EXIF 데이터 추출 성공:', {
+            hasDate: !!exifData.photoDate,
+            hasGPS: !!exifData.gpsCoordinates,
+            photoDate: exifData.photoDate,
+            gps: exifData.gpsCoordinates,
+          });
+
+          let verifiedLocation = null;
+          let exifCoordinates = null;
+          if (exifData.gpsCoordinates) {
+            exifCoordinates = {
+              lat: exifData.gpsCoordinates.lat,
+              lng: exifData.gpsCoordinates.lng,
+            };
+            try {
+              verifiedLocation = await convertGpsToAddress(
+                exifData.gpsCoordinates.lat,
+                exifData.gpsCoordinates.lng
+              );
+              if (verifiedLocation) {
+                logger.log('📍 EXIF GPS 주소 변환 성공:', verifiedLocation);
+              }
+            } catch (error) {
+              logger.warn('GPS 주소 변환 실패:', error);
+            }
+          }
+
+          setFormData((prev) => ({
+            ...prev,
+            exifData,
+            exifForFileKey: fk,
+            photoDate: exifData.photoDate || null,
+            verifiedLocation,
+            location: prev.location || verifiedLocation || '',
+            coordinates: prev.coordinates || exifCoordinates || null,
+          }));
+
+          if (!exifData.gpsCoordinates && !missionContext) {
+            getCurrentLocation();
+          }
+        } else {
+          logger.log('ℹ️ EXIF 데이터 없음 - 기본 위치 감지 사용');
+          setFormData((prev) => ({
+            ...prev,
+            exifData: null,
+            exifForFileKey: fk,
+            photoDate: null,
+            verifiedLocation: null,
+          }));
+          if (!missionContext) getCurrentLocation();
+        }
+
+        const { location: loc, note } = locNoteRef.current;
+        lastExifAiKeyRef.current = fk;
+        analyzeImageAndGenerateTags(f, loc, note, exifData ?? null);
+      } catch (error) {
+        logger.warn('EXIF 추출 실패:', error);
+        if (!cancelled) {
+          setFormData((prev) => ({
+            ...prev,
+            exifData: null,
+            exifForFileKey: fk,
+            photoDate: null,
+            verifiedLocation: null,
+          }));
+          if (!missionContext) getCurrentLocation();
+          const { location: loc, note } = locNoteRef.current;
+          lastExifAiKeyRef.current = fk;
+          analyzeImageAndGenerateTags(f, loc, note, null);
+        }
+      } finally {
+        if (!cancelled) setExifExtracting(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    editingPostId,
+    firstImageFileKey,
+    exifAllowed,
+    formData.exifForFileKey,
+    analyzeImageAndGenerateTags,
+    getCurrentLocation,
+    missionContext,
+  ]);
+
   const generateVideoTags = useCallback(async (locationName = '', noteText = '') => {
     const regionName = locationName?.split(' ')[0] || locationName || '';
     let weatherTags = [];
@@ -571,83 +751,13 @@ const UploadScreen = () => {
     }));
 
     if (isFirstMedia && (imageFiles.length > 0 || videoFiles.length > 0)) {
-      // 첫 번째 이미지 파일에서 EXIF 데이터 추출
-      const firstImageFile = imageFiles[0];
-      if (firstImageFile && !firstImageFile.type.startsWith('video/')) {
-        try {
-          logger.log('📸 EXIF 데이터 추출 시작...');
-          const exifData = await extractExifData(firstImageFile);
-
-          if (exifData) {
-            logger.log('✅ EXIF 데이터 추출 성공:', {
-              hasDate: !!exifData.photoDate,
-              hasGPS: !!exifData.gpsCoordinates,
-              photoDate: exifData.photoDate,
-              gps: exifData.gpsCoordinates
-            });
-
-            // EXIF에서 날짜 정보가 있으면 사용
-            let photoDate = null;
-            if (exifData.photoDate) {
-              photoDate = exifData.photoDate;
-            }
-
-            // EXIF에서 GPS 좌표가 있으면 주소로 변환
-            let verifiedLocation = null;
-            let exifCoordinates = null;
-
-            if (exifData.gpsCoordinates) {
-              exifCoordinates = {
-                lat: exifData.gpsCoordinates.lat,
-                lng: exifData.gpsCoordinates.lng
-              };
-
-              // GPS 좌표를 주소로 변환
-              try {
-                verifiedLocation = await convertGpsToAddress(
-                  exifData.gpsCoordinates.lat,
-                  exifData.gpsCoordinates.lng
-                );
-
-                if (verifiedLocation) {
-                  logger.log('📍 EXIF GPS 주소 변환 성공:', verifiedLocation);
-                }
-              } catch (error) {
-                logger.warn('GPS 주소 변환 실패:', error);
-              }
-            }
-
-            // formData 업데이트
-            setFormData(prev => ({
-              ...prev,
-              exifData: exifData,
-              photoDate: photoDate,
-              verifiedLocation: verifiedLocation,
-              // EXIF에서 위치 정보가 있으면 자동으로 설정 (사용자가 입력하지 않은 경우)
-              location: prev.location || verifiedLocation || '',
-              // EXIF에서 좌표가 있으면 사용
-              coordinates: prev.coordinates || exifCoordinates || null
-            }));
-          } else {
-            logger.log('ℹ️ EXIF 데이터 없음 - 기본 위치 감지 사용');
-            // EXIF 데이터가 없으면 기본 위치 감지 사용
-            if (!missionContext) getCurrentLocation();
-          }
-        } catch (error) {
-          logger.warn('EXIF 추출 실패:', error);
-          // EXIF 추출 실패 시 기본 위치 감지 사용
-          if (!missionContext) getCurrentLocation();
-        }
-
-        // AI 이미지 분석
-        analyzeImageAndGenerateTags(firstImageFile, formData.location, formData.note);
-      } else {
-        // 동영상만 있는 경우 기본 위치 감지
+      const firstNewImage = imageFiles[0];
+      if (!firstNewImage || firstNewImage.type.startsWith('video/')) {
         if (!missionContext) getCurrentLocation();
         generateVideoTags(formData.location, formData.note);
       }
     }
-  }, [formData.images.length, formData.videos.length, formData.location, formData.note, getCurrentLocation, analyzeImageAndGenerateTags, missionContext, generateVideoTags]);
+  }, [formData.images.length, formData.videos.length, formData.location, formData.note, getCurrentLocation, missionContext, generateVideoTags]);
 
 
   useEffect(() => {
@@ -660,7 +770,10 @@ const UploadScreen = () => {
     reanalysisTimerRef.current = setTimeout(() => {
       // 사진 파일이 있을 때만 재분석
       if (formData.imageFiles.length > 0 && (formData.location || formData.note)) {
-        analyzeImageAndGenerateTags(formData.imageFiles[0], formData.location, formData.note);
+        const f0 = formData.imageFiles[0];
+        const fk0 = f0 ? `${f0.name}:${f0.size}:${f0.lastModified}` : '';
+        const pre = fk0 && formData.exifForFileKey === fk0 ? formData.exifData : null;
+        analyzeImageAndGenerateTags(f0, formData.location, formData.note, pre);
       }
     }, 1000);
 
