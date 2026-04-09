@@ -521,7 +521,11 @@ begin
     null;
   end;
 
-  perform public.recalc_post_likes_count(v_post_id);
+  begin
+    perform public.recalc_post_likes_count(v_post_id);
+  exception when others then
+    null;
+  end;
 
   return query
     select
