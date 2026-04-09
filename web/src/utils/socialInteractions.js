@@ -13,8 +13,27 @@ import { notifyLike, notifyComment } from './notifications';
 const POST_ID_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const LIKED_POSTS_UPDATED_AT_KEY = 'likedPostsUpdatedAt';
-const SERVER_SYNC_GRACE_MS = 3000;
+// 사용자가 눌렀는데 서버 동기화가 아직 따라오지 않은 상태를 저장.
+// - 서버 응답이 pendingDesired와 일치하는 순간에만 pending을 해제한다.
+// - 시간 기반이 아니라 "상호작용→서버확인" 기반으로 초기화(되돌림) 방지.
+const LIKED_POSTS_PENDING_KEY = 'likedPostsPendingDesired';
+
+const readJson = (key, fallback) => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const writeJson = (key, value) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* ignore */
+  }
+};
 
 /**
  * isPostLiked()가 읽는 likedPosts 캐시 갱신 — Supabase post_likes 토글 직후 호출 필수
@@ -23,13 +42,15 @@ export const setLikedPostLocalCache = (postId, isLiked) => {
   try {
     const id = String(postId || '');
     if (!id) return;
-    const likes = JSON.parse(localStorage.getItem('likedPosts') || '{}');
+    const likes = readJson('likedPosts', {});
     likes[id] = !!isLiked;
-    localStorage.setItem('likedPosts', JSON.stringify(likes));
-    // 방금 눌렀던 상태가 서버 동기화로 즉시 덮어써지지 않도록 타임스탬프 기록
-    const updatedAt = JSON.parse(localStorage.getItem(LIKED_POSTS_UPDATED_AT_KEY) || '{}');
-    updatedAt[id] = Date.now();
-    localStorage.setItem(LIKED_POSTS_UPDATED_AT_KEY, JSON.stringify(updatedAt));
+    writeJson('likedPosts', likes);
+
+    // 상호작용 기반 pending 표시
+    const pending = readJson(LIKED_POSTS_PENDING_KEY, {});
+    pending[id] = !!isLiked;
+    writeJson(LIKED_POSTS_PENDING_KEY, pending);
+
     window.dispatchEvent(new CustomEvent('likedPostsCacheUpdated', { detail: { postId: id, liked: !!isLiked } }));
   } catch {
     /* ignore */
@@ -43,8 +64,8 @@ export const setLikedPostLocalCache = (postId, isLiked) => {
  */
 export const mergeLikedPostsFromServer = (queriedPostIds, likedIdsFromServer) => {
   try {
-    const prev = JSON.parse(localStorage.getItem('likedPosts') || '{}');
-    const updatedAt = JSON.parse(localStorage.getItem(LIKED_POSTS_UPDATED_AT_KEY) || '{}');
+    const prev = readJson('likedPosts', {});
+    const pending = readJson(LIKED_POSTS_PENDING_KEY, {});
     const likedSet = new Set((likedIdsFromServer || []).map((x) => String(x)));
     // 기존 UUID 좋아요 캐시를 지우지 말고(피드에 없다고 삭제하면 "추적이 안됨"으로 보임),
     // 이번에 조회한 ID만 서버 기준으로 덮어쓴다.
@@ -52,11 +73,25 @@ export const mergeLikedPostsFromServer = (queriedPostIds, likedIdsFromServer) =>
     (queriedPostIds || []).forEach((pid) => {
       const id = String(pid);
       if (!POST_ID_UUID_RE.test(id)) return;
-      const ts = Number(updatedAt?.[id] || 0);
-      if (ts && Date.now() - ts < SERVER_SYNC_GRACE_MS) return;
-      next[id] = likedSet.has(id);
+      const serverLiked = likedSet.has(id);
+      const pendingDesired = pending && Object.prototype.hasOwnProperty.call(pending, id) ? !!pending[id] : null;
+      if (pendingDesired === null) {
+        next[id] = serverLiked;
+        return;
+      }
+
+      // 서버가 pending과 같은 상태를 반환하면 이제 확정된 것이므로 pending 해제
+      if (serverLiked === pendingDesired) {
+        next[id] = serverLiked;
+        delete pending[id];
+        return;
+      }
+
+      // 서버가 아직 따라오지 않은 상태면, 상호작용 결과를 유지(초기화 방지)
+      next[id] = pendingDesired;
     });
-    localStorage.setItem('likedPosts', JSON.stringify(next));
+    writeJson('likedPosts', next);
+    writeJson(LIKED_POSTS_PENDING_KEY, pending);
     window.dispatchEvent(new CustomEvent('postLikesSynced', { detail: { count: likedIdsFromServer?.length || 0 } }));
   } catch {
     /* ignore */
