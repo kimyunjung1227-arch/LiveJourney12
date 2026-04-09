@@ -1289,29 +1289,28 @@ const MainScreen = () => {
                                     <span className="material-symbols-outlined" style={{ fontSize: 18 }}>chevron_right</span>
                                 </button>
                             </div>
-                            {(!Array.isArray(crowdedData) || crowdedData.length === 0) ? (
+                            {!hotFeedCardProps ? (
                                 <div style={{ textAlign: 'center', padding: '12px 12px', color: '#94a3b8', fontSize: '14px' }}>
                                     아직 실시간 핫플 게시물이 없어요.
                                 </div>
                             ) : (
-                                <div className="flex flex-col gap-2">
-                                    {crowdedData.slice(0, 3).map((post) => {
-                                        const cardProps = buildHotFeedCardProps(post, weatherByRegion);
-                                        if (!cardProps) return null;
-                                        const socialText = getHotFeedSocialLine(cardProps, hotFeedSocialIdx);
-                                        const liked = isPostLiked(post.id);
-                                        return (
-                                            <HotFeedCard
-                                                key={`main-crowded-${post.id}`}
-                                                cardProps={cardProps}
-                                                socialText={socialText}
-                                                liked={liked}
-                                                onCardClick={withDragCheck(() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } }))}
-                                                onLikeClick={handleHotFeedLike}
-                                            />
-                                        );
-                                    })}
-                                </div>
+                                (() => {
+                                    const { post } = hotFeedCardProps;
+                                    const slideIdx = crowdedData.length ? hotFeedSlideIndex % crowdedData.length : 0;
+                                    const socialText = getHotFeedSocialLine(hotFeedCardProps, hotFeedSocialIdx);
+                                    const liked = isPostLiked(post.id);
+                                    return (
+                                        <HotFeedCard
+                                            key={`${post.id}-${slideIdx}`}
+                                            cardProps={hotFeedCardProps}
+                                            socialText={socialText}
+                                            liked={liked}
+                                            onCardClick={withDragCheck(() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } }))}
+                                            onLikeClick={handleHotFeedLike}
+                                            videoPosterUrl={hotFeedVideoPoster}
+                                        />
+                                    );
+                                })()
                             )}
                         </div>
 
