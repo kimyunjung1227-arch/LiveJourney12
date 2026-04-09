@@ -6,6 +6,23 @@ import { setLikedPostLocalCache } from '../utils/socialInteractions';
 const isValidUuid = (v) =>
   typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
 
+// 좋아요/언좋아요 연타(중복 요청)로 409가 발생하는 케이스를 줄이기 위한 per-post mutex
+const likeMutex = new Map(); // key: `${userId}:${postId}` -> Promise
+async function withLikeLock(key, fn) {
+  const prev = likeMutex.get(key) || Promise.resolve();
+  let release;
+  const next = new Promise((r) => (release = r));
+  likeMutex.set(key, prev.then(() => next));
+  try {
+    await prev;
+    return await fn();
+  } finally {
+    release();
+    // 체인이 끝났다면 정리
+    if (likeMutex.get(key) === next) likeMutex.delete(key);
+  }
+}
+
 /** PostgREST insert 시 (post_id,user_id) 등 unique 충돌 */
 function isUniqueConflictError(err, depth = 0) {
   if (!err || depth > 2) return false;
@@ -99,8 +116,12 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null, o
   const pid = String(postId || '').trim();
   if (!isValidUuid(uid) || !isValidUuid(pid)) return { success: false, isLiked: false };
   const likedBeforeClick = opts.likedBeforeClick;
-  try {
+  const lockKey = `${uid}:${pid}`;
+  return await withLikeLock(lockKey, async () => {
+    try {
     if (likedBeforeClick === true) {
+      // optimistic
+      setLikedPostLocalCache(pid, false);
       // RPC 우선(409 자체 제거). 없으면 기존 delete로 fallback.
       const { data: rpcOk, error: rpcErr } = await supabase.rpc('unlike_post', { p_post_id: pid });
       if (rpcErr) {
@@ -113,19 +134,18 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null, o
       } else if (rpcOk !== true && rpcOk !== false) {
         // ignore unexpected return
       }
-      setLikedPostLocalCache(pid, false);
       return { success: true, isLiked: false };
     }
 
     // RPC 우선(409 자체 제거). 반환값: inserted(boolean)
     let insertedFresh = false;
+    // optimistic
+    setLikedPostLocalCache(pid, true);
     const { data: rpcInserted, error: rpcErr } = await supabase.rpc('like_post', { p_post_id: pid });
     if (!rpcErr) {
       insertedFresh = rpcInserted === true;
-      setLikedPostLocalCache(pid, true);
     } else if (isUniqueConflictError(rpcErr)) {
       // RPC가 409/23505로 터져도 "이미 좋아요"로 멱등 성공 처리
-      setLikedPostLocalCache(pid, true);
       return { success: true, isLiked: true };
     } else {
       // RPC가 실패하면 direct insert로 fallback 하지 않음(409/중복 스팸 방지)
@@ -162,8 +182,14 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null, o
     return { success: true, isLiked: true };
   } catch (e) {
     logger.warn('togglePostLikeSupabase 실패:', e?.message, e?.code || e?.status || '');
+    // optimistic 롤백(최소화): unknown 에러면 로컬 상태를 원복
+    try {
+      if (likedBeforeClick === true) setLikedPostLocalCache(pid, true);
+      else setLikedPostLocalCache(pid, false);
+    } catch {}
     return { success: false, isLiked: false };
   }
+  });
 };
 
 export const fetchCommentsForPostSupabase = async (postId) => {
