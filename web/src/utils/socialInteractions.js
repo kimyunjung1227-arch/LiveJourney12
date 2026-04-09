@@ -38,10 +38,9 @@ export const mergeLikedPostsFromServer = (queriedPostIds, likedIdsFromServer) =>
   try {
     const prev = JSON.parse(localStorage.getItem('likedPosts') || '{}');
     const likedSet = new Set((likedIdsFromServer || []).map((x) => String(x)));
-    const next = {};
-    Object.keys(prev).forEach((k) => {
-      if (!POST_ID_UUID_RE.test(k)) next[k] = prev[k];
-    });
+    // 기존 UUID 좋아요 캐시를 지우지 말고(피드에 없다고 삭제하면 "추적이 안됨"으로 보임),
+    // 이번에 조회한 ID만 서버 기준으로 덮어쓴다.
+    const next = { ...(prev && typeof prev === 'object' ? prev : {}) };
     (queriedPostIds || []).forEach((pid) => {
       const id = String(pid);
       if (!POST_ID_UUID_RE.test(id)) return;
