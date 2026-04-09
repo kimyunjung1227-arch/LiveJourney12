@@ -425,11 +425,10 @@ security definer
 set search_path = public
 as $$
 declare
-  inserted boolean := false;
   rc integer := 0;
 begin
   if auth.uid() is null then
-    raise exception 'not authenticated';
+    return false;
   end if;
 
   begin
@@ -438,18 +437,18 @@ begin
     on conflict (post_id, user_id) do nothing;
   exception
     when unique_violation then
-      -- 호스트/스택에 따라 on conflict가 적용되기 전에 unique_violation이 노출되는 케이스 방지
-      inserted := false;
       rc := 0;
+    when foreign_key_violation then
+      -- post_id가 없거나 FK 제약에 걸리면 실패로 처리(예외 밖으로 안 던짐)
+      return false;
+    when others then
+      return false;
   end;
 
-  if rc = 0 then
-    get diagnostics rc = row_count;
-  end if;
-  inserted := inserted or (rc > 0);
+  get diagnostics rc = row_count;
 
   perform public.recalc_post_likes_count(p_post_id);
-  return inserted;
+  return (rc > 0);
 end;
 $$;
 
@@ -460,21 +459,19 @@ security definer
 set search_path = public
 as $$
 declare
-  deleted boolean := false;
   rc integer := 0;
 begin
   if auth.uid() is null then
-    raise exception 'not authenticated';
+    return false;
   end if;
 
   delete from public.post_likes
   where post_id = p_post_id and user_id = auth.uid();
 
   get diagnostics rc = row_count;
-  deleted := (rc > 0);
 
   perform public.recalc_post_likes_count(p_post_id);
-  return deleted;
+  return (rc > 0);
 end;
 $$;
 
