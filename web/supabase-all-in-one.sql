@@ -432,12 +432,21 @@ begin
     raise exception 'not authenticated';
   end if;
 
-  insert into public.post_likes (post_id, user_id)
-  values (p_post_id, auth.uid())
-  on conflict (post_id, user_id) do nothing;
+  begin
+    insert into public.post_likes (post_id, user_id)
+    values (p_post_id, auth.uid())
+    on conflict (post_id, user_id) do nothing;
+  exception
+    when unique_violation then
+      -- 호스트/스택에 따라 on conflict가 적용되기 전에 unique_violation이 노출되는 케이스 방지
+      inserted := false;
+      rc := 0;
+  end;
 
-  get diagnostics rc = row_count;
-  inserted := (rc > 0);
+  if rc = 0 then
+    get diagnostics rc = row_count;
+  end if;
+  inserted := inserted or (rc > 0);
 
   perform public.recalc_post_likes_count(p_post_id);
   return inserted;

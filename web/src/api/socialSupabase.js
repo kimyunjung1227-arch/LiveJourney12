@@ -123,36 +123,13 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null, o
     if (!rpcErr) {
       insertedFresh = rpcInserted === true;
       setLikedPostLocalCache(pid, true);
-    } else {
-      // fallback: select→insert (레이스 시 409는 멱등 성공 처리)
-      const { data: existsRow, error: existsErr } = await supabase
-        .from('post_likes')
-        .select('post_id')
-        .eq('user_id', uid)
-        .eq('post_id', pid)
-        .maybeSingle();
-      if (existsErr) throw existsErr;
-      if (existsRow) {
-        setLikedPostLocalCache(pid, true);
-        return { success: true, isLiked: true };
-      }
-
-      const { data: insData, error: insErr } = await supabase
-        .from('post_likes')
-        .insert({ user_id: uid, post_id: pid })
-        .select('post_id')
-        .maybeSingle();
-
-      if (insErr) {
-        if (isUniqueConflictError(insErr)) {
-          setLikedPostLocalCache(pid, true);
-          return { success: true, isLiked: true };
-        }
-        throw insErr;
-      }
-
+    } else if (isUniqueConflictError(rpcErr)) {
+      // RPC가 409/23505로 터져도 "이미 좋아요"로 멱등 성공 처리
       setLikedPostLocalCache(pid, true);
-      insertedFresh = !!insData;
+      return { success: true, isLiked: true };
+    } else {
+      // RPC가 실패하면 direct insert로 fallback 하지 않음(409/중복 스팸 방지)
+      throw rpcErr;
     }
 
     const { data: postRow } = await supabase
