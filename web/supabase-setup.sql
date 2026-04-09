@@ -1,159 +1,166 @@
+-- LiveJourney: Supabase 스키마(게시물/매거진/프로필) + RLS (멀티기기 동기화용)
+-- Supabase Dashboard → SQL Editor에서 "전체를 그대로" 실행하세요.
+-- 실행 순서:
+-- 1) 이 파일(supabase-setup.sql)
+-- 2) web/supabase-social-setup.sql (좋아요/댓글/팔로우/알림 등)
+
+create extension if not exists pgcrypto;
+
 -- ============================================================
--- Supabase 한 번에 설정
--- Supabase 대시보드 → SQL Editor에서 이 파일 전체를 복사해 Run 하세요.
--- (게시물 저장 오류, RLS, Storage 사진 업로드, 관리자·공지·좋아요·댓글 추적까지 모두 포함)
--- ※ 사진이 안 올라가면: Storage → New bucket → 이름 'post-images', Public 체크 후 생성하고 이 스크립트 다시 실행.
+-- 0) public.users (프로필) — 없으면 생성
+--    ⚠️ 현재 당신이 붙여넣은 RLS/트리거 SQL은 public.users 테이블이 없으면 여기서 에러로 멈춥니다.
+--    "에러로 중간에 멈추면" 뒤쪽(posts/magazines/policy)이 적용되지 않아 다른 기기에서 안 보이는 증상이 남습니다.
 -- ============================================================
-
--- --------------------------------------------------------------
--- 1) posts 테이블 수정 (저장 오류 방지)
--- --------------------------------------------------------------
--- user_id nullable (23502 방지)
-ALTER TABLE public.posts ALTER COLUMN user_id DROP NOT NULL;
-
--- user_id FK 제거 (23503: auth.users와 연동 시 public.users 미사용)
-ALTER TABLE public.posts DROP CONSTRAINT IF EXISTS posts_user_id_fkey;
-
--- 댓글 저장용 컬럼 (없으면 추가)
-ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]'::jsonb;
-
--- 작성자 표시명·프로필 이미지 (게시물 상세에서 '익명 여행자' 대신 실제 이름 표시)
-ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS author_username TEXT;
-ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS author_avatar_url TEXT;
-
--- --------------------------------------------------------------
--- 2) posts RLS — 기존 정책 제거 후 재생성
--- --------------------------------------------------------------
-ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS allow_public_insert ON public.posts;
-DROP POLICY IF EXISTS allow_public_select ON public.posts;
-DROP POLICY IF EXISTS allow_public_delete ON public.posts;
-DROP POLICY IF EXISTS allow_authenticated_post_delete ON public.posts;
-DROP POLICY IF EXISTS allow_post_likes_update ON public.posts;
-
--- anon: 게시물 등록·조회·삭제
-CREATE POLICY allow_public_insert ON public.posts
-  FOR INSERT TO anon WITH CHECK (true);
-
-CREATE POLICY allow_public_select ON public.posts
-  FOR SELECT TO anon USING (true);
-
-CREATE POLICY allow_public_delete ON public.posts
-  FOR DELETE TO anon USING (true);
-
--- --------------------------------------------------------------
--- 3) 관리자·공지 테이블
--- --------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.admin_users (
-  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+create table if not exists public.users (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text null,
+  username text null,
+  avatar_url text null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
-CREATE TABLE IF NOT EXISTS public.notices (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title TEXT NOT NULL,
-  category TEXT DEFAULT '공지',
-  content TEXT NOT NULL,
-  is_pinned BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+alter table public.users enable row level security;
+
+drop policy if exists "users_select_all" on public.users;
+create policy "users_select_all" on public.users
+for select to anon, authenticated using (true);
+
+-- 회원가입 시 public.users 프로필 자동 생성 트리거
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+as $$
+begin
+  insert into public.users (id, email, username, avatar_url)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
+    new.raw_user_meta_data->>'avatar_url'
+  )
+  on conflict (id) do update set
+    email = excluded.email,
+    username = coalesce(excluded.username, public.users.username),
+    avatar_url = coalesce(excluded.avatar_url, public.users.avatar_url),
+    updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
+
+-- ============================================================
+-- 1) posts — 프론트(postsSupabase.js)가 기대하는 컬럼을 확정
+-- ============================================================
+create table if not exists public.posts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid null references auth.users(id) on delete set null,
+  author_username text null,
+  author_avatar_url text null,
+  content text not null default '',
+  images text[] not null default '{}'::text[],
+  videos text[] not null default '{}'::text[],
+  location text null,
+  detailed_location text null,
+  place_name text null,
+  region text null,
+  weather jsonb null,
+  tags text[] not null default '{}'::text[],
+  category text null,
+  category_name text null,
+  likes_count integer not null default 0,
+  comments jsonb not null default '[]'::jsonb,
+  captured_at timestamptz null,
+  created_at timestamptz not null default now()
 );
 
-ALTER TABLE public.admin_users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.notices ENABLE ROW LEVEL SECURITY;
+-- 기존 테이블 보강(누락 컬럼 추가)
+alter table public.posts add column if not exists weather jsonb null;
+alter table public.posts add column if not exists images text[] not null default '{}'::text[];
+alter table public.posts add column if not exists videos text[] not null default '{}'::text[];
+alter table public.posts add column if not exists tags text[] not null default '{}'::text[];
+alter table public.posts add column if not exists comments jsonb not null default '[]'::jsonb;
+alter table public.posts add column if not exists author_username text null;
+alter table public.posts add column if not exists author_avatar_url text null;
+alter table public.posts add column if not exists captured_at timestamptz null;
+alter table public.posts add column if not exists region text null;
+alter table public.posts add column if not exists detailed_location text null;
+alter table public.posts add column if not exists place_name text null;
+alter table public.posts add column if not exists category text null;
+alter table public.posts add column if not exists category_name text null;
+alter table public.posts alter column user_id drop not null;
 
--- admin_users: 본인 행만 조회
-DROP POLICY IF EXISTS admin_users_select_own ON public.admin_users;
-CREATE POLICY admin_users_select_own ON public.admin_users
-  FOR SELECT USING (auth.uid() = user_id);
+create index if not exists posts_created_at_idx on public.posts (created_at desc);
+create index if not exists posts_region_created_at_idx on public.posts (region, created_at desc);
 
--- notices: 모두 읽기, 관리자만 쓰기/수정/삭제
-DROP POLICY IF EXISTS notices_select_all ON public.notices;
-CREATE POLICY notices_select_all ON public.notices
-  FOR SELECT USING (true);
+alter table public.posts enable row level security;
 
-DROP POLICY IF EXISTS notices_insert_admin ON public.notices;
-CREATE POLICY notices_insert_admin ON public.notices
-  FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.admin_users WHERE user_id = auth.uid()));
+-- ✅ 멀티기기 표시의 핵심: 다른 기기(anon/authenticated)에서도 "읽기"가 반드시 열려 있어야 함
+drop policy if exists "posts_select_all" on public.posts;
+create policy "posts_select_all" on public.posts
+for select to anon, authenticated using (true);
 
-DROP POLICY IF EXISTS notices_update_admin ON public.notices;
-CREATE POLICY notices_update_admin ON public.notices
-  FOR UPDATE USING (EXISTS (SELECT 1 FROM public.admin_users WHERE user_id = auth.uid()));
+drop policy if exists "posts_insert_all" on public.posts;
+create policy "posts_insert_all" on public.posts
+for insert to anon, authenticated with check (true);
 
-DROP POLICY IF EXISTS notices_delete_admin ON public.notices;
-CREATE POLICY notices_delete_admin ON public.notices
-  FOR DELETE USING (EXISTS (SELECT 1 FROM public.admin_users WHERE user_id = auth.uid()));
+drop policy if exists "posts_update_all" on public.posts;
+create policy "posts_update_all" on public.posts
+for update to anon, authenticated using (true) with check (true);
 
--- notices updated_at 자동 갱신
-CREATE OR REPLACE FUNCTION public.set_notices_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+drop policy if exists "posts_delete_all" on public.posts;
+create policy "posts_delete_all" on public.posts
+for delete to anon, authenticated using (true);
 
-DROP TRIGGER IF EXISTS notices_updated_at ON public.notices;
-CREATE TRIGGER notices_updated_at
-  BEFORE UPDATE ON public.notices
-  FOR EACH ROW EXECUTE PROCEDURE public.set_notices_updated_at();
 
--- --------------------------------------------------------------
--- 4) posts 추가 정책 (관리자/작성자 삭제, 좋아요 수 갱신)
--- --------------------------------------------------------------
--- 로그인한 관리자 또는 작성자만 삭제 가능 (admin_users 존재 시 적용)
-CREATE POLICY allow_authenticated_post_delete ON public.posts
-  FOR DELETE TO authenticated
-  USING (
-    auth.uid() IN (SELECT user_id FROM public.admin_users)
-    OR auth.uid() = user_id
-  );
-
--- 좋아요 수 갱신용 UPDATE 허용
-CREATE POLICY allow_post_likes_update ON public.posts
-  FOR UPDATE USING (true) WITH CHECK (true);
-
--- --------------------------------------------------------------
--- 5) user_badges — 뱃지 획득 기록 (로그아웃/재로그인 후에도 유지)
--- --------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.user_badges (
-  user_id UUID NOT NULL,
-  badge_name TEXT NOT NULL,
-  earned_at TIMESTAMPTZ DEFAULT NOW(),
-  region TEXT,
-  PRIMARY KEY (user_id, badge_name)
+-- ============================================================
+-- 2) magazines — 404 방지
+-- ============================================================
+create table if not exists public.magazines (
+  id text primary key,
+  title text not null default '',
+  subtitle text not null default '',
+  sections jsonb not null default '[]'::jsonb,
+  author text null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
-ALTER TABLE public.user_badges ENABLE ROW LEVEL SECURITY;
+create index if not exists magazines_created_at_idx on public.magazines (created_at desc);
 
-DROP POLICY IF EXISTS user_badges_select_own ON public.user_badges;
-CREATE POLICY user_badges_select_own ON public.user_badges
-  FOR SELECT USING (true);
+alter table public.magazines enable row level security;
 
-DROP POLICY IF EXISTS user_badges_insert_own ON public.user_badges;
-CREATE POLICY user_badges_insert_own ON public.user_badges
-  FOR INSERT WITH CHECK (true);
+drop policy if exists "magazines_select_all" on public.magazines;
+create policy "magazines_select_all" on public.magazines
+for select to anon, authenticated using (true);
 
--- --------------------------------------------------------------
--- 6) Storage (post-images) — 사진/동영상 업로드·다른 사용자에게 보이기
---    ※ 버킷이 없으면 대시보드 Storage → New bucket → 이름 'post-images', Public 체크 후 생성
--- --------------------------------------------------------------
-DROP POLICY IF EXISTS allow_public_upload_post_images ON storage.objects;
-CREATE POLICY allow_public_upload_post_images ON storage.objects
-  FOR INSERT WITH CHECK (bucket_id = 'post-images');
+drop policy if exists "magazines_insert_all" on public.magazines;
+create policy "magazines_insert_all" on public.magazines
+for insert to anon, authenticated with check (true);
 
-DROP POLICY IF EXISTS allow_public_read_post_images ON storage.objects;
-CREATE POLICY allow_public_read_post_images ON storage.objects
-  FOR SELECT USING (bucket_id = 'post-images');
+drop policy if exists "magazines_update_all" on public.magazines;
+create policy "magazines_update_all" on public.magazines
+for update to anon, authenticated using (true) with check (true);
+
+drop policy if exists "magazines_delete_all" on public.magazines;
+create policy "magazines_delete_all" on public.magazines
+for delete to anon, authenticated using (true);
+
 
 -- ============================================================
--- 관리자 추가 방법 (둘 중 하나 선택)
+-- 3) Storage 정책(선택) — 버킷: post-images
+--    버킷 자체 생성은 대시보드에서 1회 필요할 수 있음.
 -- ============================================================
--- 방법 1) Supabase 대시보드 → Authentication → Users 에서
---         관리자로 지정할 사용자의 UUID를 복사한 뒤 아래 실행
---         INSERT INTO public.admin_users (user_id) VALUES ('복사한-UUID-여기');
---
--- 방법 2) 앱 .env에 다음 추가 후 해당 이메일로 로그인한 사용자가 관리자
---         VITE_ADMIN_EMAILS=admin@example.com,another@example.com
--- ============================================================
+drop policy if exists "allow_public_upload_post_images" on storage.objects;
+create policy "allow_public_upload_post_images" on storage.objects
+for insert to anon, authenticated with check (bucket_id = 'post-images');
+
+drop policy if exists "allow_public_read_post_images" on storage.objects;
+create policy "allow_public_read_post_images" on storage.objects
+for select to anon, authenticated using (bucket_id = 'post-images');

@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "과거의 정보가 아닌, 지금 당신의 눈 앞에 펼쳐진 여정(Journey)을 가장 스마트하고 즐겁게 완성합니다.",
   "private": true,
+  "engines": {
+    "node": ">=20 <24"
+  },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
     "@capacitor/camera": "^7.0.3",

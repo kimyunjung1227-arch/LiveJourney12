@@ -44,6 +44,40 @@ const onlyPersistentUrls = (arr) => {
 const isValidUuid = (v) =>
   typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
 
+const POST_IMAGES_BUCKET = 'post-images';
+
+const extractStorageObjectPath = (urlOrPath) => {
+  if (!urlOrPath) return null;
+  const s = String(urlOrPath).trim();
+  if (!s) return null;
+
+  // already a relative storage path used by our uploader
+  if (s.startsWith('uploads/') || s.startsWith('videos/')) return s;
+
+  // Supabase public URL patterns:
+  // - .../storage/v1/object/public/<bucket>/<path>
+  // - .../storage/v1/object/sign/<bucket>/<path>?token=...
+  const markerPublic = `/storage/v1/object/public/${POST_IMAGES_BUCKET}/`;
+  const markerSign = `/storage/v1/object/sign/${POST_IMAGES_BUCKET}/`;
+  const iPublic = s.indexOf(markerPublic);
+  if (iPublic >= 0) return s.slice(iPublic + markerPublic.length).split('?')[0] || null;
+  const iSign = s.indexOf(markerSign);
+  if (iSign >= 0) return s.slice(iSign + markerSign.length).split('?')[0] || null;
+
+  return null;
+};
+
+const collectStoragePathsFromPost = (postRow) => {
+  const urls = [
+    ...(Array.isArray(postRow?.images) ? postRow.images : []),
+    ...(Array.isArray(postRow?.videos) ? postRow.videos : []),
+  ];
+  const paths = urls
+    .map(extractStorageObjectPath)
+    .filter(Boolean);
+  return Array.from(new Set(paths));
+};
+
 // Supabase posts 테이블에 게시물 저장 (user_id는 로그인 사용자 UUID일 때 저장)
 export const createPostSupabase = async (post) => {
   try {
@@ -167,6 +201,34 @@ export const deletePostSupabase = async (postId) => {
     return { success: true };
   }
   try {
+    // 1) 먼저 게시물에서 미디어 URL을 가져와 Storage 경로로 변환
+    let storagePaths = [];
+    try {
+      const { data: row, error: fetchErr } = await supabase
+        .from('posts')
+        .select('images,videos')
+        .eq('id', trimmed)
+        .single();
+      if (!fetchErr && row) {
+        storagePaths = collectStoragePathsFromPost(row);
+      }
+    } catch (_) {}
+
+    // 2) Storage 객체 삭제(베스트 에포트)
+    // - 정책이 없거나(403) 이미 삭제된 경우는 게시물 삭제를 막지 않음
+    if (storagePaths.length > 0) {
+      const { error: storageErr } = await supabase
+        .storage
+        .from(POST_IMAGES_BUCKET)
+        .remove(storagePaths);
+      if (storageErr) {
+        logger.warn('Supabase Storage 미디어 삭제 실패(무시하고 계속):', storageErr.message || storageErr);
+      } else {
+        logger.log('✅ Supabase Storage 미디어 삭제 완료:', { count: storagePaths.length });
+      }
+    }
+
+    // 3) DB 행 삭제
     const { data, error } = await supabase
       .from('posts')
       .delete()
