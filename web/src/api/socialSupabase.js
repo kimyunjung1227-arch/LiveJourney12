@@ -109,7 +109,7 @@ async function resolveActorDisplayForLike(uid, hint) {
 
 /**
  * 좋아요 토글. `likedBeforeClick`은 클릭 직전 UI/캐시 상태(필수).
- * 좋아요 추가는 insert만 사용 — 409/23505/duplicate는 "이미 좋아요"로 멱등 성공 처리.
+ * 서버는 `set_post_like` RPC로 멱등 처리.
  */
 export const togglePostLikeSupabase = async (userId, postId, actorHint = null, opts = {}) => {
   const uid = String(userId || '').trim();
@@ -305,10 +305,11 @@ export const followSupabase = async (followerId, followingId) => {
   const tid = String(followingId || '').trim();
   if (!isValidUuid(fid) || !isValidUuid(tid) || fid === tid) return { success: false };
   try {
-    const { error } = await supabase
-      .from('follows')
-      .upsert({ follower_id: fid, following_id: tid }, { onConflict: 'follower_id,following_id', ignoreDuplicates: true });
-    if (error) throw error;
+    const { error } = await supabase.from('follows').insert({ follower_id: fid, following_id: tid });
+    if (error) {
+      if (isUniqueConflictError(error)) return { success: true };
+      throw error;
+    }
     return { success: true };
   } catch (e) {
     logger.warn('followSupabase 실패:', e?.message);

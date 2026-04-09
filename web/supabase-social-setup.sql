@@ -6,7 +6,7 @@
 create extension if not exists pgcrypto;
 
 -- 1) 게시물 좋아요(사용자별)
--- 앱에서는 단순 insert 대신 upsert(onConflict post_id,user_id, ignoreDuplicates)로 409 중복 충돌을 피합니다.
+-- 앱: insert 후 409/23505(중복)은 "이미 좋아요"로 멱등 처리(호스트마다 upsert ignoreDuplicates 동작이 다름).
 create table if not exists public.post_likes (
   post_id uuid not null references public.posts(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -209,7 +209,11 @@ for delete using (auth.uid() = user_id);
 
 -- 5) likes_count 자동 유지(재진입/동기화 안정화)
 create or replace function public.recalc_post_likes_count(p_post_id uuid)
-returns void language plpgsql as $$
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
 begin
   update public.posts
   set likes_count = (select count(*) from public.post_likes where post_id = p_post_id)
@@ -218,7 +222,11 @@ end;
 $$;
 
 create or replace function public.on_post_likes_changed()
-returns trigger language plpgsql as $$
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
 begin
   perform public.recalc_post_likes_count(coalesce(new.post_id, old.post_id));
   return null;
