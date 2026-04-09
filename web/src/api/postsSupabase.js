@@ -306,6 +306,21 @@ export const fetchPostLikesCountSupabase = async (postId) => {
   }
 };
 
+/** 트리거 반영 지연 대비: likes_count를 몇 번 재시도해서 가져옴 */
+export const fetchPostLikesCountSupabaseWithRetry = async (postId, opts = {}) => {
+  const attempts = Math.max(1, Number(opts.attempts ?? 4) || 4);
+  const delayMs = Math.max(0, Number(opts.delayMs ?? 250) || 250);
+  for (let i = 0; i < attempts; i++) {
+    const n = await fetchPostLikesCountSupabase(postId);
+    if (n != null) return n;
+    if (i < attempts - 1 && delayMs > 0) {
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  return null;
+};
+
 /** 서버 숫자를 로컬 override + postLikeUpdated로 반영 (목록·상세 동기화) */
 export const applyPostLikesCountFromServer = (postId, likesCount) => {
   if (!postId) return;

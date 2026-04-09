@@ -7,7 +7,7 @@ import { getDisplayImageUrl } from '../api/upload';
 import {
   updatePostLikesSupabase,
   fetchPostByIdSupabase,
-  fetchPostLikesCountSupabase,
+  fetchPostLikesCountSupabaseWithRetry,
   applyPostLikesCountFromServer,
   addCommentToPostSupabase,
   updateCommentsInPostSupabase,
@@ -424,7 +424,7 @@ const PostDetailScreen = () => {
             });
             return;
           }
-          const n = await fetchPostLikesCountSupabase(post.id);
+          const n = await fetchPostLikesCountSupabaseWithRetry(post.id, { attempts: 5, delayMs: 250 });
           if (n != null) {
             setLikeCount(n);
             setPost((p) => (p ? { ...p, likes: n, likeCount: n } : p));
