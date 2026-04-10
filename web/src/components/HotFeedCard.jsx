@@ -1,29 +1,10 @@
 import React from 'react';
 import { getDisplayImageUrl } from '../api/upload';
 import { getMapThumbnailUri } from '../utils/postMedia';
+import { getHotFeedBadgeIconName } from '../utils/hotPlaceDisplay';
 
-const EXIF_TAG_BG = 'rgba(15,23,42,0.62)';
-
-function buildExifTags(post) {
-    const exif = post?.exifData || null;
-    const make = (exif?.cameraMake || post?.cameraMake || '').trim();
-    const model = (exif?.cameraModel || post?.cameraModel || '').trim();
-    const gps = exif?.gpsCoordinates || post?.gpsCoordinates || null;
-    const date = exif?.photoDate || post?.photoDate || null;
-
-    const tags = [];
-    if (make || model) tags.push([make, model].filter(Boolean).join(' ').trim());
-    if (gps && typeof gps === 'object' && Number.isFinite(gps.lat) && Number.isFinite(gps.lng)) tags.push('GPS');
-    if (date) {
-        const d = new Date(date);
-        if (!Number.isNaN(d.getTime())) {
-            const m = d.getMonth() + 1;
-            const day = d.getDate();
-            tags.push(`${m}/${day}`);
-        }
-    }
-    return tags.filter(Boolean).slice(0, 3);
-}
+const HOT_INDICATOR_BG = '#b91c1c';
+const CATEGORY_INDICATOR_BG = 'rgba(15,23,42,0.68)';
 
 /**
  * 메인 실시간 핫플 / 더보기 화면 — 동일 카드 UI (마크업·스타일 통일)
@@ -31,7 +12,9 @@ function buildExifTags(post) {
 const HotFeedCard = ({
     cardProps,
     socialText,
+    liked,
     onCardClick,
+    onLikeClick,
     videoPosterUrl = null,
 }) => {
     if (!cardProps) return null;
@@ -41,12 +24,18 @@ const HotFeedCard = ({
         weather,
         hasWeather,
         regionShort,
+        hotReasonLabel,
+        hotReasonIcon,
         cityDongLine,
         captionForCard,
+        photoCategoryLabels,
         avatars,
     } = cardProps;
 
-    const exifTags = buildExifTags(post);
+    const primaryCategoryLabel = Array.isArray(photoCategoryLabels) && photoCategoryLabels.length > 0
+        ? String(photoCategoryLabels[0] || '').trim()
+        : '';
+    const primaryCategoryIcon = primaryCategoryLabel ? getHotFeedBadgeIconName(primaryCategoryLabel) : 'photo_camera';
 
     return (
         <div
@@ -82,31 +71,50 @@ const HotFeedCard = ({
                         zIndex: 10,
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: 6,
+                        gap: 4,
                         maxWidth: 'calc(100% - 100px)',
                     }}
                 >
-                    {exifTags.map((t) => (
+                    <span
+                        title="이 게시물이 핫플에 오른 이유"
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            background: HOT_INDICATOR_BG,
+                            color: '#fff',
+                            padding: '4px 9px',
+                            borderRadius: 9999,
+                            fontSize: 10,
+                            fontWeight: 800,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                            maxWidth: '100%',
+                        }}
+                    >
+                        <span className="material-symbols-outlined shrink-0" style={{ fontSize: 14, fontVariationSettings: '"FILL" 1' }}>{hotReasonIcon}</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hotReasonLabel}</span>
+                    </span>
+                    {primaryCategoryLabel ? (
                         <span
-                            key={`${post.id}-exif-${t}`}
-                            title="EXIF 기반 태그"
+                            title="사진 카테고리"
                             style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                background: EXIF_TAG_BG,
-                                backdropFilter: 'blur(8px)',
+                                gap: 4,
+                                background: CATEGORY_INDICATOR_BG,
                                 color: '#fff',
                                 padding: '4px 9px',
                                 borderRadius: 9999,
                                 fontSize: 10,
-                                fontWeight: 700,
+                                fontWeight: 800,
                                 boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
                                 maxWidth: '100%',
                             }}
                         >
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t}</span>
+                            <span className="material-symbols-outlined shrink-0" style={{ fontSize: 14, fontVariationSettings: '"FILL" 1' }}>{primaryCategoryIcon}</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{primaryCategoryLabel}</span>
                         </span>
-                    ))}
+                    ) : null}
                 </div>
                 {hasWeather ? (
                     <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(15,23,42,0.52)', backdropFilter: 'blur(8px)', color: '#f8fafc', padding: '4px 9px', borderRadius: 9999, fontSize: 10, fontWeight: 600, maxWidth: '58%' }}>
@@ -210,6 +218,17 @@ const HotFeedCard = ({
                             {socialText}
                         </span>
                     </div>
+                    <button
+                        type="button"
+                        aria-label="좋아요"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onLikeClick(e, post);
+                        }}
+                        style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', flexShrink: 0, color: liked ? '#f43f5e' : '#94a3b8' }}
+                    >
+                        <span className="material-symbols-outlined" style={{ fontSize: 22, fontVariationSettings: liked ? '"FILL" 1' : '"FILL" 0' }}>favorite</span>
+                    </button>
                 </div>
             </div>
         </div>

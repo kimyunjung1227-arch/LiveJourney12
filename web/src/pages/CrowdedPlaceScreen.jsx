@@ -24,7 +24,7 @@ const CrowdedPlaceScreen = () => {
     const contentRef = useRef(null);
 
     useEffect(() => {
-        const id = setInterval(() => setCrowdedSocialIdx((i) => (i + 1) % 2), 2800);
+        const id = setInterval(() => setCrowdedSocialIdx((i) => (i + 1) % 3), 2800);
         return () => clearInterval(id);
     }, []);
 
@@ -70,7 +70,27 @@ const CrowdedPlaceScreen = () => {
         };
     }, [crowdedRegionsKey]);
 
-    // 피드 카드에서 좋아요 수치/표시를 노출하지 않음
+    const handleHotFeedLike = useCallback((e, post) => {
+        e.stopPropagation();
+        const wasLiked = isPostLiked(post.id);
+        const baseLikes = typeof post.likes === 'number'
+            ? post.likes
+            : (typeof post.likeCount === 'number' ? post.likeCount : 0);
+        const result = toggleLike(post.id, baseLikes);
+        if (result.existsInStorage) {
+            setCrowdedData((prev) =>
+                prev.map((p) => (p && p.id === post.id ? { ...p, likes: result.newCount, likeCount: result.newCount } : p))
+            );
+        } else {
+            const delta = wasLiked ? -1 : 1;
+            updatePostLikesSupabase(post.id, delta);
+            setCrowdedData((prev) =>
+                prev.map((p) =>
+                    (p && p.id === post.id ? { ...p, likes: result.newCount, likeCount: result.newCount } : p)
+                )
+            );
+        }
+    }, []);
 
     useEffect(() => {
         const handler = () => setRefreshKey((k) => k + 1);
@@ -189,12 +209,15 @@ const CrowdedPlaceScreen = () => {
                                     const cardProps = buildHotFeedCardProps(post, weatherByRegion);
                                     if (!cardProps) return null;
                                     const socialText = getHotFeedSocialLine(cardProps, crowdedSocialIdx);
+                                    const liked = isPostLiked(post.id);
                                     return (
                                         <HotFeedCard
                                             key={post.id}
                                             cardProps={cardProps}
                                             socialText={socialText}
+                                            liked={liked}
                                             onCardClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } })}
+                                            onLikeClick={handleHotFeedLike}
                                         />
                                     );
                                 })}

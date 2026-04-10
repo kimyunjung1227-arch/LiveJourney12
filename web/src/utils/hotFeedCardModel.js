@@ -93,10 +93,11 @@ export function buildHotFeedCardProps(post, weatherByRegion = {}) {
 
 export function getHotFeedSocialLine(cardProps, socialIndex) {
     if (!cardProps) return '';
-    const { viewingCount, photoCount } = cardProps;
+    const { viewingCount, likeCount, photoCount } = cardProps;
     const socialLines = [
         `지금 약 ${viewingCount}명이 이 피드를 보고 있어요`,
+        `좋아요 ${likeCount}개를 받았어요`,
         `${photoCount}명이 지금 사진 찍는 중이에요`,
     ];
-    return socialLines[socialIndex % socialLines.length];
+    return socialLines[socialIndex % 3];
 }

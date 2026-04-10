@@ -203,6 +203,7 @@ const RealtimeFeedScreen = () => {
               const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
               const weather = post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
               const hasWeather = weather && (weather.icon || weather.temperature);
+              const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
               return (
                 <div
                   key={`${post.id}-${index}`}
@@ -234,6 +235,27 @@ const RealtimeFeedScreen = () => {
                         <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>image</span>
                       </div>
                     )}
+                    <div style={{ position: 'absolute', bottom: '8px', right: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          background: 'rgba(255,255,255,0.96)',
+                          color: '#111827',
+                          padding: '4px 8px',
+                          borderRadius: '9999px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          boxShadow: '0 2px 6px rgba(15,23,42,0.18)',
+                        }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#ef4444', fontVariationSettings: "'FILL' 0" }}>
+                          favorite
+                        </span>
+                        <span>{likeCount}</span>
+                      </span>
+                    </div>
                   </div>
 
                   <div style={feedGridInfoBox}>
