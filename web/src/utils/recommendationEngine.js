@@ -1058,6 +1058,53 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming', op
     return single.length > 38 ? `${single.slice(0, 36)}…` : single;
   };
 
+  /** 카드용: 최신 글 기준 사용자 입력(노트·본문) 길게 추출 */
+  const getUserVoiceFull = (postsForPlace) => {
+    const list = Array.isArray(postsForPlace) ? postsForPlace : [];
+    const sorted = list.slice().sort((a, b) => {
+      const ta = new Date(a?.timestamp || a?.createdAt || 0).getTime();
+      const tb = new Date(b?.timestamp || b?.createdAt || 0).getTime();
+      return tb - ta;
+    });
+    for (const p of sorted) {
+      const raw = String(p?.note || p?.content || '').trim().replace(/\s+/g, ' ');
+      if (raw.length < 6) continue;
+      const stripped = raw.replace(/#[^\s#]+/g, ' ').replace(/\s+/g, ' ').trim();
+      if (stripped.length < 6) continue;
+      return stripped.length > 200 ? `${stripped.slice(0, 198)}…` : stripped;
+    }
+    return '';
+  };
+
+  const MAX_UNIFIED_PLACE_DESC_CHARS = 320;
+
+  /**
+   * AI 한 줄 요약 + 사용자 현장 글을 하나의 설명으로 통합 (최대 약 3줄 분량)
+   */
+  const buildUnifiedPlaceDescription = (typeId, placeKey, postsForPlace) => {
+    const ai = buildAiIntroForPlace(typeId, placeKey, postsForPlace).trim();
+    const user = getUserVoiceFull(postsForPlace);
+    const cap = (s) => (s.length > MAX_UNIFIED_PLACE_DESC_CHARS ? `${s.slice(0, MAX_UNIFIED_PLACE_DESC_CHARS - 1)}…` : s);
+
+    if (!user) return cap(ai);
+
+    const aiN = normalizeText(ai);
+    const userN = normalizeText(user);
+    if (userN.length >= 14) {
+      const probe = userN.slice(0, 28);
+      if (aiN.includes(probe)) return cap(ai);
+    }
+
+    let merged = `${ai} 최근에 올라온 방문객 글에는 「${user}」라는 내용이 담겨 있어요.`;
+    if (merged.length <= MAX_UNIFIED_PLACE_DESC_CHARS) return merged;
+
+    const head = `${ai} 방문객 제보: 「`;
+    const room = MAX_UNIFIED_PLACE_DESC_CHARS - head.length - 1;
+    const shortUser = user.length > room ? `${user.slice(0, Math.max(0, room - 1))}…` : user;
+    merged = `${head}${shortUser}」`;
+    return merged.length > MAX_UNIFIED_PLACE_DESC_CHARS ? cap(merged) : merged;
+  };
+
   const buildAiIntroForPlace = (typeId, placeKey, postsForPlace) => {
     const blob = postsForPlace.map((p) => getPostTextBlob(p)).join(' ');
     const hasCherry = matchesAny(blob, ['벚꽃', '개화', '만개', '절정', '꽃']);
@@ -1129,16 +1176,14 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming', op
     const liveIndicator = buildLiveIndicator(type, stat, extra, globalCtx, fd);
     const topTags = diversifyTopTags(buildTopTags(type, stat, extra));
     const placePosts = Array.isArray(stat.placePosts) ? stat.placePosts : [];
-    const userSnippet = getUserSnippet(placePosts);
-    const aiIntro = buildAiIntroForPlace(type, stat.placeKey, placePosts);
-    const edgePointScript = aiIntro;
+    const unifiedDescription = buildUnifiedPlaceDescription(type, stat.placeKey, placePosts);
 
     return {
       regionName: stat.placeKey, // 호환 필드(실제는 placeKey)
       placeName: stat.placeKey,
       title: stat.placeKey,
-      description: edgePointScript,
-      userSnippet,
+      description: unifiedDescription,
+      userSnippet: '',
       topTags,
       image: liveImage,
       liveImage,

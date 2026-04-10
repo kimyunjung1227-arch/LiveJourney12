@@ -1391,8 +1391,7 @@ const MainScreen = () => {
                                     ].filter(Boolean).slice(0, 5);
                                     const displayImages = rawImages.map(url => getDisplayImageUrl(url)).filter(Boolean);
                                     const mainSrc = displayImages[0] || 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80';
-                                    const aiIntro = (item.description || '').trim();
-                                    const userSnippet = item.userSnippet ? String(item.userSnippet).trim() : '';
+                                    const placeDescription = (item.description || '').trim();
                                     const topTags = Array.isArray(item.topTags) ? item.topTags.filter(Boolean).slice(0, 3) : [];
                                     const liveHeadline = item.liveIndicator && typeof item.liveIndicator === 'object' ? item.liveIndicator.headline : '';
                                     const freshness = item.freshness && typeof item.freshness === 'object' ? item.freshness : null;
@@ -1503,18 +1502,22 @@ const MainScreen = () => {
                                                         ))}
                                                     </div>
                                                 )}
-                                                {(aiIntro || userSnippet) ? (
-                                                    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                                        {aiIntro ? (
-                                                            <div style={{ color: '#475569', fontSize: 12, fontWeight: 700, lineHeight: 1.45, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                {aiIntro}
-                                                            </div>
-                                                        ) : null}
-                                                        {userSnippet ? (
-                                                            <div style={{ color: '#64748b', fontSize: 12, fontWeight: 600, lineHeight: 1.45, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                “{userSnippet}”
-                                                            </div>
-                                                        ) : null}
+                                                {placeDescription ? (
+                                                    <div
+                                                        style={{
+                                                            marginTop: 8,
+                                                            color: '#334155',
+                                                            fontSize: 12,
+                                                            fontWeight: 600,
+                                                            lineHeight: 1.5,
+                                                            display: '-webkit-box',
+                                                            WebkitLineClamp: 3,
+                                                            WebkitBoxOrient: 'vertical',
+                                                            overflow: 'hidden',
+                                                            wordBreak: 'break-word',
+                                                        }}
+                                                    >
+                                                        {placeDescription}
                                                     </div>
                                                 ) : null}
                                             </div>

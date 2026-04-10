@@ -190,6 +190,24 @@ const RecommendedPlaceScreen = () => {
                     <div style={{ fontSize: '13px', fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {item.regionName}
                     </div>
+                    {(item.description || '').trim() ? (
+                      <div
+                        style={{
+                          marginTop: 8,
+                          color: '#334155',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          lineHeight: 1.5,
+                          display: '-webkit-box',
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {(item.description || '').trim()}
+                      </div>
+                    ) : null}
                     {liveIndicator && (liveIndicator.headline || liveIndicator.detail) && (
                       <div
                         style={{
