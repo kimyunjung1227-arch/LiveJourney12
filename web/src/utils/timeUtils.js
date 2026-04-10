@@ -194,6 +194,41 @@ export const getPostAgeInHours = (timestamp) => {
   return (now - postDate) / (1000 * 60 * 60);
 };
 
+/**
+ * 추천 카드 투명성: "20시간 전", "어제 오후 3시" 등 구체적 표기
+ */
+export const getRecommendationTransparencyLabel = (timestamp) => {
+  if (!timestamp) return '시간 미상';
+  try {
+    const d = new Date(timestamp);
+    const now = new Date();
+    if (isNaN(d.getTime())) return '시간 미상';
+    const diffMs = now - d;
+    if (diffMs < 0) return '방금';
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = diffMs / (1000 * 60 * 60);
+    if (diffMins < 1) return '방금';
+    if (diffMins < 60) return `${diffMins}분 전`;
+    if (diffHours < 24) {
+      const h = Math.floor(diffHours);
+      const m = Math.floor(diffHours * 60) % 60;
+      if (m >= 1) return `${h}시간 ${m}분 전`;
+      return `${h}시간 전`;
+    }
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfPostDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const dayDiff = Math.round((startOfToday - startOfPostDay) / 86400000);
+    const hh = d.getHours();
+    const ap = hh < 12 ? '오전' : '오후';
+    const h12 = hh % 12 || 12;
+    if (dayDiff === 1) return `어제 ${ap} ${h12}시`;
+    if (dayDiff === 0) return `오늘 ${ap} ${h12}시`;
+    return `${d.getMonth() + 1}월 ${d.getDate()}일 ${ap} ${h12}시`;
+  } catch {
+    return '시간 미상';
+  }
+};
+
 export default {
   getTimeAgo,
   updatePostTimes,
@@ -203,6 +238,7 @@ export default {
   isOlderThanTwoDays,
   filterRecentPosts,
   getPostAgeInHours,
-  isPostLive
+  isPostLive,
+  getRecommendationTransparencyLabel,
 };
 

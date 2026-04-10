@@ -46,7 +46,7 @@ const RecommendedPlaceScreen = () => {
         <div>
           <h1 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#1f2937' }}>지금, 이 순간 꼭 가야 할 곳</h1>
           <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>
-            필터별 점수·승자 독식 배정·3시간 이내 사진만 대표로 씁니다
+            최근 24시간 제보 우선 · 순위는 최신순 · 신선도에 따라 점수 감쇠
           </p>
         </div>
       </header>
@@ -101,8 +101,11 @@ const RecommendedPlaceScreen = () => {
               const mainImageUrl = getDisplayImageUrl(rawImages[0]) || PLACEHOLDER_IMAGE;
               const statusBadges = Array.isArray(item.statusBadges) ? item.statusBadges : [];
               const liveIndicator = item.liveIndicator && typeof item.liveIndicator === 'object' ? item.liveIndicator : null;
+              const freshness = item.freshness && typeof item.freshness === 'object' ? item.freshness : null;
+              const isLiveBadge = freshness?.badge === 'live';
               const timelineThumbs = Array.isArray(item.timelineThumbs) ? item.timelineThumbs : [];
               const proofSummary = item.proofSummary || '';
+              const photoTimeLabel = freshness?.timeLabel || item.stats?.representativeTimeLabel || '';
 
               return (
                 <div
@@ -124,37 +127,56 @@ const RecommendedPlaceScreen = () => {
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       onError={(e) => { e.target.onerror = null; e.target.src = PLACEHOLDER_IMAGE; }}
                     />
-                    {item.stats?.isLive && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 8,
+                        left: 8,
+                        padding: '4px 8px',
+                        borderRadius: '999px',
+                        background: isLiveBadge ? 'rgba(22, 163, 74, 0.92)' : 'rgba(234, 179, 8, 0.92)',
+                        color: 'white',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        letterSpacing: '0.06em',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: '50%',
+                          backgroundColor: isLiveBadge ? '#bbf7d0' : '#fef9c3',
+                          boxShadow: isLiveBadge
+                            ? '0 0 0 3px rgba(34, 197, 94, 0.45)'
+                            : '0 0 0 3px rgba(250, 204, 21, 0.45)',
+                        }}
+                      />
+                      {isLiveBadge ? 'LIVE' : 'RECENT'}
+                    </div>
+                    {photoTimeLabel ? (
                       <div
                         style={{
                           position: 'absolute',
-                          top: 8,
+                          bottom: 8,
                           left: 8,
-                          padding: '4px 8px',
-                          borderRadius: '999px',
-                          background: 'rgba(239, 68, 68, 0.95)',
-                          color: 'white',
-                          fontSize: '10px',
+                          right: 8,
+                          padding: '6px 8px',
+                          borderRadius: 8,
+                          background: 'rgba(15, 23, 42, 0.72)',
+                          color: '#f8fafc',
+                          fontSize: '11px',
                           fontWeight: 700,
-                          letterSpacing: '0.08em',
-                          textTransform: 'uppercase',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4
+                          textAlign: 'center',
                         }}
                       >
-                        <span
-                          style={{
-                            width: 6,
-                            height: 6,
-                            borderRadius: '50%',
-                            backgroundColor: '#22c55e',
-                            boxShadow: '0 0 0 4px rgba(34, 197, 94, 0.4)'
-                          }}
-                        />
-                        LIVE
+                        대표 사진 · {photoTimeLabel}
                       </div>
-                    )}
+                    ) : null}
                   </div>
                   <div style={{ padding: '12px 14px 14px', background: '#f8fafc', borderTop: '3px solid #475569', boxShadow: '0 -2px 0 0 #475569, 0 2px 8px rgba(0,0,0,0.08)' }}>
                     <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>

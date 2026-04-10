@@ -4,7 +4,13 @@
  * - "시간"과 "태그" 중심으로 실시간성을 최대한 반영합니다.
  */
 
-import { filterRecentPosts, getTimeAgo, getPostAgeInHours, isPostLive } from './timeUtils';
+import {
+  filterRecentPosts,
+  getTimeAgo,
+  getPostAgeInHours,
+  isPostLive,
+  getRecommendationTransparencyLabel,
+} from './timeUtils';
 
 /**
  * (구) 지역 추천 → (신) 분위기/장소 추천으로 확장
@@ -469,8 +475,122 @@ const calculatePlaceUnitStats = (posts, placeKey) => {
   };
 };
 
-/** 카드·대표 사진: 최근 N시간 이내만 (정보 시차 제거) */
-export const RECOMMENDATION_FRESH_HOURS = 3;
+/** 라이브(초록) vs 리센트(노랑) 구분: 최신 게시물 기준 N시간 이내 */
+export const LIVE_THRESHOLD_HOURS = 3;
+
+/**
+ * 필터별 Smart 24h: 정보 성격에 따라 유효 윈도(시간) 다름
+ * - lively: 3~6시간 → 상한 6h
+ * - season: 꽃은 24~48h까지
+ * - night / 바다 / 한적: 24h
+ */
+export const FILTER_MAX_AGE_HOURS = {
+  lively_vibe: 6,
+  season_peak: 48,
+  night_good: 24,
+  silent_healing: 24,
+  deep_sea_blue: 24,
+};
+
+/** @deprecated 호환용 — 최신 로직은 FILTER_MAX_AGE_HOURS 사용 */
+export const RECOMMENDATION_FRESH_HOURS = LIVE_THRESHOLD_HOURS;
+
+const getPostTimestamp = (post) => post?.timestamp || post?.createdAt || post?.time;
+
+const filterPostsWithinHours = (posts, maxHours) => {
+  if (!Array.isArray(posts) || maxHours <= 0) return [];
+  return posts
+    .filter((p) => {
+      const ts = getPostTimestamp(p);
+      if (!ts) return false;
+      return getPostAgeInHours(ts) <= maxHours;
+    })
+    .sort((a, b) => {
+      const tb = new Date(getPostTimestamp(b) || 0).getTime();
+      const ta = new Date(getPostTimestamp(a) || 0).getTime();
+      return tb - ta;
+    });
+};
+
+/**
+ * 신선도 감쇠: 구간 가중 + S × (1 - t/T_max) 혼합 (T_max는 필터 최대 윈도)
+ */
+const computeFreshnessDecay = (ageHours, filterId) => {
+  const maxH = FILTER_MAX_AGE_HOURS[filterId] || 24;
+  let tierMult = 1;
+  let tierKey = 'live';
+  let tierLabel = '라이브 · 최신 제보';
+
+  if (filterId === 'lively_vibe') {
+    if (ageHours <= LIVE_THRESHOLD_HOURS) {
+      tierMult = 1;
+      tierKey = 'live';
+      tierLabel = '라이브 · 최근 제보';
+    } else if (ageHours <= maxH) {
+      tierMult = 0.55;
+      tierKey = 'today';
+      tierLabel = '최근 몇 시간(핫플은 빨리 변함)';
+    } else {
+      tierMult = 0;
+      tierKey = 'none';
+    }
+  } else if (filterId === 'season_peak') {
+    if (ageHours <= LIVE_THRESHOLD_HOURS) {
+      tierMult = 1;
+      tierKey = 'live';
+      tierLabel = '라이브 · 최신 제보';
+    } else if (ageHours <= 12) {
+      tierMult = 0.7;
+      tierKey = 'today';
+      tierLabel = '오늘 상황';
+    } else if (ageHours <= 24) {
+      tierMult = 0.4;
+      tierKey = 'yesterday';
+      tierLabel = '어제·지난 밤 상황';
+    } else if (ageHours <= maxH) {
+      tierMult = 0.25;
+      tierKey = 'extended';
+      tierLabel = '최근 이틀 이내 제보';
+    } else {
+      tierMult = 0;
+      tierKey = 'none';
+      tierLabel = '';
+    }
+  } else {
+    if (ageHours <= LIVE_THRESHOLD_HOURS) {
+      tierMult = 1;
+      tierKey = 'live';
+      tierLabel = '라이브 · 최신 제보';
+    } else if (ageHours <= 12) {
+      tierMult = 0.7;
+      tierKey = 'today';
+      tierLabel = '오늘 상황';
+    } else if (ageHours <= maxH) {
+      tierMult = 0.4;
+      tierKey = 'yesterday';
+      tierLabel = '어제·지난 밤 상황';
+    } else {
+      tierMult = 0;
+      tierKey = 'none';
+    }
+  }
+
+  const tCap = Math.min(ageHours, 24);
+  const linear24 = 1 - tCap / 24;
+  const linearWindow = maxH > 0 ? 1 - Math.min(ageHours, maxH) / maxH : 1;
+  const combined = tierMult * (0.45 + 0.35 * linear24 + 0.2 * linearWindow);
+  const badge = ageHours <= LIVE_THRESHOLD_HOURS ? 'live' : 'recent';
+
+  return {
+    tierMult,
+    linear24,
+    linearWindow,
+    combined: Math.max(0.08, combined),
+    tierKey,
+    tierLabel: tierLabel || '최근 제보',
+    badge,
+  };
+};
 
 const LJ_FILTER_ORDER = ['season_peak', 'lively_vibe', 'night_good', 'silent_healing', 'deep_sea_blue'];
 
@@ -696,12 +816,13 @@ const pickWinningFilter = (scores, dynamicWeights) => {
   return { winner: best, weighted: bestVal };
 };
 
-const buildLiveIndicator = (typeId, stat, extra, globalCtx) => {
+const buildLiveIndicator = (typeId, stat, extra, globalCtx, freshnessMeta) => {
+  const freshnessLine = freshnessMeta?.tierLabel ? `신선도: ${freshnessMeta.tierLabel}` : '';
   if (typeId === 'season_peak') {
     const pct = Math.max(12, Math.min(100, extra.bloomPct + (isCherryBloomSeason() ? 8 : 0)));
     return {
       headline: `실시간 개화율 ${pct}%`,
-      detail: '최근 12시간 태그·분홍/화이트·개화 시즌 가중',
+      detail: [freshnessLine, '최근 12시간 태그·분홍/화이트·개화 시즌 가중'].filter(Boolean).join(' · '),
       variant: 'bloom',
     };
   }
@@ -710,7 +831,7 @@ const buildLiveIndicator = (typeId, stat, extra, globalCtx) => {
     const n1h = extra.recent1hCount ?? 0;
     return {
       headline: `최근 1시간 ${n1h}명 업로드`,
-      detail: n10 > 0 ? `방금 10분간 ${n10}건 · 업로드 가속도 반영` : '최근 10분·전체 평균 대비 활동량 반영',
+      detail: [freshnessLine, n10 > 0 ? `방금 10분간 ${n10}건 · 가속도 반영` : '핫플은 최대 6시간 이내만 반영'].filter(Boolean).join(' · '),
       variant: 'crowd',
     };
   }
@@ -722,7 +843,7 @@ const buildLiveIndicator = (typeId, stat, extra, globalCtx) => {
     const ratio = mean > 0 ? Math.round((r3 / mean) * 100) : 100;
     return {
       headline: `현재 ${label}`,
-      detail: `3시간 업로드 밀도는 전체 평균 대비 약 ${ratio}% 수준`,
+      detail: [freshnessLine, `3시간 업로드 밀도는 전체 평균 대비 약 ${ratio}%`].filter(Boolean).join(' · '),
       variant: 'quiet',
     };
   }
@@ -730,7 +851,7 @@ const buildLiveIndicator = (typeId, stat, extra, globalCtx) => {
     const blue = Math.round((extra.seaPostsScore || 0) * 100);
     return {
       headline: `블루 톤 ${Math.max(18, blue)}%`,
-      detail: '해안·키워드·이미지 블루 신호',
+      detail: [freshnessLine, '해안·키워드·이미지 블루 신호'].filter(Boolean).join(' · '),
       variant: 'sea',
     };
   }
@@ -738,28 +859,34 @@ const buildLiveIndicator = (typeId, stat, extra, globalCtx) => {
     const nf = Math.round((extra.nightFrac || 0) * 100);
     return {
       headline: `야간·야경 신호 ${Math.min(100, nf + 15)}%`,
-      detail: '촬영 시각(EXIF)·태그·저조도 보정',
+      detail: [freshnessLine, '오늘 밤 없으면 어제 밤 제보로 안내'].filter(Boolean).join(' · '),
       variant: 'night',
     };
   }
   return { headline: '실시간 반영', detail: stat.lastPostTimeAgoLabel || '', variant: 'default' };
 };
 
-const pickFreshRepresentativeImage = (stat) => {
-  const fresh = filterRecentPosts(stat.placePosts || [], 2, RECOMMENDATION_FRESH_HOURS);
-  const sorted = fresh
-    .filter((p) => p?.images?.[0] || p?.thumbnail || p?.image)
-    .sort((a, b) => (Number(b?.likes) || 0) - (Number(a?.likes) || 0));
-  const best = sorted[0] || fresh[0];
-  if (!best) return null;
+/** 대표 사진: 필터 유효 윈도 내에서 가장 최근 게시 우선(시간순 진실), 동점 시 좋아요 */
+const pickRepresentativeForFilter = (stat, maxHours) => {
+  const eligible = filterPostsWithinHours(stat.placePosts || [], maxHours);
+  const withImg = eligible.filter((p) => p?.images?.[0] || p?.thumbnail || p?.image);
+  const sorted = withImg.sort((a, b) => {
+    const tb = new Date(getPostTimestamp(b) || 0).getTime();
+    const ta = new Date(getPostTimestamp(a) || 0).getTime();
+    if (tb !== ta) return tb - ta;
+    return (Number(b?.likes) || 0) - (Number(a?.likes) || 0);
+  });
+  const best = sorted[0] || eligible[0];
+  if (!best) return { url: null, post: null };
   const raw = best.images?.[0] ?? best.thumbnail ?? best.image;
-  return raw ? (typeof raw === 'string' ? raw : (raw?.url ?? raw?.src ?? null)) : null;
+  const url = raw ? (typeof raw === 'string' ? raw : (raw?.url ?? raw?.src ?? null)) : null;
+  return { url, post: best };
 };
 
 /**
  * 추천 타입별 추천 장소 계산 (호환: regionName 필드 유지)
  * - 필터별 점수 벡터 → 승자 독식(WTA) → 선택된 필터에만 노출
- * - 대표 사진은 RECOMMENDATION_FRESH_HOURS 이내만
+ * - Smart 24h 윈도 + 신선도 감쇠 후 순위: 최신 게시 시각 우선, 다음 점수
  */
 export const getRecommendedRegions = (posts, recommendationType = 'blooming', options = {}) => {
   const rawType = String(recommendationType || '').trim();
@@ -781,31 +908,47 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming', op
   const enriched = stats.map((stat) => {
     const { scores, extra } = computeFilterScoresVector(stat, globalCtx);
     const { winner, weighted } = pickWinningFilter(scores, dynamicWeights);
-    const freshPosts = filterRecentPosts(stat.placePosts || [], 2, RECOMMENDATION_FRESH_HOURS);
+    const winMaxH = FILTER_MAX_AGE_HOURS[winner] ?? 24;
+    const eligibleForWinner = filterPostsWithinHours(stat.placePosts || [], winMaxH);
     return {
       stat,
       scores,
       extra,
       winner,
       wtaStrength: weighted,
-      hasFresh: freshPosts.length > 0,
-      freshPosts,
+      hasFresh: eligibleForWinner.length > 0,
     };
   });
 
   const rankScoreForType = (row, typeId) => {
+    const maxH = FILTER_MAX_AGE_HOURS[typeId] ?? 24;
+    const eligible = filterPostsWithinHours(row.stat.placePosts || [], maxH);
+    if (!eligible.length) {
+      return { rankScore: 0, anchorNewestMs: 0, freshnessDecay: null, eligiblePosts: [] };
+    }
+    const newest = eligible[0];
+    const ts = getPostTimestamp(newest);
+    const ageH = getPostAgeInHours(ts);
+    const freshnessDecay = computeFreshnessDecay(ageH, typeId);
     const base = row.scores[typeId] || 0;
     const w = dynamicWeights[typeId] || 1;
-    return base * w * (1 + Math.log1p(row.stat.recent1hCount || 0) * 0.08);
+    const rankScore =
+      base * w * freshnessDecay.combined * (1 + Math.log1p(row.stat.recent1hCount || 0) * 0.05);
+    const anchorNewestMs = new Date(ts).getTime();
+    return { rankScore, anchorNewestMs, freshnessDecay, eligiblePosts: eligible, repPost: newest, ageHours: ageH };
   };
 
   const ranked = enriched
     .filter((row) => row.winner === type && row.hasFresh)
-    .map((row) => ({
-      ...row,
-      rankScore: rankScoreForType(row, type),
-    }))
-    .sort((a, b) => b.rankScore - a.rankScore || (a.stat.lastPostAgeMinutes ?? 999999) - (b.stat.lastPostAgeMinutes ?? 999999))
+    .map((row) => {
+      const r = rankScoreForType(row, type);
+      return { ...row, ...r };
+    })
+    .filter((row) => row.rankScore > 0 && row.eligiblePosts?.length)
+    .sort((a, b) => {
+      if (b.anchorNewestMs !== a.anchorNewestMs) return b.anchorNewestMs - a.anchorNewestMs;
+      return b.rankScore - a.rankScore || (a.stat.lastPostAgeMinutes ?? 999999) - (b.stat.lastPostAgeMinutes ?? 999999);
+    })
     .slice(0, 10);
 
   const buildStatusBadges = (typeId, stat, extra) => {
@@ -964,11 +1107,26 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming', op
   };
 
   return ranked.map((row) => {
-    const { stat, extra, rankScore, freshPosts } = row;
-    const liveImage = pickFreshRepresentativeImage(stat);
-    const { proofSummary, timelineThumbs } = buildProof(stat, type, freshPosts);
+    const { stat, extra, rankScore, eligiblePosts, repPost, freshnessDecay, ageHours } = row;
+    const maxH = FILTER_MAX_AGE_HOURS[type] ?? 24;
+    const { url: liveImage, post: repPick } = pickRepresentativeForFilter(stat, maxH);
+    const repForLabel = repPick || repPost;
+    const repTs = getPostTimestamp(repForLabel);
+    const timeLabel = getRecommendationTransparencyLabel(repTs);
+    const fd = freshnessDecay || computeFreshnessDecay(ageHours ?? 0, type);
+    const freshness = {
+      badge: fd.badge,
+      tierLabel: fd.tierLabel,
+      tierKey: fd.tierKey,
+      timeLabel,
+      ageHours: ageHours ?? 0,
+      tierMult: fd.tierMult,
+      combinedDecay: fd.combined,
+    };
+
+    const { proofSummary, timelineThumbs } = buildProof(stat, type, eligiblePosts);
     const statusBadges = buildStatusBadges(type, stat, extra);
-    const liveIndicator = buildLiveIndicator(type, stat, extra, globalCtx);
+    const liveIndicator = buildLiveIndicator(type, stat, extra, globalCtx, fd);
     const topTags = diversifyTopTags(buildTopTags(type, stat, extra));
     const placePosts = Array.isArray(stat.placePosts) ? stat.placePosts : [];
     const userSnippet = getUserSnippet(placePosts);
@@ -984,6 +1142,7 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming', op
       topTags,
       image: liveImage,
       liveImage,
+      freshness,
       badge: toBadge(type),
       statusBadges,
       liveIndicator,
@@ -997,7 +1156,9 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming', op
         recent1hCount: stat.recent1hCount,
         avgLikes: stat.avgLikes,
         isLive: stat.isLive,
+        recommendationLive: freshness.badge === 'live',
         lastPostTimeAgoLabel: stat.lastPostTimeAgoLabel,
+        representativeTimeLabel: timeLabel,
       },
     };
   });
