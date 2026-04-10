@@ -407,22 +407,51 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming') =>
   };
 
   const buildTopTags = (typeId, stat, extra) => {
-    const badges = buildStatusBadges(typeId, stat, extra)
-      .map((b) => String(b || '').replace(/^●\s*/, '').trim())
-      .filter(Boolean);
-    const uniq = [];
-    badges.forEach((b) => { if (b && !uniq.includes(b)) uniq.push(b); });
-    // 3개를 채우기 위해 테마 기반 보조 태그 추가
-    const fallbackByType = {
-      season_peak: ['절정/만개', '포토 스팟', '산책 코스'],
-      silent_healing: ['한적함', '힐링', '산책 코스'],
-      deep_sea_blue: ['바다 무드', '청량', '드라이브'],
-      lively_vibe: ['지금 핫플', '활기', '분위기'],
-      night_good: ['야경', '노을', '감성'],
+    const placePosts = Array.isArray(stat?.placePosts) ? stat.placePosts : [];
+    const blob = placePosts.map((p) => getPostTextBlob(p)).join(' ');
+    const norm = (s) => normalizeText(String(s || '').replace(/^●\s*/, '').trim());
+    const has = (keywords) => matchesAny(blob, keywords);
+
+    // 장소별 태그 후보(테마와 무관하게 최대한 다르게)
+    const candidates = [];
+    const push = (t) => {
+      const raw = String(t || '').trim();
+      const cleaned = raw.replace(/^●\s*/, '').trim();
+      const key = norm(cleaned);
+      if (!cleaned || !key) return;
+      // 너무 긴 태그는 제외
+      if (cleaned.length > 14) return;
+      if (!candidates.some((x) => norm(x) === key)) candidates.push(cleaned);
     };
-    const fills = fallbackByType[typeId] || ['추천', '포토 스팟', '산책 코스'];
-    fills.forEach((t) => { if (uniq.length < 3 && t && !uniq.includes(t)) uniq.push(t); });
-    return uniq.slice(0, 3);
+
+    // 1) 데이터 신호(뱃지) 먼저
+    buildStatusBadges(typeId, stat, extra)
+      .map((b) => String(b || '').replace(/^●\s*/, '').trim())
+      .filter(Boolean)
+      .forEach(push);
+
+    // 2) 장소 텍스트 기반 키워드
+    if (has(['벚꽃', '개화', '만개', '절정', '꽃', '매화', '유채', '수국', '단풍'])) push('절정/만개');
+    if (has(['바다', '해변', '파도', '윤슬', '물멍', '오션', '해수욕장', '서핑'])) push('바다 무드');
+    if (has(['야경', '밤', '조명', '노을', '일몰', '루프탑', '야시장'])) push('야경/노을');
+    if (has(['산', '등산', '트레킹', '오름', '숲', '공원', '산책', '둘레길'])) push('산책 코스');
+    if (has(['카페', '커피', '브런치', '디저트'])) push('카페');
+    if (has(['맛집', '식당', '음식', '국밥', '면', '고기', '횟집', '시장'])) push('맛집');
+    if (has(['주차', '주차장', '주차편', '주차 가능'])) push('주차');
+    if (has(['축제', '공연', '버스킹', '이벤트', '팝업'])) push('이벤트');
+    if (has(['아이', '가족', '유모차', '아이와'])) push('가족');
+
+    // 3) 그래도 부족하면 타입 기반으로 채우기(최소)
+    const fallbackByType = {
+      season_peak: ['포토 스팟', '산책 코스', '추천'],
+      silent_healing: ['힐링', '산책 코스', '추천'],
+      deep_sea_blue: ['청량', '드라이브', '추천'],
+      lively_vibe: ['지금 핫플', '활기', '추천'],
+      night_good: ['감성', '야경/노을', '추천'],
+    };
+    (fallbackByType[typeId] || ['추천', '포토 스팟', '산책 코스']).forEach(push);
+
+    return candidates.slice(0, 3);
   };
 
   const pickLiveImage = (stat) => {
@@ -520,11 +549,38 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming') =>
     .sort((a, b) => b.score - a.score || (a.stat.lastPostAgeMinutes ?? 999999) - (b.stat.lastPostAgeMinutes ?? 999999))
     .slice(0, 10);
 
+  // 카드 간 태그 중복을 줄이기 위한 전역 사용 카운트 (한 번 호출 내에서만)
+  const globalTagUse = new Map(); // key -> count
+
+  const diversifyTopTags = (tags) => {
+    const list = Array.isArray(tags) ? tags.filter(Boolean) : [];
+    const scored = list.map((t, idx) => {
+      const key = normalizeText(t);
+      const used = globalTagUse.get(key) || 0;
+      // 이미 많이 나온 태그일수록 뒤로
+      return { t, key, score: used * 10 + idx };
+    });
+    scored.sort((a, b) => a.score - b.score);
+    const picked = [];
+    const seen = new Set();
+    for (const s of scored) {
+      if (picked.length >= 3) break;
+      if (!s.key || seen.has(s.key)) continue;
+      seen.add(s.key);
+      picked.push(s.t);
+    }
+    picked.forEach((t) => {
+      const key = normalizeText(t);
+      globalTagUse.set(key, (globalTagUse.get(key) || 0) + 1);
+    });
+    return picked;
+  };
+
   return ranked.map(({ stat, score, extra }) => {
     const liveImage = pickLiveImage(stat) || stat.representativeImage;
     const { proofSummary, timelineThumbs } = buildProof(stat, type, extra);
     const statusBadges = buildStatusBadges(type, stat, extra);
-    const topTags = buildTopTags(type, stat, extra);
+    const topTags = diversifyTopTags(buildTopTags(type, stat, extra));
     const placePosts = Array.isArray(stat.placePosts) ? stat.placePosts : [];
     const userSnippet = getUserSnippet(placePosts);
     const aiIntro = buildAiIntroForPlace(type, stat.placeKey, placePosts);
