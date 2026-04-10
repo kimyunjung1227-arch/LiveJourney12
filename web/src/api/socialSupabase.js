@@ -137,6 +137,19 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null, o
   const lockKey = `${uid}:${pid}`;
   return await withLikeLock(lockKey, async () => {
     try {
+    // ✅ 세션이 없으면(auth.uid=null) RPC는 항상 {is_liked:false, likes_count:0}로 회귀할 수 있다.
+    // 이 경우는 "좋아요가 안 되는" 상태이므로 요청 자체를 막고 UI도 롤백시킨다.
+    try {
+      const { data: ses } = await supabase.auth.getSession();
+      const sid = ses?.session?.user?.id ? String(ses.session.user.id) : null;
+      if (!sid || sid !== uid) {
+        logger.warn('togglePostLikeSupabase: 세션 없음/불일치', { sid, uid });
+        return { success: false, isLiked: !!likedBeforeClick, likesCount: null, error: 'no_session' };
+      }
+    } catch (_) {
+      return { success: false, isLiked: !!likedBeforeClick, likesCount: null, error: 'no_session' };
+    }
+
     const desired = likedBeforeClick === true ? false : true;
     // optimistic
     setLikedPostLocalCache(pid, desired);

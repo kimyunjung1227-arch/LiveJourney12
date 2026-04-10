@@ -320,9 +320,7 @@ begin
   end;
 
   if auth.uid() is null then
-    return query
-      select false, coalesce((select p.likes_count from public.posts p where p.id = v_post_id), 0);
-    return;
+    raise exception 'not_authenticated';
   end if;
 
   begin
@@ -358,4 +356,8 @@ end;
 $$;
 
 grant execute on function public.set_post_like(text, boolean) to authenticated;
+
+-- 보안/디버깅: 익명(anon) 호출 시 "0으로 보이는 정상 응답"처럼 나오지 않게 차단
+revoke execute on function public.set_post_like(text, boolean) from anon;
+revoke execute on function public.set_post_like(text, boolean) from public;
 
