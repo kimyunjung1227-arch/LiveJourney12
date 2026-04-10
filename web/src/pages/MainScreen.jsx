@@ -24,6 +24,8 @@ import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCar
 import { useAuth } from '../contexts/AuthContext';
 import { fetchLikedPostIdsSupabase } from '../api/socialSupabase';
 import { togglePostLikeSupabase } from '../api/socialSupabase';
+import StatusBadge from '../components/StatusBadge';
+import { getPhotoStatusFromPost } from '../utils/photoStatus';
 
 const MainScreen = () => {
     const navigate = useNavigate();
@@ -1111,7 +1113,7 @@ const MainScreen = () => {
                             const hasWeather = weather && (weather.icon || weather.temperature);
                             const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
                             const commentCount = Array.isArray(post.comments) ? post.comments.length : 0;
-                            const hasExif = !!(post?.exifData || post?.photoDate || post?.verifiedLocation);
+                            const status = getPhotoStatusFromPost(post);
                             return (
                                 <div
                                     key={post.id}
@@ -1151,13 +1153,10 @@ const MainScreen = () => {
                                                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '14px' }}
                                             />
                                         ) : null}
-                                        {/* EXIF 태그 - 이미지 좌측 상단 */}
-                                        {hasExif && (
+                                        {/* 실시간 인증 배지 - 좌측 상단 */}
+                                        {status !== 'NONE' && (
                                             <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 10 }}>
-                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(15,23,42,0.62)', backdropFilter: 'blur(8px)', color: '#f9fafb', padding: '4px 9px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, boxShadow: '0 2px 6px rgba(15,23,42,0.18)' }}>
-                                                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>photo_camera</span>
-                                                    <span>EXIF</span>
-                                                </span>
+                                                <StatusBadge status={status} />
                                             </div>
                                         )}
                                         {/* 날씨 정보만 이미지 우측 상단에 오버레이 */}
@@ -1249,13 +1248,10 @@ const MainScreen = () => {
                                             ) : (
                                                 <img src={getDisplayImageUrl(post.image || post.thumbnail)} alt={post.location} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '12px' }} />
                                             )}
-                                            {/* EXIF 태그 - 이미지 좌측 상단 */}
-                                            {!!(post?.exifData || post?.photoDate || post?.verifiedLocation) && (
+                                            {/* 실시간 인증 배지 - 이미지 좌측 상단 */}
+                                            {getPhotoStatusFromPost(post) !== 'NONE' && (
                                                 <div style={{ position: 'absolute', top: '6px', left: '6px', zIndex: 10 }}>
-                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(15,23,42,0.62)', backdropFilter: 'blur(8px)', color: '#f9fafb', padding: '3px 8px', borderRadius: '999px', fontSize: '10px', fontWeight: 800 }}>
-                                                        <span className="material-symbols-outlined" style={{ fontSize: 13 }}>photo_camera</span>
-                                                        <span>EXIF</span>
-                                                    </span>
+                                                    <StatusBadge status={getPhotoStatusFromPost(post)} />
                                                 </div>
                                             )}
                                         </div>

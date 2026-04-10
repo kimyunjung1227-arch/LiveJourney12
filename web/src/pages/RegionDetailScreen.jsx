@@ -17,6 +17,9 @@ import {
   feedGridImageBoxRegion,
 } from '../utils/feedGridCardStyles';
 import { normalizeRegionName, postMatchesCanonicalRegion } from '../utils/regionNames';
+import StatusBadge from '../components/StatusBadge';
+import { getPhotoStatusFromPost } from '../utils/photoStatus';
+import { getTimeAgo } from '../utils/timeUtils';
 
 const RegionDetailScreen = () => {
   const navigate = useNavigate();
@@ -135,8 +138,8 @@ const RegionDetailScreen = () => {
         images: (post.images || []).map(getDisplayImageUrl),
         videos: (post.videos || []).map(getDisplayImageUrl),
         image: getDisplayImageUrl(post.images?.[0] || post.videos?.[0] || post.image || post.thumbnail),
-        time: post.timeLabel || '방금',
-        timeLabel: post.timeLabel || '방금',
+        time: post.timeLabel || getTimeAgo(post.photoDate || post.exifData?.photoDate || post.timestamp || post.createdAt || post.time) || '방금',
+        timeLabel: post.timeLabel || getTimeAgo(post.photoDate || post.exifData?.photoDate || post.timestamp || post.createdAt || post.time) || '방금',
         category: post.category || '일반',
         categoryName: post.categoryName,
         labels: post.aiLabels,
@@ -483,6 +486,7 @@ const RegionDetailScreen = () => {
                       const isLiked = likedPosts[photo.id] || false;
                       const likeCount = photo.likes || photo.likeCount || 0;
                       const gridCover = getGridCoverDisplay(photo, getDisplayImageUrl);
+                      const status = getPhotoStatusFromPost(photo);
 
                       return (
                         <div
@@ -529,23 +533,11 @@ const RegionDetailScreen = () => {
                                 <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>image</span>
                               </div>
                             )}
-                            <div
-                              style={{
-                                position: 'absolute',
-                                bottom: '8px',
-                                right: '8px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                            >
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.96)', color: '#111827', padding: '4px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600, boxShadow: '0 2px 6px rgba(15,23,42,0.18)' }}>
-                                <span className={`material-symbols-outlined text-[16px] ${isLiked ? 'text-red-500' : 'text-gray-600'}`} style={isLiked ? { fontVariationSettings: "'FILL' 1" } : {}}>
-                                  favorite
-                                </span>
-                                <span>{likeCount}</span>
-                              </span>
-                            </div>
+                            {status !== 'NONE' && (
+                              <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 3 }}>
+                                <StatusBadge status={status} />
+                              </div>
+                            )}
                           </div>
 
                           <div className="min-h-0 flex flex-col gap-0.5 overflow-hidden px-0.5 pb-0.5 pt-0">

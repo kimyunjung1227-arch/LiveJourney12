@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import EXIF from 'exif-js';
 
 export type PhotoStatus = 'LIVE' | 'VERIFIED' | 'NONE';
 
@@ -36,8 +37,44 @@ const HOURS_48_MS = 48 * 60 * 60 * 1000;
 
 function statusFromCaptureDate(date: Date | null, nowMs: number): PhotoStatus {
   if (!date || Number.isNaN(date.getTime())) return 'NONE';
-  const diff = Math.abs(nowMs - date.getTime());
+  const diff = nowMs - date.getTime();
+  if (!Number.isFinite(diff) || diff < 0) return 'NONE';
   return diff <= HOURS_48_MS ? 'VERIFIED' : 'NONE';
+}
+
+function parseExifDateTimeOriginal(raw: unknown): Date | null {
+  if (raw == null) return null;
+  if (raw instanceof Date) return Number.isNaN(raw.getTime()) ? null : raw;
+  const s = String(raw).trim();
+  // exif-js: "YYYY:MM:DD HH:MM:SS"
+  const m = s.match(/^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+  if (m) {
+    const [, y, mo, d, h, mi, se] = m;
+    const dt = new Date(
+      Number(y),
+      Number(mo) - 1,
+      Number(d),
+      Number(h),
+      Number(mi),
+      Number(se)
+    );
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+  const fallback = new Date(s);
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+}
+
+async function readDateTimeOriginalWithExifJs(file: File): Promise<{ date: Date | null; raw: string | null }> {
+  try {
+    const buffer = await file.arrayBuffer();
+    const tags = EXIF.readFromBinaryFile(buffer);
+    const raw = tags?.DateTimeOriginal ?? tags?.DateTimeDigitized ?? tags?.DateTime ?? null;
+    const rawText = raw != null ? String(raw) : null;
+    const date = parseExifDateTimeOriginal(raw);
+    return { date, raw: rawText };
+  } catch {
+    return { date: null, raw: null };
+  }
 }
 
 export function usePhotoValidation(params: UsePhotoValidationParams): UsePhotoValidationResult {
@@ -98,6 +135,8 @@ export function usePhotoValidation(params: UsePhotoValidationParams): UsePhotoVa
       return;
     }
 
+    // UploadScreen에서 EXIF 전체 파싱(exifr)을 하는 동안에도, 배지 검증(exif-js)은 별도 진행할 수 있지만
+    // UX 상 "촬영 정보 확인 중..."은 EXIF 파싱/검증이 끝날 때까지 유지한다.
     if (exifExtracting) {
       setLoading(true);
       setStatus('NONE');
@@ -106,39 +145,33 @@ export function usePhotoValidation(params: UsePhotoValidationParams): UsePhotoVa
       return;
     }
 
-    const bundle = prefetchedExif;
-    const match = bundle && bundle.fileKey === fileKey;
+    let cancelled = false;
+    setLoading(true);
+    setStatus('NONE');
+    setCapturedAt(null);
+    setDateTimeOriginalRaw(null);
 
-    if (!match) {
+    (async () => {
+      const preferred = prefetchedExif && prefetchedExif.fileKey === fileKey ? prefetchedExif.exif : null;
+      const preferredRaw = preferred?.dateTimeOriginalRaw ?? null;
+      const preferredDate = preferred?.photoDate ? new Date(preferred.photoDate) : null;
+      const preferredOk = preferredDate && !Number.isNaN(preferredDate.getTime());
+
+      // spec 준수: DateTimeOriginal은 exif-js로 추출(가능하면 우선)
+      const exifJs = await readDateTimeOriginalWithExifJs(file);
+      const date = exifJs.date || (preferredOk ? preferredDate : null);
+      const raw = exifJs.raw || preferredRaw;
+
+      if (cancelled) return;
       setLoading(false);
-      setStatus('NONE');
-      setCapturedAt(null);
-      setDateTimeOriginalRaw(null);
-      return;
-    }
+      setDateTimeOriginalRaw(raw);
+      setCapturedAt(date);
+      setStatus(statusFromCaptureDate(date, now()));
+    })();
 
-    setLoading(false);
-
-    if (!bundle.exif) {
-      setStatus('NONE');
-      setCapturedAt(null);
-      setDateTimeOriginalRaw(null);
-      return;
-    }
-
-    const raw = bundle.exif.dateTimeOriginalRaw ?? null;
-    setDateTimeOriginalRaw(raw);
-
-    const pd = bundle.exif.photoDate;
-    const date = pd ? new Date(pd) : null;
-    if (!date || Number.isNaN(date.getTime())) {
-      setCapturedAt(null);
-      setStatus('NONE');
-      return;
-    }
-
-    setCapturedAt(date);
-    setStatus(statusFromCaptureDate(date, now()));
+    return () => {
+      cancelled = true;
+    };
   }, [
     fileKey,
     file,

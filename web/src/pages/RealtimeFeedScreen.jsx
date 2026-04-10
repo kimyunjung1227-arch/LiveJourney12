@@ -10,6 +10,8 @@ import { getDisplayImageUrl } from '../api/upload';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getWeatherByRegion } from '../api/weather';
 import { getGridCoverDisplay } from '../utils/postMedia';
+import StatusBadge from '../components/StatusBadge';
+import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import {
   feedGridCardBoxFlat,
   feedGridImageBoxFlat,
@@ -47,7 +49,7 @@ const RealtimeFeedScreen = () => {
           id: post.id,
           gridCover,
           location: post.location,
-          time: post.timeLabel || getTimeAgo(post.timestamp || post.createdAt || post.time),
+          time: post.timeLabel || getTimeAgo(post.photoDate || post.exifData?.photoDate || post.timestamp || post.createdAt || post.time),
           content: post.note || post.content || `${post.location}의 모습`,
           likes: likesNum,
           likeCount: likesNum,
@@ -204,6 +206,7 @@ const RealtimeFeedScreen = () => {
               const weather = post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
               const hasWeather = weather && (weather.icon || weather.temperature);
               const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
+              const status = getPhotoStatusFromPost(post);
               return (
                 <div
                   key={`${post.id}-${index}`}
@@ -235,27 +238,11 @@ const RealtimeFeedScreen = () => {
                         <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>image</span>
                       </div>
                     )}
-                    <div style={{ position: 'absolute', bottom: '8px', right: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          background: 'rgba(255,255,255,0.96)',
-                          color: '#111827',
-                          padding: '4px 8px',
-                          borderRadius: '9999px',
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          boxShadow: '0 2px 6px rgba(15,23,42,0.18)',
-                        }}
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#ef4444', fontVariationSettings: "'FILL' 0" }}>
-                          favorite
-                        </span>
-                        <span>{likeCount}</span>
-                      </span>
-                    </div>
+                    {status !== 'NONE' && (
+                      <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 3 }}>
+                        <StatusBadge status={status} />
+                      </div>
+                    )}
                   </div>
 
                   <div style={feedGridInfoBox}>

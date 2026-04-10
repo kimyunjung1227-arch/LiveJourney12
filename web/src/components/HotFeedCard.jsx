@@ -30,8 +30,6 @@ const HotFeedCard = ({
         avatars,
     } = cardProps;
 
-    const hasExif = !!(post?.exifData || post?.photoDate || post?.verifiedLocation);
-
     return (
         <div
             className="hot-feed-card-enter"
@@ -70,28 +68,6 @@ const HotFeedCard = ({
                         maxWidth: 'calc(100% - 100px)',
                     }}
                 >
-                    {hasExif ? (
-                        <span
-                            title="EXIF(메타데이터) 기반 정보가 포함된 게시물"
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                background: 'rgba(15,23,42,0.62)',
-                                backdropFilter: 'blur(8px)',
-                                color: '#f8fafc',
-                                padding: '4px 9px',
-                                borderRadius: 9999,
-                                fontSize: 10,
-                                fontWeight: 800,
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-                                maxWidth: '100%',
-                            }}
-                        >
-                            <span className="material-symbols-outlined shrink-0" style={{ fontSize: 14 }}>photo_camera</span>
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>EXIF</span>
-                        </span>
-                    ) : null}
                     <span
                         title="이 게시물이 핫플에 오른 이유"
                         style={{
