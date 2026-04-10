@@ -122,6 +122,8 @@ const getMapAgeVisual = (post) => {
   };
 };
 
+const hasExifTag = (post) => !!(post?.exifData || post?.photoDate || post?.verifiedLocation);
+
 const MAP_PIN_PLACEHOLDER_SVG =
   'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiByeD0iNCIgZmlsbD0iI0YzRjRGNiIvPgo8cGF0aCBkPSJNMjAgMTNDMTcuMjQgMTMgMTUgMTUuMjQgMTUgMThDMTUgMjAuNzYgMTcuMjQgMjMgMjAgMjNDMjIuNzYgMjMgMjUgMjAuNzYgMjUgMThDMjUgMTUuMjQgMjIuNzYgMTMgMjAgMTNaIiBmaWxsPSIjOUI5Q0E1Ii8+Cjwvc3ZnPg==';
 
@@ -3806,6 +3808,14 @@ const MapScreen = () => {
                       e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
                     }}
                   >
+                    {hasExifTag(pin.post) && (
+                      <div style={{ position: 'absolute', top: 6, left: 6, zIndex: 3 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(15,23,42,0.62)', backdropFilter: 'blur(8px)', color: '#f9fafb', padding: '3px 8px', borderRadius: 9999, fontSize: 10, fontWeight: 800 }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: 13 }}>photo_camera</span>
+                          <span>EXIF</span>
+                        </span>
+                      </div>
+                    )}
                     {(pin.image || pin.videoUrl || getPostPinImageUrl(pin.post)) && (
                       pin.videoUrl && !pin.image ? (
                         <video
@@ -4045,8 +4055,17 @@ const MapScreen = () => {
                 width: '100%',
                 aspectRatio: '4/3',
                 overflow: 'hidden',
-                background: '#f5f5f5'
+                background: '#f5f5f5',
+                position: 'relative'
               }}>
+                {hasExifTag(selectedPost.post) && (
+                  <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 2 }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(15,23,42,0.62)', backdropFilter: 'blur(8px)', color: '#f9fafb', padding: '4px 9px', borderRadius: 9999, fontSize: 11, fontWeight: 800, boxShadow: '0 2px 6px rgba(15,23,42,0.18)' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 14 }}>photo_camera</span>
+                      <span>EXIF</span>
+                    </span>
+                  </div>
+                )}
                 {(() => {
                   const t = getPostPinImageUrl(selectedPost.post);
                   const rv = !t ? getFirstVideoUriFromPost(selectedPost.post) : '';

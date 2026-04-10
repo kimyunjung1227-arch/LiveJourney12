@@ -1,10 +1,8 @@
 import React from 'react';
 import { getDisplayImageUrl } from '../api/upload';
 import { getMapThumbnailUri } from '../utils/postMedia';
-import { getHotFeedBadgeIconName } from '../utils/hotPlaceDisplay';
 
 const HOT_INDICATOR_BG = '#b91c1c';
-const CATEGORY_INDICATOR_BG = 'rgba(15,23,42,0.68)';
 
 /**
  * 메인 실시간 핫플 / 더보기 화면 — 동일 카드 UI (마크업·스타일 통일)
@@ -32,10 +30,7 @@ const HotFeedCard = ({
         avatars,
     } = cardProps;
 
-    const primaryCategoryLabel = Array.isArray(photoCategoryLabels) && photoCategoryLabels.length > 0
-        ? String(photoCategoryLabels[0] || '').trim()
-        : '';
-    const primaryCategoryIcon = primaryCategoryLabel ? getHotFeedBadgeIconName(primaryCategoryLabel) : 'photo_camera';
+    const hasExif = !!(post?.exifData || post?.photoDate || post?.verifiedLocation);
 
     return (
         <div
@@ -75,6 +70,28 @@ const HotFeedCard = ({
                         maxWidth: 'calc(100% - 100px)',
                     }}
                 >
+                    {hasExif ? (
+                        <span
+                            title="EXIF(메타데이터) 기반 정보가 포함된 게시물"
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                background: 'rgba(15,23,42,0.62)',
+                                backdropFilter: 'blur(8px)',
+                                color: '#f8fafc',
+                                padding: '4px 9px',
+                                borderRadius: 9999,
+                                fontSize: 10,
+                                fontWeight: 800,
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                                maxWidth: '100%',
+                            }}
+                        >
+                            <span className="material-symbols-outlined shrink-0" style={{ fontSize: 14 }}>photo_camera</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>EXIF</span>
+                        </span>
+                    ) : null}
                     <span
                         title="이 게시물이 핫플에 오른 이유"
                         style={{
@@ -94,27 +111,6 @@ const HotFeedCard = ({
                         <span className="material-symbols-outlined shrink-0" style={{ fontSize: 14, fontVariationSettings: '"FILL" 1' }}>{hotReasonIcon}</span>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hotReasonLabel}</span>
                     </span>
-                    {primaryCategoryLabel ? (
-                        <span
-                            title="사진 카테고리"
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                background: CATEGORY_INDICATOR_BG,
-                                color: '#fff',
-                                padding: '4px 9px',
-                                borderRadius: 9999,
-                                fontSize: 10,
-                                fontWeight: 800,
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-                                maxWidth: '100%',
-                            }}
-                        >
-                            <span className="material-symbols-outlined shrink-0" style={{ fontSize: 14, fontVariationSettings: '"FILL" 1' }}>{primaryCategoryIcon}</span>
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{primaryCategoryLabel}</span>
-                        </span>
-                    ) : null}
                 </div>
                 {hasWeather ? (
                     <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(15,23,42,0.52)', backdropFilter: 'blur(8px)', color: '#f8fafc', padding: '4px 9px', borderRadius: 9999, fontSize: 10, fontWeight: 600, maxWidth: '58%' }}>
@@ -149,42 +145,9 @@ const HotFeedCard = ({
             </div>
             <div style={{ padding: '8px 2px 2px', background: 'transparent', border: 'none', boxShadow: 'none' }}>
                 <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{title}</h4>
-                {(cityDongLine || regionShort || (photoCategoryLabels && photoCategoryLabels.length)) ? (
+                {(cityDongLine || regionShort) ? (
                     <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                         <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500, lineHeight: 1.4, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cityDongLine || regionShort}</span>
-                        {photoCategoryLabels && photoCategoryLabels.length > 0 ? (
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    flexWrap: 'wrap',
-                                    gap: 3,
-                                    justifyContent: 'flex-end',
-                                    alignItems: 'center',
-                                    flexShrink: 0,
-                                    maxWidth: '56%',
-                                }}
-                            >
-                                {photoCategoryLabels.map((label) => (
-                                    <span
-                                        key={`${post.id}-cat-${label}`}
-                                        style={{
-                                            fontSize: 9,
-                                            fontWeight: 600,
-                                            letterSpacing: '-0.02em',
-                                            color: '#64748b',
-                                            background: 'rgba(248, 250, 252, 0.92)',
-                                            border: '1px solid rgba(226, 232, 240, 0.95)',
-                                            padding: '2px 7px',
-                                            borderRadius: 9999,
-                                            whiteSpace: 'nowrap',
-                                            lineHeight: 1.35,
-                                        }}
-                                    >
-                                        {label}
-                                    </span>
-                                ))}
-                            </div>
-                        ) : null}
                     </div>
                 ) : null}
                 <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', background: 'transparent', boxShadow: 'none' }}>{captionForCard}</p>
@@ -218,17 +181,6 @@ const HotFeedCard = ({
                             {socialText}
                         </span>
                     </div>
-                    <button
-                        type="button"
-                        aria-label="좋아요"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onLikeClick(e, post);
-                        }}
-                        style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', flexShrink: 0, color: liked ? '#f43f5e' : '#94a3b8' }}
-                    >
-                        <span className="material-symbols-outlined" style={{ fontSize: 22, fontVariationSettings: liked ? '"FILL" 1' : '"FILL" 0' }}>favorite</span>
-                    </button>
                 </div>
             </div>
         </div>

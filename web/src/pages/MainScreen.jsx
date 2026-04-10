@@ -1111,6 +1111,7 @@ const MainScreen = () => {
                             const hasWeather = weather && (weather.icon || weather.temperature);
                             const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
                             const commentCount = Array.isArray(post.comments) ? post.comments.length : 0;
+                            const hasExif = !!(post?.exifData || post?.photoDate || post?.verifiedLocation);
                             return (
                                 <div
                                     key={post.id}
@@ -1150,6 +1151,15 @@ const MainScreen = () => {
                                                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '14px' }}
                                             />
                                         ) : null}
+                                        {/* EXIF 태그 - 이미지 좌측 상단 */}
+                                        {hasExif && (
+                                            <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 10 }}>
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(15,23,42,0.62)', backdropFilter: 'blur(8px)', color: '#f9fafb', padding: '4px 9px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, boxShadow: '0 2px 6px rgba(15,23,42,0.18)' }}>
+                                                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>photo_camera</span>
+                                                    <span>EXIF</span>
+                                                </span>
+                                            </div>
+                                        )}
                                         {/* 날씨 정보만 이미지 우측 상단에 오버레이 */}
                                         {hasWeather && (
                                             <div style={{ position: 'absolute', top: '6px', right: '10px', background: 'rgba(15,23,42,0.7)', padding: '4px 8px', borderRadius: '999px', fontSize: '12px', fontWeight: 600, color: '#f9fafb', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1157,13 +1167,6 @@ const MainScreen = () => {
                                                 {weather.temperature && <span>{weather.temperature}</span>}
                                             </div>
                                         )}
-                                        {/* 좋아요 하트 - 이미지 우하단 (아이콘 + 숫자) */}
-                                        <div style={{ position: 'absolute', bottom: '10px', right: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.96)', color: '#111827', padding: '4px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600, boxShadow: '0 2px 6px rgba(15,23,42,0.18)' }}>
-                                                <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#f97373' }}>favorite</span>
-                                                <span>{likeCount}</span>
-                                            </span>
-                                        </div>
                                     </div>
                                     {/* 사진 정보 하단 — 설명만 표시 */}
                                     <div style={{ padding: '4px 10px 6px', minHeight: '88px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1172,7 +1175,7 @@ const MainScreen = () => {
                                                 {post.location || '어딘가의 지금'}
                                             </div>
                                             <span style={{ fontSize: '11px', color: '#6b7280', flexShrink: 0 }}>
-                                                {post.time}
+                                                {getTimeAgo(post.photoDate || post.timestamp || post.createdAt || post.time)}
                                             </span>
                                         </div>
                                         {(post.content || post.note) && (
@@ -1246,20 +1249,20 @@ const MainScreen = () => {
                                             ) : (
                                                 <img src={getDisplayImageUrl(post.image || post.thumbnail)} alt={post.location} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '12px' }} />
                                             )}
-                                            {/* 좋아요·댓글 — 이미지 우하단 반투명 pill */}
-                                            <div style={{ position: 'absolute', bottom: '6px', right: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(15,23,42,0.6)', color: '#fff', padding: '3px 7px', borderRadius: '9999px', fontSize: '10px', fontWeight: 600 }}>
-                                                    좋아요 {Number(post.likes ?? post.likeCount ?? 0) || 0}
-                                                </span>
-                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(15,23,42,0.6)', color: '#fff', padding: '3px 7px', borderRadius: '9999px', fontSize: '10px', fontWeight: 600 }}>
-                                                    댓글 {Array.isArray(post.comments) ? post.comments.length : 0}
-                                                </span>
-                                            </div>
+                                            {/* EXIF 태그 - 이미지 좌측 상단 */}
+                                            {!!(post?.exifData || post?.photoDate || post?.verifiedLocation) && (
+                                                <div style={{ position: 'absolute', top: '6px', left: '6px', zIndex: 10 }}>
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(15,23,42,0.62)', backdropFilter: 'blur(8px)', color: '#f9fafb', padding: '3px 8px', borderRadius: '999px', fontSize: '10px', fontWeight: 800 }}>
+                                                        <span className="material-symbols-outlined" style={{ fontSize: 13 }}>photo_camera</span>
+                                                        <span>EXIF</span>
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                         <div style={{ padding: '8px 4px 6px' }}>
                                             <div style={{ fontSize: '12px', fontWeight: 600, color: '#333', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.content || post.note || post.location || ''}</div>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#94a3b8' }}>
-                                                <span>{post.time || ''}</span>
+                                                <span>{getTimeAgo(post.photoDate || post.timestamp || post.createdAt || post.time) || ''}</span>
                                                 <span style={{ maxWidth: '55%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.location || ''}</span>
                                             </div>
                                         </div>
