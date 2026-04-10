@@ -1203,101 +1203,6 @@ const PostDetailScreen = () => {
             className="image-swipe-area relative flex w-full gap-1 overflow-hidden rounded-b-2xl bg-white shadow-md dark:bg-gray-900"
             style={{ height: '60vh', minHeight: '330px', marginTop: '-64px' }}
           >
-            {/* 프로필 - 사진 위 오버레이 */}
-            <div className="absolute top-3 left-3 right-3 z-20 pointer-events-none">
-              <div className="flex items-center justify-between bg-white/90 dark:bg-gray-900/90 rounded-2xl px-3 py-2 shadow-sm pointer-events-auto">
-                <div
-                  className="flex gap-3 items-center cursor-pointer hover:opacity-80 transition-opacity flex-1 min-w-0"
-                  onClick={() => {
-                    const postUserId = post?.userId ||
-                      (typeof post?.user === 'string' ? post.user : post?.user?.id) ||
-                      post?.user;
-                    const currentUserId = user?.id;
-                    if (postUserId && postUserId !== currentUserId) {
-                      setCachedFollowProfile(postUserId, { username: userName, profileImage: authorAvatar || null });
-                      navigate(`/user/${postUserId}`, {
-                        state: { profileHint: { username: userName, profileImage: authorAvatar || null } },
-                      });
-                    } else if (postUserId && postUserId === currentUserId) {
-                      navigate('/profile');
-                    }
-                  }}
-                >
-                  {authorAvatar ? (
-                    <div
-                      className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-10 w-10 ring-2 ring-gray-200 dark:ring-gray-700 flex-shrink-0"
-                      style={{ backgroundImage: `url("${authorAvatar}")` }}
-                    />
-                  ) : (
-                    <div className="rounded-full h-10 w-10 ring-2 ring-gray-200 dark:ring-gray-700 flex-shrink-0 bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-semibold text-gray-700 dark:text-gray-100">
-                      {String(userName || '여행자').charAt(0)}
-                    </div>
-                  )}
-                  <div className="flex flex-col flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-[#181410] dark:text-white text-sm font-bold leading-tight truncate">
-                        {userName}
-                      </p>
-                      {representativeBadge && (
-                        <div className="flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-full flex-shrink-0">
-                          <span className="text-xs">{representativeBadge.icon}</span>
-                          <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-300 max-w-[72px] truncate">
-                            {representativeBadge.name}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    {(authorTrustScore != null || authorTrustGrade) && (
-                      <div className="mt-0.5">
-                        <p className="text-[11px] text-text-secondary-light dark:text-text-secondary-dark flex items-center gap-1">
-                          <span>신뢰지수</span>
-                          <span className="font-semibold text-gray-700 dark:text-gray-300">{authorTrustScore ?? 0}</span>
-                          {authorTrustGrade && (
-                            <span className="text-gray-600 dark:text-gray-400 text-[11px]">
-                              {authorTrustGrade.icon} {authorTrustGrade.name}
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  {postUserId && user?.id && String(postUserId) !== String(user.id) && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (isFollowAuthor) {
-                          unfollow(postUserId);
-                          setIsFollowAuthor(false);
-                        } else {
-                          const r = follow(postUserId);
-                          if (r.success) {
-                            setIsFollowAuthor(true);
-                            const myName = user?.username || '여행자';
-                            setCachedFollowProfile(postUserId, {
-                              username: userName,
-                              profileImage: authorAvatar || null,
-                            });
-                            /* followSystem → followSupabase에서 수신자에게 원격 알림 */
-                            notifyFollowingStarted(userName, user.id, {
-                              targetUserId: postUserId,
-                              targetAvatar: authorAvatar || null,
-                            });
-                          }
-                        }
-                      }}
-                      className={`shrink-0 py-1.5 px-3 rounded-xl text-xs font-semibold ${
-                        isFollowAuthor ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400' : 'bg-primary text-white hover:opacity-90'
-                      }`}
-                    >
-                      {isFollowAuthor ? '팔로잉' : '팔로우'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
             <Swiper
               key={post?.id ?? 'post-media'}
               onSwiper={(swiper) => {
@@ -1411,6 +1316,98 @@ const PostDetailScreen = () => {
         <main className="flex flex-col w-full max-w-full bg-white dark:bg-gray-900" style={{ minHeight: 'auto' }}>
           <div className="w-full max-w-full px-4 pt-4 pb-3">
             <div className="w-full max-w-full space-y-4">
+              {/* 프로필 - 사진 아래 (박스/배경 없이) */}
+              <div className="flex items-center justify-between gap-3">
+                <div
+                  className="flex min-w-0 flex-1 items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => {
+                    const postUserId = post?.userId ||
+                      (typeof post?.user === 'string' ? post.user : post?.user?.id) ||
+                      post?.user;
+                    const currentUserId = user?.id;
+                    if (postUserId && postUserId !== currentUserId) {
+                      setCachedFollowProfile(postUserId, { username: userName, profileImage: authorAvatar || null });
+                      navigate(`/user/${postUserId}`, {
+                        state: { profileHint: { username: userName, profileImage: authorAvatar || null } },
+                      });
+                    } else if (postUserId && postUserId === currentUserId) {
+                      navigate('/profile');
+                    }
+                  }}
+                >
+                  {authorAvatar ? (
+                    <div
+                      className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-10 w-10 flex-shrink-0"
+                      style={{ backgroundImage: `url("${authorAvatar}")` }}
+                    />
+                  ) : (
+                    <div className="rounded-full h-10 w-10 flex-shrink-0 bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-semibold text-gray-700 dark:text-gray-100">
+                      {String(userName || '여행자').charAt(0)}
+                    </div>
+                  )}
+                  <div className="flex min-w-0 flex-col">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <p className="min-w-0 truncate text-sm font-bold text-[#181410] dark:text-white">
+                        {userName}
+                      </p>
+                      {representativeBadge && (
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <span className="text-xs">{representativeBadge.icon}</span>
+                          <span className="text-[11px] font-semibold text-gray-600 dark:text-gray-400 max-w-[92px] truncate">
+                            {representativeBadge.name}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {(authorTrustScore != null || authorTrustGrade) && (
+                      <p className="mt-0.5 text-[11px] text-text-secondary-light dark:text-text-secondary-dark truncate">
+                        신뢰지수 <span className="font-semibold text-gray-700 dark:text-gray-300">{authorTrustScore ?? 0}</span>
+                        {authorTrustGrade ? (
+                          <span className="ml-1 text-gray-600 dark:text-gray-400">
+                            {authorTrustGrade.icon} {authorTrustGrade.name}
+                          </span>
+                        ) : null}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {postUserId && user?.id && String(postUserId) !== String(user.id) && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isFollowAuthor) {
+                          unfollow(postUserId);
+                          setIsFollowAuthor(false);
+                        } else {
+                          const r = follow(postUserId);
+                          if (r.success) {
+                            setIsFollowAuthor(true);
+                            setCachedFollowProfile(postUserId, {
+                              username: userName,
+                              profileImage: authorAvatar || null,
+                            });
+                            /* followSystem → followSupabase에서 수신자에게 원격 알림 */
+                            notifyFollowingStarted(userName, user.id, {
+                              targetUserId: postUserId,
+                              targetAvatar: authorAvatar || null,
+                            });
+                          }
+                        }
+                      }}
+                      className={`shrink-0 py-1.5 px-3 rounded-xl text-xs font-semibold ${
+                        isFollowAuthor
+                          ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                          : 'bg-primary text-white hover:opacity-90'
+                      }`}
+                    >
+                      {isFollowAuthor ? '팔로잉' : '팔로우'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {/* 위치 + 작성자 메뉴(수정·삭제) */}
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
