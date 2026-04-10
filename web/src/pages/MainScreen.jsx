@@ -26,6 +26,7 @@ import { fetchLikedPostIdsSupabase } from '../api/socialSupabase';
 import { togglePostLikeSupabase } from '../api/socialSupabase';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
+import { getBestRegionTag, getRegionIntro } from '../utils/regionCardText';
 
 const MainScreen = () => {
     const navigate = useNavigate();
@@ -1391,9 +1392,8 @@ const MainScreen = () => {
                                     ].filter(Boolean).slice(0, 5);
                                     const displayImages = rawImages.map(url => getDisplayImageUrl(url)).filter(Boolean);
                                     const mainSrc = displayImages[0] || 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80';
-                                    const statusBadges = Array.isArray(item.statusBadges) ? item.statusBadges : [];
-                                    const timelineThumbs = Array.isArray(item.timelineThumbs) ? item.timelineThumbs : [];
-                                    const hasLive = (item?.stats?.recent1hCount || 0) > 0;
+                                    const regionTag = getBestRegionTag(item.regionName, regionPosts);
+                                    const regionIntro = getRegionIntro(item.regionName);
 
                                     return (
                                         <div
@@ -1414,43 +1414,22 @@ const MainScreen = () => {
                                                     style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                                                     onError={(e) => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80'; }}
                                                 />
-                                                {hasLive && (
-                                                    <div style={{ position: 'absolute', left: 10, top: 10, padding: '4px 8px', borderRadius: 999, background: 'rgba(15,23,42,0.72)', color: '#fff', fontSize: 11, fontWeight: 800, letterSpacing: '0.02em' }}>
-                                                        LIVE
-                                                    </div>
-                                                )}
                                             </div>
                                             <div style={{ padding: '6px 2px 10px' }}>
+                                                {/* 구조: 사진 → 지역이름 → 지역태그 → 지역설명 */}
                                                 <div style={{ color: '#111827', fontSize: '14px', fontWeight: 800, marginBottom: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {item.title}
                                                 </div>
-                                                {statusBadges.length > 0 && (
-                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                                                        {statusBadges.map((b, i) => (
-                                                            <span key={`${idx}-b-${i}`} style={{ fontSize: 11, fontWeight: 800, color: '#0f172a', background: 'rgba(2,132,199,0.08)', border: '1px solid rgba(2,132,199,0.12)', padding: '3px 8px', borderRadius: 999, whiteSpace: 'nowrap' }}>
-                                                                {String(b || '').replace(/^●\s*/, '')}
-                                                            </span>
-                                                        ))}
+                                                <div style={{ marginTop: 8 }}>
+                                                    <span style={{ fontSize: 11, fontWeight: 800, color: '#0f172a', background: 'rgba(2,132,199,0.08)', border: '1px solid rgba(2,132,199,0.12)', padding: '3px 8px', borderRadius: 999, whiteSpace: 'nowrap' }}>
+                                                        {regionTag}
+                                                    </span>
+                                                </div>
+                                                {regionIntro ? (
+                                                    <div style={{ color: '#475569', fontSize: 12, fontWeight: 600, marginTop: 8, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                                        {regionIntro}
                                                     </div>
-                                                )}
-                                                {item?.proofSummary && (
-                                                    <div style={{ color: '#334155', fontSize: 12, fontWeight: 700, marginTop: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                        {item.proofSummary}
-                                                    </div>
-                                                )}
-                                                {timelineThumbs.length > 0 && (
-                                                    <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                                                        {timelineThumbs.slice(0, 4).map((u, i) => {
-                                                            const src = getDisplayImageUrl(u);
-                                                            if (!src) return null;
-                                                            return (
-                                                                <div key={`${idx}-t-${i}`} style={{ width: 34, height: 34, borderRadius: 10, overflow: 'hidden', background: '#e5e7eb', flexShrink: 0 }}>
-                                                                    <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
+                                                ) : null}
                                             </div>
                                         </div>
                                     );
