@@ -178,6 +178,46 @@ const UploadScreen = () => {
 
     return tags;
   };
+  const buildMoodTags = (analysisResult, noteText = '') => {
+    const text = `${analysisResult?.caption || ''} ${(analysisResult?.tags || []).join(' ')} ${noteText || ''}`.toLowerCase();
+    const color = analysisResult?.colorAnalysis || analysisResult?.metadata?.colorAnalysis || null;
+
+    const moodCandidates = [
+      { match: /야경|밤|night|dark|블루아워|골든아워|일몰|노을/, tags: ['야경 감성', '로맨틱'] },
+      { match: /바다|해변|파도|윤슬|오션|sea|beach/, tags: ['청량', '시원한 바람'] },
+      { match: /벚꽃|꽃|개화|만개|절정|spring/, tags: ['화사함', '봄 감성'] },
+      { match: /산|숲|트레킹|등산|오름|hiking|forest/, tags: ['힐링', '초록 무드'] },
+      { match: /카페|커피|cafe|coffee|브런치/, tags: ['감성', '여유'] },
+      { match: /시장|맛집|음식|food|국밥|면|고기|횟집/, tags: ['로컬', '맛있는 하루'] },
+    ];
+
+    for (const c of moodCandidates) {
+      if (c.match.test(text)) return c.tags;
+    }
+
+    // 색상 기반 fallback
+    if (color?.isDark) return ['차분함', '감성'];
+    if (color?.isBright) return ['맑은 기분', '산뜻함'];
+    return ['여유', '기분 전환'];
+  };
+
+  const pickTwo = (items) => {
+    const out = [];
+    const seen = new Set();
+    (items || []).forEach((v) => {
+      const s = normalizeTag(String(v || ''));
+      const key = s.toLowerCase();
+      if (!s || seen.has(key)) return;
+      seen.add(key);
+      out.push(s);
+    });
+    return out.slice(0, 2);
+  };
+
+  const formatHash = (s) => {
+    const clean = normalizeTag(s);
+    return clean ? `#${clean}` : '';
+  };
   const [loadingAITags, setLoadingAITags] = useState(false);
   const [showBadgeModal, setShowBadgeModal] = useState(false);
   const [earnedBadge, setEarnedBadge] = useState(null);
@@ -439,8 +479,8 @@ const UploadScreen = () => {
       const hasCategory = analysisResult.category && analysisResult.categoryName;
 
       if (analysisResult.success || hasCategory || hasTags) {
-        // 추천 태그는 총 6개로 제한 (날씨 1~2개 + AI 태그 중심)
-        const limitedTags = (analysisResult.tags || []).slice(0, 12);
+        // 추천 태그 구성: 날씨 2 + 분위기 2 + 사진분석 2 (총 6개)
+        const limitedTags = (analysisResult.tags || []).slice(0, 24);
 
         const existingTags = formData.tags.map((tag) =>
           tag.startsWith('#') ? tag.substring(1).toLowerCase() : tag.toLowerCase()
@@ -459,18 +499,23 @@ const UploadScreen = () => {
           })
           .slice(0, 8);
 
-        const weatherHashtags = weatherTags
-          .map((tag) => `#${normalizeTag(tag)}`)
-          .filter(Boolean);
-        const weatherPick = weatherHashtags.slice(0, 2); // 1~2개까지만
+        const weatherPick = pickTwo(weatherTags).map(formatHash).filter(Boolean); // 정확히 0~2
 
-        const aiHashtags = filteredTags.map((tag) => {
-          const s = String(tag || '').trim();
-          if (!s) return '';
-          const withHash = s.startsWith('#') ? s : `#${s.replace(/^#+/, '')}`;
-          // AI 태그에서는 날씨 관련 태그는 제외 (날씨 태그는 별도 weatherPick에서만 사용)
-          return isWeatherTag(withHash) ? '' : withHash;
-        }).filter(Boolean);
+        const moodPick = pickTwo(buildMoodTags(analysisResult, note))
+          .map(formatHash)
+          .filter(Boolean);
+
+        // 사진분석(analysis) 태그 2개: AI 결과 중에서 날씨/분위기 제외하고 선별
+        const moodLower = new Set(moodPick.map((t) => normalizeTag(t).toLowerCase()));
+        const analysisPick = pickTwo(
+          filteredTags
+            .map((tag) => String(tag || '').trim())
+            .filter(Boolean)
+            .filter((t) => !isWeatherTag(t))
+            .filter((t) => !moodLower.has(normalizeTag(t).toLowerCase()))
+        )
+          .map(formatHash)
+          .filter(Boolean);
 
         // 테마 이름이 태그로 직접 노출되는 것은 제거 (요청)
         const THEME_TAG_BLOCKLIST = new Set([
@@ -481,13 +526,32 @@ const UploadScreen = () => {
           '안심나들이',
         ].map((t) => normalizeTag(t).toLowerCase()));
 
-        const aiHashtagsNoTheme = aiHashtags.filter((t) => {
-          const cleaned = normalizeTag(String(t || '')).toLowerCase();
-          return cleaned && !THEME_TAG_BLOCKLIST.has(cleaned);
-        });
+        const final = dedupeHashtags(
+          [
+            ...weatherPick,
+            ...moodPick,
+            ...analysisPick,
+          ].filter((t) => {
+            const cleaned = normalizeTag(String(t || '')).toLowerCase();
+            return cleaned && !THEME_TAG_BLOCKLIST.has(cleaned);
+          })
+        );
 
-        const picked = dedupeHashtags([...weatherPick, ...aiHashtagsNoTheme]).slice(0, 6);
-        setAutoTags(picked);
+        // 부족하면 남는 AI 태그로 채우기(최대 6)
+        if (final.length < 6) {
+          const extras = filteredTags
+            .map((t) => formatHash(t))
+            .filter(Boolean)
+            .filter((t) => !final.some((x) => normalizeTag(x).toLowerCase() === normalizeTag(t).toLowerCase()))
+            .filter((t) => !isWeatherTag(t))
+            .filter((t) => {
+              const cleaned = normalizeTag(t).toLowerCase();
+              return cleaned && !THEME_TAG_BLOCKLIST.has(cleaned);
+            });
+          setAutoTags(dedupeHashtags([...final, ...extras]).slice(0, 6));
+        } else {
+          setAutoTags(final.slice(0, 6));
+        }
         const slugList = slugsFromAnalysisResult(analysisResult);
         setFormData(prev => ({
           ...prev,
@@ -508,9 +572,16 @@ const UploadScreen = () => {
             aiCategoryIcon: analysisResult.categoryIcon ?? prev.aiCategoryIcon ?? '🏞️'
           }));
         }
-        // 로컬 추정 태그는 사용하지 않고(요청), 날씨 태그만 최대 2개 노출
-        const weatherPick = (weatherTags || []).map((t) => `#${normalizeTag(t)}`).filter(Boolean).slice(0, 2);
-        setAutoTags(dedupeHashtags(weatherPick).slice(0, 6));
+        // AI 태그가 없으면: 날씨 2 + 분위기 2(기본) + 분석(위치/노트 기반) 2
+        const weatherPick = pickTwo(weatherTags).map(formatHash).filter(Boolean);
+        const moodPick = pickTwo(buildMoodTags(null, note)).map(formatHash).filter(Boolean);
+        const analysisPick = pickTwo([
+          location?.split(' ')[0] ? `${location.split(' ')[0]} 여행` : '',
+          '산책 코스',
+          '포토 스팟',
+          '감성 스팟',
+        ]).map(formatHash).filter(Boolean);
+        setAutoTags(dedupeHashtags([...weatherPick, ...moodPick, ...analysisPick]).slice(0, 6));
 
         if (!hasCategory) {
           setFormData(prev => ({
@@ -705,11 +776,16 @@ const UploadScreen = () => {
       }
     }
 
-    // 로컬 추정 태그 제거(요청). 동영상은 현재 AI 분석 없이 날씨 태그만 최대 2개 추천
-    const merged = dedupeHashtags(
-      [...weatherTags].map((t) => `#${normalizeTag(t)}`)
-    ).slice(0, 2);
-    setAutoTags(merged);
+    // 동영상: 날씨 2 + 분위기 2 + 분석(텍스트 기반) 2
+    const weatherPick = pickTwo(weatherTags).map(formatHash).filter(Boolean);
+    const moodPick = pickTwo(buildMoodTags(null, noteText)).map(formatHash).filter(Boolean);
+    const analysisPick = pickTwo([
+      locationName ? `${locationName.split(' ')[0]} 지금` : '',
+      '현장 분위기',
+      '리얼 후기',
+      '영상 기록',
+    ]).map(formatHash).filter(Boolean);
+    setAutoTags(dedupeHashtags([...weatherPick, ...moodPick, ...analysisPick]).slice(0, 6));
   }, []);
 
   const handleImageSelect = useCallback(async (e) => {
@@ -954,6 +1030,11 @@ const UploadScreen = () => {
 
     if (!formData.location.trim()) {
       alert('위치를 입력해주세요');
+      return;
+    }
+
+    if (!formData.note.trim()) {
+      alert('설명을 입력해주세요');
       return;
     }
 
@@ -1730,8 +1811,7 @@ const UploadScreen = () => {
           flex: 1,
           overflowY: 'auto',
           overflowX: 'hidden',
-          paddingBottom: '148px',
-          padding: '0 16px 148px 16px',
+          padding: '0 16px 24px 16px',
           background: 'transparent',
           WebkitOverflowScrolling: 'touch',
           minHeight: 0
@@ -2039,10 +2119,10 @@ const UploadScreen = () => {
               )}
             </div>
 
-            {/* 설명 (선택) */}
+            {/* 설명 (필수) */}
             <div>
               <label className="flex flex-col">
-                <p className="text-base font-semibold text-gray-800 mb-3">설명 (선택)</p>
+                <p className="text-base font-semibold text-gray-800 mb-3">설명 (필수)</p>
                 <div className="relative">
                   <textarea
                     className="form-textarea w-full rounded-2xl border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft px-4 py-3 text-sm font-normal text-gray-900 placeholder:text-[11px] placeholder:whitespace-nowrap resize-none leading-relaxed min-h-[150px]"
@@ -2059,57 +2139,52 @@ const UploadScreen = () => {
                 </div>
               </label>
             </div>
+
+            {/* 폼 하단 업로드 버튼 (고정 X, 맨 아래에서 누르게) */}
+            <div style={{ paddingTop: 12, paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 92px)' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  handleSubmit();
+                }}
+                disabled={
+                  uploading ||
+                  (formData.images.length + formData.videos.length) === 0 ||
+                  !formData.location.trim() ||
+                  !formData.note.trim()
+                }
+                className={`flex w-full items-center justify-center rounded-full min-h-[44px] h-11 px-4 text-sm font-semibold text-white transition-all ${
+                  uploading ||
+                  (formData.images.length + formData.videos.length) === 0 ||
+                  !formData.location.trim() ||
+                  !formData.note.trim()
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-primary hover:bg-primary-dark active:scale-[0.98] transform'
+                }`}
+              >
+                {uploading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    <span>{editingPostId ? '저장 중...' : '업로드 중...'}</span>
+                  </>
+                ) : (
+                  <span>{editingPostId ? '저장하기' : '업로드하기'}</span>
+                )}
+              </button>
+              {((formData.images.length + formData.videos.length) === 0 ||
+                !formData.location.trim() ||
+                !formData.note.trim()) && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
+                  {(formData.images.length + formData.videos.length) === 0
+                    ? '사진 또는 동영상을 추가해주세요'
+                    : !formData.location.trim()
+                      ? '위치를 입력해주세요'
+                      : '설명을 입력해주세요'}
+                </p>
+              )}
+            </div>
           </div>
         </main>
-
-        {/* 하단 고정 업로드 버튼 바 (네비게이션 위에 항상 보이도록) */}
-        <footer
-          className="flex-shrink-0"
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 68,
-            padding: '6px 16px 8px',
-            background: '#ffffff',
-            borderTop: '1px solid rgba(148, 163, 184, 0.2)'
-          }}
-        >
-          <div className="w-full">
-            <button
-              onClick={() => {
-                logger.debug('Upload button clicked');
-                logger.debug('Current state:', {
-                  uploading,
-                  imageCount: formData.images.length,
-                  videoCount: formData.videos.length,
-                  location: formData.location,
-                  disabled: uploading || (formData.images.length + formData.videos.length) === 0
-                });
-                handleSubmit();
-              }}
-              disabled={uploading || (formData.images.length + formData.videos.length) === 0 || !formData.location.trim()}
-              className={`flex w-full items-center justify-center rounded-full min-h-[44px] h-11 px-4 text-sm font-semibold text-white transition-all ${uploading || (formData.images.length + formData.videos.length) === 0 || !formData.location.trim()
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-primary hover:bg-primary-dark active:scale-[0.98] transform'
-                }`}
-            >
-              {uploading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                  <span>{editingPostId ? '저장 중...' : '업로드 중...'}</span>
-                </>
-              ) : (
-                <span>{editingPostId ? '저장하기' : '업로드하기'}</span>
-              )}
-            </button>
-            {((formData.images.length + formData.videos.length) === 0 || !formData.location.trim()) && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
-                {(formData.images.length + formData.videos.length) === 0 ? '사진 또는 동영상을 추가해주세요' : '위치를 입력해주세요'}
-              </p>
-            )}
-          </div>
-        </footer>
 
         {/* 하단 네비게이션 바 */}
         <BottomNavigation />
