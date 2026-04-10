@@ -199,7 +199,7 @@ const RecommendedPlaceScreen = () => {
                           fontWeight: 600,
                           lineHeight: 1.5,
                           display: '-webkit-box',
-                          WebkitLineClamp: 3,
+                          WebkitLineClamp: 6,
                           WebkitBoxOrient: 'vertical',
                           overflow: 'hidden',
                           wordBreak: 'break-word',

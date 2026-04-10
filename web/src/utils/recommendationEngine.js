@@ -1058,53 +1058,6 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming', op
     return single.length > 38 ? `${single.slice(0, 36)}…` : single;
   };
 
-  /** 카드용: 최신 글 기준 사용자 입력(노트·본문) 길게 추출 */
-  const getUserVoiceFull = (postsForPlace) => {
-    const list = Array.isArray(postsForPlace) ? postsForPlace : [];
-    const sorted = list.slice().sort((a, b) => {
-      const ta = new Date(a?.timestamp || a?.createdAt || 0).getTime();
-      const tb = new Date(b?.timestamp || b?.createdAt || 0).getTime();
-      return tb - ta;
-    });
-    for (const p of sorted) {
-      const raw = String(p?.note || p?.content || '').trim().replace(/\s+/g, ' ');
-      if (raw.length < 6) continue;
-      const stripped = raw.replace(/#[^\s#]+/g, ' ').replace(/\s+/g, ' ').trim();
-      if (stripped.length < 6) continue;
-      return stripped.length > 200 ? `${stripped.slice(0, 198)}…` : stripped;
-    }
-    return '';
-  };
-
-  const MAX_UNIFIED_PLACE_DESC_CHARS = 320;
-
-  /**
-   * AI 한 줄 요약 + 사용자 현장 글을 하나의 설명으로 통합 (최대 약 3줄 분량)
-   */
-  const buildUnifiedPlaceDescription = (typeId, placeKey, postsForPlace) => {
-    const ai = buildAiIntroForPlace(typeId, placeKey, postsForPlace).trim();
-    const user = getUserVoiceFull(postsForPlace);
-    const cap = (s) => (s.length > MAX_UNIFIED_PLACE_DESC_CHARS ? `${s.slice(0, MAX_UNIFIED_PLACE_DESC_CHARS - 1)}…` : s);
-
-    if (!user) return cap(ai);
-
-    const aiN = normalizeText(ai);
-    const userN = normalizeText(user);
-    if (userN.length >= 14) {
-      const probe = userN.slice(0, 28);
-      if (aiN.includes(probe)) return cap(ai);
-    }
-
-    let merged = `${ai} 최근에 올라온 방문객 글에는 「${user}」라는 내용이 담겨 있어요.`;
-    if (merged.length <= MAX_UNIFIED_PLACE_DESC_CHARS) return merged;
-
-    const head = `${ai} 방문객 제보: 「`;
-    const room = MAX_UNIFIED_PLACE_DESC_CHARS - head.length - 1;
-    const shortUser = user.length > room ? `${user.slice(0, Math.max(0, room - 1))}…` : user;
-    merged = `${head}${shortUser}」`;
-    return merged.length > MAX_UNIFIED_PLACE_DESC_CHARS ? cap(merged) : merged;
-  };
-
   const buildAiIntroForPlace = (typeId, placeKey, postsForPlace) => {
     const blob = postsForPlace.map((p) => getPostTextBlob(p)).join(' ');
     const hasCherry = matchesAny(blob, ['벚꽃', '개화', '만개', '절정', '꽃']);
@@ -1124,6 +1077,125 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming', op
     if (hasFood) return `${placeKey}은(는) 주변에 먹거리 선택지가 좋아, 구경하고 먹고 쉬는 코스가 자연스럽게 이어져요.`;
     if (hasWalk) return `${placeKey}은(는) 걷기 좋은 동선이 있어, 가벼운 산책만으로도 만족도가 높아요.`;
     return `${placeKey}은(는) 지금 올라온 최신 제보를 바탕으로 골라낸 추천 장소예요.`;
+  };
+
+  /** 게시물별 방문객 한마디를 여러 개 수집(중복·너무 짧은 글 제외) */
+  const collectVisitorVoiceSnippets = (postsForPlace, maxQuotes = 3, maxLenEach = 100) => {
+    const list = Array.isArray(postsForPlace) ? postsForPlace : [];
+    const sorted = list.slice().sort((a, b) => {
+      const ta = new Date(a?.timestamp || a?.createdAt || 0).getTime();
+      const tb = new Date(b?.timestamp || b?.createdAt || 0).getTime();
+      return tb - ta;
+    });
+    const out = [];
+    const normFingerprints = [];
+    for (const p of sorted) {
+      let t = String(p?.note || p?.content || '').trim().replace(/\s+/g, ' ');
+      t = t.replace(/#[^\s#]+/g, ' ').replace(/\s+/g, ' ').trim();
+      if (t.length < 8) continue;
+      if (t.length > maxLenEach) t = `${t.slice(0, maxLenEach - 1)}…`;
+      const n = normalizeText(t);
+      let overlap = false;
+      for (const fp of normFingerprints) {
+        const a = n.slice(0, 24);
+        const b = fp.slice(0, 24);
+        if (a.length >= 12 && (n.includes(fp.slice(0, 18)) || fp.includes(a.slice(0, 18)))) {
+          overlap = true;
+          break;
+        }
+      }
+      if (overlap) continue;
+      normFingerprints.push(n);
+      out.push(t);
+      if (out.length >= maxQuotes) break;
+    }
+    return out;
+  };
+
+  const buildClosingSentence = (typeId, placeKey) => {
+    const name = placeKey || '이곳';
+    if (typeId === 'season_peak') {
+      return `이처럼 ${name}은(는) 계절의 분위기와 여행객이 실시간으로 전하는 생동감이 겹쳐 지나는 발걸음을 충분히 가치 있게 만드는 여행지로 이어지고 있습니다.`;
+    }
+    if (typeId === 'silent_healing') {
+      return `이처럼 ${name}은(는) 고요한 풍경과 방문객의 솔직한 후기가 더해져, 잠시 숨 고르기에도 좋은 공간으로 자리 잡고 있습니다.`;
+    }
+    if (typeId === 'deep_sea_blue') {
+      return `이처럼 ${name}은(는) 바다가 주는 여유와 현장에서 전해지는 생생한 감상이 함께 어우러져, 머무름 자체가 보상이 되는 곳으로 다가옵니다.`;
+    }
+    if (typeId === 'lively_vibe') {
+      return `이처럼 ${name}은(는) 지금의 활기와 사람들의 목소리가 더해져, 짧은 방문만으로도 분위기를 온전히 느낄 수 있는 장소로 이어지고 있습니다.`;
+    }
+    if (typeId === 'night_good') {
+      return `이처럼 ${name}은(는) 밤의 빛과 방문객이 남긴 인상이 겹쳐, 낮과는 또 다른 매력을 기대하게 만드는 여행지로 남습니다.`;
+    }
+    return `이처럼 ${name}은(는) 최신 제보와 방문객의 목소리가 더해져, 여행 선택에 도움이 되는 장소로 이어지고 있습니다.`;
+  };
+
+  /** 도입(장소 톤) + 방문객 인용 묶음 + 마무리 문장 */
+  const MAX_UNIFIED_PLACE_DESC_CHARS = 620;
+
+  const stripLeadingPlaceClause = (sentence, placeKey) => {
+    const s = String(sentence || '').trim();
+    const pk = String(placeKey || '').trim();
+    if (!pk || !s.startsWith(pk)) return s;
+    let rest = s.slice(pk.length).trim();
+    rest = rest.replace(/^은\(는\)\s*/, '').replace(/^(?:은|는)\s*/, '').trim();
+    return rest || s;
+  };
+
+  const buildNarrativeOpening = (typeId, placeKey, postsForPlace, blob) => {
+    const base = buildAiIntroForPlace(typeId, placeKey, postsForPlace).trim();
+    const tail = stripLeadingPlaceClause(base, placeKey);
+    const hasTrad = matchesAny(blob, ['전통', '고즈넉', '한옥', '역사', '유적', '문화']);
+    const hasModern = matchesAny(blob, ['산책로', '데크', '카페', '전망', '포토', '인생샷']);
+    const hasWater = matchesAny(blob, ['연못', '호수', '강', '하천', '물']);
+    if (hasTrad && (hasModern || hasWater)) {
+      return `${placeKey}은(는) 잔잔한 정취와 둘러선 풍경이 어우러지는 곳으로, ${tail}`;
+    }
+    if (hasModern && matchesAny(blob, ['산책', '걷기', '둘레'])) {
+      return `${placeKey}은(는) 걷기 좋은 동선과 주변 분위기가 조화를 이루는 곳으로, ${tail}`;
+    }
+    return base;
+  };
+
+  const buildUnifiedPlaceDescription = (typeId, placeKey, postsForPlace) => {
+    const blob = postsForPlace.map((p) => getPostTextBlob(p)).join(' ');
+    const quotes = collectVisitorVoiceSnippets(postsForPlace, 3, 105);
+    const cap = (s) => {
+      if (s.length <= MAX_UNIFIED_PLACE_DESC_CHARS) return s;
+      const cut = s.slice(0, MAX_UNIFIED_PLACE_DESC_CHARS - 1);
+      const endings = ['습니다.', '입니다.', '있습니다.', '해요.', '어요.', '예요.', '니다.', '요.', '다.'];
+      let endIdx = -1;
+      for (const e of endings) {
+        const p = cut.lastIndexOf(e);
+        if (p !== -1 && p + e.length > endIdx) endIdx = p + e.length - 1;
+      }
+      if (endIdx >= 120) return `${cut.slice(0, endIdx + 1).trim()}…`;
+      const sp = cut.lastIndexOf(' ', 500);
+      if (sp > 180) return `${cut.slice(0, sp).trim()}…`;
+      return `${cut}…`;
+    };
+
+    const intro =
+      quotes.length >= 2 ? buildNarrativeOpening(typeId, placeKey, postsForPlace, blob) : buildAiIntroForPlace(typeId, placeKey, postsForPlace).trim();
+
+    if (quotes.length === 0) {
+      const closing = buildClosingSentence(typeId, placeKey);
+      return cap(`${intro} ${closing}`);
+    }
+
+    if (quotes.length === 1) {
+      const q = quotes[0];
+      const mid = `최근 올라온 글에서는 "${q}"라는 이야기가 전해지고 있습니다.`;
+      const out = `${intro} ${mid} ${buildClosingSentence(typeId, placeKey)}`;
+      return cap(out);
+    }
+
+    const quoted = quotes.map((q) => `"${q}"`).join(', ');
+    const mid = `현재 방문객들 사이에서는 ${quoted} 같은 생생한 현장 반응이 이어지고 있습니다.`;
+    const out = `${intro} ${mid} ${buildClosingSentence(typeId, placeKey)}`;
+    return cap(out);
   };
 
   // 카드 간 태그 중복을 줄이기 위한 전역 사용 카운트 (한 번 호출 내에서만)
