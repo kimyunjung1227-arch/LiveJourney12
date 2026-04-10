@@ -1393,10 +1393,6 @@ const MainScreen = () => {
                                     ].filter(Boolean).slice(0, 5);
                                     const displayImages = rawImages.map(url => getDisplayImageUrl(url)).filter(Boolean);
                                     const mainSrc = displayImages[0] || 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80';
-                                    const headerTag = (() => {
-                                        const t = RECOMMENDATION_TYPES.find((x) => x.id === selectedRecommendTag);
-                                        return t?.name || '지금 꼭 가야 할 곳';
-                                    })();
                                     const aiIntro = (item.description || '').trim();
                                     const userSnippet = item.userSnippet ? String(item.userSnippet).trim() : '';
                                     const topTags = Array.isArray(item.topTags) ? item.topTags.filter(Boolean).slice(0, 3) : [];
@@ -1425,11 +1421,6 @@ const MainScreen = () => {
                                                 {/* 구조: 사진 → 지역이름 → 지역태그 → 지역설명 */}
                                                 <div style={{ color: '#111827', fontSize: '14px', fontWeight: 800, marginBottom: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {placeKey}
-                                                </div>
-                                                <div style={{ marginTop: 8 }}>
-                                                    <span style={{ fontSize: 11, fontWeight: 800, color: '#0f172a', background: 'rgba(2,132,199,0.08)', border: '1px solid rgba(2,132,199,0.12)', padding: '3px 8px', borderRadius: 999, whiteSpace: 'nowrap' }}>
-                                                        {headerTag}
-                                                    </span>
                                                 </div>
                                                 {topTags.length > 0 && (
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
