@@ -1323,6 +1323,52 @@ const MainScreen = () => {
                             <div
                                 style={{
                                     display: 'flex',
+                                    gap: 8,
+                                    padding: '0 0 8px 0',
+                                    overflowX: 'auto',
+                                    scrollbarWidth: 'none',
+                                    WebkitOverflowScrolling: 'touch',
+                                    cursor: 'grab',
+                                    scrollSnapType: 'x mandatory',
+                                }}
+                                className="hide-scrollbar"
+                                onMouseDown={handleDragStart}
+                            >
+                                {RECOMMENDATION_TYPES.map((tag) => {
+                                    const isActive = selectedRecommendTag === tag.id;
+                                    return (
+                                        <button
+                                            key={tag.id}
+                                            type="button"
+                                            onClick={withDragCheck(() => setSelectedRecommendTag(tag.id))}
+                                            style={{
+                                                flexShrink: 0,
+                                                scrollSnapAlign: 'start',
+                                                padding: '6px 12px',
+                                                borderRadius: 999,
+                                                border: isActive ? '1px solid #26C6DA' : '1px solid #e2e8f0',
+                                                backgroundColor: isActive ? 'rgba(38,198,218,0.08)' : '#ffffff',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: 4,
+                                                fontSize: 12,
+                                                fontWeight: isActive ? 700 : 500,
+                                                color: isActive ? '#0f172a' : '#64748b',
+                                                whiteSpace: 'nowrap',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.18s ease-out',
+                                            }}
+                                        >
+                                            <span style={{ fontSize: 13, lineHeight: 1 }}>{tag.icon}</span>
+                                            <span>{tag.name}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <div
+                                style={{
+                                    display: 'flex',
                                     gap: '10px',
                                     padding: '0 0 10px 0',
                                     overflowX: 'auto',
