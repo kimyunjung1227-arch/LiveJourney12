@@ -133,6 +133,7 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null, o
   const pid = String(postId || '').trim();
   if (!isValidUuid(uid) || !isValidUuid(pid)) return { success: false, isLiked: false, likesCount: null };
   const likedBeforeClick = opts.likedBeforeClick;
+  const baseLikesCount = Number.isFinite(Number(opts.baseLikesCount)) ? Math.max(0, Number(opts.baseLikesCount)) : null;
   const lockKey = `${uid}:${pid}`;
   return await withLikeLock(lockKey, async () => {
     try {
@@ -155,7 +156,12 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null, o
         }
         // likes_count 트리거가 없거나 반영이 느려도 0으로 되돌아가지 않게
         // post_likes를 직접 count해서 최종값을 만든다.
-        const likesCount = await fetchLikesCountFromLikesTable(pid);
+        let likesCount = await fetchLikesCountFromLikesTable(pid);
+        // RLS/반영지연으로 count가 0/NULL로 보이는 경우를 방지: 클라이언트가 알고 있는 base값을 우선 사용
+        if ((likesCount == null || likesCount === 0) && baseLikesCount != null) {
+          const delta = (desired ? 1 : 0) - (likedBeforeClick === true ? 1 : 0);
+          likesCount = Math.max(0, baseLikesCount + delta);
+        }
         // 확정 liked 캐시 갱신
         setLikedPostLocalCache(pid, desired);
         if (likesCount != null) {
@@ -173,8 +179,13 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null, o
     const row = Array.isArray(rows) ? rows[0] : rows;
     const isLiked = row?.is_liked != null ? !!row.is_liked : desired;
     let likesCount = row?.likes_count != null ? Math.max(0, Number(row.likes_count) || 0) : null;
-    if (likesCount == null) {
-      likesCount = await fetchLikesCountFromLikesTable(pid);
+    if (likesCount == null || likesCount === 0) {
+      const fromLikes = await fetchLikesCountFromLikesTable(pid);
+      if (typeof fromLikes === 'number') likesCount = fromLikes;
+    }
+    if ((likesCount == null || likesCount === 0) && baseLikesCount != null) {
+      const delta = (isLiked ? 1 : 0) - (likedBeforeClick === true ? 1 : 0);
+      likesCount = Math.max(0, baseLikesCount + delta);
     }
     setLikedPostLocalCache(pid, isLiked);
     if (likesCount != null) {

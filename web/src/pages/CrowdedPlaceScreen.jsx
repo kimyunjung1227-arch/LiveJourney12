@@ -93,7 +93,7 @@ const CrowdedPlaceScreen = () => {
                 String(rawUser.id),
                 String(post.id),
                 { username: rawUser.username, avatarUrl: rawUser.profileImage || null },
-                { likedBeforeClick: wasLiked }
+                { likedBeforeClick: wasLiked, baseLikesCount: baseLikes }
             ).then((sup) => {
                 const nextCount = typeof sup?.likesCount === 'number' ? sup.likesCount : optimisticCount;
                 applyPostLikesCountFromServer(post.id, nextCount);

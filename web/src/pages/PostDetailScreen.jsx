@@ -384,12 +384,11 @@ const PostDetailScreen = () => {
   const handleLike = useCallback(() => {
     if (!post) return;
 
-    // Supabase 게시물은 state(liked)가 재조회/캐시로 흔들릴 수 있어
-    // 클릭 직전 로컬 캐시 기준으로 판단(= 네트워크에 p_like가 계속 false로 나가는 버그 방지)
     const isSupabasePost = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(post.id || '').trim());
     const shouldUseSupabase = isSupabasePost && !!user?.id;
-    const wasLiked = shouldUseSupabase ? isPostLiked(post.id) : liked;
-    const optimisticLiked = !liked;
+    // ✅ 단일 진실 공급원: 현재 렌더링 상태(liked)를 기준으로 요청을 결정한다.
+    const wasLiked = liked;
+    const optimisticLiked = !wasLiked;
 
     // 먼저 UI를 낙관적으로 업데이트
     setLiked(optimisticLiked);
@@ -416,7 +415,7 @@ const PostDetailScreen = () => {
             username: user.username,
             avatarUrl: user.profileImage || null,
           },
-          { likedBeforeClick: wasLiked }
+          { likedBeforeClick: wasLiked, baseLikesCount: Number(likeCount) || 0 }
         ).then(async (sup) => {
           if (!sup?.success) {
             setLiked(wasLiked);
@@ -426,6 +425,13 @@ const PostDetailScreen = () => {
               return Math.max(0, safe + (optimisticLiked ? -1 : 1));
             });
             return;
+          }
+          // ✅ 서버가 확정한 좋아요 상태를 UI/로컬 캐시에 반영 (상태 시차로 인한 오판 방지)
+          if (typeof sup?.isLiked === 'boolean') {
+            setLiked(!!sup.isLiked);
+            try {
+              setLikedPostLocalCache(post.id, !!sup.isLiked);
+            } catch {}
           }
           const n = typeof sup?.likesCount === 'number' ? sup.likesCount : null;
           if (n != null) {

@@ -668,7 +668,7 @@ const MainScreen = () => {
                         username: user.username,
                         avatarUrl: user.profileImage || null,
                     },
-                    { likedBeforeClick: wasLiked }
+                    { likedBeforeClick: wasLiked, baseLikesCount: baseLikes }
                 );
                 if (sup.success) {
                     const delta = (sup.isLiked ? 1 : 0) - (wasLiked ? 1 : 0);
