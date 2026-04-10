@@ -1058,28 +1058,109 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming', op
     return single.length > 38 ? `${single.slice(0, 36)}…` : single;
   };
 
-  const buildAiIntroForPlace = (typeId, placeKey, postsForPlace) => {
+  const placeDescHash = (placeKey, typeId, salt = '') => {
+    const s = `${typeId}\0${placeKey}\0${salt}`;
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i += 1) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+    return h >>> 0;
+  };
+
+  /** 장소·필터·제보 맥락마다 다른 문장 후보 중 하나 (진짜 LLM은 아니지만 패턴 분기) */
+  const pickVariedAiIntro = (typeId, placeKey, postsForPlace, h) => {
     const blob = postsForPlace.map((p) => getPostTextBlob(p)).join(' ');
+    const name = placeKey || '이곳';
     const hasCherry = matchesAny(blob, ['벚꽃', '개화', '만개', '절정', '꽃']);
     const hasNight = matchesAny(blob, ['야경', '조명', '밤', '노을', '일몰', '루프탑']);
     const hasSea = matchesAny(blob, ['바다', '해변', '윤슬', '파도', '물멍', '청량']);
     const hasWalk = matchesAny(blob, ['산책', '걷기', '트레킹', '등산', '공원', '숲']);
     const hasCafe = matchesAny(blob, ['카페', '커피', '브런치', '디저트']);
-    const hasFood = matchesAny(blob, ['맛집', '식당', '음식', '국밥', '면', '고기', '횟집']);
+    const hasFood = matchesAny(blob, ['맛집', '식당', '음식', '국밥']);
 
-    if (typeId === 'season_peak' && hasCherry) return `${placeKey}은(는) 지금 꽃이 가장 예쁜 타이밍이라, 짧은 시간만으로도 풍경이 확 달라져요.`;
-    if (typeId === 'season_peak') return `${placeKey}은(는) 지금 가장 예쁜 순간을 만나기 좋은 곳으로, 사진 한 장만으로도 계절감이 전해져요.`;
-    if (typeId === 'deep_sea_blue' || hasSea) return `${placeKey}은(는) 바다 바람과 탁 트인 풍경이 매력이라, 잠깐만 있어도 머리가 맑아져요.`;
-    if (typeId === 'night_good' || hasNight) return `${placeKey}은(는) 해질녘~밤에 분위기가 살아나는 곳이라, 야경/노을 타이밍에 특히 좋아요.`;
-    if (typeId === 'silent_healing') return `${placeKey}은(는) 조용히 걷고 쉬기 좋은 포인트가 많아, 생각 정리하기에 잘 어울려요.`;
-    if (typeId === 'lively_vibe') return `${placeKey}은(는) 지금 분위기가 올라오는 곳이라, 가볍게 들러도 재미있는 장면을 만나기 좋아요.`;
-    if (hasCafe) return `${placeKey}은(는) 카페·산책 코스를 엮기 좋아, 느긋한 반나절 코스로 추천해요.`;
-    if (hasFood) return `${placeKey}은(는) 주변에 먹거리 선택지가 좋아, 구경하고 먹고 쉬는 코스가 자연스럽게 이어져요.`;
-    if (hasWalk) return `${placeKey}은(는) 걷기 좋은 동선이 있어, 가벼운 산책만으로도 만족도가 높아요.`;
-    return `${placeKey}은(는) 지금 올라온 최신 제보를 바탕으로 골라낸 추천 장소예요.`;
+    const pick = (arr) => arr[h % arr.length];
+
+    if (typeId === 'season_peak') {
+      if (hasCherry) {
+        return pick([
+          `${name}—벚꽃·개화 얘기가 제보에 자주 올라와 지금이 보러 가기 좋은 타이밍으로 보여요.`,
+          `${name}은(는) 꽃놀이 사진이 이어지는 곳이라, 짧게 다녀와도 계절 느낌이 확 살아요.`,
+          `최근 제보 흐름상 ${name}은(는) 만개·절정 같은 말이 붙는 날이 많아요.`,
+          `${name}, 지금 올라온 현장 사진만 봐도 꽃풍경이 묻어나요.`,
+          `${name}은(는) 꽃 시즌 포인트로 손꼽히는 분위기예요.`,
+        ]);
+      }
+      return pick([
+        `${name}은(는) 단풍·꽃·설경 같은 시즌 감성이 제보에 잘 담기는 곳이에요.`,
+        `${name}—계절 사진이 꾸준히 올라와 “지금”이 보이는 스팟이에요.`,
+        `제보 맥락상 ${name}은(는) 풍경·전망을 노리기 좋은 코스로 읽혀요.`,
+        `${name}, 사진 한 장만으로도 계절이 전해지는 타입의 장소예요.`,
+        `${name}은(는) 시즌마다 분위기가 확 바뀌는 곳으로 정리돼요.`,
+      ]);
+    }
+    if (typeId === 'deep_sea_blue' || hasSea) {
+      return pick([
+        `${name}은(는) 바다·해안 쪽 제보가 많아 파란 풍경·시원한 공기가 기대되는 곳이에요.`,
+        `${name}—물멍·파도 얘기가 섞여 바다 감성이 살아 있어요.`,
+        `현장 글 기준으로 ${name}은(는) 해안 산책·감성 스냅에 잘 맞아요.`,
+        `${name}, 윤슬·맑은 날 풍경이 올라오기 좋은 코스예요.`,
+        `${name}은(는) 탁 트인 시야가 매력이라 잠깐 멍 때리기에도 좋아요.`,
+      ]);
+    }
+    if (typeId === 'night_good' || hasNight) {
+      return pick([
+        `${name}은(는) 노을·야경·조명 이야기가 붙는 밤·저녁 타이밍 스팟이에요.`,
+        `${name}—해 질 무렵부터 불빛이 살아나는 분위기로 제보돼요.`,
+        `${name}, 밤에 더 예쁘다는 말이 자연스럽게 나오는 곳이에요.`,
+        `야간·야외 조명 포인트가 있는 ${name}, 사진 맛집으로도 읽혀요.`,
+        `${name}은(는) 낮과 다른 무드가 살아서 저녁 코스로 묶기 좋아요.`,
+      ]);
+    }
+    if (typeId === 'silent_healing') {
+      return pick([
+        `${name}은(는) 한적·산책·쉼 키워드가 어우러져 머리 식히기 좋은 곳이에요.`,
+        `${name}—사람 붐비는 느낌보다 여유·고요 쪽 제보가 많아요.`,
+        `조용히 걷기 좋다는 평이 나오는 ${name}, 생각 정리 코스로도 괜찮아요.`,
+        `${name}, 숲·산·공원 흐름이 있으면 더 청량하게 읽혀요.`,
+        `${name}은(는) 북적임 대신 바람 소리·여밉이 남는 타입이에요.`,
+      ]);
+    }
+    if (typeId === 'lively_vibe') {
+      return pick([
+        `${name}은(는) 최근 업로드 속도가 빨라 “지금 붐빈다”는 인상이 강해요.`,
+        `${name}—핫플·활기 같은 표현이 제보에 잘 붙는 곳이에요.`,
+        `실시간 제보가 몰리는 ${name}, 지금 분위기를 보기엔 타이밍이 좋아요.`,
+        `${name}은(는) 사람·이벤트·에너지가 한 번에 느껴지는 스팟이에요.`,
+        `${name}, 갑자기 포스팅이 늘어난 흐름이면 더 눈에 띄는 장소예요.`,
+      ]);
+    }
+    if (hasCafe) {
+      return pick([
+        `${name}은(는) 카페·브런치 동선과 잘 엮이는 제보가 많아요.`,
+        `${name}—커피·디저트 얘기가 섞이면 반나절 코스로 묶기 좋아요.`,
+      ]);
+    }
+    if (hasFood) {
+      return pick([
+        `${name}은(는) 맛집·먹거리 언급이 섞여 동선 짜기에 도움이 돼요.`,
+        `${name}, 배고픈 타이밍에 같이 묶기 좋은 주변 제보가 있어요.`,
+      ]);
+    }
+    if (hasWalk) {
+      return pick([
+        `${name}은(는) 걷기·둘레 코스 얘기가 있어 가볍게 돌기 좋아요.`,
+        `${name}—산책로·트레킹 흔적이 있으면 만족도가 더 올라가요.`,
+      ]);
+    }
+    return pick([
+      `${name}은(는) 최신 제보 흐름을 기준으로 골라낸 추천 장소예요.`,
+      `${name}, 지금 올라온 현장 글 톤이 살아 있는 곳으로 정리됐어요.`,
+      `제보 패턴상 ${name}은(는) 여행 탐색에 참고하기 좋은 포인트예요.`,
+    ]);
   };
 
-  /** 게시물별 방문객 한마디를 여러 개 수집(중복·너무 짧은 글 제외) */
+  const buildAiIntroForPlace = (typeId, placeKey, postsForPlace) =>
+    pickVariedAiIntro(typeId, placeKey, postsForPlace, placeDescHash(placeKey, typeId));
+
+  /** 방문객 한마디(짧게, 카드 3줄용) */
   const collectVisitorVoiceSnippets = (postsForPlace, maxQuotes = 3, maxLenEach = 100) => {
     const list = Array.isArray(postsForPlace) ? postsForPlace : [];
     const sorted = list.slice().sort((a, b) => {
@@ -1112,90 +1193,34 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming', op
     return out;
   };
 
-  const buildClosingSentence = (typeId, placeKey) => {
-    const name = placeKey || '이곳';
-    if (typeId === 'season_peak') {
-      return `이처럼 ${name}은(는) 계절의 분위기와 여행객이 실시간으로 전하는 생동감이 겹쳐 지나는 발걸음을 충분히 가치 있게 만드는 여행지로 이어지고 있습니다.`;
-    }
-    if (typeId === 'silent_healing') {
-      return `이처럼 ${name}은(는) 고요한 풍경과 방문객의 솔직한 후기가 더해져, 잠시 숨 고르기에도 좋은 공간으로 자리 잡고 있습니다.`;
-    }
-    if (typeId === 'deep_sea_blue') {
-      return `이처럼 ${name}은(는) 바다가 주는 여유와 현장에서 전해지는 생생한 감상이 함께 어우러져, 머무름 자체가 보상이 되는 곳으로 다가옵니다.`;
-    }
-    if (typeId === 'lively_vibe') {
-      return `이처럼 ${name}은(는) 지금의 활기와 사람들의 목소리가 더해져, 짧은 방문만으로도 분위기를 온전히 느낄 수 있는 장소로 이어지고 있습니다.`;
-    }
-    if (typeId === 'night_good') {
-      return `이처럼 ${name}은(는) 밤의 빛과 방문객이 남긴 인상이 겹쳐, 낮과는 또 다른 매력을 기대하게 만드는 여행지로 남습니다.`;
-    }
-    return `이처럼 ${name}은(는) 최신 제보와 방문객의 목소리가 더해져, 여행 선택에 도움이 되는 장소로 이어지고 있습니다.`;
-  };
+  /** 카드 본문: 약 3줄(가독성), 장소·필터·제보 해시로 문장 후보 분기 */
+  const MAX_CARD_DESC_CHARS = 118;
 
-  /** 도입(장소 톤) + 방문객 인용 묶음 + 마무리 문장 */
-  const MAX_UNIFIED_PLACE_DESC_CHARS = 620;
-
-  const stripLeadingPlaceClause = (sentence, placeKey) => {
-    const s = String(sentence || '').trim();
-    const pk = String(placeKey || '').trim();
-    if (!pk || !s.startsWith(pk)) return s;
-    let rest = s.slice(pk.length).trim();
-    rest = rest.replace(/^은\(는\)\s*/, '').replace(/^(?:은|는)\s*/, '').trim();
-    return rest || s;
-  };
-
-  const buildNarrativeOpening = (typeId, placeKey, postsForPlace, blob) => {
-    const base = buildAiIntroForPlace(typeId, placeKey, postsForPlace).trim();
-    const tail = stripLeadingPlaceClause(base, placeKey);
-    const hasTrad = matchesAny(blob, ['전통', '고즈넉', '한옥', '역사', '유적', '문화']);
-    const hasModern = matchesAny(blob, ['산책로', '데크', '카페', '전망', '포토', '인생샷']);
-    const hasWater = matchesAny(blob, ['연못', '호수', '강', '하천', '물']);
-    if (hasTrad && (hasModern || hasWater)) {
-      return `${placeKey}은(는) 잔잔한 정취와 둘러선 풍경이 어우러지는 곳으로, ${tail}`;
-    }
-    if (hasModern && matchesAny(blob, ['산책', '걷기', '둘레'])) {
-      return `${placeKey}은(는) 걷기 좋은 동선과 주변 분위기가 조화를 이루는 곳으로, ${tail}`;
-    }
-    return base;
+  const hardCapCardDesc = (s, max = MAX_CARD_DESC_CHARS) => {
+    const t = String(s || '').trim();
+    if (t.length <= max) return t;
+    const cut = t.slice(0, max - 1);
+    const sp = cut.lastIndexOf(' ', max - 24);
+    if (sp > 36) return `${cut.slice(0, sp).trim()}…`;
+    return `${cut}…`;
   };
 
   const buildUnifiedPlaceDescription = (typeId, placeKey, postsForPlace) => {
     const blob = postsForPlace.map((p) => getPostTextBlob(p)).join(' ');
-    const quotes = collectVisitorVoiceSnippets(postsForPlace, 3, 105);
-    const cap = (s) => {
-      if (s.length <= MAX_UNIFIED_PLACE_DESC_CHARS) return s;
-      const cut = s.slice(0, MAX_UNIFIED_PLACE_DESC_CHARS - 1);
-      const endings = ['습니다.', '입니다.', '있습니다.', '해요.', '어요.', '예요.', '니다.', '요.', '다.'];
-      let endIdx = -1;
-      for (const e of endings) {
-        const p = cut.lastIndexOf(e);
-        if (p !== -1 && p + e.length > endIdx) endIdx = p + e.length - 1;
-      }
-      if (endIdx >= 120) return `${cut.slice(0, endIdx + 1).trim()}…`;
-      const sp = cut.lastIndexOf(' ', 500);
-      if (sp > 180) return `${cut.slice(0, sp).trim()}…`;
-      return `${cut}…`;
-    };
+    const h = placeDescHash(placeKey, typeId, blob.slice(0, 140));
+    const intro = pickVariedAiIntro(typeId, placeKey, postsForPlace, h);
+    const quotes = collectVisitorVoiceSnippets(postsForPlace, 1, 48);
+    const q = quotes[0] || '';
+    if (!q) return hardCapCardDesc(intro);
 
-    const intro =
-      quotes.length >= 2 ? buildNarrativeOpening(typeId, placeKey, postsForPlace, blob) : buildAiIntroForPlace(typeId, placeKey, postsForPlace).trim();
-
-    if (quotes.length === 0) {
-      const closing = buildClosingSentence(typeId, placeKey);
-      return cap(`${intro} ${closing}`);
-    }
-
-    if (quotes.length === 1) {
-      const q = quotes[0];
-      const mid = `최근 올라온 글에서는 "${q}"라는 이야기가 전해지고 있습니다.`;
-      const out = `${intro} ${mid} ${buildClosingSentence(typeId, placeKey)}`;
-      return cap(out);
-    }
-
-    const quoted = quotes.map((q) => `"${q}"`).join(', ');
-    const mid = `현재 방문객들 사이에서는 ${quoted} 같은 생생한 현장 반응이 이어지고 있습니다.`;
-    const out = `${intro} ${mid} ${buildClosingSentence(typeId, placeKey)}`;
-    return cap(out);
+    const suffixStyle = [
+      ` “${q}”`,
+      ` 현장: “${q}”`,
+      ` 제보 요약—“${q}”`,
+      ` 방문객 글—“${q}”`,
+    ];
+    const merged = `${intro}${suffixStyle[(h >>> 2) % suffixStyle.length]}`;
+    return hardCapCardDesc(merged);
   };
 
   // 카드 간 태그 중복을 줄이기 위한 전역 사용 카운트 (한 번 호출 내에서만)
