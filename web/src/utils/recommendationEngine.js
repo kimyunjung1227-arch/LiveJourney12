@@ -406,6 +406,25 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming') =>
     return uniq.slice(0, 3);
   };
 
+  const buildTopTags = (typeId, stat, extra) => {
+    const badges = buildStatusBadges(typeId, stat, extra)
+      .map((b) => String(b || '').replace(/^●\s*/, '').trim())
+      .filter(Boolean);
+    const uniq = [];
+    badges.forEach((b) => { if (b && !uniq.includes(b)) uniq.push(b); });
+    // 3개를 채우기 위해 테마 기반 보조 태그 추가
+    const fallbackByType = {
+      season_peak: ['절정/만개', '포토 스팟', '산책 코스'],
+      silent_healing: ['한적함', '힐링', '산책 코스'],
+      deep_sea_blue: ['바다 무드', '청량', '드라이브'],
+      lively_vibe: ['지금 핫플', '활기', '분위기'],
+      night_good: ['야경', '노을', '감성'],
+    };
+    const fills = fallbackByType[typeId] || ['추천', '포토 스팟', '산책 코스'];
+    fills.forEach((t) => { if (uniq.length < 3 && t && !uniq.includes(t)) uniq.push(t); });
+    return uniq.slice(0, 3);
+  };
+
   const pickLiveImage = (stat) => {
     const recent = Array.isArray(stat.recent1hPosts) ? stat.recent1hPosts : [];
     const sorted = recent
@@ -505,6 +524,7 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming') =>
     const liveImage = pickLiveImage(stat) || stat.representativeImage;
     const { proofSummary, timelineThumbs } = buildProof(stat, type, extra);
     const statusBadges = buildStatusBadges(type, stat, extra);
+    const topTags = buildTopTags(type, stat, extra);
     const placePosts = Array.isArray(stat.placePosts) ? stat.placePosts : [];
     const userSnippet = getUserSnippet(placePosts);
     const aiIntro = buildAiIntroForPlace(type, stat.placeKey, placePosts);
@@ -516,6 +536,7 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming') =>
       title: stat.placeKey,
       description: edgePointScript,
       userSnippet,
+      topTags,
       image: stat.representativeImage,
       liveImage,
       badge: toBadge(type),

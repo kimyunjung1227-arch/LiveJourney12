@@ -1397,9 +1397,9 @@ const MainScreen = () => {
                                         const t = RECOMMENDATION_TYPES.find((x) => x.id === selectedRecommendTag);
                                         return t?.name || '지금 꼭 가야 할 곳';
                                     })();
-                                    const aiIntro = item.description || '';
+                                    const aiIntro = (item.description || '').trim();
                                     const userSnippet = item.userSnippet ? String(item.userSnippet).trim() : '';
-                                    const combinedIntro = userSnippet ? `${aiIntro} “${userSnippet}”` : aiIntro;
+                                    const topTags = Array.isArray(item.topTags) ? item.topTags.filter(Boolean).slice(0, 3) : [];
 
                                     return (
                                         <div
@@ -1431,9 +1431,39 @@ const MainScreen = () => {
                                                         {headerTag}
                                                     </span>
                                                 </div>
-                                                {combinedIntro ? (
-                                                    <div style={{ color: '#475569', fontSize: 12, fontWeight: 600, marginTop: 8, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                                                        {combinedIntro}
+                                                {topTags.length > 0 && (
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                                                        {topTags.map((t) => (
+                                                            <span
+                                                                key={`${placeKey}-${t}`}
+                                                                style={{
+                                                                    fontSize: 11,
+                                                                    fontWeight: 700,
+                                                                    color: '#334155',
+                                                                    background: 'rgba(148,163,184,0.14)',
+                                                                    border: '1px solid rgba(148,163,184,0.22)',
+                                                                    padding: '3px 8px',
+                                                                    borderRadius: 999,
+                                                                    whiteSpace: 'nowrap'
+                                                                }}
+                                                            >
+                                                                {t}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {(aiIntro || userSnippet) ? (
+                                                    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                        {aiIntro ? (
+                                                            <div style={{ color: '#475569', fontSize: 12, fontWeight: 700, lineHeight: 1.45, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                {aiIntro}
+                                                            </div>
+                                                        ) : null}
+                                                        {userSnippet ? (
+                                                            <div style={{ color: '#64748b', fontSize: 12, fontWeight: 600, lineHeight: 1.45, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                “{userSnippet}”
+                                                            </div>
+                                                        ) : null}
                                                     </div>
                                                 ) : null}
                                             </div>
