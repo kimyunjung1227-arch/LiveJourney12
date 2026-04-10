@@ -5,6 +5,7 @@ import {
     getAvatarUrls,
     computeHotFeedViewingCount,
     getHotCategoryLabel,
+    getPhotoCategoryLabels,
 } from './hotPlaceDisplay';
 
 /**
@@ -70,6 +71,7 @@ export function buildHotFeedCardProps(post, weatherByRegion = {}) {
     const hasUserCaption = !!(post.note || '').trim()
         || (!!(post.content || '').trim() && (post.content || '').trim() !== (loc ? `${loc}의 모습` : ''));
     const captionForCard = hasUserCaption ? photoCaptionLine : whyHotLine;
+    const photoCategoryLabels = getPhotoCategoryLabels(post);
     return {
         post,
         title,
@@ -85,6 +87,7 @@ export function buildHotFeedCardProps(post, weatherByRegion = {}) {
         hotReasonIcon,
         cityDongLine,
         captionForCard,
+        photoCategoryLabels,
     };
 }
 
