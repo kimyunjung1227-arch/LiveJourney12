@@ -1394,6 +1394,7 @@ const MainScreen = () => {
                                     const aiIntro = (item.description || '').trim();
                                     const userSnippet = item.userSnippet ? String(item.userSnippet).trim() : '';
                                     const topTags = Array.isArray(item.topTags) ? item.topTags.filter(Boolean).slice(0, 3) : [];
+                                    const liveHeadline = item.liveIndicator && typeof item.liveIndicator === 'object' ? item.liveIndicator.headline : '';
 
                                     return (
                                         <div
@@ -1420,6 +1421,11 @@ const MainScreen = () => {
                                                 <div style={{ color: '#111827', fontSize: '14px', fontWeight: 800, marginBottom: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {placeKey}
                                                 </div>
+                                                {liveHeadline ? (
+                                                    <div style={{ fontSize: 11, fontWeight: 800, color: '#0891b2', marginTop: 6, lineHeight: 1.3 }}>
+                                                        {liveHeadline}
+                                                    </div>
+                                                ) : null}
                                                 {topTags.length > 0 && (
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
                                                         {topTags.map((t) => (

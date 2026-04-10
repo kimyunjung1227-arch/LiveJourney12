@@ -46,7 +46,7 @@ const RecommendedPlaceScreen = () => {
         <div>
           <h1 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#1f2937' }}>지금, 이 순간 꼭 가야 할 곳</h1>
           <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>
-            지금, 이 순간 꼭 가야 할 곳
+            필터별 점수·승자 독식 배정·3시간 이내 사진만 대표로 씁니다
           </p>
         </div>
       </header>
@@ -100,6 +100,7 @@ const RecommendedPlaceScreen = () => {
               ].filter(Boolean);
               const mainImageUrl = getDisplayImageUrl(rawImages[0]) || PLACEHOLDER_IMAGE;
               const statusBadges = Array.isArray(item.statusBadges) ? item.statusBadges : [];
+              const liveIndicator = item.liveIndicator && typeof item.liveIndicator === 'object' ? item.liveIndicator : null;
               const timelineThumbs = Array.isArray(item.timelineThumbs) ? item.timelineThumbs : [];
               const proofSummary = item.proofSummary || '';
 
@@ -167,6 +168,28 @@ const RecommendedPlaceScreen = () => {
                     <div style={{ fontSize: '13px', fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {item.regionName}
                     </div>
+                    {liveIndicator && (liveIndicator.headline || liveIndicator.detail) && (
+                      <div
+                        style={{
+                          marginTop: 10,
+                          padding: '10px 12px',
+                          borderRadius: 10,
+                          background: 'linear-gradient(135deg, rgba(0,188,212,0.12) 0%, rgba(71,85,105,0.08) 100%)',
+                          border: '1px solid rgba(0,188,212,0.25)',
+                        }}
+                      >
+                        {liveIndicator.headline && (
+                          <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.3 }}>
+                            {liveIndicator.headline}
+                          </div>
+                        )}
+                        {liveIndicator.detail && (
+                          <div style={{ fontSize: 10, color: '#64748b', marginTop: 4, lineHeight: 1.35 }}>
+                            {liveIndicator.detail}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {statusBadges.length > 0 && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
                         {statusBadges.map((b, i) => (
