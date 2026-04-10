@@ -141,9 +141,42 @@ const HotFeedCard = ({
             </div>
             <div style={{ padding: '8px 2px 2px', background: 'transparent', border: 'none', boxShadow: 'none' }}>
                 <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{title}</h4>
-                {(cityDongLine || regionShort) ? (
+                {(cityDongLine || regionShort || (photoCategoryLabels && photoCategoryLabels.length)) ? (
                     <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                         <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500, lineHeight: 1.4, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cityDongLine || regionShort}</span>
+                        {photoCategoryLabels && photoCategoryLabels.length > 0 ? (
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    gap: 3,
+                                    justifyContent: 'flex-end',
+                                    alignItems: 'center',
+                                    flexShrink: 0,
+                                    maxWidth: '56%',
+                                }}
+                            >
+                                {photoCategoryLabels.map((label) => (
+                                    <span
+                                        key={`${post.id}-cat-${label}`}
+                                        style={{
+                                            fontSize: 9,
+                                            fontWeight: 600,
+                                            letterSpacing: '-0.02em',
+                                            color: '#64748b',
+                                            background: 'rgba(248, 250, 252, 0.92)',
+                                            border: '1px solid rgba(226, 232, 240, 0.95)',
+                                            padding: '2px 7px',
+                                            borderRadius: 9999,
+                                            whiteSpace: 'nowrap',
+                                            lineHeight: 1.35,
+                                        }}
+                                    >
+                                        {label}
+                                    </span>
+                                ))}
+                            </div>
+                        ) : null}
                     </div>
                 ) : null}
                 <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', background: 'transparent', boxShadow: 'none' }}>{captionForCard}</p>
