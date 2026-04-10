@@ -224,7 +224,6 @@ const UploadScreen = () => {
   const [badgeAnimationKey, setBadgeAnimationKey] = useState(0);
   const setBadgeAnimationKeyRef = useRef(setBadgeAnimationKey);
   setBadgeAnimationKeyRef.current = setBadgeAnimationKey;
-  const reanalysisTimerRef = useRef(null);
   const [editFormReady, setEditFormReady] = useState(!editingPostId);
   const missionContext = location.state?.fromMission ? {
     missionId: location.state?.missionId,
@@ -836,29 +835,7 @@ const UploadScreen = () => {
   }, [formData.images.length, formData.videos.length, formData.location, formData.note, getCurrentLocation, missionContext, generateVideoTags]);
 
 
-  useEffect(() => {
-    if (formData.imageFiles.length === 0) return;
-
-    if (reanalysisTimerRef.current) {
-      clearTimeout(reanalysisTimerRef.current);
-    }
-
-    reanalysisTimerRef.current = setTimeout(() => {
-      // 사진 파일이 있을 때만 재분석
-      if (formData.imageFiles.length > 0 && (formData.location || formData.note)) {
-        const f0 = formData.imageFiles[0];
-        const fk0 = f0 ? `${f0.name}:${f0.size}:${f0.lastModified}` : '';
-        const pre = fk0 && formData.exifForFileKey === fk0 ? formData.exifData : null;
-        analyzeImageAndGenerateTags(f0, formData.location, formData.note, pre);
-      }
-    }, 1000);
-
-    return () => {
-      if (reanalysisTimerRef.current) {
-        clearTimeout(reanalysisTimerRef.current);
-      }
-    };
-  }, [formData.location, formData.note, formData.imageFiles, analyzeImageAndGenerateTags]);
+  // 추천 태그는 "첫 사진 추가 시 1회"만 생성 (이후 위치/설명 입력 변경으로 재분석하지 않음)
 
   useEffect(() => {
     if (formData.imageFiles.length > 0) return;
