@@ -639,56 +639,10 @@ const MainScreen = () => {
     useEffect(() => {
         if (!hotFeedPost) return undefined;
         const id = setInterval(() => {
-            setHotFeedSocialIdx((i) => (i + 1) % 3);
+            setHotFeedSocialIdx((i) => (i + 1) % 2);
         }, 2800);
         return () => clearInterval(id);
     }, [hotFeedPost?.id]);
-
-    const handleHotFeedLike = useCallback(async (e, post) => {
-        e.stopPropagation();
-        const wasLiked = isPostLiked(post.id);
-        const raw = Number(post.likes ?? post.likeCount ?? 0);
-        const baseLikes = Number.isFinite(raw) ? Math.max(0, raw) : 0;
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(post.id || '').trim());
-        const canUseSupabase = isUuid && !!user?.id;
-        const result = canUseSupabase ? { existsInStorage: false, newCount: Math.max(0, baseLikes + (wasLiked ? -1 : 1)) } : toggleLike(post.id, baseLikes);
-        if (result.existsInStorage) {
-            setCrowdedData((prev) =>
-                prev.map((p) => (p && p.id === post.id ? { ...p, likes: result.newCount, likeCount: result.newCount } : p))
-            );
-        } else {
-            // 멀티계정: post_likes 토글 → 트리거로 posts.likes_count 갱신
-            if (canUseSupabase) {
-                const sup = await togglePostLikeSupabase(
-                    String(user.id),
-                    String(post.id),
-                    {
-                        username: user.username,
-                        avatarUrl: user.profileImage || null,
-                    },
-                    { likedBeforeClick: wasLiked }
-                );
-                if (sup.success) {
-                    const delta = (sup.isLiked ? 1 : 0) - (wasLiked ? 1 : 0);
-                    const fallback = Math.max(0, baseLikes + delta);
-                    // 서버가 최종 likes_count를 함께 내려주면 그걸 신뢰, 없으면 fallback 사용
-                    const nextCount = typeof sup.likesCount === 'number' ? sup.likesCount : fallback;
-                    applyPostLikesCountFromServer(post.id, nextCount);
-                    window.dispatchEvent(new Event('postsUpdated'));
-                }
-            } else {
-                const delta = wasLiked ? -1 : 1;
-                await updatePostLikesSupabase(post.id, delta);
-                const nextCount = result.newCount;
-                setCrowdedData((prev) =>
-                    prev.map((p) =>
-                        (p && p.id === post.id ? { ...p, likes: nextCount, likeCount: nextCount } : p)
-                    )
-                );
-                window.dispatchEvent(new Event('postsUpdated'));
-            }
-        }
-    }, [user?.id, user?.username, user?.profileImage]);
 
     useEffect(() => {
         fetchPosts();
@@ -1109,7 +1063,6 @@ const MainScreen = () => {
                             const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
                             const weather = post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
                             const hasWeather = weather && (weather.icon || weather.temperature);
-                            const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
                             const commentCount = Array.isArray(post.comments) ? post.comments.length : 0;
                             return (
                                 <div
@@ -1157,13 +1110,6 @@ const MainScreen = () => {
                                                 {weather.temperature && <span>{weather.temperature}</span>}
                                             </div>
                                         )}
-                                        {/* 좋아요 하트 - 이미지 우하단 (아이콘 + 숫자) */}
-                                        <div style={{ position: 'absolute', bottom: '10px', right: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.96)', color: '#111827', padding: '4px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600, boxShadow: '0 2px 6px rgba(15,23,42,0.18)' }}>
-                                                <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#f97373' }}>favorite</span>
-                                                <span>{likeCount}</span>
-                                            </span>
-                                        </div>
                                     </div>
                                     {/* 사진 정보 하단 — 설명만 표시 */}
                                     <div style={{ padding: '4px 10px 6px', minHeight: '88px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1246,11 +1192,8 @@ const MainScreen = () => {
                                             ) : (
                                                 <img src={getDisplayImageUrl(post.image || post.thumbnail)} alt={post.location} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '12px' }} />
                                             )}
-                                            {/* 좋아요·댓글 — 이미지 우하단 반투명 pill */}
+                                            {/* 댓글 — 이미지 우하단 반투명 pill */}
                                             <div style={{ position: 'absolute', bottom: '6px', right: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(15,23,42,0.6)', color: '#fff', padding: '3px 7px', borderRadius: '9999px', fontSize: '10px', fontWeight: 600 }}>
-                                                    좋아요 {Number(post.likes ?? post.likeCount ?? 0) || 0}
-                                                </span>
                                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(15,23,42,0.6)', color: '#fff', padding: '3px 7px', borderRadius: '9999px', fontSize: '10px', fontWeight: 600 }}>
                                                     댓글 {Array.isArray(post.comments) ? post.comments.length : 0}
                                                 </span>
@@ -1298,15 +1241,12 @@ const MainScreen = () => {
                                     const { post } = hotFeedCardProps;
                                     const slideIdx = crowdedData.length ? hotFeedSlideIndex % crowdedData.length : 0;
                                     const socialText = getHotFeedSocialLine(hotFeedCardProps, hotFeedSocialIdx);
-                                    const liked = isPostLiked(post.id);
                                     return (
                                         <HotFeedCard
                                             key={`${post.id}-${slideIdx}`}
                                             cardProps={hotFeedCardProps}
                                             socialText={socialText}
-                                            liked={liked}
                                             onCardClick={withDragCheck(() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } }))}
-                                            onLikeClick={handleHotFeedLike}
                                             videoPosterUrl={hotFeedVideoPoster}
                                         />
                                     );

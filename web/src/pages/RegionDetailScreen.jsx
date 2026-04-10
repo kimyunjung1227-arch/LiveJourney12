@@ -479,9 +479,6 @@ const RegionDetailScreen = () => {
                     {realtimePhotos.map((photo) => {
                       const weather = photo.weather || null;
                       const hasWeather = weather && (weather.icon || weather.temperature);
-                      const likedPosts = JSON.parse(localStorage.getItem('likedPosts') || '{}');
-                      const isLiked = likedPosts[photo.id] || false;
-                      const likeCount = photo.likes || photo.likeCount || 0;
                       const gridCover = getGridCoverDisplay(photo, getDisplayImageUrl);
 
                       return (
@@ -529,23 +526,6 @@ const RegionDetailScreen = () => {
                                 <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>image</span>
                               </div>
                             )}
-                            <div
-                              style={{
-                                position: 'absolute',
-                                bottom: '8px',
-                                right: '8px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                            >
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.96)', color: '#111827', padding: '4px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600, boxShadow: '0 2px 6px rgba(15,23,42,0.18)' }}>
-                                <span className={`material-symbols-outlined text-[16px] ${isLiked ? 'text-red-500' : 'text-gray-600'}`} style={isLiked ? { fontVariationSettings: "'FILL' 1" } : {}}>
-                                  favorite
-                                </span>
-                                <span>{likeCount}</span>
-                              </span>
-                            </div>
                           </div>
 
                           <div className="min-h-0 flex flex-col gap-0.5 overflow-hidden px-0.5 pb-0.5 pt-0">
