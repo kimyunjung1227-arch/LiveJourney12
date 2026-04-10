@@ -169,6 +169,239 @@ const KEYWORDS = {
 
 const COASTAL_HINT_REGIONS = new Set(['부산', '제주', '강릉', '속초', '여수', '인천', '울산', '포항', '통영', '거제']);
 
+/**
+ * LiveJourney 테마 태그 풀 (10개 테마, 100개+ 후보 중)
+ * - 추천 카드 태그는 반드시 이 풀에서만 선택합니다.
+ * - 실제 선택은 장소별 게시물(사용자 입력/AI 분석 태그/내용) 신호 기반으로 스코어링합니다.
+ */
+const LIVEJOURNEY_TAG_POOL = {
+  nature_bloom: [
+    '실시간 개화', '꽃비 내림', '50% 개화', '단풍 절정', '낙엽 시작',
+    '설경 예쁨', '윤슬 맛집', '초록초록함', '억새 물결', '몽글몽글 구름', '안개 자욱',
+  ],
+  crowd_wait: [
+    '지금 한적함', '적당한 활기', '북적북적', '웨이팅 없음', '줄 서기 시작',
+    '오픈런 필수', '입장 마감', '예약 권장', '30분 대기', '단체 몰림',
+  ],
+  trust_verify: [
+    '방금 올라옴', '무보정 원본', '현장 인증', '트래커 추천', '실시간 날씨',
+    '정보 수정됨', '실제와 같음', '팩트체크 완료', '직접 찍음', '필터 없음',
+  ],
+  parking_transport: [
+    '주차장 널널', '주차장 만차', '초보운전 가능', '갓길 주차', '셔틀 운행',
+    '뚜벅이 가능', '오르막 주의', '비포장도로', '유료 주차', '무료 주차',
+  ],
+  mood_space: [
+    '고즈넉한', '힙한 감성', '레트로 무드', '조용한 사색', '이국적인',
+    '활기 넘치는', '야경 맛집', '노을 스팟', '웅장한', '아기자기한',
+  ],
+  companion_target: [
+    '아이와 함께', '반려동물 동반', '부모님 만족', '연인과 데이트', '프로 혼밥러',
+    '우정 여행', '비즈니스 미팅', '대가족 가능', '사진가 성지', '노키즈존',
+  ],
+  facility_convenience: [
+    '유모차 가능', '휠체어 접근', '화장실 깨끗', '콘센트 많음', '노트북 환영',
+    '야외 좌석', '테라스 있음', '에어컨 빵빵', '담요 제공', '짐 보관 가능',
+  ],
+  food_service: [
+    '현지인 단골', '재료 신선함', '가성비 최고', '친절한 응대', '양이 많음',
+    '사진 잘 나옴', '혼술 환영', '디저트 강자', '콜키지 가능', '메뉴판 업데이트',
+  ],
+  photo_guide: [
+    '인생샷 스팟', '역광 주의', '오전 방문 추천', '삼각대 필수', '숨은 포토존',
+    '드레스코드', '보정 필요 없음', '전신 거울', '조명 좋음', '뷰 미쳤음',
+  ],
+  weather_season: [
+    '비 피하기 좋음', '바람 강함', '그늘 부족', '실내 데이트', '양산 필수',
+    '따뜻한 조명', '미세먼지 적음', '눈 오는 날', '덥고 습함', '쾌적한 온도',
+  ],
+};
+
+const ALL_POOL_TAGS = Object.values(LIVEJOURNEY_TAG_POOL).flat();
+const TAG_SET = new Set(ALL_POOL_TAGS.map((t) => normalizeText(t)));
+
+const normalizeTagKey = (t) => normalizeText(String(t || '').replace(/^#+/, '').trim());
+
+// 태그 후보를 스코어링할 때 사용할 키워드 신호
+const TAG_SIGNALS = [
+  // 1) 개화/자연
+  { tag: '실시간 개화', any: ['개화', '실시간', '피었', '폈', '꽃'] },
+  { tag: '꽃비 내림', any: ['꽃비', '흩날', '바람에', '떨어'] },
+  { tag: '50% 개화', any: ['50%', '반쯤', '절반', '부분 개화'] },
+  { tag: '단풍 절정', any: ['단풍', '가을', '절정'] },
+  { tag: '낙엽 시작', any: ['낙엽', '떨어지', '잎'] },
+  { tag: '설경 예쁨', any: ['설경', '눈', '눈꽃'] },
+  { tag: '윤슬 맛집', any: ['윤슬', '물결', '반짝', '햇빛', '수면'] },
+  { tag: '초록초록함', any: ['초록', '신록', '푸릇', '숲'] },
+  { tag: '억새 물결', any: ['억새', '갈대', '물결'] },
+  { tag: '몽글몽글 구름', any: ['구름', '몽글', '하늘'] },
+  { tag: '안개 자욱', any: ['안개', '뿌옇', '자욱'] },
+
+  // 2) 혼잡도/웨이팅
+  { tag: '지금 한적함', any: ['한적', '조용', '사람 없음', '널널'] },
+  { tag: '적당한 활기', any: ['적당', '활기', '괜찮', '적당히'] },
+  { tag: '북적북적', any: ['북적', '사람 많', '혼잡', '붐빔'] },
+  { tag: '웨이팅 없음', any: ['웨이팅 없음', '줄 없', '대기 없'] },
+  { tag: '줄 서기 시작', any: ['줄', '대기', '웨이팅', 'queue', 'waiting'] },
+  { tag: '오픈런 필수', any: ['오픈런', '오픈런 필수', '오픈 전'] },
+  { tag: '입장 마감', any: ['마감', '입장 마감', '종료'] },
+  { tag: '예약 권장', any: ['예약', '예약 권장', '예약 필수'] },
+  { tag: '30분 대기', any: ['30분', '대기', '웨이팅'] },
+  { tag: '단체 몰림', any: ['단체', '관광버스', '몰림'] },
+
+  // 3) 신뢰/인증 (텍스트+메타)
+  { tag: '무보정 원본', any: ['무보정', '원본', '필터 없음'] },
+  { tag: '현장 인증', any: ['현장', '직접', '인증'] },
+  { tag: '실시간 날씨', any: ['날씨', '기온', '습도', '바람', '미세먼지'] },
+  { tag: '정보 수정됨', any: ['수정', '업데이트', '정정'] },
+  { tag: '실제와 같음', any: ['실제', '그대로', '정확', '리얼'] },
+  { tag: '팩트체크 완료', any: ['팩트', '확인', '체크', '검증'] },
+  { tag: '직접 찍음', any: ['직접 찍', '직접촬영', '내가 찍'] },
+  { tag: '필터 없음', any: ['필터 없음', '무필터', '필터안씀'] },
+
+  // 4) 주차/교통
+  { tag: '주차장 널널', any: ['주차 널널', '주차 여유', '주차 가능'] },
+  { tag: '주차장 만차', any: ['만차', '주차 어려움', '주차 힘듦'] },
+  { tag: '초보운전 가능', any: ['초보', '운전', '길 쉬움'] },
+  { tag: '셔틀 운행', any: ['셔틀', '셔틀버스'] },
+  { tag: '뚜벅이 가능', any: ['뚜벅', '대중교통', '지하철', '버스'] },
+  { tag: '오르막 주의', any: ['오르막', '경사', '언덕'] },
+  { tag: '비포장도로', any: ['비포장', '흙길', '자갈길'] },
+  { tag: '유료 주차', any: ['유료 주차', '주차요금', '주차비'] },
+  { tag: '무료 주차', any: ['무료 주차', '무료'] },
+
+  // 5) 무드
+  { tag: '고즈넉한', any: ['고즈넉', '조용', '차분'] },
+  { tag: '힙한 감성', any: ['힙', '핫플', '트렌디'] },
+  { tag: '레트로 무드', any: ['레트로', '빈티지', '옛날'] },
+  { tag: '이국적인', any: ['이국', '해외', '외국'] },
+  { tag: '활기 넘치는', any: ['활기', '북적', '사람 많'] },
+  { tag: '야경 맛집', any: ['야경', '밤', '조명'] },
+  { tag: '노을 스팟', any: ['노을', '일몰', '석양'] },
+  { tag: '웅장한', any: ['웅장', '규모', '장관'] },
+  { tag: '아기자기한', any: ['아기자기', '귀엽', '소품'] },
+
+  // 6) 동행
+  { tag: '아이와 함께', any: ['아이', '유아', '키즈', '아기'] },
+  { tag: '반려동물 동반', any: ['반려', '강아지', '반려견', '펫'] },
+  { tag: '부모님 만족', any: ['부모님', '어른', '효도'] },
+  { tag: '연인과 데이트', any: ['데이트', '연인', '커플'] },
+  { tag: '우정 여행', any: ['친구', '우정', '여행'] },
+  { tag: '대가족 가능', any: ['가족', '대가족', '단체'] },
+  { tag: '사진가 성지', any: ['사진', '촬영', '카메라', '포토'] },
+  { tag: '노키즈존', any: ['노키즈', '노키즈존'] },
+
+  // 7) 시설/편의
+  { tag: '유모차 가능', any: ['유모차'] },
+  { tag: '휠체어 접근', any: ['휠체어', '장애인'] },
+  { tag: '화장실 깨끗', any: ['화장실', '깨끗'] },
+  { tag: '콘센트 많음', any: ['콘센트', '충전'] },
+  { tag: '노트북 환영', any: ['노트북', '작업'] },
+  { tag: '야외 좌석', any: ['야외', '야외석'] },
+  { tag: '테라스 있음', any: ['테라스'] },
+  { tag: '에어컨 빵빵', any: ['에어컨', '시원'] },
+  { tag: '담요 제공', any: ['담요'] },
+  { tag: '짐 보관 가능', any: ['짐', '보관'] },
+
+  // 8) 미식/서비스
+  { tag: '현지인 단골', any: ['현지인', '단골'] },
+  { tag: '재료 신선함', any: ['신선', '재료'] },
+  { tag: '가성비 최고', any: ['가성비', '저렴'] },
+  { tag: '친절한 응대', any: ['친절'] },
+  { tag: '양이 많음', any: ['양 많', '푸짐'] },
+  { tag: '디저트 강자', any: ['디저트', '케이크', '빵'] },
+  { tag: '콜키지 가능', any: ['콜키지'] },
+  { tag: '메뉴판 업데이트', any: ['메뉴', '업데이트'] },
+
+  // 9) 사진/촬영
+  { tag: '인생샷 스팟', any: ['인생샷', '포토존', '사진 맛집'] },
+  { tag: '역광 주의', any: ['역광'] },
+  { tag: '오전 방문 추천', any: ['오전', '아침'] },
+  { tag: '삼각대 필수', any: ['삼각대'] },
+  { tag: '숨은 포토존', any: ['숨은', '포토존'] },
+  { tag: '보정 필요 없음', any: ['무보정', '보정 필요 없음'] },
+  { tag: '조명 좋음', any: ['조명', '빛'] },
+  { tag: '뷰 미쳤음', any: ['뷰', '전망', '경치'] },
+
+  // 10) 날씨/계절
+  { tag: '비 피하기 좋음', any: ['비', '우천', '실내'] },
+  { tag: '바람 강함', any: ['바람', '강풍'] },
+  { tag: '그늘 부족', any: ['그늘', '햇빛'] },
+  { tag: '실내 데이트', any: ['실내', '비', '데이트'] },
+  { tag: '양산 필수', any: ['양산', '햇빛', '자외선'] },
+  { tag: '따뜻한 조명', any: ['따뜻한 조명', '조명'] },
+  { tag: '미세먼지 적음', any: ['미세먼지', '공기'] },
+  { tag: '눈 오는 날', any: ['눈', '강설'] },
+  { tag: '덥고 습함', any: ['덥', '습', '후덥'] },
+  { tag: '쾌적한 온도', any: ['쾌적', '선선', '적당한 온도'] },
+];
+
+const scoreTagsFromPool = (placeKey, postsForPlace, stat) => {
+  const blob = (Array.isArray(postsForPlace) ? postsForPlace : []).map((p) => getPostTextBlob(p)).join(' ');
+  const scores = new Map(); // key -> {tag, score}
+  const bump = (tag, s) => {
+    const key = normalizeTagKey(tag);
+    if (!key || !TAG_SET.has(key)) return;
+    const prev = scores.get(key);
+    const next = (prev?.score || 0) + s;
+    scores.set(key, { tag, score: next });
+  };
+
+  // 신뢰/실시간성: 메타 기반
+  const lastMin = stat?.lastPostAgeMinutes ?? null;
+  if (typeof lastMin === 'number' && lastMin <= 20) bump('방금 올라옴', 8);
+  if (stat?.isLive) bump('현장 인증', 5);
+
+  // EXIF/verifiedLocation 등 "직접/현장" 신호
+  const hasExif = (Array.isArray(postsForPlace) ? postsForPlace : []).some((p) => !!(p?.exifData?.photoDate || p?.photoDate));
+  const hasVerified = (Array.isArray(postsForPlace) ? postsForPlace : []).some((p) => !!p?.verifiedLocation);
+  if (hasExif || hasVerified) {
+    bump('직접 찍음', 6);
+    bump('팩트체크 완료', 2);
+  }
+
+  // 텍스트/태그 신호
+  TAG_SIGNALS.forEach((r) => {
+    const ok = matchesAny(blob, r.any);
+    if (ok) bump(r.tag, 6);
+  });
+
+  // 날씨 태그: 업로드 시 자동태그(날씨/기온 등)가 포함되면 강화
+  if (matchesAny(blob, ['맑음', '흐림', '비', '눈', '강풍', '안개', '자외선', '미세먼지', '기온', '습도'])) {
+    bump('실시간 날씨', 5);
+    bump('쾌적한 온도', 2);
+  }
+
+  // 혼잡도/웨이팅: 최근 1h/3h 게시물 수가 많으면 활기/북적 쪽 가중
+  if ((stat?.recent1hCount || 0) >= 4) bump('북적북적', 4);
+  if ((stat?.recent1hCount || 0) <= 1) bump('지금 한적함', 3);
+
+  // 후보가 너무 적으면 풀에서 결정적으로 채움 (항상 풀 내 태그)
+  const list = Array.from(scores.values()).sort((a, b) => b.score - a.score);
+  if (list.length >= 6) return list;
+
+  // 부족하면 테마별 기본 채움(장소 키 기반으로 다양하게)
+  const seed = String(placeKey || '');
+  const defaults = [
+    ...LIVEJOURNEY_TAG_POOL.nature_bloom,
+    ...LIVEJOURNEY_TAG_POOL.crowd_wait,
+    ...LIVEJOURNEY_TAG_POOL.trust_verify,
+    ...LIVEJOURNEY_TAG_POOL.mood_space,
+    ...LIVEJOURNEY_TAG_POOL.weather_season,
+  ];
+  let h = 0;
+  for (let i = 0; i < seed.length; i += 1) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < defaults.length && list.length < 8; i += 1) {
+    const t = defaults[(h + i * 17) % defaults.length];
+    const key = normalizeTagKey(t);
+    if (!scores.has(key)) {
+      scores.set(key, { tag: t, score: 1 });
+      list.push({ tag: t, score: 1 });
+    }
+  }
+  return Array.from(scores.values()).sort((a, b) => b.score - a.score);
+};
+
 const calculatePlaceUnitStats = (posts, placeKey) => {
   const placePosts = (Array.isArray(posts) ? posts : []).filter((post) => getPlaceKey(post) === placeKey);
 
@@ -408,50 +641,8 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming') =>
 
   const buildTopTags = (typeId, stat, extra) => {
     const placePosts = Array.isArray(stat?.placePosts) ? stat.placePosts : [];
-    const blob = placePosts.map((p) => getPostTextBlob(p)).join(' ');
-    const norm = (s) => normalizeText(String(s || '').replace(/^●\s*/, '').trim());
-    const has = (keywords) => matchesAny(blob, keywords);
-
-    // 장소별 태그 후보(테마와 무관하게 최대한 다르게)
-    const candidates = [];
-    const push = (t) => {
-      const raw = String(t || '').trim();
-      const cleaned = raw.replace(/^●\s*/, '').trim();
-      const key = norm(cleaned);
-      if (!cleaned || !key) return;
-      // 너무 긴 태그는 제외
-      if (cleaned.length > 14) return;
-      if (!candidates.some((x) => norm(x) === key)) candidates.push(cleaned);
-    };
-
-    // 1) 데이터 신호(뱃지) 먼저
-    buildStatusBadges(typeId, stat, extra)
-      .map((b) => String(b || '').replace(/^●\s*/, '').trim())
-      .filter(Boolean)
-      .forEach(push);
-
-    // 2) 장소 텍스트 기반 키워드
-    if (has(['벚꽃', '개화', '만개', '절정', '꽃', '매화', '유채', '수국', '단풍'])) push('절정/만개');
-    if (has(['바다', '해변', '파도', '윤슬', '물멍', '오션', '해수욕장', '서핑'])) push('바다 무드');
-    if (has(['야경', '밤', '조명', '노을', '일몰', '루프탑', '야시장'])) push('야경/노을');
-    if (has(['산', '등산', '트레킹', '오름', '숲', '공원', '산책', '둘레길'])) push('산책 코스');
-    if (has(['카페', '커피', '브런치', '디저트'])) push('카페');
-    if (has(['맛집', '식당', '음식', '국밥', '면', '고기', '횟집', '시장'])) push('맛집');
-    if (has(['주차', '주차장', '주차편', '주차 가능'])) push('주차');
-    if (has(['축제', '공연', '버스킹', '이벤트', '팝업'])) push('이벤트');
-    if (has(['아이', '가족', '유모차', '아이와'])) push('가족');
-
-    // 3) 그래도 부족하면 타입 기반으로 채우기(최소)
-    const fallbackByType = {
-      season_peak: ['포토 스팟', '산책 코스', '추천'],
-      silent_healing: ['힐링', '산책 코스', '추천'],
-      deep_sea_blue: ['청량', '드라이브', '추천'],
-      lively_vibe: ['지금 핫플', '활기', '추천'],
-      night_good: ['감성', '야경/노을', '추천'],
-    };
-    (fallbackByType[typeId] || ['추천', '포토 스팟', '산책 코스']).forEach(push);
-
-    return candidates.slice(0, 3);
+    const scored = scoreTagsFromPool(stat?.placeKey || stat?.regionKey || '', placePosts, stat);
+    return scored.map((x) => x.tag).filter(Boolean).slice(0, 3);
   };
 
   const pickLiveImage = (stat) => {
@@ -555,7 +746,7 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming') =>
   const diversifyTopTags = (tags) => {
     const list = Array.isArray(tags) ? tags.filter(Boolean) : [];
     const scored = list.map((t, idx) => {
-      const key = normalizeText(t);
+      const key = normalizeTagKey(t);
       const used = globalTagUse.get(key) || 0;
       // 이미 많이 나온 태그일수록 뒤로
       return { t, key, score: used * 10 + idx };
