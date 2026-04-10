@@ -39,40 +39,32 @@ const getPostTextBlob = (post) => {
 };
 
 /**
- * 추천 카드의 "지역 단위" 키 추출 (시/군/구로 묶기)
- * - 예: "구미시 금오천" -> "구미"
- * - 예: "강원도 고성군 토성면" -> "고성"
- * - 예: "서울특별시 강남구" -> "강남"
+ * 추천 카드의 "장소 단위" 키 추출 (가능하면 placeName/상세명 우선)
+ * - 예: "여의도 윤중로" 그대로 유지
+ * - 예: "서울 여의도 윤중로" -> "여의도 윤중로" (광역 토큰 제거)
  */
-const getRegionUnitKey = (post) => {
+const getPlaceKey = (post) => {
   const raw =
-    post?.detailedLocation ||
-    post?.address ||
-    post?.location ||
     post?.placeName ||
+    post?.detailedLocation ||
+    (typeof post?.location === 'string' ? post.location : (post?.location?.name || '')) ||
+    post?.address ||
     '';
-
   const text = String(raw || '').replace(/\s+/g, ' ').trim();
   if (!text) return '기록';
 
-  const stripProvinceSuffix = (s) =>
-    String(s || '')
-      .replace(/(특별자치도|특별자치시|특별시|광역시)$/g, '')
-      .replace(/도$/g, '')
-      .trim();
-
-  const matches = Array.from(text.matchAll(/([가-힣]{1,})\s*(시|군|구)/g));
-  if (matches.length > 0) {
-    const last = matches[matches.length - 1];
-    const name = String(last?.[1] || '').trim();
-    return name || '기록';
-  }
-
-  // 시/군/구가 텍스트에 없으면: 첫 토큰(도/광역 단위)을 축약해서 사용
+  // 광역/행정 접두 제거 (서울특별시/경기도/강원도 등) 후 나머지를 장소로
   const tokens = text.split(' ').filter(Boolean);
-  const first = tokens[0] || '';
-  const shortened = stripProvinceSuffix(first);
-  return shortened || first || '기록';
+  if (tokens.length >= 3) {
+    const t0 = tokens[0];
+    const looksProvince =
+      /(특별자치도|특별자치시|특별시|광역시|도)$/.test(t0) ||
+      ['서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종', '경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주'].includes(t0);
+    if (looksProvince) {
+      return tokens.slice(1).join(' ');
+    }
+  }
+  return text;
 };
 
 const hasCategory = (post, slug) =>
@@ -177,23 +169,23 @@ const KEYWORDS = {
 
 const COASTAL_HINT_REGIONS = new Set(['부산', '제주', '강릉', '속초', '여수', '인천', '울산', '포항', '통영', '거제']);
 
-const calculateRegionUnitStats = (posts, regionKey) => {
-  const regionPosts = (Array.isArray(posts) ? posts : []).filter((post) => getRegionUnitKey(post) === regionKey);
+const calculatePlaceUnitStats = (posts, placeKey) => {
+  const placePosts = (Array.isArray(posts) ? posts : []).filter((post) => getPlaceKey(post) === placeKey);
 
-  const total = regionPosts.length;
-  const bloomCount = regionPosts.filter((p) => hasCategory(p, 'bloom')).length;
-  const foodCount = regionPosts.filter((p) => hasCategory(p, 'food')).length;
-  const waitingCount = regionPosts.filter((p) => hasCategory(p, 'waiting')).length;
-  const scenicCount = regionPosts.filter((p) => hasCategory(p, 'landmark') || hasCategory(p, 'scenic')).length;
+  const total = placePosts.length;
+  const bloomCount = placePosts.filter((p) => hasCategory(p, 'bloom')).length;
+  const foodCount = placePosts.filter((p) => hasCategory(p, 'food')).length;
+  const waitingCount = placePosts.filter((p) => hasCategory(p, 'waiting')).length;
+  const scenicCount = placePosts.filter((p) => hasCategory(p, 'landmark') || hasCategory(p, 'scenic')).length;
 
-  const recent3hPosts = filterRecentPosts(regionPosts, 2, 3);
-  const recent1hPosts = filterRecentPosts(regionPosts, 2, 1);
-  const recent24hPosts = filterRecentPosts(regionPosts, 1, 24);
+  const recent3hPosts = filterRecentPosts(placePosts, 2, 3);
+  const recent1hPosts = filterRecentPosts(placePosts, 2, 1);
+  const recent24hPosts = filterRecentPosts(placePosts, 1, 24);
   const recent3hCount = recent3hPosts.length;
   const recent1hCount = recent1hPosts.length;
   const recent24hCount = recent24hPosts.length;
 
-  const totalLikes = regionPosts.reduce((sum, p) => sum + (p.likes || 0), 0);
+  const totalLikes = placePosts.reduce((sum, p) => sum + (p.likes || 0), 0);
   const avgLikes = total > 0 ? totalLikes / total : 0;
 
   const bloomRecentPosts = recent24hPosts.filter((p) => hasCategory(p, 'bloom'));
@@ -203,7 +195,7 @@ const calculateRegionUnitStats = (posts, regionKey) => {
   const activityScore = recent3hCount * 3 + recent1hCount * 5 + avgLikes * 0.3;
   const popularityScore = total * 1.5 + avgLikes;
 
-  const latestPost = recent24hPosts[0] || regionPosts
+  const latestPost = recent24hPosts[0] || placePosts
     .slice()
     .sort((a, b) => {
       const timeA = new Date(a.timestamp || a.createdAt || 0);
@@ -218,7 +210,7 @@ const calculateRegionUnitStats = (posts, regionKey) => {
   const isLiveRegion = latestTimestamp ? isPostLive(latestTimestamp, 30) : false;
 
   return {
-    regionKey,
+    placeKey,
     total,
     bloomCount,
     foodCount,
@@ -236,11 +228,11 @@ const calculateRegionUnitStats = (posts, regionKey) => {
     lastPostAgeMinutes,
     lastPostTimeAgoLabel,
     isLive: isLiveRegion,
-    representativeImage: pickRepresentativeImage(regionPosts),
+    representativeImage: pickRepresentativeImage(placePosts),
     recentPosts: recent24hPosts.slice(0, 3),
     recent1hPosts,
     recent3hPosts,
-    regionPosts,
+    placePosts,
   };
 };
 
@@ -258,20 +250,20 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming') =>
   })();
 
   const list = Array.isArray(posts) ? posts : [];
-  const keys = Array.from(new Set(list.map((p) => getRegionUnitKey(p)).filter((k) => k && k !== '기록')));
-  const stats = keys.map((k) => calculateRegionUnitStats(list, k)).filter((s) => s.total > 0);
+  const keys = Array.from(new Set(list.map((p) => getPlaceKey(p)).filter((k) => k && k !== '기록')));
+  const stats = keys.map((k) => calculatePlaceUnitStats(list, k)).filter((s) => s.total > 0);
 
-  const getRegionPosts = (regionKey) => list.filter((p) => getRegionUnitKey(p) === regionKey);
+  const getPlacePosts = (placeKey) => list.filter((p) => getPlaceKey(p) === placeKey);
 
-  const scoreRegion = (regionKey) => {
-    const postsForRegion = getRegionPosts(regionKey);
-    const blobAll = postsForRegion.map((p) => getPostTextBlob(p)).join(' ');
-    const regionHint = regionKey.split(/\s+/)[0] || '';
+  const scoreRegion = (placeKey) => {
+    const postsForPlace = getPlacePosts(placeKey);
+    const blobAll = postsForPlace.map((p) => getPostTextBlob(p)).join(' ');
+    const regionHint = (postsForPlace[0]?.region || '').split(/\s+/)[0] || '';
     const isCoastal = COASTAL_HINT_REGIONS.has(regionHint);
 
-    const recent1h = filterRecentPosts(postsForRegion, 2, 1);
-    const recent3h = filterRecentPosts(postsForRegion, 2, 3);
-    const recent24h = filterRecentPosts(postsForRegion, 1, 24);
+    const recent1h = filterRecentPosts(postsForPlace, 2, 1);
+    const recent3h = filterRecentPosts(postsForPlace, 2, 3);
+    const recent24h = filterRecentPosts(postsForPlace, 1, 24);
 
     const seasonPred = (p) => {
       const scores = inferThemeScoreForPost(p);
@@ -308,7 +300,7 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming') =>
     const night3h = count(recent3h, nightPred);
     const night24h = count(recent24h, nightPred);
 
-    const avgLikes = postsForRegion.reduce((s, p) => s + (p?.likes || 0), 0) / Math.max(1, postsForRegion.length);
+    const avgLikes = postsForPlace.reduce((s, p) => s + (p?.likes || 0), 0) / Math.max(1, postsForPlace.length);
 
     const surgeBoost = (recentN, recentTotal) => {
       if (recentTotal <= 0) return 0;
@@ -347,7 +339,7 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming') =>
     return { score, extra: { recent1h: recent1h.length } };
   };
 
-  const buildEdgePointScript = (typeId, regionKey, extra) => {
+  const buildEdgePointScript = (typeId, placeKey, extra) => {
     if (typeId === 'season_peak') {
       return '놓치면 일 년을 기다려야 할, 찰나의 풍경';
     }
@@ -363,12 +355,12 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming') =>
     if (typeId === 'night_good') {
       return '낮보다 더 반짝이는, 밤에 더 좋은 장면';
     }
-    return `${regionKey}의 최신 제보를 모았어요.`;
+    return `${placeKey}의 최신 제보를 모았어요.`;
   };
 
   const buildStatusBadges = (typeId, stat, extra) => {
-    const postsForRegion = Array.isArray(stat.regionPosts) ? stat.regionPosts : [];
-    const recent = Array.isArray(stat.recent3hPosts) ? stat.recent3hPosts : postsForRegion;
+    const postsForPlace = Array.isArray(stat.placePosts) ? stat.placePosts : [];
+    const recent = Array.isArray(stat.recent3hPosts) ? stat.recent3hPosts : postsForPlace;
     const blobAll = recent.map((p) => getPostTextBlob(p)).join(' ');
 
     const countKw = (kwList) => kwList.reduce((s, kw) => s + (blobAll.includes(normalizeText(kw)) ? 1 : 0), 0);
@@ -464,9 +456,45 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming') =>
     return '✨ 추천';
   };
 
+  const getUserSnippet = (postsForPlace) => {
+    const list = Array.isArray(postsForPlace) ? postsForPlace : [];
+    const sorted = list.slice().sort((a, b) => {
+      const ta = new Date(a?.timestamp || a?.createdAt || 0).getTime();
+      const tb = new Date(b?.timestamp || b?.createdAt || 0).getTime();
+      return tb - ta;
+    });
+    const raw = String(sorted.find((p) => (p?.note || p?.content || '').trim())?.note
+      || sorted.find((p) => (p?.note || p?.content || '').trim())?.content
+      || '').trim();
+    if (!raw) return '';
+    const single = raw.replace(/\s+/g, ' ');
+    return single.length > 38 ? `${single.slice(0, 36)}…` : single;
+  };
+
+  const buildAiIntroForPlace = (typeId, placeKey, postsForPlace) => {
+    const blob = postsForPlace.map((p) => getPostTextBlob(p)).join(' ');
+    const hasCherry = matchesAny(blob, ['벚꽃', '개화', '만개', '절정', '꽃']);
+    const hasNight = matchesAny(blob, ['야경', '조명', '밤', '노을', '일몰', '루프탑']);
+    const hasSea = matchesAny(blob, ['바다', '해변', '윤슬', '파도', '물멍', '청량']);
+    const hasWalk = matchesAny(blob, ['산책', '걷기', '트레킹', '등산', '공원', '숲']);
+    const hasCafe = matchesAny(blob, ['카페', '커피', '브런치', '디저트']);
+    const hasFood = matchesAny(blob, ['맛집', '식당', '음식', '국밥', '면', '고기', '횟집']);
+
+    if (typeId === 'season_peak' && hasCherry) return `${placeKey}은(는) 지금 꽃이 가장 예쁜 타이밍이라, 짧은 시간만으로도 풍경이 확 달라져요.`;
+    if (typeId === 'season_peak') return `${placeKey}은(는) 지금 가장 예쁜 순간을 만나기 좋은 곳으로, 사진 한 장만으로도 계절감이 전해져요.`;
+    if (typeId === 'deep_sea_blue' || hasSea) return `${placeKey}은(는) 바다 바람과 탁 트인 풍경이 매력이라, 잠깐만 있어도 머리가 맑아져요.`;
+    if (typeId === 'night_good' || hasNight) return `${placeKey}은(는) 해질녘~밤에 분위기가 살아나는 곳이라, 야경/노을 타이밍에 특히 좋아요.`;
+    if (typeId === 'silent_healing') return `${placeKey}은(는) 조용히 걷고 쉬기 좋은 포인트가 많아, 생각 정리하기에 잘 어울려요.`;
+    if (typeId === 'lively_vibe') return `${placeKey}은(는) 지금 분위기가 올라오는 곳이라, 가볍게 들러도 재미있는 장면을 만나기 좋아요.`;
+    if (hasCafe) return `${placeKey}은(는) 카페·산책 코스를 엮기 좋아, 느긋한 반나절 코스로 추천해요.`;
+    if (hasFood) return `${placeKey}은(는) 주변에 먹거리 선택지가 좋아, 구경하고 먹고 쉬는 코스가 자연스럽게 이어져요.`;
+    if (hasWalk) return `${placeKey}은(는) 걷기 좋은 동선이 있어, 가벼운 산책만으로도 만족도가 높아요.`;
+    return `${placeKey}은(는) 지금 올라온 최신 제보를 바탕으로 골라낸 추천 장소예요.`;
+  };
+
   const ranked = stats
     .map((s) => {
-      const { score, extra } = scoreRegion(s.regionKey);
+      const { score, extra } = scoreRegion(s.placeKey);
       return { stat: s, score, extra };
     })
     .filter((x) => x.score > 0 || x.stat.recent24hCount > 0)
@@ -477,13 +505,17 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming') =>
     const liveImage = pickLiveImage(stat) || stat.representativeImage;
     const { proofSummary, timelineThumbs } = buildProof(stat, type, extra);
     const statusBadges = buildStatusBadges(type, stat, extra);
-    const edgePointScript = buildEdgePointScript(type, stat.regionKey, extra);
+    const placePosts = Array.isArray(stat.placePosts) ? stat.placePosts : [];
+    const userSnippet = getUserSnippet(placePosts);
+    const aiIntro = buildAiIntroForPlace(type, stat.placeKey, placePosts);
+    const edgePointScript = aiIntro;
 
     return {
-      regionName: stat.regionKey,
-      title: stat.regionKey,
-      // UI 호환: 기존 description은 EdgePointScript로 대체
+      regionName: stat.placeKey, // 호환 필드(실제는 placeKey)
+      placeName: stat.placeKey,
+      title: stat.placeKey,
       description: edgePointScript,
+      userSnippet,
       image: stat.representativeImage,
       liveImage,
       badge: toBadge(type),

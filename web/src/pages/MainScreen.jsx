@@ -26,7 +26,6 @@ import { fetchLikedPostIdsSupabase } from '../api/socialSupabase';
 import { togglePostLikeSupabase } from '../api/socialSupabase';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
-import { getBestRegionTag, getRegionIntro } from '../utils/regionCardText';
 
 const MainScreen = () => {
     const navigate = useNavigate();
@@ -1381,24 +1380,31 @@ const MainScreen = () => {
                                 onMouseDown={handleDragStart}
                             >
                                 {recommendedData.map((item, idx) => {
-                                    const regionPosts = allPostsForRecommend.filter(p =>
-                                        (typeof p.location === 'string' && p.location.includes(item.regionName)) ||
-                                        (p.detailedLocation && String(p.detailedLocation).includes(item.regionName)) ||
-                                        (p.placeName && String(p.placeName).includes(item.regionName))
-                                    );
+                                    const placeKey = item.placeName || item.title || item.regionName;
+                                    const placePosts = allPostsForRecommend.filter(p => {
+                                        const loc = String(p?.location || '').trim();
+                                        const place = String(p?.placeName || '').trim();
+                                        const detailed = String(p?.detailedLocation || '').trim();
+                                        return (loc && loc === placeKey) || (place && place === placeKey) || (detailed && detailed === placeKey);
+                                    });
                                     const rawImages = [
                                         item.liveImage || item.image,
-                                        ...regionPosts.flatMap(p => (p.images && p.images.length ? p.images : [p.thumbnail || p.image].filter(Boolean)))
+                                        ...placePosts.flatMap(p => (p.images && p.images.length ? p.images : [p.thumbnail || p.image].filter(Boolean)))
                                     ].filter(Boolean).slice(0, 5);
                                     const displayImages = rawImages.map(url => getDisplayImageUrl(url)).filter(Boolean);
                                     const mainSrc = displayImages[0] || 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80';
-                                    const regionTag = getBestRegionTag(item.regionName, regionPosts);
-                                    const regionIntro = getRegionIntro(item.regionName);
+                                    const headerTag = (() => {
+                                        const t = RECOMMENDATION_TYPES.find((x) => x.id === selectedRecommendTag);
+                                        return t?.name || '지금 꼭 가야 할 곳';
+                                    })();
+                                    const aiIntro = item.description || '';
+                                    const userSnippet = item.userSnippet ? String(item.userSnippet).trim() : '';
+                                    const combinedIntro = userSnippet ? `${aiIntro} “${userSnippet}”` : aiIntro;
 
                                     return (
                                         <div
                                             key={idx}
-                                            onClick={withDragCheck(() => navigate(`/region/${item.regionName}`))}
+                                            onClick={withDragCheck(() => navigate(`/search?q=${encodeURIComponent(placeKey)}`))}
                                             style={{
                                                 minWidth: '74%',
                                                 width: '74%',
@@ -1418,16 +1424,16 @@ const MainScreen = () => {
                                             <div style={{ padding: '6px 2px 10px' }}>
                                                 {/* 구조: 사진 → 지역이름 → 지역태그 → 지역설명 */}
                                                 <div style={{ color: '#111827', fontSize: '14px', fontWeight: 800, marginBottom: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                    {item.title}
+                                                    {placeKey}
                                                 </div>
                                                 <div style={{ marginTop: 8 }}>
                                                     <span style={{ fontSize: 11, fontWeight: 800, color: '#0f172a', background: 'rgba(2,132,199,0.08)', border: '1px solid rgba(2,132,199,0.12)', padding: '3px 8px', borderRadius: 999, whiteSpace: 'nowrap' }}>
-                                                        {regionTag}
+                                                        {headerTag}
                                                     </span>
                                                 </div>
-                                                {regionIntro ? (
+                                                {combinedIntro ? (
                                                     <div style={{ color: '#475569', fontSize: 12, fontWeight: 600, marginTop: 8, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                                                        {regionIntro}
+                                                        {combinedIntro}
                                                     </div>
                                                 ) : null}
                                             </div>
