@@ -107,6 +107,23 @@ async function resolveActorDisplayForLike(uid, hint) {
   return { name: '여행자', avatar: null };
 }
 
+async function fetchLikesCountFromLikesTable(postId) {
+  const pid = String(postId || '').trim();
+  if (!isValidUuid(pid)) return null;
+  try {
+    const { count, error } = await supabase
+      .from('post_likes')
+      .select('post_id', { count: 'exact', head: true })
+      .eq('post_id', pid);
+    if (error) throw error;
+    if (typeof count !== 'number') return null;
+    return Math.max(0, count);
+  } catch (e) {
+    logger.warn('fetchLikesCountFromLikesTable 실패:', e?.message);
+    return null;
+  }
+}
+
 /**
  * 좋아요 토글. `likedBeforeClick`은 클릭 직전 UI/캐시 상태(필수).
  * 서버는 `set_post_like` RPC로 멱등 처리.
@@ -126,14 +143,45 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null, o
     // ✅ 최종값(좋아요 여부 + likes_count)을 서버에서 한 번에 받아온다.
     const { data: rows, error: rpcErr } = await supabase.rpc('set_post_like', { p_post_id: pid, p_like: desired });
     if (rpcErr) {
-      // 서버가 안 되면 일단 optimistic 유지(초기화 방지)
-      logger.warn('set_post_like RPC 실패(optimistic 유지):', rpcErr?.message || rpcErr);
-      return { success: true, isLiked: desired, likesCount: null };
+      // RPC가 없거나 실패해도, 수동으로 post_likes를 맞추고 likes_count를 읽어온다.
+      logger.warn('set_post_like RPC 실패 → 수동 폴백 시도:', rpcErr?.message || rpcErr);
+      try {
+        if (desired) {
+          const { error: insErr } = await supabase.from('post_likes').insert({ user_id: uid, post_id: pid });
+          if (insErr && !isUniqueConflictError(insErr)) throw insErr;
+        } else {
+          const { error: delErr } = await supabase.from('post_likes').delete().eq('user_id', uid).eq('post_id', pid);
+          if (delErr) throw delErr;
+        }
+        // likes_count 트리거가 없거나 반영이 느려도 0으로 되돌아가지 않게
+        // post_likes를 직접 count해서 최종값을 만든다.
+        const likesCount = await fetchLikesCountFromLikesTable(pid);
+        // 확정 liked 캐시 갱신
+        setLikedPostLocalCache(pid, desired);
+        if (likesCount != null) {
+          try {
+            window.dispatchEvent(new CustomEvent('postLikeUpdated', { detail: { postId: pid, likesCount } }));
+          } catch {}
+        }
+        return { success: true, isLiked: desired, likesCount };
+      } catch (fallbackErr) {
+        // 서버가 안 되면 일단 optimistic 유지(초기화 방지)
+        logger.warn('좋아요 수동 폴백 실패(optimistic 유지):', fallbackErr?.message || fallbackErr);
+        return { success: true, isLiked: desired, likesCount: null };
+      }
     }
     const row = Array.isArray(rows) ? rows[0] : rows;
     const isLiked = row?.is_liked != null ? !!row.is_liked : desired;
-    const likesCount = row?.likes_count != null ? Math.max(0, Number(row.likes_count) || 0) : null;
+    let likesCount = row?.likes_count != null ? Math.max(0, Number(row.likes_count) || 0) : null;
+    if (likesCount == null) {
+      likesCount = await fetchLikesCountFromLikesTable(pid);
+    }
     setLikedPostLocalCache(pid, isLiked);
+    if (likesCount != null) {
+      try {
+        window.dispatchEvent(new CustomEvent('postLikeUpdated', { detail: { postId: pid, likesCount } }));
+      } catch {}
+    }
 
     // 알림은 "좋아요가 새로 생성된 경우"에만 보내야 하지만,
     // set_post_like는 inserted 여부를 주지 않는다.

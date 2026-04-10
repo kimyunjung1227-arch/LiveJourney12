@@ -6,10 +6,10 @@ import './MainScreen.css';
 
 import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
-import { fetchPostsSupabase } from '../api/postsSupabase';
+import { applyPostLikesCountFromServer, fetchPostsSupabase } from '../api/postsSupabase';
 import { rankHotspotPosts } from '../utils/hotnessEngine';
 import { toggleLike, isPostLiked } from '../utils/socialInteractions';
-import { updatePostLikesSupabase } from '../api/postsSupabase';
+import { togglePostLikeSupabase } from '../api/socialSupabase';
 import { getMapThumbnailUri } from '../utils/postMedia';
 import HotFeedCard from '../components/HotFeedCard';
 import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCardModel';
@@ -76,20 +76,39 @@ const CrowdedPlaceScreen = () => {
         const baseLikes = typeof post.likes === 'number'
             ? post.likes
             : (typeof post.likeCount === 'number' ? post.likeCount : 0);
-        const result = toggleLike(post.id, baseLikes);
-        if (result.existsInStorage) {
+        const isUuidPost = typeof post?.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(post.id.trim());
+        const rawUser = (() => {
+            try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
+        })();
+        const canUseSupabase = isUuidPost && !!rawUser?.id;
+
+        // Supabase 게시물 + 로그인: post_likes 기반으로 토글(서버 카운트가 최종)
+        if (canUseSupabase) {
+            const optimisticLiked = !wasLiked;
+            const optimisticCount = Math.max(0, Number(baseLikes) + (optimisticLiked ? 1 : -1));
             setCrowdedData((prev) =>
-                prev.map((p) => (p && p.id === post.id ? { ...p, likes: result.newCount, likeCount: result.newCount } : p))
+                prev.map((p) => (p && p.id === post.id ? { ...p, likes: optimisticCount, likeCount: optimisticCount } : p))
             );
-        } else {
-            const delta = wasLiked ? -1 : 1;
-            updatePostLikesSupabase(post.id, delta);
-            setCrowdedData((prev) =>
-                prev.map((p) =>
-                    (p && p.id === post.id ? { ...p, likes: result.newCount, likeCount: result.newCount } : p)
-                )
-            );
+            togglePostLikeSupabase(
+                String(rawUser.id),
+                String(post.id),
+                { username: rawUser.username, avatarUrl: rawUser.profileImage || null },
+                { likedBeforeClick: wasLiked }
+            ).then((sup) => {
+                const nextCount = typeof sup?.likesCount === 'number' ? sup.likesCount : optimisticCount;
+                applyPostLikesCountFromServer(post.id, nextCount);
+                setCrowdedData((prev) =>
+                    prev.map((p) => (p && p.id === post.id ? { ...p, likes: nextCount, likeCount: nextCount } : p))
+                );
+            });
+            return;
         }
+
+        // 로컬 게시물/비로그인: 기존 localStorage 기반 좋아요 유지
+        const result = toggleLike(post.id, baseLikes);
+        setCrowdedData((prev) =>
+            prev.map((p) => (p && p.id === post.id ? { ...p, likes: result.newCount, likeCount: result.newCount } : p))
+        );
     }, []);
 
     useEffect(() => {

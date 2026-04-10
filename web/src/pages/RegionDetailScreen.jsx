@@ -274,10 +274,10 @@ const RegionDetailScreen = () => {
       if (!postId || typeof likesCount !== 'number') return;
       const id = String(postId);
       setAllRegionPosts((prev) =>
-        prev.map((p) => (p && String(p.id) === id ? { ...p, likes: likesCount } : p))
+        prev.map((p) => (p && String(p.id) === id ? { ...p, likes: likesCount, likeCount: likesCount } : p))
       );
       setRealtimePhotos((prev) =>
-        prev.map((p) => (p && String(p.id) === id ? { ...p, likes: likesCount } : p))
+        prev.map((p) => (p && String(p.id) === id ? { ...p, likes: likesCount, likeCount: likesCount } : p))
       );
     };
     window.addEventListener('postLikeUpdated', onPostLikeUpdated);

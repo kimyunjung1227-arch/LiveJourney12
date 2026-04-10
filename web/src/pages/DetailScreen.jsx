@@ -139,7 +139,7 @@ const DetailScreen = () => {
         note: post.note,
         tags: post.tags || [],
         coordinates: post.coordinates,
-        likes: post.likes || 0,
+        likes: post.likes ?? post.likeCount ?? 0,
         comments: post.comments || [],
         questions: post.questions || [],
         qnaList: [],
@@ -184,7 +184,7 @@ const DetailScreen = () => {
           note: post.note,
           tags: post.tags || [],
           coordinates: post.coordinates,
-          likes: post.likes || 0,
+          likes: post.likes ?? post.likeCount ?? 0,
           comments: post.comments || [],
           questions: post.questions || [],
           aiLabels: post.aiLabels
@@ -226,7 +226,7 @@ const DetailScreen = () => {
         content: post.note || `${post.location} 추천!`,
         note: post.note,
         coordinates: post.coordinates,
-        likes: post.likes || 0,
+        likes: post.likes ?? post.likeCount ?? 0,
         comments: post.comments || [],
         questions: post.questions || [],
         aiLabels: post.aiLabels

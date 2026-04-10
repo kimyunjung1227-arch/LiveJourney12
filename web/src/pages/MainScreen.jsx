@@ -16,7 +16,7 @@ import { getDisplayImageUrl } from '../api/upload';
 import { getMapThumbnailUri } from '../utils/postMedia';
 import { getPostAccuracyCount, toggleLike, isPostLiked, mergeLikedPostsFromServer } from '../utils/socialInteractions';
 import { rankHotspotPosts } from '../utils/hotnessEngine';
-import { updatePostLikesSupabase, applyPostLikesCountFromServer } from '../api/postsSupabase';
+import { applyPostLikesCountFromServer } from '../api/postsSupabase';
 import { getWeatherByRegion } from '../api/weather';
 import { listPublishedMagazines } from '../utils/magazinesStore';
 import HotFeedCard from '../components/HotFeedCard';
@@ -679,8 +679,6 @@ const MainScreen = () => {
                     window.dispatchEvent(new Event('postsUpdated'));
                 }
             } else {
-                const delta = wasLiked ? -1 : 1;
-                await updatePostLikesSupabase(post.id, delta);
                 const nextCount = result.newCount;
                 setCrowdedData((prev) =>
                     prev.map((p) =>

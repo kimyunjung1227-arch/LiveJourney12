@@ -5,7 +5,6 @@ import BottomNavigation from '../components/BottomNavigation';
 import { getPost } from '../api/posts';
 import { getDisplayImageUrl } from '../api/upload';
 import {
-  updatePostLikesSupabase,
   fetchPostByIdSupabase,
   applyPostLikesCountFromServer,
   addCommentToPostSupabase,
@@ -16,7 +15,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { getWeatherByRegion } from '../api/weather';
 import { getTimeAgo } from '../utils/dateUtils';
-import { toggleLike, isPostLiked, addComment, deleteCommentFromPost, updateCommentInPost, getPostAccuracyCount, hasUserMarkedAccurate, toggleAccuracyFeedback } from '../utils/socialInteractions';
+import { toggleLike, isPostLiked, setLikedPostLocalCache, addComment, deleteCommentFromPost, updateCommentInPost, getPostAccuracyCount, hasUserMarkedAccurate, toggleAccuracyFeedback } from '../utils/socialInteractions';
 import { toggleInterestPlace, isInterestPlace } from '../utils/interestPlaces';
 import { getEarnedBadgesForUser } from '../utils/badgeSystem';
 import { getTrustRawScore, getTrustGrade } from '../utils/trustIndex';
@@ -193,7 +192,7 @@ const PostDetailScreen = () => {
       setPost(passedPost);
       const allComments = [...(passedPost.comments || []), ...(passedPost.qnaList || [])];
       setComments(mergeCommentsWithCache(passedPost.id, allComments));
-      setLikeCount(passedPost.likes || 0);
+      setLikeCount(passedPost.likes ?? passedPost.likeCount ?? 0);
       setLiked(isPostLiked(passedPost.id));
       setIsFavorited(isInterestPlace(passedPost.location || passedPost.placeName));
       setAccuracyMarked(hasUserMarkedAccurate(passedPost.id));
@@ -218,6 +217,9 @@ const PostDetailScreen = () => {
           if (user?.id) {
             const likedDb = await isPostLikedSupabase(user.id, fresh.id);
             setLiked(likedDb);
+            // 로컬 likedPosts가 서버와 어긋나 있으면(첫 클릭이 unlike로 나가는 문제),
+            // Supabase 기준으로 강제 동기화해서 클릭 의도를 정확히 만든다.
+            setLikedPostLocalCache(fresh.id, likedDb);
           } else {
             setLiked(isPostLiked(fresh.id));
           }
@@ -244,7 +246,7 @@ const PostDetailScreen = () => {
         setPost(localPost);
         const allComments = [...(localPost.comments || []), ...(localPost.qnaList || [])];
         setComments(mergeCommentsWithCache(localPost.id, allComments));
-        setLikeCount(localPost.likes || 0);
+        setLikeCount(localPost.likes ?? localPost.likeCount ?? 0);
         setLiked(isPostLiked(localPost.id));
         setIsFavorited(isInterestPlace(localPost.location || localPost.placeName));
         setAccuracyMarked(hasUserMarkedAccurate(localPost.id));
@@ -382,7 +384,11 @@ const PostDetailScreen = () => {
   const handleLike = useCallback(() => {
     if (!post) return;
 
-    const wasLiked = liked;
+    // Supabase 게시물은 state(liked)가 재조회/캐시로 흔들릴 수 있어
+    // 클릭 직전 로컬 캐시 기준으로 판단(= 네트워크에 p_like가 계속 false로 나가는 버그 방지)
+    const isSupabasePost = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(post.id || '').trim());
+    const shouldUseSupabase = isSupabasePost && !!user?.id;
+    const wasLiked = shouldUseSupabase ? isPostLiked(post.id) : liked;
     const optimisticLiked = !liked;
 
     // 먼저 UI를 낙관적으로 업데이트
@@ -393,10 +399,8 @@ const PostDetailScreen = () => {
       return Math.max(0, safe + (optimisticLiked ? 1 : -1));
     });
 
-    const isSupabasePost = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(post.id || '').trim());
-    const shouldUseSupabase = isSupabasePost && !!user?.id;
     const result = shouldUseSupabase
-      ? { isLiked: optimisticLiked, newCount: likeCount + (optimisticLiked ? 1 : -1), existsInStorage: false }
+      ? { isLiked: optimisticLiked, newCount: null, existsInStorage: false }
       : toggleLike(post.id, likeCount);
 
     // localStorage 기반 게시물이면 util에서 계산한 카운트를 신뢰
@@ -429,17 +433,16 @@ const PostDetailScreen = () => {
             setPost((p) => (p ? { ...p, likes: n, likeCount: n } : p));
             applyPostLikesCountFromServer(post.id, n);
           } else {
-            refreshPostFromSupabase();
+            // 서버 트리거/RLS 반영 지연으로 likes_count를 못 받아도,
+            // 방금 클릭한 의도를 로컬 override로 고정해 "0으로 롤백"되는 현상을 방지한다.
+            const fallback = Math.max(0, (Number(likeCount) || 0) + (optimisticLiked ? 1 : -1));
+            setLikeCount(fallback);
+            setPost((p) => (p ? { ...p, likes: fallback, likeCount: fallback } : p));
+            applyPostLikesCountFromServer(post.id, fallback);
           }
         });
       } else {
-        // Supabase 게시물(레거시): DB에 좋아요 수 반영
-        const delta = optimisticLiked ? 1 : -1;
-        updatePostLikesSupabase(post.id, delta).then((res) => {
-          if (res && res.success && typeof res.likesCount === 'number') {
-            setLikeCount(res.likesCount);
-          }
-        });
+        // 로그인/UUID가 아닌 경우에는 로컬 UI만 변경(서버 반영은 하지 않음)
         setLiked(optimisticLiked);
       }
     }
@@ -718,7 +721,7 @@ const PostDetailScreen = () => {
     setPost(newPost);
     setCurrentImageIndex(0);
     setLiked(isPostLiked(newPost.id));
-    setLikeCount(newPost.likes || 0);
+    setLikeCount(newPost.likes ?? newPost.likeCount ?? 0);
     setComments([...(newPost.comments || []), ...(newPost.qnaList || [])]);
 
     // 스크롤을 맨 위로 이동
