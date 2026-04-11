@@ -134,7 +134,7 @@ const RecommendedPlaceScreen = () => {
                         left: 8,
                         padding: '4px 8px',
                         borderRadius: '999px',
-                        background: isLiveBadge ? 'rgba(22, 163, 74, 0.92)' : 'rgba(234, 179, 8, 0.92)',
+                        background: isLiveBadge ? '#DC2626' : '#00BCD4',
                         color: 'white',
                         fontSize: '10px',
                         fontWeight: 700,
@@ -150,10 +150,7 @@ const RecommendedPlaceScreen = () => {
                           width: 6,
                           height: 6,
                           borderRadius: '50%',
-                          backgroundColor: isLiveBadge ? '#bbf7d0' : '#fef9c3',
-                          boxShadow: isLiveBadge
-                            ? '0 0 0 3px rgba(34, 197, 94, 0.45)'
-                            : '0 0 0 3px rgba(250, 204, 21, 0.45)',
+                          backgroundColor: 'rgba(255,255,255,0.95)',
                         }}
                       />
                       {isLiveBadge ? 'LIVE' : 'RECENT'}

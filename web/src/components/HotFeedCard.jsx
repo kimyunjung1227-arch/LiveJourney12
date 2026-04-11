@@ -2,7 +2,8 @@ import React from 'react';
 import { getDisplayImageUrl } from '../api/upload';
 import { getMapThumbnailUri } from '../utils/postMedia';
 
-const HOT_INDICATOR_BG = '#b91c1c';
+/** 핫플 사유 뱃지 — EXIF와 구분해 중립 톤으로 통일 */
+const HOT_INDICATOR_BG = 'rgba(15, 23, 42, 0.88)';
 
 /**
  * 메인 실시간 핫플 / 더보기 화면 — 동일 카드 UI (마크업·스타일 통일)
