@@ -30,6 +30,8 @@ const RegionDetailScreen = () => {
   const canonicalRegionName = normalizeRegionName(decodedName || location.state?.region?.name || '서울');
   const region = { ...(location.state?.region || {}), name: canonicalRegionName };
   const focusLocation = location.state?.focusLocation || null;
+  const placeTitle = location.state?.placeTitle || null;
+  const headerTitle = placeTitle || region.name || canonicalRegionName;
 
   const [realtimePhotos, setRealtimePhotos] = useState([]);
   const [allRegionPosts, setAllRegionPosts] = useState([]); // 전체 게시물 저장
@@ -82,15 +84,29 @@ const RegionDetailScreen = () => {
 
     let regionPosts = recentPosts.filter((post) => postMatchesCanonicalRegion(post, canonicalRegionName));
 
-    // 매거진 등에서 상세 위치(focusLocation)가 넘어온 경우, 해당 위치 중심으로 한 번 더 필터링
-    if (focusLocation) {
+    const applyPlaceFocus = (posts) => {
+      if (!focusLocation) return posts;
       const focus = focusLocation.toLowerCase();
-      regionPosts = regionPosts.filter(post => {
+      const tokens = focus.split(/\s+/).filter((t) => t.length >= 2);
+      return posts.filter((post) => {
         const detailed = (post.detailedLocation || post.placeName || '').toLowerCase();
         const locText = (post.location || '').toLowerCase();
-        return detailed.includes(focus) || locText.includes(focus);
+        const blob = `${detailed} ${locText}`;
+        if (blob.includes(focus)) return true;
+        return tokens.some((t) => blob.includes(t));
       });
-      logger.log(`🎯 상세 위치 필터 적용: ${focusLocation} → ${regionPosts.length}개 게시물`);
+    };
+
+    // 상세 장소(focusLocation)가 넘어온 경우: 지역 게시물 중에서 장소 키워드로 좁힘 → 없으면 전체 최근 게시물에서 동일 키워드 검색
+    if (focusLocation) {
+      let narrowed = applyPlaceFocus(regionPosts);
+      if (narrowed.length === 0) {
+        narrowed = applyPlaceFocus(recentPosts);
+        logger.log(`🎯 장소 키워드 전역 검색: ${focusLocation} → ${narrowed.length}개 게시물`);
+      } else {
+        logger.log(`🎯 상세 위치 필터 적용: ${focusLocation} → ${narrowed.length}개 게시물`);
+      }
+      regionPosts = narrowed;
     }
 
     // 선택된 명소로 필터링 (현재 지역의 명소만 사용)
@@ -154,11 +170,19 @@ const RegionDetailScreen = () => {
         timestamp: post.timestamp || post.createdAt || post.time,
       }));
 
-    setAllRegionPosts(formattedPosts);
-    setRealtimePhotos(formattedPosts.slice(0, 6));
+    const seenIds = new Set();
+    const dedupedPosts = [];
+    formattedPosts.forEach((p) => {
+      const id = String(p?.id ?? '');
+      if (!id || seenIds.has(id)) return;
+      seenIds.add(id);
+      dedupedPosts.push(p);
+    });
+
+    setAllRegionPosts(dedupedPosts);
 
     logger.log('📊 지역 게시물 로드:', {
-      total: formattedPosts.length
+      total: dedupedPosts.length
     });
   }, [canonicalRegionName, region.name, timeToMinutes, selectedLandmarks, focusLocation]);
 
@@ -178,7 +202,7 @@ const RegionDetailScreen = () => {
       filtered = allRegionPosts;
     }
 
-    setRealtimePhotos(filtered.slice(0, 6));
+    setRealtimePhotos(filtered);
   }, [allRegionPosts, activeFilter]);
 
   // 필터 변경 시 해당 버튼이 앞으로 오도록 스크롤
@@ -305,8 +329,8 @@ const RegionDetailScreen = () => {
             >
               <span className="material-symbols-outlined text-2xl">arrow_back</span>
             </button>
-            <h1 className="flex-1 text-center text-base font-bold leading-tight tracking-[-0.01em] text-black dark:text-white">
-              {region.name}
+            <h1 className="flex-1 text-center text-base font-bold leading-tight tracking-[-0.01em] text-black dark:text-white px-1 line-clamp-2">
+              {headerTitle}
             </h1>
             <button
               type="button"
@@ -365,7 +389,7 @@ const RegionDetailScreen = () => {
               {/* 제목 + 대표명소 버튼 (우측) */}
               <div className="flex items-center justify-between px-4 pb-1 pt-4">
                 <h2 className="text-[17px] font-semibold leading-tight tracking-[-0.01em] text-text-headings dark:text-gray-100">
-                  {region.name} 현지 실시간 상황
+                  {headerTitle} 현지 실시간 상황
                 </h2>
                 <button
                   onClick={() => setShowLandmarkModal(true)}

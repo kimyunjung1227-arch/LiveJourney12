@@ -27,6 +27,7 @@ import { togglePostLikeSupabase } from '../api/socialSupabase';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
+import { normalizeRegionName } from '../utils/regionNames';
 
 const MainScreen = () => {
     const navigate = useNavigate();
@@ -1443,10 +1444,21 @@ const MainScreen = () => {
                                     const placeOneLine = String(item.placeOneLine || '').trim();
                                     const topTags = Array.isArray(item.topTags) ? item.topTags.filter(Boolean).slice(0, 3) : [];
 
+                                    const regionToken = String(placeKey).trim().split(/\s+/)[0] || placeKey;
+                                    const regionForUrl = normalizeRegionName(regionToken);
+
                                     return (
                                         <div
                                             key={idx}
-                                            onClick={withDragCheck(() => navigate(`/search?q=${encodeURIComponent(placeKey)}`))}
+                                            onClick={withDragCheck(() =>
+                                                navigate(`/region/${encodeURIComponent(regionForUrl)}`, {
+                                                    state: {
+                                                        region: { name: regionForUrl },
+                                                        focusLocation: placeKey,
+                                                        placeTitle: placeKey,
+                                                    },
+                                                })
+                                            )}
                                             style={{
                                                 minWidth: '74%',
                                                 width: '74%',
