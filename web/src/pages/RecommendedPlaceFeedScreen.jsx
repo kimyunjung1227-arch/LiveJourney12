@@ -1,11 +1,14 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Pagination } from 'swiper/modules';
 import BottomNavigation from '../components/BottomNavigation';
 import { getDisplayImageUrl } from '../api/upload';
+import { applyPostLikesCountFromServer } from '../api/postsSupabase';
 import { getCategoryChipsFromPost } from '../utils/travelCategories';
 import { getTimeAgo } from '../utils/timeUtils';
+import { toggleLike, isPostLiked } from '../utils/socialInteractions';
+import { togglePostLikeSupabase } from '../api/socialSupabase';
 import 'swiper/css';
 import 'swiper/css/pagination';
 
@@ -88,6 +91,8 @@ export default function RecommendedPlaceFeedScreen() {
   const rawPosts = location.state?.posts;
 
   const [expanded, setExpanded] = useState({});
+  /** 좋아요 토글·낙관적 UI 반영용 */
+  const [feedPosts, setFeedPosts] = useState([]);
 
   useEffect(() => {
     if (!placeKey || !Array.isArray(rawPosts)) {
@@ -111,6 +116,71 @@ export default function RecommendedPlaceFeedScreen() {
     });
     return list;
   }, [rawPosts]);
+
+  useEffect(() => {
+    setFeedPosts(posts);
+  }, [posts]);
+
+  useEffect(() => {
+    const onLike = (e) => {
+      const { postId, likesCount } = e.detail || {};
+      if (!postId || typeof likesCount !== 'number') return;
+      const id = String(postId);
+      setFeedPosts((prev) =>
+        prev.map((p) => (p && String(p.id) === id ? { ...p, likes: likesCount, likeCount: likesCount } : p))
+      );
+    };
+    window.addEventListener('postLikeUpdated', onLike);
+    return () => window.removeEventListener('postLikeUpdated', onLike);
+  }, []);
+
+  const handleFeedLike = useCallback((e, post) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const wasLiked = isPostLiked(post.id);
+    const baseLikes = Number(post.likes ?? post.likeCount ?? 0) || 0;
+    const isUuidPost =
+      typeof post?.id === 'string' &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(post.id).trim());
+    const rawUser = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('user') || '{}');
+      } catch {
+        return {};
+      }
+    })();
+    const canUseSupabase = isUuidPost && !!rawUser?.id;
+
+    if (canUseSupabase) {
+      const optimisticLiked = !wasLiked;
+      const optimisticCount = Math.max(0, baseLikes + (optimisticLiked ? 1 : -1));
+      setFeedPosts((prev) =>
+        prev.map((p) =>
+          p && p.id === post.id ? { ...p, likes: optimisticCount, likeCount: optimisticCount } : p
+        )
+      );
+      togglePostLikeSupabase(
+        String(rawUser.id),
+        String(post.id),
+        { username: rawUser.username, avatarUrl: rawUser.profileImage || null },
+        { likedBeforeClick: wasLiked, baseLikesCount: baseLikes }
+      ).then((sup) => {
+        const nextCount = typeof sup?.likesCount === 'number' ? sup.likesCount : optimisticCount;
+        applyPostLikesCountFromServer(post.id, nextCount);
+        setFeedPosts((prev) =>
+          prev.map((p) => (p && p.id === post.id ? { ...p, likes: nextCount, likeCount: nextCount } : p))
+        );
+      });
+      return;
+    }
+
+    const result = toggleLike(post.id, baseLikes);
+    setFeedPosts((prev) =>
+      prev.map((p) =>
+        p && p.id === post.id ? { ...p, likes: result.newCount, likeCount: result.newCount } : p
+      )
+    );
+  }, []);
 
   const toggleExpand = (id) => {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -144,8 +214,8 @@ export default function RecommendedPlaceFeedScreen() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-3 pt-2" style={{ WebkitOverflowScrolling: 'touch' }}>
-        {posts.length === 0 ? (
+      <div className="flex-1 overflow-y-auto pt-2" style={{ WebkitOverflowScrolling: 'touch' }}>
+        {feedPosts.length === 0 ? (
           <div className="py-16 text-center text-slate-500 text-sm">
             이 장소의 게시물이 아직 없어요.
             <button
@@ -157,7 +227,7 @@ export default function RecommendedPlaceFeedScreen() {
             </button>
           </div>
         ) : (
-          posts.map((post, index) => {
+          feedPosts.map((post, index) => {
             const chips = getCategoryChipsFromPost(post);
             const categoryLabel = String(chips[0]?.name || '여행');
             const mediaUrls = collectMediaUrls(post);
@@ -176,13 +246,64 @@ export default function RecommendedPlaceFeedScreen() {
             const avatarSrc = displayUserAvatarSrc(userRaw);
             const isOpen = !!expanded[post.id];
             const longBody = bodyText.length > 140 || bodyText.split('\n').length > 3;
+            const liked = isPostLiked(post.id);
 
             return (
               <article
                 key={post.id}
-                className="mb-5 pb-5 border-b border-slate-100 last:border-0"
+                className="mb-6 pb-6 border-b border-slate-100 last:border-0"
               >
-                {/* 프로필 · 카테고리 */}
+                {/* 1) 이미지 최상단 — 풀너비, 라운드 없음, 세로 비율(3:4) */}
+                <div className="w-full bg-slate-100 [&_.swiper]:h-full [&_.swiper-pagination]:bottom-2">
+                  {mediaUrls.length === 0 ? (
+                    <div
+                      className="w-full aspect-[3/4] max-h-[min(92vh,520px)] flex items-center justify-center text-slate-400 text-sm"
+                    >
+                      이미지 없음
+                    </div>
+                  ) : mediaUrls.length === 1 ? (
+                    <button
+                      type="button"
+                      className="w-full block p-0 border-0 cursor-pointer rounded-none"
+                      onClick={() =>
+                        navigate(`/post/${post.id}`, {
+                          state: { post, allPosts: feedPosts, currentPostIndex: index },
+                        })
+                      }
+                    >
+                      <div className="w-full aspect-[3/4] max-h-[min(92vh,520px)] overflow-hidden bg-slate-200">
+                        <img src={mediaUrls[0]} alt="" className="w-full h-full object-cover rounded-none" />
+                      </div>
+                    </button>
+                  ) : (
+                    <Swiper
+                      modules={[Pagination]}
+                      pagination={{ clickable: true }}
+                      className="w-full [&_.swiper-pagination-bullet-active]:bg-white [&_.swiper-pagination-bullet]:bg-white/70"
+                    >
+                      {mediaUrls.map((url, i) => (
+                        <SwiperSlide key={`${post.id}-m-${i}`}>
+                          <button
+                            type="button"
+                            className="w-full block p-0 border-0 cursor-pointer rounded-none"
+                            onClick={() =>
+                              navigate(`/post/${post.id}`, {
+                                state: { post, allPosts: feedPosts, currentPostIndex: index },
+                              })
+                            }
+                          >
+                            <div className="w-full aspect-[3/4] max-h-[min(92vh,520px)] overflow-hidden bg-slate-200">
+                              <img src={url} alt="" className="w-full h-full object-cover rounded-none" />
+                            </div>
+                          </button>
+                        </SwiperSlide>
+                      ))}
+                    </Swiper>
+                  )}
+                </div>
+
+                {/* 2) 정보: 프로필 · 카테고리 · 제목 · 장소 · 별점 · 본문 */}
+                <div className="px-3 pt-3">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2 min-w-0">
                     {avatarSrc ? (
@@ -211,49 +332,7 @@ export default function RecommendedPlaceFeedScreen() {
                   </span>
                 </div>
 
-                {/* 제목 느낌 한 줄 */}
-                <p className="text-[15px] font-bold text-slate-900 leading-snug mb-2 line-clamp-2">{titleLine}</p>
-
-                {/* 이미지 캐러셀 */}
-                <div className="rounded-xl overflow-hidden bg-slate-100 aspect-square max-h-[min(92vw,360px)] mx-auto [&_.swiper]:h-full">
-                  {mediaUrls.length === 0 ? (
-                    <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm">이미지 없음</div>
-                  ) : mediaUrls.length === 1 ? (
-                    <button
-                      type="button"
-                      className="w-full h-full block p-0 border-0 cursor-pointer"
-                      onClick={() =>
-                        navigate(`/post/${post.id}`, {
-                          state: { post, allPosts: posts, currentPostIndex: index },
-                        })
-                      }
-                    >
-                      <img src={mediaUrls[0]} alt="" className="w-full h-full object-cover" />
-                    </button>
-                  ) : (
-                    <Swiper
-                      modules={[Pagination]}
-                      pagination={{ clickable: true }}
-                      className="h-full w-full [&_.swiper-pagination-bullet-active]:bg-white [&_.swiper-pagination-bullet]:bg-white/60"
-                    >
-                      {mediaUrls.map((url, i) => (
-                        <SwiperSlide key={`${post.id}-m-${i}`}>
-                          <button
-                            type="button"
-                            className="w-full aspect-square block p-0 border-0 cursor-pointer"
-                            onClick={() =>
-                              navigate(`/post/${post.id}`, {
-                                state: { post, allPosts: posts, currentPostIndex: index },
-                              })
-                            }
-                          >
-                            <img src={url} alt="" className="w-full h-full object-cover" />
-                          </button>
-                        </SwiperSlide>
-                      ))}
-                    </Swiper>
-                  )}
-                </div>
+                <p className="text-[15px] font-bold text-slate-900 leading-snug mb-3 line-clamp-2">{titleLine}</p>
 
                 {/* 장소 한 줄 */}
                 <div className="flex items-start justify-between gap-2 mt-3 mb-1">
@@ -299,37 +378,66 @@ export default function RecommendedPlaceFeedScreen() {
                   </div>
                 ) : null}
 
-                {/* 하단 액션 */}
-                <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-50">
-                  <div className="flex items-center gap-4 text-slate-500">
-                    <span className="inline-flex items-center gap-1 text-[13px]">
-                      <span className="material-symbols-outlined text-[18px]">favorite</span>
-                      {likes}
-                    </span>
+                {/* 하단 액션 — 좋아요 즉시 토글 */}
+                <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-100">
+                  <div className="flex items-center gap-5 text-slate-600">
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1 text-[13px] hover:text-slate-800"
+                      className="inline-flex items-center gap-1.5 text-[13px] font-medium touch-manipulation"
+                      onClick={(e) => handleFeedLike(e, post)}
+                      aria-pressed={liked}
+                      aria-label={liked ? '좋아요 취소' : '좋아요'}
+                    >
+                      <span
+                        className="material-symbols-outlined text-[22px]"
+                        style={{
+                          fontVariationSettings: liked ? "'FILL' 1" : "'FILL' 0",
+                          color: liked ? '#e11d48' : '#64748b',
+                        }}
+                      >
+                        favorite
+                      </span>
+                      <span>{likes}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1.5 text-[13px] hover:text-slate-900"
                       onClick={() =>
                         navigate(`/post/${post.id}`, {
-                          state: { post, allPosts: posts, currentPostIndex: index },
+                          state: { post, allPosts: feedPosts, currentPostIndex: index },
                         })
                       }
                     >
-                      <span className="material-symbols-outlined text-[18px]">chat_bubble</span>
+                      <span className="material-symbols-outlined text-[20px] text-slate-500">chat_bubble</span>
                       {comments}
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    className="text-[12px] font-semibold text-slate-500 hover:text-slate-800"
-                    onClick={() =>
-                      navigate(`/post/${post.id}`, {
-                        state: { post, allPosts: posts, currentPostIndex: index },
-                      })
-                    }
-                  >
-                    자세히
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="p-1.5 text-slate-500 hover:text-slate-800"
+                      aria-label="북마크"
+                      onClick={() =>
+                        navigate(`/post/${post.id}`, {
+                          state: { post, allPosts: feedPosts, currentPostIndex: index },
+                        })
+                      }
+                    >
+                      <span className="material-symbols-outlined text-[22px]">bookmark</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="text-[12px] font-semibold text-slate-500 hover:text-slate-800 px-1"
+                      onClick={() =>
+                        navigate(`/post/${post.id}`, {
+                          state: { post, allPosts: feedPosts, currentPostIndex: index },
+                        })
+                      }
+                    >
+                      자세히
+                    </button>
+                  </div>
+                </div>
                 </div>
               </article>
             );
