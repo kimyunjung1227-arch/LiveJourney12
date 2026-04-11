@@ -1429,9 +1429,6 @@ const MainScreen = () => {
                                     const placeDescription = (item.description || '').trim();
                                     const placeOneLine = String(item.placeOneLine || '').trim();
                                     const topTags = Array.isArray(item.topTags) ? item.topTags.filter(Boolean).slice(0, 3) : [];
-                                    const freshness = item.freshness && typeof item.freshness === 'object' ? item.freshness : null;
-                                    const isLiveRec = freshness?.badge === 'live';
-                                    const photoTime = freshness?.timeLabel || item.stats?.representativeTimeLabel || '';
 
                                     return (
                                         <div
@@ -1445,66 +1442,13 @@ const MainScreen = () => {
                                                 background: 'transparent',
                                             }}
                                         >
-                                            <div style={{ width: '100%', height: '160px', overflow: 'hidden', borderRadius: '14px', background: '#e5e7eb', position: 'relative' }}>
+                                            <div style={{ width: '100%', height: '160px', overflow: 'hidden', borderRadius: '14px', background: '#e5e7eb' }}>
                                                 <img
                                                     src={mainSrc}
                                                     alt={item.title || placeKey}
                                                     style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                                                     onError={(e) => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80'; }}
                                                 />
-                                                {freshness ? (
-                                                    <>
-                                                        <div
-                                                            style={{
-                                                                position: 'absolute',
-                                                                top: 8,
-                                                                left: 8,
-                                                                padding: '3px 8px',
-                                                                borderRadius: 999,
-                                                                fontSize: 9,
-                                                                fontWeight: 800,
-                                                                letterSpacing: '0.06em',
-                                                                color: 'white',
-                                                                background: isLiveRec ? '#DC2626' : '#00BCD4',
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                gap: 4,
-                                                            }}
-                                                        >
-                                                            <span
-                                                                style={{
-                                                                    width: 5,
-                                                                    height: 5,
-                                                                    borderRadius: '50%',
-                                                                    background: 'rgba(255,255,255,0.9)',
-                                                                }}
-                                                            />
-                                                            {isLiveRec ? 'LIVE' : 'RECENT'}
-                                                        </div>
-                                                        {photoTime ? (
-                                                            <div
-                                                                style={{
-                                                                    position: 'absolute',
-                                                                    bottom: 6,
-                                                                    left: 6,
-                                                                    right: 6,
-                                                                    padding: '4px 6px',
-                                                                    borderRadius: 6,
-                                                                    fontSize: 10,
-                                                                    fontWeight: 700,
-                                                                    color: '#f8fafc',
-                                                                    background: 'rgba(15, 23, 42, 0.7)',
-                                                                    textAlign: 'center',
-                                                                    overflow: 'hidden',
-                                                                    textOverflow: 'ellipsis',
-                                                                    whiteSpace: 'nowrap',
-                                                                }}
-                                                            >
-                                                                {photoTime}
-                                                            </div>
-                                                        ) : null}
-                                                    </>
-                                                ) : null}
                                             </div>
                                             <div style={{ padding: '6px 2px 10px' }}>
                                                 <div style={{ color: '#111827', fontSize: '14px', fontWeight: 800, marginBottom: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
