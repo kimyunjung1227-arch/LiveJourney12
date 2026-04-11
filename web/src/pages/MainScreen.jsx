@@ -1428,6 +1428,7 @@ const MainScreen = () => {
                                     const displayImages = rawImages.map(url => getDisplayImageUrl(url)).filter(Boolean);
                                     const mainSrc = displayImages[0] || 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80';
                                     const placeDescription = (item.description || '').trim();
+                                    const placeOneLine = String(item.placeOneLine || '').trim();
                                     const topTags = Array.isArray(item.topTags) ? item.topTags.filter(Boolean).slice(0, 3) : [];
                                     const liveHeadline = item.liveIndicator && typeof item.liveIndicator === 'object' ? item.liveIndicator.headline : '';
                                     const freshness = item.freshness && typeof item.freshness === 'object' ? item.freshness : null;
@@ -1512,6 +1513,25 @@ const MainScreen = () => {
                                                 <div style={{ color: '#111827', fontSize: '14px', fontWeight: 800, marginBottom: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {placeKey}
                                                 </div>
+                                                {placeOneLine ? (
+                                                    <div
+                                                        style={{
+                                                            marginTop: 4,
+                                                            fontSize: 11,
+                                                            fontWeight: 600,
+                                                            color: '#475569',
+                                                            lineHeight: 1.35,
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            display: '-webkit-box',
+                                                            WebkitLineClamp: 1,
+                                                            WebkitBoxOrient: 'vertical',
+                                                            wordBreak: 'break-word',
+                                                        }}
+                                                    >
+                                                        {placeOneLine}
+                                                    </div>
+                                                ) : null}
                                                 {liveHeadline ? (
                                                     <div style={{ fontSize: 11, fontWeight: 800, color: '#0891b2', marginTop: 6, lineHeight: 1.3 }}>
                                                         {liveHeadline}
@@ -1541,6 +1561,7 @@ const MainScreen = () => {
                                                 {placeDescription ? (
                                                     <PlaceDescriptionRich
                                                         text={placeDescription}
+                                                        lineClamp={3}
                                                         style={{
                                                             marginTop: 8,
                                                             color: '#334155',

@@ -1157,9 +1157,6 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming', op
     ]);
   };
 
-  const buildAiIntroForPlace = (typeId, placeKey, postsForPlace) =>
-    pickVariedAiIntro(typeId, placeKey, postsForPlace, placeDescHash(placeKey, typeId));
-
   /** 방문객 한마디(짧게, 카드 3줄용) */
   const collectVisitorVoiceSnippets = (postsForPlace, maxQuotes = 3, maxLenEach = 100) => {
     const list = Array.isArray(postsForPlace) ? postsForPlace : [];
@@ -1193,178 +1190,41 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming', op
     return out;
   };
 
-  const trimQuoteForStory = (s, max = 78) => {
-    const t = String(s || '').trim().replace(/\s+/g, ' ');
-    if (t.length <= max) return t;
-    return `${t.slice(0, max - 1)}…`;
+  const trimSingleLine = (s, max = 56) => {
+    const t = String(s || '').replace(/\s+/g, ' ').trim();
+    if (!t) return '';
+    return t.length <= max ? t : `${t.slice(0, max - 1)}…`;
   };
 
-  /**
-   * 3문단 고정 흐름: (1) 도입·현재·인용 (2) 다른 각도·인용 (3) 마무리
-   * 인용은 **…** 로 감싸 UI에서 굵게 표시
-   */
-  const buildStructuredPlaceStory = (typeId, placeKey, postsForPlace) => {
-    const name = placeKey || '이곳';
-    const blob = postsForPlace.map((p) => getPostTextBlob(p)).join(' ');
-    const h = placeDescHash(placeKey, typeId, blob.slice(0, 200));
-    const quotes = collectVisitorVoiceSnippets(postsForPlace, 2, 95);
-    let q1 = quotes[0] || '';
-    let q2 = quotes[1] || '';
-    if (!q1 && q2) {
-      q1 = q2;
-      q2 = '';
-    }
-
-    const pick = (arr) => arr[h % arr.length];
-    const hasHistory = matchesAny(blob, ['조선', '조선시대', '역사', '유적', '문화재', '세계유산', '보물', '전통', '유서']);
-    const hasPond = matchesAny(blob, ['연못', '인공 연못', '저수지', '호수']);
-    const hasCherry = matchesAny(blob, ['벚꽃', '수양', '개화', '만개', '절정', '꽃']);
-    const hasNight = matchesAny(blob, ['야경', '조명', '밤', '야간', '하트', '다리', '루프탑', '일몰', '노을']);
-    const hasSea = matchesAny(blob, ['바다', '해변', '파도', '윤슬', '물멍', '해안']);
-
-    let lead = '';
-    if (hasHistory && hasPond) {
-      lead = pick([
-        `조선시대부터 이어진 인공 연못으로 알려진 ${name}은(는)`,
-        `역사와 수면 풍경이 겹치는 ${name}은(는)`,
-        `오랜 세월 물길을 품어 온 ${name}은(는)`,
-      ]);
-    } else if (hasHistory) {
-      lead = pick([
-        `역사·문화가 살아 있는 ${name}은(는)`,
-        `과거의 흔적과 지금의 풍경이 만나는 ${name}은(는)`,
-      ]);
-    } else if (hasPond) {
-      lead = pick([
-        `물가와 산책로가 어우러진 ${name}은(는)`,
-        `잔잔한 수면이 매력인 ${name}은(는)`,
-      ]);
-    } else {
-      lead = pick([
-        `실시간 제보가 이어지는 ${name}은(는)`,
-        `여행자들의 사진과 글이 쌓이는 ${name}은(는)`,
-        `현장감 있는 제보가 올라오는 ${name}은(는)`,
-      ]);
-    }
-
-    let mid1 = '';
-    if (typeId === 'season_peak' && hasCherry) {
-      mid1 = pick([
-        `현재 수양벚꽃·벚꽃 이야기가 붙어 만개·절정 같은 표현이 오가고,`,
-        `지금은 꽃이 한창이라는 제보가 많아,`,
-        `꽃놀이 사진과 글이 이어지는 흐름 속에서,`,
-      ]);
-    } else if (typeId === 'season_peak') {
-      mid1 = pick([
-        `계절 풍경이 살아 있는 시기로 보이고,`,
-        `단풍·꽃 같은 시즌 감성이 제보에 담기고,`,
-      ]);
-    } else if (typeId === 'lively_vibe') {
-      mid1 = pick([
-        `최근 업로드가 몰리며 실시간으로 붐비는 분위기가 감지되고,`,
-        `핫플·활기 같은 표현이 제보에 잘 붙으며,`,
-      ]);
-    } else if (typeId === 'silent_healing') {
-      mid1 = pick([
-        `한적하게 산책·휴식을 즐기기 좋은 흐름이 이어지고,`,
-        `여유·고요 쪽 제보가 많아,`,
-      ]);
-    } else if (typeId === 'deep_sea_blue' || hasSea) {
-      mid1 = pick([
-        `파도·바다 풍경이 제보에 자주 담기며,`,
-        `물멍·청량 같은 감성이 섞여,`,
-      ]);
-    } else if (typeId === 'night_good' || hasNight) {
-      mid1 = pick([
-        `저녁부터 야경·조명 이야기가 붙는 곳으로 읽히고,`,
-        `해 질 무렵부터 불빛이 살아나는 분위기로 제보되며,`,
-      ]);
-    } else {
-      mid1 = pick([
-        `현장 글을 기준으로 보면 지금 가기 좋은 타이밍으로 보이고,`,
-        `최신 제보 흐름이 살아 있는 곳으로,`,
-      ]);
-    }
-
-    const b1 = q1 ? `**${trimQuoteForStory(q1)}**` : '';
-    const b2 = q2 ? `**${trimQuoteForStory(q2)}**` : '';
-
-    let p1 = '';
-    if (q1) {
-      p1 = pick([
-        `${lead} ${mid1} ${b1}라는 방문객들의 찬사가 이어지고 있습니다.`,
-        `${lead} ${mid1} ${b1}라는 반응이 제보에 계속 올라옵니다.`,
-        `${lead} ${mid1} ${b1}라는 목소리가 현장 분위기를 대신합니다.`,
-      ]);
-    } else {
-      p1 = pick([
-        `${lead} ${mid1} 여행자들의 기대를 모으는 명소로 정리돼요.`,
-        `${lead} ${mid1} 지금의 분위기를 확인하기 좋은 스팟으로 읽혀요.`,
-      ]);
-    }
-
-    let p2 = '';
-    if (typeId === 'night_good' || hasNight) {
-      if (q2) {
-        p2 = pick([
-          `밤이 되면 화려한 조명과 야경이 살아나는 ${name}에서는 ${b2}라는 실시간 후기가 생생한 현장 분위기를 전합니다.`,
-          `해 질 무렵부터 불빛이 살아나는 ${name}에서는 ${b2}라는 후기가 이어집니다.`,
-        ]);
-      } else {
-        p2 = pick([
-          `밤이 되면 조명과 야경이 더해져 낮과는 다른 분위기로 다가오는 ${name}의 매력이 제보에도 드러납니다.`,
-          `야경·조명 포인트가 살아나는 시간대에 ${name}은(는) 사진과 산책 모두에 잘 어울립니다.`,
-        ]);
+  /** 사용자 글·폴백 문장을 합쳐 정확히 n줄(줄당 글자 제한, 공백 우선 분할) */
+  const packTextToNLines = (rawText, nLines, maxLen) => {
+    const src = String(rawText || '').replace(/\s+/g, ' ').trim();
+    const fallbacks = [
+      '실시간 제보가 이어지는 추천 장소예요.',
+      '지금 분위기를 가늠하기 좋은 타이밍이에요.',
+      '일정·동선 짜실 때 참고해 보세요.',
+    ];
+    if (!src) return fallbacks.slice(0, nLines).join('\n');
+    const lines = [];
+    let rest = src;
+    for (let i = 0; i < nLines; i += 1) {
+      if (!rest) {
+        lines.push(fallbacks[i] || fallbacks[fallbacks.length - 1]);
+        continue;
       }
-    } else if (typeId === 'deep_sea_blue' || hasSea) {
-      if (q2) {
-        p2 = pick([
-          `물결과 하늘빛이 어우러지는 풍경 속에서 ${b2}라는 감상이 전해지며, 바다가 주는 여유가 살아 있습니다.`,
-          `파도 소리와 함께 ${b2}라는 후기가 올라와 청량한 현장감을 더합니다.`,
-        ]);
+      if (rest.length <= maxLen) {
+        lines.push(rest);
+        rest = '';
       } else {
-        p2 = pick([
-          `물가와 시야가 탁 트인 각도에서 ${name}만의 청량한 분위기가 느껴집니다.`,
-          `물멍·산책을 즐기기 좋은 ${name}은(는) 잠깐 멈춰 서기에도 좋은 스팟으로 읽혀요.`,
-        ]);
-      }
-    } else if (typeId === 'lively_vibe') {
-      if (q2) {
-        p2 = pick([
-          `사람들의 발길이 이어지는 현장에서는 ${b2}라는 생생한 목소리가 올라와 지금의 에너지를 전합니다.`,
-          `실시간으로 붐비는 흐름 속에서 ${b2}라는 후기가 현장의 온도를 보여 줍니다.`,
-        ]);
-      } else {
-        p2 = pick([
-          `실시간으로 올라오는 사진과 글이 ${name}의 활기를 대신 말해 주는 듯합니다.`,
-          `업로드 속도가 빠른 ${name}은(는) 지금의 분위기를 가늠하기 좋은 장소예요.`,
-        ]);
-      }
-    } else {
-      if (q2) {
-        p2 = pick([
-          `다른 시간대·다른 동선에서 본 ${name}에서는 ${b2}라는 후기가 현장의 분위기를 더합니다.`,
-          `산책·사진·쉼 등 목적이 달라도 ${b2}라는 글이 ${name}의 매력을 입체적으로 보여 줍니다.`,
-        ]);
-      } else {
-        p2 = pick([
-          `산책·사진·쉼 등 다양한 목적으로 찾는 이들의 제보가 ${name}의 매력을 입체적으로 보여 줍니다.`,
-          `같은 장소라도 시간에 따라 다른 얼굴을 보여 주는 ${name}이 제보 속에서 또렷해집니다.`,
-        ]);
+        let cut = rest.lastIndexOf(' ', maxLen);
+        if (cut < 12) cut = maxLen;
+        const piece = rest.slice(0, cut).trim();
+        lines.push(piece);
+        rest = rest.slice(cut).trim();
       }
     }
-
-    const p3 = pick([
-      `이처럼 유저들의 생동감 넘치는 정보가 더해진 ${name}은(는) 여행의 실망을 줄이고 모든 여행자의 발걸음을 가치 있게 만드는 명소가 되고 있습니다.`,
-      `이처럼 현장감 있는 제보가 쌓인 ${name}은(는) 기대를 구체화하고 발걸음을 가볍게 만드는 여행지로 이어지고 있습니다.`,
-      `이처럼 실시간 목소리가 더해진 ${name}은(는) 여행 선택에 확신을 더하고 소중한 시간을 가치 있게 만드는 장소로 남습니다.`,
-    ]);
-
-    return [p1, p2, p3].join('\n\n');
+    return lines.join('\n');
   };
-
-  const buildUnifiedPlaceDescription = (typeId, placeKey, postsForPlace) =>
-    buildStructuredPlaceStory(typeId, placeKey, postsForPlace);
 
   // 카드 간 태그 중복을 줄이기 위한 전역 사용 카운트 (한 번 호출 내에서만)
   const globalTagUse = new Map(); // key -> count
@@ -1416,12 +1276,16 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming', op
     const liveIndicator = buildLiveIndicator(type, stat, extra, globalCtx, fd);
     const topTags = diversifyTopTags(buildTopTags(type, stat, extra));
     const placePosts = Array.isArray(stat.placePosts) ? stat.placePosts : [];
-    const unifiedDescription = buildUnifiedPlaceDescription(type, stat.placeKey, placePosts);
+    const userBlob = collectVisitorVoiceSnippets(placePosts, 8, 220).join(' ').trim();
+    const introLine = pickVariedAiIntro(type, stat.placeKey, placePosts, placeDescHash(stat.placeKey, type));
+    const placeOneLine = trimSingleLine(introLine, 56);
+    const unifiedDescription = packTextToNLines(userBlob || introLine, 3, 46);
 
     return {
       regionName: stat.placeKey, // 호환 필드(실제는 placeKey)
       placeName: stat.placeKey,
       title: stat.placeKey,
+      placeOneLine,
       description: unifiedDescription,
       userSnippet: '',
       topTags,
