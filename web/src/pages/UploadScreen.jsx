@@ -14,7 +14,7 @@ import { createPostSupabase, getMergedMyPostsForStats, fetchPostByIdSupabase, up
 import { getCurrentTimestamp, getTimeAgo } from '../utils/timeUtils';
 import { getBadgeCongratulationMessage, getBadgeDifficultyEffects } from '../utils/badgeMessages';
 import { logger } from '../utils/logger';
-import { extractExifData, convertGpsToAddress, formatExifDate } from '../utils/exifExtractor';
+import { extractExifData, convertGpsToAddress, formatExifDate, isExifCaptureTooOldForUpload } from '../utils/exifExtractor';
 import { slugsFromAnalysisResult } from '../utils/travelCategories';
 import { normalizeRegionName } from '../utils/regionNames';
 import { searchPlaceWithKakaoFirst } from '../utils/kakaoPlacesGeocode';
@@ -34,6 +34,9 @@ const UploadScreen = () => {
   const { handleDragStart } = useHorizontalDragScroll();
   const [isInAppCamera, setIsInAppCamera] = useState(false);
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
+  const [showCameraCapture, setShowCameraCapture] = useState(false);
+  const [cameraPreviewStream, setCameraPreviewStream] = useState(null);
+  const cameraVideoRef = useRef(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showUploadGuide, setShowUploadGuide] = useState(false);
   const [dontShowGuideAgain, setDontShowGuideAgain] = useState(false);
@@ -107,6 +110,26 @@ const UploadScreen = () => {
     prefetchedExif: prefetchedExifForValidation,
     serverPhotoDateIso: editingPostId ? formData.photoDate || null : null,
   });
+
+  const isExifCaptureBlocked = useMemo(() => {
+    if (isInAppCamera) return false;
+    const first = formData.imageFiles[0];
+    if (!first || first.type.startsWith('video/')) return false;
+    if (!exifAllowed) return false;
+    if (exifExtracting) return false;
+    return isExifCaptureTooOldForUpload(formData.photoDate, {
+      isInAppCamera,
+      hasOnlyVideo: formData.images.length === 0 && formData.videos.length > 0,
+    });
+  }, [
+    isInAppCamera,
+    formData.imageFiles,
+    formData.images.length,
+    formData.videos.length,
+    formData.photoDate,
+    exifAllowed,
+    exifExtracting,
+  ]);
 
   // "#태그1 #태그2" / "#태그1#태그2" / "태그1, 태그2" 등 입력을 개별 태그로 분리
   const parseTagsFromInput = (text) => {
@@ -787,52 +810,66 @@ const UploadScreen = () => {
     setAutoTags(dedupeHashtags([...weatherPick, ...moodPick, ...analysisPick]).slice(0, 6));
   }, []);
 
-  const handleImageSelect = useCallback(async (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length === 0) return;
+  const processMediaFiles = useCallback(
+    (fileList, { fromInAppCamera = false } = {}) => {
+      const files = Array.from(fileList || []);
+      if (files.length === 0) return;
 
-    const MAX_SIZE = 50 * 1024 * 1024;
-    const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 동영상은 100MB까지
+      setIsInAppCamera(fromInAppCamera);
 
-    const imageFiles = [];
-    const videoFiles = [];
+      const MAX_SIZE = 50 * 1024 * 1024;
+      const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 동영상은 100MB까지
 
-    for (const file of files) {
-      const isVideo = file.type.startsWith('video/');
-      const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_SIZE;
+      const imageFiles = [];
+      const videoFiles = [];
 
-      if (file.size > maxSize) {
-        alert(`${file.name}은(는) ${isVideo ? '100MB' : '50MB'}를 초과합니다`);
-        continue;
+      for (const file of files) {
+        const isVideo = file.type.startsWith('video/');
+        const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_SIZE;
+
+        if (file.size > maxSize) {
+          alert(`${file.name}은(는) ${isVideo ? '100MB' : '50MB'}를 초과합니다`);
+          continue;
+        }
+
+        if (isVideo) {
+          videoFiles.push(file);
+        } else {
+          imageFiles.push(file);
+        }
       }
 
-      if (isVideo) {
-        videoFiles.push(file);
-      } else {
-        imageFiles.push(file);
+      const imageUrls = imageFiles.map((file) => URL.createObjectURL(file));
+      const videoUrls = videoFiles.map((file) => URL.createObjectURL(file));
+      const isFirstMedia = formData.images.length === 0 && formData.videos.length === 0;
+
+      setFormData((prev) => ({
+        ...prev,
+        images: [...prev.images, ...imageUrls],
+        imageFiles: [...prev.imageFiles, ...imageFiles],
+        videos: [...prev.videos, ...videoUrls],
+        videoFiles: [...prev.videoFiles, ...videoFiles],
+      }));
+
+      if (isFirstMedia && (imageFiles.length > 0 || videoFiles.length > 0)) {
+        const firstNewImage = imageFiles[0];
+        if (!firstNewImage || firstNewImage.type.startsWith('video/')) {
+          if (!missionContext) getCurrentLocation();
+          generateVideoTags(formData.location, formData.note);
+        }
       }
-    }
+    },
+    [formData.images.length, formData.videos.length, formData.location, formData.note, getCurrentLocation, missionContext, generateVideoTags]
+  );
 
-    const imageUrls = imageFiles.map(file => URL.createObjectURL(file));
-    const videoUrls = videoFiles.map(file => URL.createObjectURL(file));
-    const isFirstMedia = formData.images.length === 0 && formData.videos.length === 0;
-
-    setFormData(prev => ({
-      ...prev,
-      images: [...prev.images, ...imageUrls],
-      imageFiles: [...prev.imageFiles, ...imageFiles],
-      videos: [...prev.videos, ...videoUrls],
-      videoFiles: [...prev.videoFiles, ...videoFiles]
-    }));
-
-    if (isFirstMedia && (imageFiles.length > 0 || videoFiles.length > 0)) {
-      const firstNewImage = imageFiles[0];
-      if (!firstNewImage || firstNewImage.type.startsWith('video/')) {
-        if (!missionContext) getCurrentLocation();
-        generateVideoTags(formData.location, formData.note);
-      }
-    }
-  }, [formData.images.length, formData.videos.length, formData.location, formData.note, getCurrentLocation, missionContext, generateVideoTags]);
+  const handleImageSelect = useCallback(
+    (e) => {
+      const files = Array.from(e.target.files || []);
+      e.target.value = '';
+      processMediaFiles(files, { fromInAppCamera: false });
+    },
+    [processMediaFiles]
+  );
 
 
   // 추천 태그는 "첫 사진 추가 시 1회"만 생성 (이후 위치/설명 입력 변경으로 재분석하지 않음)
@@ -862,20 +899,102 @@ const UploadScreen = () => {
 
   const handlePhotoOptionSelect = useCallback((option) => {
     setShowPhotoOptions(false);
-    setIsInAppCamera(option === 'camera');
-
+    if (option === 'camera') {
+      setShowCameraCapture(true);
+      return;
+    }
+    setIsInAppCamera(false);
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*,video/*';
     input.multiple = true;
-
-    if (option === 'camera') {
-      input.capture = 'environment';
-    }
-
     input.onchange = handleImageSelect;
     input.click();
   }, [handleImageSelect]);
+
+  useEffect(() => {
+    if (!showCameraCapture) {
+      setCameraPreviewStream((prev) => {
+        if (prev) prev.getTracks().forEach((t) => t.stop());
+        return null;
+      });
+      return;
+    }
+    let cancelled = false;
+    let stream = null;
+    (async () => {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          alert('이 환경에서는 카메라 API를 사용할 수 없습니다.');
+          setShowCameraCapture(false);
+          return;
+        }
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 } },
+          audio: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        setCameraPreviewStream(stream);
+      } catch (err) {
+        logger.warn('카메라 시작 실패:', err);
+        alert('카메라를 켤 수 없습니다. 권한과 브라우저 설정을 확인해 주세요.');
+        setShowCameraCapture(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+    };
+  }, [showCameraCapture]);
+
+  useEffect(() => {
+    const el = cameraVideoRef.current;
+    if (!el || !cameraPreviewStream) return;
+    el.srcObject = cameraPreviewStream;
+    el.playsInline = true;
+    el.setAttribute('playsinline', '');
+    el.setAttribute('webkit-playsinline', '');
+    el.play().catch(() => {});
+    return () => {
+      el.srcObject = null;
+    };
+  }, [cameraPreviewStream, showCameraCapture]);
+
+  const captureFromCamera = useCallback(() => {
+    const video = cameraVideoRef.current;
+    if (!video || video.readyState < 2) {
+      alert('카메라 화면이 준비될 때까지 잠시만 기다려 주세요.');
+      return;
+    }
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    if (!w || !h) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, w, h);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          alert('사진을 저장하지 못했습니다.');
+          return;
+        }
+        const file = new File([blob], `capture-${Date.now()}.jpg`, {
+          type: 'image/jpeg',
+          lastModified: Date.now(),
+        });
+        processMediaFiles([file], { fromInAppCamera: true });
+        setShowCameraCapture(false);
+      },
+      'image/jpeg',
+      0.92
+    );
+  }, [processMediaFiles]);
 
   const addTag = useCallback(() => {
     const parsed = parseTagsFromInput(tagInput);
@@ -1012,6 +1131,13 @@ const UploadScreen = () => {
 
     if (!formData.note.trim()) {
       alert('설명을 입력해주세요');
+      return;
+    }
+
+    if (isExifCaptureBlocked) {
+      alert(
+        'EXIF 기준 촬영 시각이 48시간을 넘긴 사진은 업로드할 수 없습니다. 최근에 찍은 사진을 선택하거나 촬영하기로 새로 찍어 주세요.'
+      );
       return;
     }
 
@@ -1567,7 +1693,7 @@ const UploadScreen = () => {
       setUploading(false);
       setUploadProgress(0);
     }
-  }, [formData, user, navigate, checkAndAwardBadge, editingPostId, tagInput]);
+  }, [formData, user, navigate, checkAndAwardBadge, editingPostId, tagInput, isExifCaptureBlocked]);
 
   if (editingPostId && !editFormReady) {
     return (
@@ -1887,9 +2013,14 @@ const UploadScreen = () => {
                         선택한 파일에서 읽은 촬영 시각이에요. 업로드되는 이미지 본문에서는 메타데이터가 제거돼요.
                       </p>
                     )}
-                    {!validatingPhoto && formData.imageFiles?.length > 0 && photoStatus === 'NONE' && (
+                    {!validatingPhoto && formData.imageFiles?.length > 0 && photoStatus === 'NONE' && !isExifCaptureBlocked && (
                       <p className="text-[11px] text-gray-500 dark:text-gray-400">
                         정보가 부족하여 인증 배지 없이 공유됩니다.
+                      </p>
+                    )}
+                    {isExifCaptureBlocked && (
+                      <p className="text-[11px] text-red-600 dark:text-red-400 font-medium">
+                        EXIF 촬영 시각이 48시간을 넘겼습니다. 다른 사진을 선택하거나 촬영하기로 새로 찍어 주세요.
                       </p>
                     )}
                   </div>
@@ -2128,13 +2259,15 @@ const UploadScreen = () => {
                   uploading ||
                   (formData.images.length + formData.videos.length) === 0 ||
                   !formData.location.trim() ||
-                  !formData.note.trim()
+                  !formData.note.trim() ||
+                  isExifCaptureBlocked
                 }
                 className={`flex w-full items-center justify-center rounded-full min-h-[44px] h-11 px-4 text-sm font-semibold text-white transition-all ${
                   uploading ||
                   (formData.images.length + formData.videos.length) === 0 ||
                   !formData.location.trim() ||
-                  !formData.note.trim()
+                  !formData.note.trim() ||
+                  isExifCaptureBlocked
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-primary hover:bg-primary-dark active:scale-[0.98] transform'
                 }`}
@@ -2148,9 +2281,15 @@ const UploadScreen = () => {
                   <span>{editingPostId ? '저장하기' : '업로드하기'}</span>
                 )}
               </button>
-              {((formData.images.length + formData.videos.length) === 0 ||
-                !formData.location.trim() ||
-                !formData.note.trim()) && (
+              {isExifCaptureBlocked && (
+                <p className="text-xs text-red-600 dark:text-red-400 text-center mt-2 font-medium">
+                  촬영 시각(EXIF)이 48시간을 넘긴 사진은 업로드할 수 없습니다.
+                </p>
+              )}
+              {!isExifCaptureBlocked &&
+                ((formData.images.length + formData.videos.length) === 0 ||
+                  !formData.location.trim() ||
+                  !formData.note.trim()) && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
                   {(formData.images.length + formData.videos.length) === 0
                     ? '사진 또는 동영상을 추가해주세요'
@@ -2215,6 +2354,39 @@ const UploadScreen = () => {
                 <div className={`w-2 h-2 rounded-full transition-all ${uploadProgress >= 80 ? 'bg-primary' : 'bg-gray-300'}`}></div>
                 <div className={`w-2 h-2 rounded-full transition-all ${uploadProgress >= 100 ? 'bg-primary' : 'bg-gray-300'}`}></div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {showCameraCapture && (
+          <div className="absolute inset-0 z-[70] flex flex-col bg-black">
+            <div className="flex min-h-0 flex-1 items-center justify-center p-2">
+              <video
+                ref={cameraVideoRef}
+                className="max-h-full max-w-full object-contain"
+                autoPlay
+                muted
+                playsInline
+              />
+            </div>
+            <div
+              className="flex gap-3 border-t border-white/10 bg-black/95 p-4"
+              style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowCameraCapture(false)}
+                className="flex min-h-[44px] flex-1 items-center justify-center rounded-xl border border-white/30 text-base font-semibold text-white"
+              >
+                닫기
+              </button>
+              <button
+                type="button"
+                onClick={captureFromCamera}
+                className="flex min-h-[44px] flex-1 items-center justify-center rounded-xl bg-primary text-base font-semibold text-white"
+              >
+                촬영
+              </button>
             </div>
           </div>
         )}

@@ -54,6 +54,15 @@ export function parseExifDateToDate(raw) {
   return Number.isNaN(fallback.getTime()) ? null : fallback;
 }
 
+/** EXIF SubSec* 필드를 밀리초 보정값으로 (0–999) */
+function subSecToMilliseconds(raw) {
+  if (raw == null || raw === '') return 0;
+  const digits = String(raw).replace(/\D/g, '');
+  if (!digits) return 0;
+  const n = parseInt(digits.slice(0, 3).padEnd(3, '0'), 10);
+  return Number.isFinite(n) ? Math.min(n, 999) : 0;
+}
+
 /**
  * DateTimeOriginal + SubSec(있으면)으로 촬영 시각 정리
  * @param {Record<string, unknown>} exifData
@@ -73,7 +82,34 @@ function resolveCaptureDate(exifData) {
     null;
 
   const base = parseExifDateToDate(primary);
-  return base;
+  if (!base) return null;
+  const subMs =
+    subSecToMilliseconds(exifData.SubSecTimeOriginal) ||
+    subSecToMilliseconds(exifData.SubSecTimeDigitized) ||
+    subSecToMilliseconds(exifData.SubSecTime) ||
+    subSecToMilliseconds(exifData.SubSec);
+  if (!subMs) return base;
+  const t = base.getTime() + subMs;
+  const out = new Date(t);
+  return Number.isNaN(out.getTime()) ? base : out;
+}
+
+/** EXIF 촬영 시각이 업로드 허용 기준(기본 48시간)을 넘겼는지 */
+export const EXIF_RECENT_CAPTURE_MAX_MS = 48 * 60 * 60 * 1000;
+
+/**
+ * @param {string|null|undefined} photoDateIso — extractExifData의 photoDate 등 ISO 문자열
+ * @param {{ isInAppCamera?: boolean; hasOnlyVideo?: boolean }} [opt]
+ */
+export function isExifCaptureTooOldForUpload(photoDateIso, opt = {}) {
+  const { isInAppCamera = false, hasOnlyVideo = false } = opt;
+  if (isInAppCamera || hasOnlyVideo) return false;
+  if (!photoDateIso) return false;
+  const t = new Date(photoDateIso).getTime();
+  if (Number.isNaN(t)) return false;
+  const age = Date.now() - t;
+  if (!Number.isFinite(age) || age < 0) return false;
+  return age > EXIF_RECENT_CAPTURE_MAX_MS;
 }
 
 /** 첫 파싱에서 빠진 키를 XMP/IPTC 전체 파싱으로 보강 */
@@ -173,7 +209,8 @@ export const extractExifData = async (file, options = {}) => {
       exifData = await exifr.parse(file, {
         ...BASE_PARSE_OPTS,
         firstChunk: true,
-        firstChunkSize: 768 * 1024,
+        /** 일부 JPEG는 메타데이터 블록이 뒤쪽에 있을 수 있어 1차 청크를 넉넉히 */
+        firstChunkSize: 1024 * 1024,
       });
     } catch (e) {
       logger.debug('EXIF firstChunk 파싱 실패, 전체 파일로 재시도:', e);

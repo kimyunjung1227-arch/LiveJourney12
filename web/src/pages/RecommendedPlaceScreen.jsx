@@ -4,6 +4,7 @@ import BottomNavigation from '../components/BottomNavigation';
 import { getRecommendedRegions, RECOMMENDATION_TYPES } from '../utils/recommendationEngine';
 import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
+import PlaceDescriptionRich from '../components/PlaceDescriptionRich';
 import './MainScreen.css';
 
 const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80';
@@ -191,22 +192,16 @@ const RecommendedPlaceScreen = () => {
                       {item.regionName}
                     </div>
                     {(item.description || '').trim() ? (
-                      <div
+                      <PlaceDescriptionRich
+                        text={(item.description || '').trim()}
                         style={{
                           marginTop: 8,
                           color: '#334155',
                           fontSize: 12,
-                          fontWeight: 600,
-                          lineHeight: 1.5,
-                          display: '-webkit-box',
-                          WebkitLineClamp: 3,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
+                          fontWeight: 500,
                           wordBreak: 'break-word',
                         }}
-                      >
-                        {(item.description || '').trim()}
-                      </div>
+                      />
                     ) : null}
                     {liveIndicator && (liveIndicator.headline || liveIndicator.detail) && (
                       <div

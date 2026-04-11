@@ -157,10 +157,11 @@ export function usePhotoValidation(params: UsePhotoValidationParams): UsePhotoVa
       const preferredDate = preferred?.photoDate ? new Date(preferred.photoDate) : null;
       const preferredOk = preferredDate && !Number.isNaN(preferredDate.getTime());
 
-      // spec 준수: DateTimeOriginal은 exif-js로 추출(가능하면 우선)
+      // 업로드 화면의 exifr(extractExifData) 결과를 우선 — HEIC/일부 JPEG에서 exif-js가 실패하는 경우 보완
       const exifJs = await readDateTimeOriginalWithExifJs(file);
-      const date = exifJs.date || (preferredOk ? preferredDate : null);
-      const raw = exifJs.raw || preferredRaw;
+      const date =
+        (preferredOk ? preferredDate : null) ?? exifJs.date;
+      const raw = preferredRaw ?? exifJs.raw;
 
       if (cancelled) return;
       setLoading(false);

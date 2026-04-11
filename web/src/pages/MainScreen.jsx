@@ -13,6 +13,7 @@ import './MainScreen.css';
 import { getCombinedPosts } from '../utils/mockData';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getDisplayImageUrl } from '../api/upload';
+import PlaceDescriptionRich from '../components/PlaceDescriptionRich';
 import { getMapThumbnailUri } from '../utils/postMedia';
 import { getPostAccuracyCount, toggleLike, isPostLiked, mergeLikedPostsFromServer } from '../utils/socialInteractions';
 import { rankHotspotPosts } from '../utils/hotnessEngine';
@@ -1503,22 +1504,16 @@ const MainScreen = () => {
                                                     </div>
                                                 )}
                                                 {placeDescription ? (
-                                                    <div
+                                                    <PlaceDescriptionRich
+                                                        text={placeDescription}
                                                         style={{
                                                             marginTop: 8,
                                                             color: '#334155',
                                                             fontSize: 12,
-                                                            fontWeight: 600,
-                                                            lineHeight: 1.5,
-                                                            display: '-webkit-box',
-                                                            WebkitLineClamp: 3,
-                                                            WebkitBoxOrient: 'vertical',
-                                                            overflow: 'hidden',
+                                                            fontWeight: 500,
                                                             wordBreak: 'break-word',
                                                         }}
-                                                    >
-                                                        {placeDescription}
-                                                    </div>
+                                                    />
                                                 ) : null}
                                             </div>
                                         </div>
