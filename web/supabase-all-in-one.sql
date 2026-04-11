@@ -102,6 +102,8 @@ alter table public.posts add column if not exists likes_count integer not null d
 alter table public.posts add column if not exists comments jsonb not null default '[]'::jsonb;
 alter table public.posts add column if not exists captured_at timestamptz null;
 alter table public.posts add column if not exists created_at timestamptz not null default now();
+alter table public.posts add column if not exists is_in_app_camera boolean not null default false;
+alter table public.posts add column if not exists exif_data jsonb null;
 
 -- 과거 스키마에서 FK가 auth.users가 아닌 곳을 가리키는 경우 방어적으로 제거
 alter table public.posts drop constraint if exists posts_user_id_fkey;

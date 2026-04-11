@@ -12,6 +12,7 @@ import { getWeatherByRegion } from '../api/weather';
 import { getGridCoverDisplay } from '../utils/postMedia';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
+import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import {
   feedGridCardBoxFlat,
   feedGridImageBoxFlat,
@@ -33,11 +34,7 @@ const RealtimeFeedScreen = () => {
     const loadData = async () => {
       const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
       const supabasePosts = await fetchPostsSupabase();
-      const byId = new Map();
-      [...(Array.isArray(supabasePosts) ? supabasePosts : []), ...(Array.isArray(localPosts) ? localPosts : [])].forEach((p) => {
-        if (p && p.id && !byId.has(p.id)) byId.set(p.id, p);
-      });
-      const allPosts = getCombinedPosts(Array.from(byId.values()));
+      const allPosts = getCombinedPosts(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
       const posts = filterActivePosts48(allPosts);
 
       const formattedWithRaw = posts.map((post) => {

@@ -32,7 +32,6 @@ const UploadScreen = () => {
   const { user } = useAuth();
   const { exifAllowed } = useExifConsent();
   const { handleDragStart } = useHorizontalDragScroll();
-  const [isInAppCamera, setIsInAppCamera] = useState(false);
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
   const [showCameraCapture, setShowCameraCapture] = useState(false);
   const [cameraPreviewStream, setCameraPreviewStream] = useState(null);
@@ -56,8 +55,21 @@ const UploadScreen = () => {
     exifData: null, // EXIF 데이터 (날짜, GPS 등)
     exifForFileKey: null, // exifData가 대응하는 첫 이미지 파일 식별자
     photoDate: null, // 사진 촬영 날짜
-    verifiedLocation: null // EXIF에서 추출한 검증된 위치
+    verifiedLocation: null, // EXIF에서 추출한 검증된 위치
+    /** 편집 모드: 서버에 저장된 앱 내 촬영 여부(로컬 파일 없을 때 배지용) */
+    savedInAppCamera: null,
   });
+
+  /** 라이브저니 웹 카메라로 찍은 파일명(capture-타임스탬프.jpg) — 첫 장만 배지에 사용 */
+  const isInAppCamera = useMemo(() => {
+    const f = formData.imageFiles?.[0];
+    if (!f || String(f.type || '').startsWith('video/')) {
+      return editingPostId && formData.savedInAppCamera === true;
+    }
+    const name = f.name || '';
+    return /^capture-\d+\.(jpe?g|webp)$/i.test(name);
+  }, [formData.imageFiles, formData.savedInAppCamera, editingPostId]);
+
   const [exifExtracting, setExifExtracting] = useState(false);
   const locNoteRef = useRef({ location: '', note: '' });
   const [tagInput, setTagInput] = useState('');
@@ -339,7 +351,8 @@ const UploadScreen = () => {
         photoDate: post.photoDate || post.exifData?.photoDate || null,
         verifiedLocation: post.verifiedLocation || null,
         exifData: post.exifData || null,
-        exifForFileKey: null
+        exifForFileKey: null,
+        savedInAppCamera: post.isInAppCamera === true,
       }));
       setAutoTags([]);
       setEditFormReady(true);
@@ -811,11 +824,9 @@ const UploadScreen = () => {
   }, []);
 
   const processMediaFiles = useCallback(
-    (fileList, { fromInAppCamera = false } = {}) => {
+    (fileList) => {
       const files = Array.from(fileList || []);
       if (files.length === 0) return;
-
-      setIsInAppCamera(fromInAppCamera);
 
       const MAX_SIZE = 50 * 1024 * 1024;
       const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 동영상은 100MB까지
@@ -866,7 +877,7 @@ const UploadScreen = () => {
     (e) => {
       const files = Array.from(e.target.files || []);
       e.target.value = '';
-      processMediaFiles(files, { fromInAppCamera: false });
+      processMediaFiles(files);
     },
     [processMediaFiles]
   );
@@ -903,7 +914,6 @@ const UploadScreen = () => {
       setShowCameraCapture(true);
       return;
     }
-    setIsInAppCamera(false);
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*,video/*';
@@ -988,7 +998,7 @@ const UploadScreen = () => {
           type: 'image/jpeg',
           lastModified: Date.now(),
         });
-        processMediaFiles([file], { fromInAppCamera: true });
+        processMediaFiles([file]);
         setShowCameraCapture(false);
       },
       'image/jpeg',
@@ -1378,7 +1388,8 @@ const UploadScreen = () => {
         },
         tags: finalTags.map((tag) => String(tag).replace(/^#+/, '').trim()).filter(Boolean),
         isRealtime: true,
-        photoDate: formData.photoDate || null, // EXIF 촬영 날짜
+        photoDate: formData.photoDate || (isInAppCamera ? new Date().toISOString() : null),
+        isInAppCamera: !!isInAppCamera,
         exifData: formData.exifData ? {
           photoDate: formData.exifData.photoDate,
           gpsCoordinates: formData.exifData.gpsCoordinates,
@@ -1430,9 +1441,12 @@ const UploadScreen = () => {
           // 지역 정보 추출 (첫 번째 단어 — 구미/구미시 등 표기 통일)
           const region = normalizeRegionName(formData.location?.split(' ')[0] || '기타');
 
-          // EXIF에서 추출한 촬영 날짜 사용 (없으면 현재 시간)
-          const photoTimestamp = formData.photoDate
-            ? new Date(formData.photoDate).getTime()
+          const resolvedPhotoDate =
+            formData.photoDate || (isInAppCamera ? new Date().toISOString() : null);
+
+          // EXIF·앱 내 촬영 기준 촬영 시각 (없으면 업로드 시각)
+          const photoTimestamp = resolvedPhotoDate
+            ? new Date(resolvedPhotoDate).getTime()
             : (backendPost?.createdAt ? new Date(backendPost.createdAt).getTime() : Date.now());
 
           // 업로드 시점의 날씨 정보 가져오기
@@ -1467,7 +1481,8 @@ const UploadScreen = () => {
             content: descriptionWithDate,
             timestamp: photoTimestamp,
             createdAt: backendPost?.createdAt || getCurrentTimestamp(),
-            photoDate: formData.photoDate || null, // EXIF에서 추출한 촬영 날짜
+            photoDate: resolvedPhotoDate,
+            isInAppCamera: !!isInAppCamera,
             timeLabel: getTimeAgo(new Date(photoTimestamp)),
             user: {
               id: currentUserId,

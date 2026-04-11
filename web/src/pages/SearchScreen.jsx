@@ -14,6 +14,7 @@ import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import BackButton from '../components/BackButton';
 import InterestPlacesContent from '../components/InterestPlacesContent';
 import { normalizeRegionName } from '../utils/regionNames';
+import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 
 // 해시태그 파싱: #동백꽃 #바다 #힐링 → ['동백꽃','바다','힐링']
 const parseHashtags = (q) => {
@@ -527,11 +528,7 @@ const SearchScreen = () => {
     const loadAllPosts = async () => {
       const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
       const supabasePosts = await fetchPostsSupabase();
-      const byId = new Map();
-      [...(Array.isArray(supabasePosts) ? supabasePosts : []), ...(Array.isArray(localPosts) ? localPosts : [])].forEach((p) => {
-        if (p && p.id && !byId.has(p.id)) byId.set(p.id, p);
-      });
-      const combined = getCombinedPosts(Array.from(byId.values()));
+      const combined = getCombinedPosts(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
       setAllPosts(filterActivePosts48(combined));
     };
 

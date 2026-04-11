@@ -19,6 +19,7 @@ import {
 import { normalizeRegionName, postMatchesCanonicalRegion } from '../utils/regionNames';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
+import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { getTimeAgo } from '../utils/timeUtils';
 
 const RegionDetailScreen = () => {
@@ -73,11 +74,7 @@ const RegionDetailScreen = () => {
   const loadRegionData = useCallback(async () => {
     const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
     const supabasePosts = await fetchPostsSupabase();
-    const byId = new Map();
-    [...(Array.isArray(supabasePosts) ? supabasePosts : []), ...(Array.isArray(localPosts) ? localPosts : [])].forEach((p) => {
-      if (p && p.id && !byId.has(p.id)) byId.set(p.id, p);
-    });
-    const combinedPosts = getCombinedPosts(Array.from(byId.values()));
+    const combinedPosts = getCombinedPosts(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
 
     // 7일 이내 게시물 필터링
     const recentPosts = filterActivePosts48(combinedPosts);

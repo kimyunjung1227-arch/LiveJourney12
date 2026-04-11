@@ -87,7 +87,9 @@ const isRealtimeVerified = (post) => {
 };
 
 const isLiveCapture = (post) =>
-  post?.captureSource === 'camera' || post?.isLiveCapture === true;
+  post?.captureSource === 'camera' ||
+  post?.isLiveCapture === true ||
+  post?.isInAppCamera === true;
 
 const normalizeByMax = (value, max) => (max > 0 ? value / max : 0);
 

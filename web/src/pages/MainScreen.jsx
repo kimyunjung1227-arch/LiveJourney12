@@ -27,6 +27,7 @@ import { fetchLikedPostIdsSupabase } from '../api/socialSupabase';
 import { togglePostLikeSupabase } from '../api/socialSupabase';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
+import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 
 const MainScreen = () => {
     const navigate = useNavigate();
@@ -133,12 +134,8 @@ const MainScreen = () => {
         // Supabase에서 실제 게시물 불러오기 (실패 시 빈 배열)
         const supabasePosts = await fetchPostsSupabase();
 
-        // Supabase + 로컬 결합 후 id 기준 중복 제거 (같은 게시물이 피드에 2번 나오는 것 방지)
-        const byId = new Map();
-        [...(Array.isArray(supabasePosts) ? supabasePosts : []), ...(Array.isArray(localPosts) ? localPosts : [])].forEach((p) => {
-          if (p && p.id && !byId.has(p.id)) byId.set(p.id, p);
-        });
-        const combined = Array.from(byId.values());
+        // Supabase + 로컬: 동일 id는 필드 병합(isInAppCamera·exifData 유지)
+        const combined = combinePostsSupabaseAndLocal(supabasePosts, localPosts);
         // 관리자가 삭제한 게시물은 제외 (다른 탭에서 삭제했거나 이벤트를 놓친 경우)
         let deletedIds = new Set();
         try {
@@ -1179,6 +1176,48 @@ const MainScreen = () => {
                                         {(post.content || post.note) && (
                                             <div style={{ color: '#4b5563', fontSize: '13px', lineHeight: 1.45, marginTop: '6px', height: '2.9em', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                                                 {post.content || post.note}
+                                            </div>
+                                        )}
+                                        {Array.isArray(post.reasonTags) && post.reasonTags.length > 0 && (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                                                {post.reasonTags.slice(0, 3).map((tag) => (
+                                                    <span
+                                                        key={String(tag)}
+                                                        style={{
+                                                            fontSize: '10px',
+                                                            fontWeight: 600,
+                                                            color: '#0f766e',
+                                                            background: 'rgba(20, 184, 166, 0.12)',
+                                                            padding: '2px 6px',
+                                                            borderRadius: '6px',
+                                                            maxWidth: '100%',
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            whiteSpace: 'nowrap',
+                                                        }}
+                                                    >
+                                                        {String(tag).replace(/^#/, '')}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {(!post.reasonTags?.length && Array.isArray(post.aiHotTags) && post.aiHotTags.length > 0) && (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                                                {post.aiHotTags.slice(0, 2).map((tag) => (
+                                                    <span
+                                                        key={String(tag)}
+                                                        style={{
+                                                            fontSize: '10px',
+                                                            fontWeight: 600,
+                                                            color: '#4b5563',
+                                                            background: '#f3f4f6',
+                                                            padding: '2px 6px',
+                                                            borderRadius: '6px',
+                                                        }}
+                                                    >
+                                                        {String(tag).replace(/^#/, '')}
+                                                    </span>
+                                                ))}
                                             </div>
                                         )}
                                     </div>

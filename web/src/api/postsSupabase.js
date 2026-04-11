@@ -108,6 +108,8 @@ export const createPostSupabase = async (post) => {
       comments: Array.isArray(post.comments) ? post.comments : [],
       captured_at: post.photoDate ? new Date(post.photoDate) : null,
       created_at: post.createdAt ? new Date(post.createdAt) : new Date(),
+      is_in_app_camera: post.isInAppCamera === true,
+      exif_data: post.exifData && typeof post.exifData === 'object' ? post.exifData : null,
     };
 
     let { data, error } = await supabase
@@ -359,7 +361,16 @@ const mapRowToPost = (row) => {
     content: row.content || '',
     timestamp: row.created_at ? new Date(row.created_at).getTime() : null,
     createdAt: row.created_at || null,
-    photoDate: row.captured_at || row.created_at || null,
+    photoDate:
+      row.captured_at ||
+      (row.exif_data && typeof row.exif_data === 'object' && row.exif_data.photoDate) ||
+      row.created_at ||
+      null,
+    isInAppCamera: row.is_in_app_camera === true,
+    exifData:
+      row.exif_data && typeof row.exif_data === 'object'
+        ? row.exif_data
+        : null,
     likes: likesCount,
     likeCount: likesCount,
     comments: Array.isArray(row.comments) ? row.comments : [],

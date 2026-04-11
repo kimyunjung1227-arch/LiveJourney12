@@ -95,6 +95,8 @@ alter table public.posts add column if not exists place_name text null;
 alter table public.posts add column if not exists category text null;
 alter table public.posts add column if not exists category_name text null;
 alter table public.posts alter column user_id drop not null;
+alter table public.posts add column if not exists is_in_app_camera boolean not null default false;
+alter table public.posts add column if not exists exif_data jsonb null;
 
 create index if not exists posts_created_at_idx on public.posts (created_at desc);
 create index if not exists posts_region_created_at_idx on public.posts (region, created_at desc);

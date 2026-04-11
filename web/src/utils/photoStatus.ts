@@ -10,7 +10,12 @@ function parseDateMaybe(v: unknown): Date | null {
 
 export function getPhotoStatusFromPost(post: any, nowMs = Date.now()): PhotoStatus {
   if (!post) return 'NONE';
-  if (post.isInAppCamera === true) return 'LIVE';
+  if (
+    post.isInAppCamera === true ||
+    post.is_in_app_camera === true
+  ) {
+    return 'LIVE';
+  }
 
   const captured =
     parseDateMaybe(post.photoDate)

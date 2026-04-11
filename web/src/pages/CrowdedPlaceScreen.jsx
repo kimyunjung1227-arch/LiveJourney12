@@ -14,6 +14,7 @@ import { getMapThumbnailUri } from '../utils/postMedia';
 import HotFeedCard from '../components/HotFeedCard';
 import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCardModel';
 import { getWeatherByRegion } from '../api/weather';
+import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 
 const CrowdedPlaceScreen = () => {
     const navigate = useNavigate();
@@ -146,11 +147,7 @@ const CrowdedPlaceScreen = () => {
         const loadData = async () => {
             const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
             const supabasePosts = await fetchPostsSupabase();
-            const byId = new Map();
-            [...(Array.isArray(supabasePosts) ? supabasePosts : []), ...(Array.isArray(localPosts) ? localPosts : [])].forEach((p) => {
-                if (p && p.id && !byId.has(p.id)) byId.set(p.id, p);
-            });
-            const allPosts = getCombinedPosts(Array.from(byId.values()));
+            const allPosts = getCombinedPosts(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
             const posts = filterActivePosts48(allPosts);
 
             const transformPost = (post) => {
