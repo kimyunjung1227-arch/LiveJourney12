@@ -49,14 +49,6 @@ function pickDistrictLine(post) {
   return loc;
 }
 
-function starRatingFromLikes(likes) {
-  const n = Number(likes) || 0;
-  if (n <= 0) return { filled: 0, score: null };
-  const filled = Math.min(5, Math.max(1, 1 + Math.min(4, Math.floor(n / 4))));
-  const score = Math.min(5, 2.5 + Math.min(2.5, n * 0.08)).toFixed(2);
-  return { filled, score };
-}
-
 /** Supabase 등에서 user가 객체 { id, username, profileImage }로 올 수 있음 — React #31 방지 */
 function displayUserName(userOrAuthor) {
   if (userOrAuthor == null || userOrAuthor === '') return '여행자';
@@ -240,7 +232,6 @@ export default function RecommendedPlaceFeedScreen() {
             const districtLine = pickDistrictLine(post);
             const likes = Number(post.likes ?? post.likeCount ?? 0) || 0;
             const comments = Array.isArray(post.comments) ? post.comments.length : Number(post.commentCount ?? 0) || 0;
-            const { filled, score } = starRatingFromLikes(likes);
             const userRaw = post.user ?? post.author;
             const userLabel = displayUserName(userRaw);
             const avatarSrc = displayUserAvatarSrc(userRaw);
@@ -302,7 +293,7 @@ export default function RecommendedPlaceFeedScreen() {
                   )}
                 </div>
 
-                {/* 2) 정보: 프로필 · 카테고리 · 제목 · 장소 · 별점 · 본문 */}
+                {/* 2) 정보: 프로필 · 카테고리 · 제목 · 장소 · 본문 */}
                 <div className="px-3 pt-3">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2 min-w-0">
@@ -343,18 +334,6 @@ export default function RecommendedPlaceFeedScreen() {
                     </span>
                   ) : null}
                 </div>
-
-                {/* 별점 느낌 */}
-                {score != null && (
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <div className="flex text-amber-400 text-[14px] leading-none" aria-hidden>
-                      {[1, 2, 3, 4, 5].map((s) => (
-                        <span key={s}>{s <= filled ? '★' : '☆'}</span>
-                      ))}
-                    </div>
-                    <span className="text-[13px] font-semibold text-slate-700">{score}</span>
-                  </div>
-                )}
 
                 {/* 본문 + 더보기 */}
                 {bodyText ? (
