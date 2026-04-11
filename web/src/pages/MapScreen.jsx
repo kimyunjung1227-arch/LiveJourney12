@@ -614,93 +614,160 @@ const MapScreen = () => {
   const isRouteModeRef = useRef(false); // 최신 경로 모드 상태 저장용 ref
   const setSelectedPinIdRef = useRef(() => {});
   const setPinDetailViewRef = useRef(() => {});
-  useEffect(() => {
-    const query = (sosLocationSearch || '').trim();
-    if (!query) {
+  /** 지도 검색 시트와 동일한 흐름: 지역·추천·제보·카카오 키워드 자동완성 */
+  const handleSOSLocationInput = useCallback((value) => {
+    setSosLocationSearch(value);
+    if (!value.trim()) {
+      setSosLocationSuggestions([]);
+      return;
+    }
+    const query = value.trim();
+    const queryLower = query.toLowerCase();
+    const isWordComplete = /[가-힣]{2,}/.test(query) || query.length >= 3;
+    if (!isWordComplete) {
       setSosLocationSuggestions([]);
       return;
     }
 
-    let cancelled = false;
-    const queryLower = query.toLowerCase();
     const suggestions = [];
-    const dedupe = new Set();
+    const uniqueNames = new Set();
 
-    recommendedRegions
-      .filter((r) => (r?.name || '').toLowerCase().includes(queryLower))
-      .slice(0, 6)
-      .forEach((r) => {
-        const coords = getCoordsByRegion(r.name);
-        if (!coords) return;
-        const key = `region-${r.name}`;
-        if (dedupe.has(key)) return;
-        dedupe.add(key);
-        suggestions.push({
-          id: key,
-          type: 'region',
-          name: r.name,
-          label: r.name,
-          lat: coords.lat,
-          lng: coords.lng
-        });
-      });
-
-    const matchedPosts = searchInPosts(query)
-      .filter((p) => p?.location || p?.detailedLocation || p?.placeName)
-      .slice(0, 5);
-    matchedPosts.forEach((post) => {
-      const locName = post.placeName || post.detailedLocation || post.location;
-      const coords = post.coordinates || getCoordsByRegion(locName);
-      if (!locName || !coords?.lat || !coords?.lng) return;
-      const key = `post-${locName}`;
-      if (dedupe.has(key)) return;
-      dedupe.add(key);
+    recommendedRegions.forEach((region) => {
+      if (!region.name.toLowerCase().includes(queryLower)) return;
+      if (uniqueNames.has(region.name)) return;
+      uniqueNames.add(region.name);
+      const coords = getCoordsByRegion(region.name);
       suggestions.push({
-        id: key,
-        type: 'post',
-        name: locName,
-        label: `${locName}${post.location && post.location !== locName ? ` (${post.location})` : ''}`,
-        lat: coords.lat,
-        lng: coords.lng
+        id: `sos-region-${region.name}`,
+        type: 'region',
+        name: region.name,
+        display: region.name,
+        lat: coords?.lat,
+        lng: coords?.lng,
       });
     });
 
-    setSosLocationSuggestions(suggestions.slice(0, 10));
+    const matchingPosts = searchInPosts(value);
+    const sortedPosts = matchingPosts.sort((a, b) => {
+      const aPlaceName = (a.placeName || a.detailedLocation || a.location || '').toLowerCase();
+      const bPlaceName = (b.placeName || b.detailedLocation || b.location || '').toLowerCase();
+      const q = value.toLowerCase().trim();
+      const aStartsWith = aPlaceName.startsWith(q);
+      const bStartsWith = bPlaceName.startsWith(q);
+      if (aStartsWith && !bStartsWith) return -1;
+      if (!aStartsWith && bStartsWith) return 1;
+      return aPlaceName.length - bPlaceName.length;
+    });
 
-    if (window.kakao?.maps?.services) {
+    sortedPosts.slice(0, 6).forEach((post) => {
+      const placeName = post.placeName || post.detailedLocation || post.location;
+      if (!placeName || uniqueNames.has(placeName)) return;
+      uniqueNames.add(placeName);
+      const coords = post.coordinates || getCoordsByRegion(placeName);
+      suggestions.push({
+        id: `sos-post-${placeName}`,
+        type: 'place',
+        name: placeName,
+        display: `${placeName}${post.location && post.location !== placeName ? ` (${post.location})` : ''}`,
+        lat: coords?.lat,
+        lng: coords?.lng,
+        post,
+      });
+    });
+
+    let recommended = [];
+    const recType = getRecommendationTypeForKeyword(query);
+    if (recType) {
+      try {
+        const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+        const allPosts = getCombinedPosts(Array.isArray(localPosts) ? localPosts : []);
+        const recList = getRecommendedRegions(allPosts, recType);
+        recommended = recList.map((r) => ({
+          id: `sos-rec-${r.regionName}`,
+          type: 'recommended_region',
+          regionName: r.regionName,
+          title: r.title,
+          name: r.regionName,
+          display: r.badge ? `${r.title} · ${r.badge}` : r.title,
+          badge: r.badge,
+        }));
+      } catch (e) {
+        logger.warn('SOS 추천 지역 조회 실패:', e);
+      }
+    }
+
+    const recommendedNames = new Set(recommended.map((r) => r.regionName));
+    const others = suggestions.filter((s) => !(s.name && recommendedNames.has(s.name)));
+    const finalSuggestions = [...recommended, ...others].slice(0, 15);
+    setSosLocationSuggestions(finalSuggestions);
+
+    if (window.kakao && window.kakao.maps && window.kakao.maps.services) {
       const placesService = new window.kakao.maps.services.Places();
       placesService.keywordSearch(query, (data, status) => {
-        if (cancelled) return;
-        if (status !== window.kakao.maps.services.Status.OK || !Array.isArray(data)) return;
-        setSosLocationSuggestions((prev) => {
-          const next = [...prev];
-          const seen = new Set(next.map((s) => `${s.name}-${s.lat}-${s.lng}`));
-          data.slice(0, 6).forEach((place, idx) => {
-            const lat = parseFloat(place.y);
-            const lng = parseFloat(place.x);
-            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-            const key = `${place.place_name}-${lat}-${lng}`;
-            if (seen.has(key)) return;
-            seen.add(key);
-            next.push({
-              id: `kakao-${idx}-${Date.now()}`,
-              type: 'kakao',
-              name: place.place_name,
-              label: place.place_name,
-              address: place.road_address_name || place.address_name || '',
-              lat,
-              lng
-            });
+        if (status !== window.kakao.maps.services.Status.OK || !Array.isArray(data)) {
+          return;
+        }
+        const tempKakao = [];
+        const seen = new Set(uniqueNames);
+        data.forEach((place) => {
+          const placeName = place.place_name;
+          const placeNameLower = placeName.toLowerCase();
+          const queryWords = queryLower.split(/\s+/);
+          const hasMatchingKeyword = queryWords.some(
+            (word) => placeNameLower.includes(word) || placeNameLower.startsWith(word)
+          );
+          if (!hasMatchingKeyword || seen.has(placeName)) return;
+          seen.add(placeName);
+          const categoryCode = place.category_group_code || '';
+          const categoryName = place.category_name || '';
+          let placeType = 'kakao_place';
+          if (categoryCode === 'CT1' || categoryName.includes('관광') || categoryName.includes('명소')) {
+            placeType = 'tourist';
+          } else if (categoryCode === 'FD6' || categoryName.includes('음식점')) {
+            placeType = 'restaurant';
+          } else if (categoryCode === 'CE7' || categoryName.includes('카페')) {
+            placeType = 'cafe';
+          } else if (categoryCode === 'PO3' || categoryName.includes('공원')) {
+            placeType = 'park';
+          }
+          tempKakao.push({
+            id: `sos-kakao-${placeName}-${place.x}`,
+            type: placeType,
+            kakaoPlace: true,
+            name: placeName,
+            display: placeName,
+            address: place.road_address_name || place.address_name || '',
+            roadAddress: place.road_address_name,
+            lat: parseFloat(place.y),
+            lng: parseFloat(place.x),
+            category: categoryName,
           });
-          return next.slice(0, 12);
+        });
+        tempKakao.sort((a, b) => {
+          const aS = a.name.toLowerCase().startsWith(queryLower);
+          const bS = b.name.toLowerCase().startsWith(queryLower);
+          if (aS && !bS) return -1;
+          if (!aS && bS) return 1;
+          return a.name.length - b.name.length;
+        });
+
+        setSosLocationSuggestions((prev) => {
+          const nonKakao = prev.filter((s) => !s.kakaoPlace);
+          const combined = [...nonKakao, ...tempKakao];
+          const uniq = [];
+          const seenK = new Set();
+          combined.forEach((item) => {
+            const key = item.name || item.regionName;
+            if (key && !seenK.has(key)) {
+              seenK.add(key);
+              uniq.push(item);
+            }
+          });
+          return uniq.slice(0, 18);
         });
       });
     }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [sosLocationSearch, recommendedRegions, searchInPosts]);
+  }, [recommendedRegions, searchInPosts]);
   // isRouteMode 값이 바뀔 때마다 ref에도 반영 (마커 클릭 핸들러에서 최신 값 사용)
   useEffect(() => {
     isRouteModeRef.current = isRouteMode;
@@ -2326,21 +2393,65 @@ const MapScreen = () => {
     setShowAdModal(true);
   };
 
-  const handleSelectSOSLocationBySearch = (suggestion) => {
-    if (!suggestion?.lat || !suggestion?.lng) {
-      alert('해당 위치 좌표를 찾지 못했습니다.');
+  const handleSelectSOSLocationBySearch = useCallback(async (suggestion) => {
+    if (!suggestion) return;
+    setSosLocationSuggestions([]);
+    const label = suggestion.display || suggestion.name || suggestion.title || suggestion.regionName || '';
+    setSosLocationSearch(label);
+
+    const applyPoint = (lat, lng) => {
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+      const point = { lat, lng };
+      setSelectedSOSLocation(point);
+      if (map && window.kakao?.maps) {
+        map.setCenter(new window.kakao.maps.LatLng(lat, lng));
+        map.setLevel(4);
+        updateSOSMarker(map, point);
+      }
+      return true;
+    };
+
+    if (suggestion.kakaoPlace && suggestion.lat != null && suggestion.lng != null) {
+      applyPoint(suggestion.lat, suggestion.lng);
       return;
     }
-    const point = { lat: suggestion.lat, lng: suggestion.lng };
-    setSelectedSOSLocation(point);
-    setSosLocationSearch(suggestion.label || suggestion.name || '');
-    setSosLocationSuggestions([]);
-    if (map && window.kakao?.maps) {
-      map.setCenter(new window.kakao.maps.LatLng(point.lat, point.lng));
-      map.setLevel(4);
-      updateSOSMarker(map, point);
+    if (suggestion.lat != null && suggestion.lng != null) {
+      applyPoint(suggestion.lat, suggestion.lng);
+      return;
     }
-  };
+    if (suggestion.type === 'place' && suggestion.post) {
+      const post = await enrichPostWithResolvedCoordinates(suggestion.post);
+      const coords = coordsFromPostObject(post);
+      if (coords?.lat && coords?.lng) {
+        applyPoint(coords.lat, coords.lng);
+        return;
+      }
+    }
+    if (suggestion.type === 'recommended_region' && suggestion.regionName) {
+      let coords = getCoordsByRegion(suggestion.regionName);
+      if (!coords) {
+        const geo = await searchPlaceWithKakaoFirst(suggestion.regionName);
+        if (geo?.lat != null && geo?.lng != null) coords = { lat: geo.lat, lng: geo.lng };
+      }
+      if (coords?.lat && coords?.lng) {
+        applyPoint(coords.lat, coords.lng);
+        return;
+      }
+    }
+    const name = suggestion.name || suggestion.regionName;
+    if (name) {
+      let coords = getCoordsByRegion(name);
+      if (!coords) {
+        const geo = await searchPlaceWithKakaoFirst(name);
+        if (geo?.lat != null && geo?.lng != null) coords = { lat: geo.lat, lng: geo.lng };
+      }
+      if (coords?.lat && coords?.lng) {
+        applyPoint(coords.lat, coords.lng);
+        return;
+      }
+    }
+    alert('해당 위치 좌표를 찾지 못했습니다. 지도에서 선택해 주세요.');
+  }, [map]);
 
   // 광고를 본 후 도움 요청 완료
   const handleAdComplete = () => {
@@ -4278,7 +4389,8 @@ const MapScreen = () => {
                   borderRadius: '24px',
                   width: '100%',
                   maxWidth: '400px',
-                  maxHeight: '70vh',
+                  maxHeight: '85vh',
+                  minHeight: 0,
                   overflow: 'hidden',
                   display: 'flex',
                   flexDirection: 'column',
@@ -4292,7 +4404,8 @@ const MapScreen = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  borderBottom: '1px solid #f0f0f0'
+                  borderBottom: '1px solid #f0f0f0',
+                  flexShrink: 0,
                 }}>
                   <span style={{
                     fontSize: '18px',
@@ -4321,42 +4434,29 @@ const MapScreen = () => {
                   </button>
                 </div>
 
-                {/* 내용 */}
-                <div style={{
-                  padding: '16px 20px',
-                  overflowY: 'auto',
-                  flex: 1
-                }}>
-                  {/* 위치 선택 */}
-                  <div style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                  {/* 스크롤: 지도 검색과 같은 자동완성 목록 */}
+                  <div style={{
+                    padding: '12px 16px 8px',
+                    overflowY: 'auto',
+                    flex: 1,
+                    minHeight: 0,
+                  }}>
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      marginBottom: '10px'
+                      marginBottom: '8px'
                     }}>
-                      <span style={{
-                        fontSize: '14px',
-                        fontWeight: '600',
-                        color: '#333'
-                      }}>
-                        위치
-                      </span>
+                      <span style={{ fontSize: '14px', fontWeight: '600', color: '#333' }}>위치 검색</span>
                       {selectedSOSLocation && (
-                        <span style={{
-                          fontSize: '12px',
-                          color: '#00BCD4',
-                          fontWeight: '600'
-                        }}>
-                          선택됨
-                        </span>
+                        <span style={{ fontSize: '12px', color: '#00BCD4', fontWeight: '600' }}>선택됨</span>
                       )}
                     </div>
 
                     {selectedSOSLocation && (
                       <div style={{
                         marginBottom: '10px',
-                        padding: '0',
                         background: '#f0f9fa',
                         border: '1px solid #00BCD4',
                         borderRadius: '12px',
@@ -4366,25 +4466,25 @@ const MapScreen = () => {
                           id="location-preview-map"
                           style={{
                             width: '100%',
-                            height: '120px',
+                            height: '100px',
                             borderRadius: '12px'
                           }}
                         />
                       </div>
                     )}
 
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                       <input
                         type="text"
                         value={sosLocationSearch}
-                        onChange={(e) => setSosLocationSearch(e.target.value)}
-                        placeholder="지역/장소 검색으로 위치 설정"
+                        onChange={(e) => handleSOSLocationInput(e.target.value)}
+                        placeholder="지역 또는 장소명 검색 (예: 창녕 연지못, 카페)"
                         style={{
                           flex: 1,
                           border: '1px solid #d1d5db',
                           borderRadius: '12px',
                           padding: '11px 12px',
-                          fontSize: '13px',
+                          fontSize: '14px',
                           outline: 'none'
                         }}
                       />
@@ -4393,8 +4493,8 @@ const MapScreen = () => {
                         onClick={handleStartLocationSelection}
                         title="지도에서 선택"
                         style={{
-                          width: '40px',
-                          height: '40px',
+                          width: '44px',
+                          height: '44px',
                           border: '1px solid #d1d5db',
                           borderRadius: '10px',
                           background: '#fff',
@@ -4402,77 +4502,139 @@ const MapScreen = () => {
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          cursor: 'pointer'
+                          cursor: 'pointer',
+                          flexShrink: 0,
                         }}
                       >
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>map</span>
+                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>map</span>
                       </button>
                     </div>
+
                     {sosLocationSuggestions.length > 0 && (
-                      <div style={{ marginTop: '6px', border: '1px solid #e5e7eb', borderRadius: '10px', overflow: 'hidden' }}>
-                        {sosLocationSuggestions.map((suggestion) => (
-                          <button
-                            key={suggestion.id}
-                            type="button"
-                            onClick={() => handleSelectSOSLocationBySearch(suggestion)}
-                            style={{
-                              width: '100%',
-                              border: 'none',
-                              borderBottom: '1px solid #f3f4f6',
-                              padding: '8px 12px',
-                              textAlign: 'left',
-                              background: '#fff',
-                              fontSize: '13px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <div style={{ fontWeight: 600, color: '#111827' }}>{suggestion.label || suggestion.name}</div>
-                            {suggestion.address && (
-                              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>{suggestion.address}</div>
-                            )}
-                          </button>
-                        ))}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {sosLocationSuggestions.map((suggestion) => {
+                          const t = suggestion.type;
+                          const icon =
+                            t === 'recommended_region' ? 'recommendation'
+                              : t === 'region' ? 'location_on'
+                                : t === 'place' ? 'photo_camera'
+                                  : t === 'tourist' ? 'tour'
+                                    : t === 'restaurant' ? 'restaurant'
+                                      : t === 'cafe' ? 'local_cafe'
+                                        : t === 'park' ? 'park'
+                                          : 'place';
+                          const iconColor =
+                            t === 'recommended_region' ? '#9C27B0'
+                              : t === 'region' ? '#00BCD4'
+                                : t === 'place' ? '#FF9800'
+                                  : t === 'tourist' ? '#2196F3'
+                                    : t === 'restaurant' ? '#FF5722'
+                                      : t === 'cafe' ? '#795548'
+                                        : t === 'park' ? '#4CAF50'
+                                          : '#64748b';
+                          return (
+                            <button
+                              key={suggestion.id}
+                              type="button"
+                              onClick={() => handleSelectSOSLocationBySearch(suggestion)}
+                              style={{
+                                width: '100%',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '12px',
+                                padding: '10px 12px',
+                                textAlign: 'left',
+                                background: '#fafafa',
+                                fontSize: '13px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '10px',
+                              }}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: '22px', color: iconColor, flexShrink: 0 }}>
+                                {icon}
+                              </span>
+                              <span style={{ flex: 1, minWidth: 0 }}>
+                                <span style={{ display: 'block', fontWeight: 600, color: '#111827', lineHeight: 1.35 }}>
+                                  {suggestion.display || suggestion.name}
+                                </span>
+                                {suggestion.address ? (
+                                  <span style={{ display: 'block', fontSize: '11px', color: '#6b7280', marginTop: '3px' }}>
+                                    {suggestion.address}
+                                  </span>
+                                ) : null}
+                                {suggestion.category && suggestion.kakaoPlace ? (
+                                  <span style={{ display: 'block', fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>
+                                    {suggestion.category}
+                                  </span>
+                                ) : null}
+                              </span>
+                            </button>
+                          );
+                        })}
                       </div>
+                    )}
+                    {sosLocationSearch.trim() && sosLocationSuggestions.length === 0 && (
+                      <p style={{ margin: '8px 0 0', fontSize: '12px', color: '#94a3b8' }}>
+                        검색어를 조금 더 입력하거나, 아래에서 지도로 직접 고를 수 있어요.
+                      </p>
                     )}
                   </div>
 
-                  <p style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#64748b', lineHeight: 1.45 }}>
-                    다음 단계에서 궁금한 내용을 입력합니다. 지도에서 핀을 옮긴 뒤 완료를 누르면 전체 지도가 바로 보입니다.
-                  </p>
-                </div>
-
-                {/* 하단: 위치만 확정 → 지도로 */}
-                <div style={{
-                  padding: '12px 20px 16px',
-                  borderTop: '1px solid #f0f0f0',
-                  background: '#fafafa'
-                }}>
-                  <button
-                    type="button"
-                    onClick={goToSOSQuestionStep}
-                    disabled={!selectedSOSLocation}
-                    style={{
-                      width: '100%',
-                      padding: '14px',
-                      background: selectedSOSLocation ? '#00BCD4' : '#ddd',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '12px',
-                      fontSize: '15px',
-                      fontWeight: 'bold',
-                      cursor: selectedSOSLocation ? 'pointer' : 'not-allowed',
-                      transition: 'all 0.2s',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                      map
+                  {/* 하단 고정: 궁금한 내용 + 지도로 이동 */}
+                  <div style={{
+                    flexShrink: 0,
+                    padding: '12px 16px 16px',
+                    borderTop: '1px solid #f0f0f0',
+                    background: '#fafafa',
+                  }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '8px' }}>
+                      궁금한 내용
                     </span>
-                    지도에서 보고 질문 입력하기
-                  </button>
+                    <textarea
+                      value={sosQuestion}
+                      onChange={(e) => setSosQuestion(e.target.value)}
+                      placeholder="무엇이 궁금하신가요? (예: 주차 가능한가요, 사람 많나요)"
+                      style={{
+                        width: '100%',
+                        minHeight: '72px',
+                        maxHeight: '120px',
+                        padding: '10px 12px',
+                        border: '1px solid #e0e0e0',
+                        borderRadius: '12px',
+                        fontSize: '14px',
+                        fontFamily: 'inherit',
+                        resize: 'vertical',
+                        outline: 'none',
+                        lineHeight: 1.5,
+                        background: '#fff',
+                        marginBottom: '10px',
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={goToSOSQuestionStep}
+                      disabled={!selectedSOSLocation}
+                      style={{
+                        width: '100%',
+                        padding: '14px',
+                        background: selectedSOSLocation ? '#00BCD4' : '#ddd',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '12px',
+                        fontSize: '15px',
+                        fontWeight: 'bold',
+                        cursor: selectedSOSLocation ? 'pointer' : 'not-allowed',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>map</span>
+                      지도에서 보고 이어서 입력하기
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
