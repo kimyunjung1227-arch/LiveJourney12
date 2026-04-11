@@ -31,7 +31,9 @@ function collectMediaUrls(post) {
 }
 
 function pickTitleLine(post) {
-  const raw = String(post?.note || post?.content || '').trim();
+  const note = typeof post?.note === 'string' ? post.note : '';
+  const content = typeof post?.content === 'string' ? post.content : '';
+  const raw = (note || content).trim();
   if (raw) return raw.split('\n')[0].slice(0, 80);
   return String(post?.placeName || post?.detailedLocation || post?.location || '현장 스냅').slice(0, 80);
 }
@@ -50,6 +52,29 @@ function starRatingFromLikes(likes) {
   const filled = Math.min(5, Math.max(1, 1 + Math.min(4, Math.floor(n / 4))));
   const score = Math.min(5, 2.5 + Math.min(2.5, n * 0.08)).toFixed(2);
   return { filled, score };
+}
+
+/** Supabase 등에서 user가 객체 { id, username, profileImage }로 올 수 있음 — React #31 방지 */
+function displayUserName(userOrAuthor) {
+  if (userOrAuthor == null || userOrAuthor === '') return '여행자';
+  if (typeof userOrAuthor === 'string' || typeof userOrAuthor === 'number') return String(userOrAuthor);
+  if (typeof userOrAuthor === 'object') {
+    if (userOrAuthor.username != null) return String(userOrAuthor.username);
+    if (userOrAuthor.name != null) return String(userOrAuthor.name);
+    if (userOrAuthor.displayName != null) return String(userOrAuthor.displayName);
+  }
+  return '여행자';
+}
+
+function displayUserAvatarSrc(userOrAuthor) {
+  if (!userOrAuthor || typeof userOrAuthor !== 'object') return null;
+  const raw = userOrAuthor.profileImage || userOrAuthor.avatar || userOrAuthor.photoURL;
+  if (!raw) return null;
+  try {
+    return getDisplayImageUrl(raw);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -112,7 +137,9 @@ export default function RecommendedPlaceFeedScreen() {
         <div className="flex-1 min-w-0">
           <h1 className="text-[16px] font-bold text-slate-900 truncate leading-tight">{placeKey}</h1>
           {placeOneLine ? (
-            <p className="text-[12px] text-slate-500 mt-0.5 line-clamp-1">{placeOneLine}</p>
+            <p className="text-[12px] text-slate-500 mt-0.5 line-clamp-1">
+              {typeof placeOneLine === 'string' ? placeOneLine : String(placeOneLine ?? '')}
+            </p>
           ) : null}
         </div>
       </header>
@@ -132,16 +159,21 @@ export default function RecommendedPlaceFeedScreen() {
         ) : (
           posts.map((post, index) => {
             const chips = getCategoryChipsFromPost(post);
-            const categoryLabel = chips[0]?.name || '여행';
+            const categoryLabel = String(chips[0]?.name || '여행');
             const mediaUrls = collectMediaUrls(post);
             const titleLine = pickTitleLine(post);
-            const bodyText = String(post.note || post.content || '').trim();
+            const rawNote = post.note;
+            const rawContent = post.content;
+            const bodyText = (typeof rawNote === 'string' ? rawNote : typeof rawContent === 'string' ? rawContent : '')
+              .trim();
             const placeName = String(post.placeName || post.detailedLocation || post.location || placeKey).trim();
             const districtLine = pickDistrictLine(post);
             const likes = Number(post.likes ?? post.likeCount ?? 0) || 0;
             const comments = Array.isArray(post.comments) ? post.comments.length : Number(post.commentCount ?? 0) || 0;
             const { filled, score } = starRatingFromLikes(likes);
-            const userLabel = post.user || post.author || '여행자';
+            const userRaw = post.user ?? post.author;
+            const userLabel = displayUserName(userRaw);
+            const avatarSrc = displayUserAvatarSrc(userRaw);
             const isOpen = !!expanded[post.id];
             const longBody = bodyText.length > 140 || bodyText.split('\n').length > 3;
 
@@ -153,12 +185,20 @@ export default function RecommendedPlaceFeedScreen() {
                 {/* 프로필 · 카테고리 */}
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <div
-                      className="size-10 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 flex items-center justify-center text-slate-700 font-bold text-sm shrink-0"
-                      aria-hidden
-                    >
-                      {String(userLabel).slice(0, 1)}
-                    </div>
+                    {avatarSrc ? (
+                      <img
+                        src={avatarSrc}
+                        alt=""
+                        className="size-10 rounded-full object-cover shrink-0 bg-slate-100"
+                      />
+                    ) : (
+                      <div
+                        className="size-10 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 flex items-center justify-center text-slate-700 font-bold text-sm shrink-0"
+                        aria-hidden
+                      >
+                        {userLabel.slice(0, 1)}
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <div className="text-[14px] font-semibold text-slate-900 truncate">{userLabel}</div>
                       <div className="text-[11px] text-slate-500">
