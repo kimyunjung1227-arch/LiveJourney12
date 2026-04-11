@@ -4389,13 +4389,15 @@ const MapScreen = () => {
                   borderRadius: '24px',
                   width: '100%',
                   maxWidth: '400px',
+                  height: '85vh',
                   maxHeight: '85vh',
-                  minHeight: 0,
+                  boxSizing: 'border-box',
                   overflow: 'hidden',
                   display: 'flex',
                   flexDirection: 'column',
                   boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
-                  pointerEvents: 'auto'
+                  pointerEvents: 'auto',
+                  flexShrink: 0,
                 }}
               >
                 {/* 헤더 */}
@@ -4454,24 +4456,35 @@ const MapScreen = () => {
                       )}
                     </div>
 
-                    {selectedSOSLocation && (
-                      <div style={{
+                    <div
+                      style={{
                         marginBottom: '10px',
-                        background: '#f0f9fa',
-                        border: '1px solid #00BCD4',
                         borderRadius: '12px',
-                        overflow: 'hidden'
-                      }}>
+                        overflow: 'hidden',
+                        height: '100px',
+                        flexShrink: 0,
+                        background: selectedSOSLocation ? '#f0f9fa' : '#f1f5f9',
+                        border: selectedSOSLocation ? '1px solid #00BCD4' : '1px dashed #cbd5e1',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {selectedSOSLocation ? (
                         <div
                           id="location-preview-map"
                           style={{
                             width: '100%',
-                            height: '100px',
+                            height: '100%',
                             borderRadius: '12px'
                           }}
                         />
-                      </div>
-                    )}
+                      ) : (
+                        <span style={{ fontSize: '11px', color: '#94a3b8', padding: '0 12px', textAlign: 'center', lineHeight: 1.4 }}>
+                          장소를 고르면 여기에 미리보기가 표시돼요
+                        </span>
+                      )}
+                    </div>
 
                     <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                       <input
@@ -4597,18 +4610,20 @@ const MapScreen = () => {
                       placeholder="무엇이 궁금하신가요? (예: 주차 가능한가요, 사람 많나요)"
                       style={{
                         width: '100%',
-                        minHeight: '72px',
-                        maxHeight: '120px',
+                        height: '88px',
+                        minHeight: '88px',
+                        maxHeight: '88px',
                         padding: '10px 12px',
                         border: '1px solid #e0e0e0',
                         borderRadius: '12px',
                         fontSize: '14px',
                         fontFamily: 'inherit',
-                        resize: 'vertical',
+                        resize: 'none',
                         outline: 'none',
                         lineHeight: 1.5,
                         background: '#fff',
                         marginBottom: '10px',
+                        boxSizing: 'border-box',
                       }}
                     />
                     <button
@@ -4662,13 +4677,18 @@ const MapScreen = () => {
                 boxShadow: '0 -4px 24px rgba(0,0,0,0.12)',
                 border: '1px solid #e2e8f0',
                 padding: '14px 16px 16px',
+                height: '46vh',
+                minHeight: '46vh',
                 maxHeight: '46vh',
+                boxSizing: 'border-box',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '10px',
+                overflow: 'hidden',
+                flexShrink: 0,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexShrink: 0 }}>
                 <span style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>지금 상황 알아보기</span>
                 <button
                   type="button"
@@ -4688,7 +4708,7 @@ const MapScreen = () => {
                   <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#64748b' }}>close</span>
                 </button>
               </div>
-              <p style={{ margin: 0, fontSize: '11px', color: '#64748b', lineHeight: 1.45 }}>
+              <p style={{ margin: 0, fontSize: '11px', color: '#64748b', lineHeight: 1.45, flexShrink: 0 }}>
                 지도 빈 곳을 누르면 그 지점으로 핀이 옮겨집니다. 검색으로 고르거나 십자선으로 고르려면 아래를 눌러 주세요.
               </p>
               <textarea
@@ -4697,16 +4717,19 @@ const MapScreen = () => {
                 placeholder="무엇이 궁금하신가요?"
                 style={{
                   width: '100%',
-                  minHeight: '88px',
+                  flex: 1,
+                  minHeight: 0,
                   padding: '12px',
                   border: '1px solid #e0e0e0',
                   borderRadius: '12px',
                   fontSize: '14px',
                   fontFamily: 'inherit',
-                  resize: 'vertical',
+                  resize: 'none',
                   outline: 'none',
                   lineHeight: 1.55,
                   background: '#fafafa',
+                  boxSizing: 'border-box',
+                  overflowY: 'auto',
                 }}
                 onFocus={(e) => {
                   e.target.style.borderColor = '#00BCD4';
@@ -4717,7 +4740,7 @@ const MapScreen = () => {
                   e.target.style.background = '#fafafa';
                 }}
               />
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                 <button
                   type="button"
                   onClick={() => {
@@ -4774,6 +4797,7 @@ const MapScreen = () => {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '6px',
+                  flexShrink: 0,
                 }}
               >
                 <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>send</span>
