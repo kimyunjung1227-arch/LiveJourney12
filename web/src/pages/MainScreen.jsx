@@ -370,10 +370,6 @@ const MainScreen = () => {
 
             // 아무 태그도 없으면 가벼운 기본 태그로 보완 (정보 과부하 방지용 1~2개)
             const uniqueReasons = [...new Set([...postReasonTags, ...reasonTags])];
-            if (uniqueReasons.length === 0) {
-                const fallback = ['#추천_맛집', '#SNS_화제', '#오늘_특가', '#사진_맛집', '#지금_핫플'];
-                uniqueReasons.push(fallback[getDeterministicValue(post.id, 0, fallback.length - 1)]);
-            }
 
             const firstImageUrl = (post.images && post.images.length > 0) ? post.images[0] : (post.image || post.thumbnail || '');
             const firstVideoUrl = (post.videos && post.videos.length > 0) ? post.videos[0] : '';
