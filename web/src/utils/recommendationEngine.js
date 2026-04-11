@@ -1196,34 +1196,113 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming', op
     return t.length <= max ? t : `${t.slice(0, max - 1)}…`;
   };
 
-  /** 사용자 글·폴백 문장을 합쳐 정확히 n줄(줄당 글자 제한, 공백 우선 분할) */
-  const packTextToNLines = (rawText, nLines, maxLen) => {
-    const src = String(rawText || '').replace(/\s+/g, ' ').trim();
-    const fallbacks = [
-      '실시간 제보가 이어지는 추천 장소예요.',
-      '지금 분위기를 가늠하기 좋은 타이밍이에요.',
-      '일정·동선 짜실 때 참고해 보세요.',
-    ];
-    if (!src) return fallbacks.slice(0, nLines).join('\n');
-    const lines = [];
-    let rest = src;
-    for (let i = 0; i < nLines; i += 1) {
-      if (!rest) {
-        lines.push(fallbacks[i] || fallbacks[fallbacks.length - 1]);
-        continue;
+  const FALLBACK_DESC_LINES = [
+    '실시간 제보가 이어지는 추천 장소예요.',
+    '지금 분위기를 가늠하기 좋은 타이밍이에요.',
+    '일정·동선 짜실 때 참고해 보세요.',
+  ];
+
+  const mergeUserAndAiIntro = (userBlob, introLine) => {
+    const u = String(userBlob || '').replace(/\s+/g, ' ').trim();
+    const intro = String(introLine || '').replace(/\s+/g, ' ').trim();
+    if (!intro) return u;
+    if (!u) return intro;
+    const nu = normalizeText(u);
+    const ni = normalizeText(intro);
+    if (ni.length >= 10 && nu.includes(ni.slice(0, Math.min(28, ni.length)))) return u;
+    return `${u} ${intro}`;
+  };
+
+  /** 날짜(2026.04.09) 안에서 잘리지 않게 한 뒤 문장 단위 분리 */
+  const splitIntoSentences = (text) => {
+    let t = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!t) return [];
+    const dates = [];
+    t = t.replace(/\d{4}\.\d{2}\.\d{2}/g, (m) => {
+      dates.push(m);
+      return `§D${dates.length - 1}§`;
+    });
+    const parts = t
+      .split(/(?<=[.!?…])\s+/)
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .map((p) => p.replace(/§D(\d+)§/g, (_, i) => dates[Number(i)]));
+    return parts.length ? parts : [t.replace(/§D(\d+)§/g, (_, i) => dates[Number(i)])];
+  };
+
+  const trimHard = (s, maxLen) => {
+    const x = String(s || '').trim();
+    if (x.length <= maxLen) return x;
+    const cut = x.lastIndexOf(' ', maxLen - 1);
+    const idx = cut > maxLen * 0.35 ? cut : maxLen - 1;
+    return `${x.slice(0, idx).trim()}…`;
+  };
+
+  /** 사용자 제보 + AI 장소 요약을 합쳐 3줄(줄마다 문장·말 단위로 마무리) */
+  const buildMergedThreeLineDescription = (userBlob, introLine, maxLen) => {
+    const merged = mergeUserAndAiIntro(userBlob, introLine);
+    if (!merged) return FALLBACK_DESC_LINES.join('\n');
+
+    const sentences = splitIntoSentences(merged).filter((s) => s.length >= 2);
+
+    if (sentences.length >= 3) {
+      return [
+        trimHard(sentences[0], maxLen),
+        trimHard(sentences[1], maxLen),
+        trimHard(sentences.slice(2).join(' '), maxLen),
+      ].join('\n');
+    }
+
+    if (sentences.length === 2) {
+      const a = trimHard(sentences[0], maxLen);
+      let b = sentences[1];
+      if (b.length <= maxLen) {
+        return [a, b, FALLBACK_DESC_LINES[2]].join('\n');
       }
-      if (rest.length <= maxLen) {
-        lines.push(rest);
-        rest = '';
-      } else {
-        let cut = rest.lastIndexOf(' ', maxLen);
-        if (cut < 12) cut = maxLen;
-        const piece = rest.slice(0, cut).trim();
-        lines.push(piece);
-        rest = rest.slice(cut).trim();
+      const cut = b.lastIndexOf(' ', maxLen);
+      const at = cut > maxLen * 0.35 ? cut : maxLen;
+      const b1 = b.slice(0, at).trim();
+      const b2 = b.slice(at).trim();
+      return [a, trimHard(b1, maxLen), trimHard(b2, maxLen)].join('\n');
+    }
+
+    const one = sentences[0] || merged;
+    if (one.length <= maxLen) {
+      return [one, FALLBACK_DESC_LINES[1], FALLBACK_DESC_LINES[2]].join('\n');
+    }
+
+    const words = one.split(' ');
+    const lines = ['', '', ''];
+    let wi = 0;
+    for (let L = 0; L < 3 && wi < words.length; L += 1) {
+      while (wi < words.length) {
+        const w = words[wi];
+        const cand = lines[L] ? `${lines[L]} ${w}` : w;
+        if (cand.length <= maxLen) {
+          lines[L] = cand;
+          wi += 1;
+        } else {
+          if (!lines[L]) {
+            lines[L] = w.length > maxLen ? `${w.slice(0, maxLen - 1)}…` : w;
+            wi += 1;
+          }
+          break;
+        }
       }
     }
-    return lines.join('\n');
+    if (wi < words.length) {
+      const rest = words.slice(wi).join(' ');
+      if (!lines[2]) {
+        if (!lines[1]) lines[1] = trimHard(rest, maxLen);
+        else lines[2] = trimHard(rest, maxLen);
+      } else {
+        lines[2] = trimHard(`${lines[2]} ${rest}`, maxLen);
+      }
+    }
+    for (let L = 0; L < 3; L += 1) {
+      if (!lines[L]) lines[L] = FALLBACK_DESC_LINES[L];
+    }
+    return [trimHard(lines[0], maxLen), trimHard(lines[1], maxLen), trimHard(lines[2], maxLen)].join('\n');
   };
 
   // 카드 간 태그 중복을 줄이기 위한 전역 사용 카운트 (한 번 호출 내에서만)
@@ -1279,7 +1358,7 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming', op
     const userBlob = collectVisitorVoiceSnippets(placePosts, 8, 220).join(' ').trim();
     const introLine = pickVariedAiIntro(type, stat.placeKey, placePosts, placeDescHash(stat.placeKey, type));
     const placeOneLine = trimSingleLine(introLine, 56);
-    const unifiedDescription = packTextToNLines(userBlob || introLine, 3, 46);
+    const unifiedDescription = buildMergedThreeLineDescription(userBlob, introLine, 44);
 
     return {
       regionName: stat.placeKey, // 호환 필드(실제는 placeKey)

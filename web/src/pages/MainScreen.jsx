@@ -1430,7 +1430,6 @@ const MainScreen = () => {
                                     const placeDescription = (item.description || '').trim();
                                     const placeOneLine = String(item.placeOneLine || '').trim();
                                     const topTags = Array.isArray(item.topTags) ? item.topTags.filter(Boolean).slice(0, 3) : [];
-                                    const liveHeadline = item.liveIndicator && typeof item.liveIndicator === 'object' ? item.liveIndicator.headline : '';
                                     const freshness = item.freshness && typeof item.freshness === 'object' ? item.freshness : null;
                                     const isLiveRec = freshness?.badge === 'live';
                                     const photoTime = freshness?.timeLabel || item.stats?.representativeTimeLabel || '';
@@ -1509,7 +1508,7 @@ const MainScreen = () => {
                                                 ) : null}
                                             </div>
                                             <div style={{ padding: '6px 2px 10px' }}>
-                                                {/* 구조: 사진 → 지역이름 → 지역태그 → 지역설명 */}
+                                                {/* 구조: 사진 → 지역이름 → 장소 한줄 → 3줄 설명 → 태그 */}
                                                 <div style={{ color: '#111827', fontSize: '14px', fontWeight: 800, marginBottom: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {placeKey}
                                                 </div>
@@ -1532,10 +1531,18 @@ const MainScreen = () => {
                                                         {placeOneLine}
                                                     </div>
                                                 ) : null}
-                                                {liveHeadline ? (
-                                                    <div style={{ fontSize: 11, fontWeight: 800, color: '#0891b2', marginTop: 6, lineHeight: 1.3 }}>
-                                                        {liveHeadline}
-                                                    </div>
+                                                {placeDescription ? (
+                                                    <PlaceDescriptionRich
+                                                        text={placeDescription}
+                                                        lineClamp={3}
+                                                        style={{
+                                                            marginTop: 8,
+                                                            color: '#334155',
+                                                            fontSize: 12,
+                                                            fontWeight: 500,
+                                                            wordBreak: 'break-word',
+                                                        }}
+                                                    />
                                                 ) : null}
                                                 {topTags.length > 0 && (
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
@@ -1558,19 +1565,6 @@ const MainScreen = () => {
                                                         ))}
                                                     </div>
                                                 )}
-                                                {placeDescription ? (
-                                                    <PlaceDescriptionRich
-                                                        text={placeDescription}
-                                                        lineClamp={3}
-                                                        style={{
-                                                            marginTop: 8,
-                                                            color: '#334155',
-                                                            fontSize: 12,
-                                                            fontWeight: 500,
-                                                            wordBreak: 'break-word',
-                                                        }}
-                                                    />
-                                                ) : null}
                                             </div>
                                         </div>
                                     );
