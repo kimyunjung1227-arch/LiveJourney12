@@ -13,7 +13,6 @@ import './MainScreen.css';
 import { getCombinedPosts } from '../utils/mockData';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getDisplayImageUrl } from '../api/upload';
-import PlaceDescriptionRich from '../components/PlaceDescriptionRich';
 import { getMapThumbnailUri } from '../utils/postMedia';
 import { getPostAccuracyCount, toggleLike, isPostLiked, mergeLikedPostsFromServer } from '../utils/socialInteractions';
 import { rankHotspotPosts } from '../utils/hotnessEngine';
@@ -1532,17 +1531,22 @@ const MainScreen = () => {
                                                     </div>
                                                 ) : null}
                                                 {placeDescription ? (
-                                                    <PlaceDescriptionRich
-                                                        text={placeDescription}
-                                                        lineClamp={3}
+                                                    <div
                                                         style={{
                                                             marginTop: 8,
                                                             color: '#334155',
                                                             fontSize: 12,
                                                             fontWeight: 500,
                                                             wordBreak: 'break-word',
+                                                            lineHeight: 1.55,
                                                         }}
-                                                    />
+                                                    >
+                                                        {placeDescription.split('\n').map((line, li) => (
+                                                            <div key={li} style={{ marginTop: li > 0 ? 4 : 0 }}>
+                                                                {line}
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 ) : null}
                                                 {topTags.length > 0 && (
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
