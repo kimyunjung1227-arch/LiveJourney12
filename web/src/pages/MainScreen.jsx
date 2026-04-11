@@ -1150,13 +1150,6 @@ const MainScreen = () => {
                                                 <StatusBadge status={status} />
                                             </div>
                                         )}
-                                        {/* 날씨 정보만 이미지 우측 상단에 오버레이 */}
-                                        {hasWeather && (
-                                            <div style={{ position: 'absolute', top: '6px', right: '10px', background: 'rgba(15,23,42,0.7)', padding: '4px 8px', borderRadius: '999px', fontSize: '12px', fontWeight: 600, color: '#f9fafb', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                {weather.icon && <span>{weather.icon}</span>}
-                                                {weather.temperature && <span>{weather.temperature}</span>}
-                                            </div>
-                                        )}
                                     </div>
                                     {/* 사진 정보 하단 — 설명만 표시 */}
                                     <div style={{ padding: '4px 10px 6px', minHeight: '88px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1173,46 +1166,66 @@ const MainScreen = () => {
                                                 {post.content || post.note}
                                             </div>
                                         )}
-                                        {Array.isArray(post.reasonTags) && post.reasonTags.length > 0 && (
-                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
-                                                {post.reasonTags.slice(0, 3).map((tag) => (
-                                                    <span
-                                                        key={String(tag)}
+                                        {(hasWeather || (Array.isArray(post.reasonTags) && post.reasonTags.length > 0) || (!post.reasonTags?.length && Array.isArray(post.aiHotTags) && post.aiHotTags.length > 0)) && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', flex: 1, minWidth: 0 }}>
+                                                    {Array.isArray(post.reasonTags) && post.reasonTags.length > 0
+                                                        ? post.reasonTags.slice(0, 3).map((tag) => (
+                                                            <span
+                                                                key={String(tag)}
+                                                                style={{
+                                                                    fontSize: '10px',
+                                                                    fontWeight: 600,
+                                                                    color: '#4b5563',
+                                                                    background: '#f3f4f6',
+                                                                    padding: '2px 6px',
+                                                                    borderRadius: '6px',
+                                                                    maxWidth: '100%',
+                                                                    overflow: 'hidden',
+                                                                    textOverflow: 'ellipsis',
+                                                                    whiteSpace: 'nowrap',
+                                                                }}
+                                                            >
+                                                                {String(tag).replace(/^#/, '')}
+                                                            </span>
+                                                        ))
+                                                        : (!post.reasonTags?.length && Array.isArray(post.aiHotTags) && post.aiHotTags.length > 0
+                                                            ? post.aiHotTags.slice(0, 2).map((tag) => (
+                                                                <span
+                                                                    key={String(tag)}
+                                                                    style={{
+                                                                        fontSize: '10px',
+                                                                        fontWeight: 600,
+                                                                        color: '#4b5563',
+                                                                        background: '#f3f4f6',
+                                                                        padding: '2px 6px',
+                                                                        borderRadius: '6px',
+                                                                    }}
+                                                                >
+                                                                    {String(tag).replace(/^#/, '')}
+                                                                </span>
+                                                            ))
+                                                            : null)}
+                                                </div>
+                                                {hasWeather && (
+                                                    <div
                                                         style={{
-                                                            fontSize: '10px',
+                                                            flexShrink: 0,
+                                                            background: 'rgba(15,23,42,0.08)',
+                                                            padding: '3px 8px',
+                                                            borderRadius: '999px',
+                                                            fontSize: '11px',
                                                             fontWeight: 600,
-                                                            color: '#4b5563',
-                                                            background: '#f3f4f6',
-                                                            padding: '2px 6px',
-                                                            borderRadius: '6px',
-                                                            maxWidth: '100%',
-                                                            overflow: 'hidden',
-                                                            textOverflow: 'ellipsis',
-                                                            whiteSpace: 'nowrap',
+                                                            color: '#374151',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px',
                                                         }}
                                                     >
-                                                        {String(tag).replace(/^#/, '')}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        )}
-                                        {(!post.reasonTags?.length && Array.isArray(post.aiHotTags) && post.aiHotTags.length > 0) && (
-                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
-                                                {post.aiHotTags.slice(0, 2).map((tag) => (
-                                                    <span
-                                                        key={String(tag)}
-                                                        style={{
-                                                            fontSize: '10px',
-                                                            fontWeight: 600,
-                                                            color: '#4b5563',
-                                                            background: '#f3f4f6',
-                                                            padding: '2px 6px',
-                                                            borderRadius: '6px',
-                                                        }}
-                                                    >
-                                                        {String(tag).replace(/^#/, '')}
-                                                    </span>
-                                                ))}
+                                                        {weather.icon && <span>{weather.icon}</span>}
+                                                        {weather.temperature && <span>{weather.temperature}</span>}
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
