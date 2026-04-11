@@ -19,6 +19,9 @@ import { getPhotoStatusFromPost } from '../utils/photoStatus';
 /** false면 라이브 코스(경로 만들기·저장·최근 경로) UI를 숨깁니다. */
 const LIVE_COURSE_UI_ENABLED = false;
 
+/** 지금 상황 알아보기 등록 후 스폰서 영상(모의) 재생 시간(ms) */
+const SOS_AD_PLAY_DURATION_MS = 5000;
+
 // HTML 속성에 넣을 URL/텍스트 이스케이프 (핀 img src가 깨지지 않도록)
 const escapeHtmlAttr = (value) => {
   if (value == null) return '';
@@ -593,14 +596,13 @@ const MapScreen = () => {
   const [selectedPinId, setSelectedPinId] = useState(null); // 지도/시트에서 선택된 핀 ID (강조 표시용)
   const [pinDetailView, setPinDetailView] = useState(null); // 지도 핀 또는 하단 시트 선택 시 보여줄 설명 카드 { post } (통일)
   const [showSOSModal, setShowSOSModal] = useState(false); // 1단계: 위치 선택 모달
-  const [showSOSQuestionSheet, setShowSOSQuestionSheet] = useState(false); // 2단계: 지도 위 질문 입력 시트
   const [selectedSOSLocation, setSelectedSOSLocation] = useState(null); // 선택된 도움 요청 위치
   const [sosQuestion, setSosQuestion] = useState(''); // 궁금한 내용
   const [sosLocationSearch, setSosLocationSearch] = useState('');
   const [sosLocationSuggestions, setSosLocationSuggestions] = useState([]);
   const [isSelectingLocation, setIsSelectingLocation] = useState(false); // 지도에서 위치 선택 중인지 여부
-  const [showAdModal, setShowAdModal] = useState(false); // 광고 모달 표시 여부
-  const [pendingSOSRequest, setPendingSOSRequest] = useState(null); // 광고를 보기 전 대기 중인 도움 요청
+  const [showAdModal, setShowAdModal] = useState(false); // 등록 직후 스폰서 영상 모달
+  const [adPlaybackProgress, setAdPlaybackProgress] = useState(0); // 0~100
   const sosMarkerRef = useRef(null); // 도움 요청 위치 마커
   const centerMarkerRef = useRef(null); // 지도 중심 고정 마커 (HTML 요소)
   const crosshairRef = useRef(null); // 가운데 표시선 (십자선)
@@ -2034,19 +2036,17 @@ const MapScreen = () => {
     setSosLocationSearch('');
     setSosQuestion('');
     setIsSelectingLocation(false);
-    setShowSOSQuestionSheet(false);
     setShowSOSModal(true);
   };
 
-  /** 위치 선택 완료 → 전체 지도 + 질문 시트 */
-  const goToSOSQuestionStep = () => {
+  /** 지도에서 위치 고른 뒤 1단계 모달로 복귀 (궁금한 내용 입력 → 바로 등록) */
+  const finishSOSLocationSelection = () => {
     if (!selectedSOSLocation) {
       alert('위치를 선택해주세요.');
       return;
     }
-    setShowSOSModal(false);
     setIsSelectingLocation(false);
-    setShowSOSQuestionSheet(true);
+    setShowSOSModal(true);
     if (map && selectedSOSLocation && window.kakao?.maps) {
       updateSOSMarker(map, selectedSOSLocation);
       map.panTo(new window.kakao.maps.LatLng(selectedSOSLocation.lat, selectedSOSLocation.lng));
@@ -2351,22 +2351,68 @@ const MapScreen = () => {
     };
   }, [selectedSOSLocation, showSOSModal, isSelectingLocation]);
 
-  // 질문 단계에서 지도 클릭으로 위치 변경
-  useEffect(() => {
-    if (!map || !showSOSQuestionSheet || !window.kakao?.maps?.event) return undefined;
-    const listener = (mouseEvent) => {
-      const latlng = mouseEvent.latLng;
-      const loc = { lat: latlng.getLat(), lng: latlng.getLng() };
-      setSelectedSOSLocation(loc);
-      updateSOSMarker(map, loc);
-    };
-    window.kakao.maps.event.addListener(map, 'click', listener);
-    return () => {
-      window.kakao.maps.event.removeListener(map, 'click', listener);
-    };
-  }, [map, showSOSQuestionSheet]);
+  /** 등록은 광고와 무관하게 즉시 저장 (스폰서 영상은 등록 직후 재생) */
+  const commitSOSRequestToStorage = useCallback((req) => {
+    const existingSOS = JSON.parse(localStorage.getItem('sosRequests_v1') || '[]');
+    const updatedSOS = [req, ...existingSOS];
+    localStorage.setItem('sosRequests_v1', JSON.stringify(updatedSOS));
 
-  // 도움 요청 제출
+    const questionText = req.question || '';
+    const questionSnippet =
+      questionText.length > 35 ? questionText.substring(0, 35) + '...' : questionText;
+
+    const locationName = req.coordinates
+      ? getLocationByCoordinates(req.coordinates.lat, req.coordinates.lng)
+      : '근처 지역';
+
+    const mission = {
+      id: `mission-${Date.now()}`,
+      coordinates: req.coordinates,
+      locationName,
+      question: req.question,
+      requesterId: 'current-user',
+      status: 'open',
+      responses: [],
+      createdAt: new Date().toISOString(),
+    };
+    appendSOSMission(mission);
+
+    addNotification({
+      type: 'system',
+      title: `[${locationName} 실시간 속보] 📢 "${questionSnippet}"`,
+      message: `지금 ${locationName}의 최신 정보를 원하는 고객이 있습니다. 지금 해결해주면 신뢰지수/뱃지 혜택을 받을 수 있어요!`,
+      icon: 'location_on',
+      iconBg: 'bg-blue-100 dark:bg-blue-900/20',
+      iconColor: 'text-blue-500',
+      link: '/map',
+      data: {
+        sosRequest: req,
+        missionId: mission.id,
+        type: 'sos_request',
+      },
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!showAdModal) {
+      setAdPlaybackProgress(0);
+      return;
+    }
+    setAdPlaybackProgress(0);
+    const started = Date.now();
+    const id = setInterval(() => {
+      const elapsed = Date.now() - started;
+      const p = Math.min(100, (elapsed / SOS_AD_PLAY_DURATION_MS) * 100);
+      setAdPlaybackProgress(p);
+      if (elapsed >= SOS_AD_PLAY_DURATION_MS) {
+        clearInterval(id);
+        setShowAdModal(false);
+      }
+    }, 80);
+    return () => clearInterval(id);
+  }, [showAdModal]);
+
+  // 도움 요청 제출 — 즉시 등록 후 스폰서 영상 모달
   const handleSOSSubmit = () => {
     if (!selectedSOSLocation) {
       alert('위치를 선택해주세요.');
@@ -2377,19 +2423,34 @@ const MapScreen = () => {
       return;
     }
 
-    // 도움 요청 데이터 저장 (아직 저장하지 않음)
     const newSOSRequest = {
       id: `sos-${Date.now()}`,
       coordinates: selectedSOSLocation,
       question: sosQuestion.trim(),
       status: 'open',
       createdAt: new Date().toISOString(),
-      userId: 'current-user' // TODO: 실제 사용자 ID로 교체
+      userId: 'current-user', // TODO: 실제 사용자 ID로 교체
     };
 
+    try {
+      commitSOSRequestToStorage(newSOSRequest);
+    } catch (error) {
+      logger.error('상황 알아보기 요청 저장 실패:', error);
+      alert('등록에 실패했습니다. 다시 시도해주세요.');
+      return;
+    }
+
     setShowSOSModal(false);
-    setShowSOSQuestionSheet(false);
-    setPendingSOSRequest(newSOSRequest);
+    setSosQuestion('');
+    setSosLocationSearch('');
+    setIsSelectingLocation(false);
+    setSelectedSOSLocation(null);
+
+    if (sosMarkerRef.current) {
+      sosMarkerRef.current.setMap(null);
+      sosMarkerRef.current = null;
+    }
+
     setShowAdModal(true);
   };
 
@@ -2453,93 +2514,13 @@ const MapScreen = () => {
     alert('해당 위치 좌표를 찾지 못했습니다. 지도에서 선택해 주세요.');
   }, [map]);
 
-  // 광고를 본 후 도움 요청 완료
-  const handleAdComplete = () => {
-    if (!pendingSOSRequest) return;
-
-    try {
-      // 기존 SOS 요청 로드
-      const existingSOS = JSON.parse(localStorage.getItem('sosRequests_v1') || '[]');
-
-      // 저장 (외부 서버에 저장된 것처럼 처리)
-      const updatedSOS = [pendingSOSRequest, ...existingSOS];
-      localStorage.setItem('sosRequests_v1', JSON.stringify(updatedSOS));
-
-      // 질문 내용 요약 (속보형)
-      const questionText = pendingSOSRequest.question || '';
-      const questionSnippet = questionText.length > 35
-        ? questionText.substring(0, 35) + '...'
-        : questionText;
-
-      // 위치 정보 가져오기 (좌표로부터 지역명 추출)
-      const locationName = pendingSOSRequest.coordinates
-        ? getLocationByCoordinates(pendingSOSRequest.coordinates.lat, pendingSOSRequest.coordinates.lng)
-        : '근처 지역';
-
-      const mission = {
-        id: `mission-${Date.now()}`,
-        coordinates: pendingSOSRequest.coordinates,
-        locationName,
-        question: pendingSOSRequest.question,
-        requesterId: 'current-user',
-        status: 'open',
-        responses: [],
-        createdAt: new Date().toISOString()
-      };
-      appendSOSMission(mission);
-
-      // 라이브저니 스타일 알림 생성 (속보형 + 개인화)
-      // 속보형: 궁금증을 유발하는 텍스트 스니펫
-      const notificationTitle = `[${locationName} 실시간 속보] 📢 "${questionSnippet}"`;
-
-      // 개인화된 가치: 따뜻한 메시지 + 실시간성 강조
-      const notificationMessage = `지금 ${locationName}의 최신 정보를 원하는 고객이 있습니다. 지금 해결해주면 신뢰지수/뱃지 혜택을 받을 수 있어요!`;
-
-      // 외부 알림 시스템에 저장 (다른 사용자들에게 알림이 가는 것처럼)
-      // 실제로는 localStorage에 저장되어 다른 사용자의 메인 화면에서 알림으로 표시됨
-      addNotification({
-        type: 'system',
-        title: notificationTitle,
-        message: notificationMessage,
-        icon: 'location_on',
-        iconBg: 'bg-blue-100 dark:bg-blue-900/20',
-        iconColor: 'text-blue-500',
-        link: '/map',
-        data: {
-          sosRequest: pendingSOSRequest,
-          missionId: mission.id,
-          type: 'sos_request'
-        }
-      });
-
-      // 초기화
-      setShowAdModal(false);
-      setPendingSOSRequest(null);
-      setSosQuestion('');
-      setSosLocationSearch('');
-      setIsSelectingLocation(false);
-      setShowSOSQuestionSheet(false);
-      setSelectedSOSLocation(null);
-
-      // 마커 제거
-      if (sosMarkerRef.current) {
-        sosMarkerRef.current.setMap(null);
-        sosMarkerRef.current = null;
-      }
-
-      alert('지금 상황 알아보기 요청이 등록되었습니다.\n근처에 있는 분들에게 알림이 전송되었습니다.');
-    } catch (error) {
-      logger.error('상황 알아보기 요청 저장 실패:', error);
-      alert('등록에 실패했습니다. 다시 시도해주세요.');
-      setShowAdModal(false);
-      setPendingSOSRequest(null);
-    }
+  const handleAdModalDismiss = () => {
+    setShowAdModal(false);
   };
 
   // 상황 알아보기 흐름 닫기
   const handleSOSModalClose = () => {
     setShowSOSModal(false);
-    setShowSOSQuestionSheet(false);
     setSosQuestion('');
     setSosLocationSearch('');
     setIsSelectingLocation(false);
@@ -2573,7 +2554,6 @@ const MapScreen = () => {
 
   // 지도에서 위치 선택하기 시작
   const handleStartLocationSelection = () => {
-    setShowSOSQuestionSheet(false);
     setIsSelectingLocation(true);
     setShowSOSModal(false);
 
@@ -4321,7 +4301,7 @@ const MapScreen = () => {
               </span>
               <button
                 onClick={() => {
-                  goToSOSQuestionStep();
+                  finishSOSLocationSelection();
                 }}
                 style={{
                   width: '100%',
@@ -4594,7 +4574,7 @@ const MapScreen = () => {
                     )}
                   </div>
 
-                  {/* 하단 고정: 궁금한 내용 + 지도로 이동 */}
+                  {/* 하단 고정: 궁금한 내용 + 바로 등록 */}
                   <div style={{
                     flexShrink: 0,
                     padding: '12px 16px 16px',
@@ -4607,6 +4587,12 @@ const MapScreen = () => {
                     <textarea
                       value={sosQuestion}
                       onChange={(e) => setSosQuestion(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                          e.preventDefault();
+                          handleSOSSubmit();
+                        }
+                      }}
                       placeholder="무엇이 궁금하신가요? (예: 주차 가능한가요, 사람 많나요)"
                       style={{
                         width: '100%',
@@ -4626,185 +4612,37 @@ const MapScreen = () => {
                         boxSizing: 'border-box',
                       }}
                     />
+                    <p style={{ margin: '0 0 10px', fontSize: '11px', color: '#94a3b8' }}>
+                      Ctrl+Enter로 바로 등록할 수 있어요.
+                    </p>
                     <button
                       type="button"
-                      onClick={goToSOSQuestionStep}
-                      disabled={!selectedSOSLocation}
+                      onClick={handleSOSSubmit}
+                      disabled={!selectedSOSLocation || !sosQuestion.trim()}
                       style={{
                         width: '100%',
                         padding: '14px',
-                        background: selectedSOSLocation ? '#00BCD4' : '#ddd',
+                        background: selectedSOSLocation && sosQuestion.trim() ? '#00BCD4' : '#ddd',
                         color: 'white',
                         border: 'none',
                         borderRadius: '12px',
                         fontSize: '15px',
                         fontWeight: 'bold',
-                        cursor: selectedSOSLocation ? 'pointer' : 'not-allowed',
+                        cursor: selectedSOSLocation && sosQuestion.trim() ? 'pointer' : 'not-allowed',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '6px'
+                        gap: '6px',
                       }}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>map</span>
-                      지도에서 보고 이어서 입력하기
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>send</span>
+                      바로 등록하기
                     </button>
                   </div>
                 </div>
               </div>
             </div>
           </>
-        )}
-
-        {/* 지금 상황 알아보기 — 질문 입력 (전체 지도 위, 맵 클릭으로 위치 변경 가능) */}
-        {showSOSQuestionSheet && !isSelectingLocation && !showAdModal && (
-          <div
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: '68px',
-              zIndex: 1002,
-              pointerEvents: 'none',
-            }}
-          >
-            <div
-              style={{
-                margin: '0 12px 0',
-                pointerEvents: 'auto',
-                background: 'white',
-                borderRadius: '16px',
-                boxShadow: '0 -4px 24px rgba(0,0,0,0.12)',
-                border: '1px solid #e2e8f0',
-                padding: '14px 16px 16px',
-                height: '46vh',
-                minHeight: '46vh',
-                maxHeight: '46vh',
-                boxSizing: 'border-box',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '10px',
-                overflow: 'hidden',
-                flexShrink: 0,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexShrink: 0 }}>
-                <span style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>지금 상황 알아보기</span>
-                <button
-                  type="button"
-                  onClick={handleSOSModalClose}
-                  style={{
-                    border: 'none',
-                    background: '#f1f5f9',
-                    width: 32,
-                    height: 32,
-                    borderRadius: 16,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#64748b' }}>close</span>
-                </button>
-              </div>
-              <p style={{ margin: 0, fontSize: '11px', color: '#64748b', lineHeight: 1.45, flexShrink: 0 }}>
-                지도 빈 곳을 누르면 그 지점으로 핀이 옮겨집니다. 검색으로 고르거나 십자선으로 고르려면 아래를 눌러 주세요.
-              </p>
-              <textarea
-                value={sosQuestion}
-                onChange={(e) => setSosQuestion(e.target.value)}
-                placeholder="무엇이 궁금하신가요?"
-                style={{
-                  width: '100%',
-                  flex: 1,
-                  minHeight: 0,
-                  padding: '12px',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: '12px',
-                  fontSize: '14px',
-                  fontFamily: 'inherit',
-                  resize: 'none',
-                  outline: 'none',
-                  lineHeight: 1.55,
-                  background: '#fafafa',
-                  boxSizing: 'border-box',
-                  overflowY: 'auto',
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#00BCD4';
-                  e.target.style.background = 'white';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#e0e0e0';
-                  e.target.style.background = '#fafafa';
-                }}
-              />
-              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowSOSQuestionSheet(false);
-                    setShowSOSModal(true);
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: '11px',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: 12,
-                    background: '#fff',
-                    fontWeight: 600,
-                    fontSize: 13,
-                    cursor: 'pointer',
-                    color: '#334155',
-                  }}
-                >
-                  위치 검색·설정
-                </button>
-                <button
-                  type="button"
-                  onClick={handleStartLocationSelection}
-                  style={{
-                    flex: 1,
-                    padding: '11px',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: 12,
-                    background: '#fff',
-                    fontWeight: 600,
-                    fontSize: 13,
-                    cursor: 'pointer',
-                    color: '#334155',
-                  }}
-                >
-                  지도에서 선택
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={handleSOSSubmit}
-                disabled={!selectedSOSLocation || !sosQuestion.trim()}
-                style={{
-                  width: '100%',
-                  padding: '14px',
-                  background: selectedSOSLocation && sosQuestion.trim() ? '#00BCD4' : '#ddd',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '12px',
-                  fontSize: '15px',
-                  fontWeight: 'bold',
-                  cursor: selectedSOSLocation && sosQuestion.trim() ? 'pointer' : 'not-allowed',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  flexShrink: 0,
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>send</span>
-                요청하기
-              </button>
-            </div>
-          </div>
         )}
 
         {/* 검색 시트 모달 */}
@@ -5085,12 +4923,10 @@ const MapScreen = () => {
           </div>
         )}
 
-        {/* 광고 모달 */}
+        {/* 등록 완료 직후 스폰서 영상(모의 자동 재생) */}
         {showAdModal && (
           <div
-            onClick={() => {
-              // 광고를 봐야 하므로 외부 클릭으로 닫히지 않도록
-            }}
+            onClick={handleAdModalDismiss}
             style={{
               position: 'absolute',
               top: 0,
@@ -5119,7 +4955,6 @@ const MapScreen = () => {
                 boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
               }}
             >
-              {/* 광고 헤더 */}
               <div style={{
                 padding: '20px',
                 borderBottom: '1px solid #f0f0f0',
@@ -5131,18 +4966,41 @@ const MapScreen = () => {
                   fontWeight: 'bold',
                   color: '#333'
                 }}>
-                  광고를 시청해주세요
+                  요청이 등록되었습니다
                 </h2>
                 <p style={{
                   margin: '8px 0 0 0',
                   fontSize: '14px',
                   color: '#666'
                 }}>
-                  광고를 보시면 요청이 완료됩니다
+                  스폰서 영상이 재생됩니다. 등록은 이미 완료되었어요.
                 </p>
               </div>
 
-              {/* 광고 영역 */}
+              <div style={{
+                padding: '12px 20px 0',
+              }}>
+                <div style={{
+                  height: '6px',
+                  borderRadius: '999px',
+                  background: '#e2e8f0',
+                  overflow: 'hidden',
+                }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${adPlaybackProgress}%`,
+                    borderRadius: '999px',
+                    background: 'linear-gradient(90deg, #00BCD4, #0097A7)',
+                    transition: 'width 0.08s linear',
+                  }} />
+                </div>
+                <p style={{ margin: '8px 0 0', fontSize: '12px', color: '#94a3b8', textAlign: 'center' }}>
+                  {adPlaybackProgress >= 100
+                    ? '재생 종료'
+                    : `재생 중… ${Math.round(adPlaybackProgress)}%`}
+                </p>
+              </div>
+
               <div style={{
                 padding: '20px',
                 background: '#f5f5f5',
@@ -5158,51 +5016,45 @@ const MapScreen = () => {
                   background: 'linear-gradient(135deg, #00BCD4 0%, #0097A7 100%)',
                   borderRadius: '12px',
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: 'white',
                   fontSize: '18px',
                   fontWeight: '600'
                 }}>
-                  광고 영역
-                  <br />
-                  <span style={{ fontSize: '14px', opacity: 0.9, marginTop: '8px', display: 'block' }}>
-                    (실제 광고 서비스 연동 필요)
+                  스폰서 영상
+                  <span style={{ fontSize: '14px', opacity: 0.9, marginTop: '8px', display: 'block', fontWeight: 400 }}>
+                    (실제 광고 SDK 연동 시 이 영역에 재생)
                   </span>
                 </div>
               </div>
 
-              {/* 확인 버튼 */}
               <div style={{
                 padding: '16px 20px 20px',
                 borderTop: '1px solid #f0f0f0',
                 background: '#fafafa'
               }}>
                 <button
-                  onClick={handleAdComplete}
+                  type="button"
+                  onClick={handleAdModalDismiss}
                   style={{
                     width: '100%',
-                    padding: '16px',
-                    background: '#00BCD4',
-                    color: 'white',
-                    border: 'none',
+                    padding: '14px',
+                    background: '#f1f5f9',
+                    color: '#334155',
+                    border: '1px solid #e2e8f0',
                     borderRadius: '12px',
-                    fontSize: '16px',
-                    fontWeight: 'bold',
+                    fontSize: '15px',
+                    fontWeight: '600',
                     cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = '#00ACC1';
-                    e.currentTarget.style.transform = 'scale(1.02)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = '#00BCD4';
-                    e.currentTarget.style.transform = 'scale(1)';
                   }}
                 >
-                  광고 시청 완료
+                  닫기
                 </button>
+                <p style={{ margin: '10px 0 0', fontSize: '11px', color: '#94a3b8', textAlign: 'center', lineHeight: 1.4 }}>
+                  요청 등록에는 광고 시청이 필요하지 않습니다. 재생이 끝나면 자동으로 닫혀요.
+                </p>
               </div>
             </div>
           </div>
