@@ -27,8 +27,6 @@ import { togglePostLikeSupabase } from '../api/socialSupabase';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
-import { normalizeRegionName } from '../utils/regionNames';
-
 const MainScreen = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -1428,11 +1426,14 @@ const MainScreen = () => {
                             >
                                 {recommendedData.map((item, idx) => {
                                     const placeKey = item.placeName || item.title || item.regionName;
-                                    const placePosts = allPostsForRecommend.filter(p => {
-                                        const loc = String(p?.location || '').trim();
-                                        const place = String(p?.placeName || '').trim();
-                                        const detailed = String(p?.detailedLocation || '').trim();
-                                        return (loc && loc === placeKey) || (place && place === placeKey) || (detailed && detailed === placeKey);
+                                    const placePosts = allPostsForRecommend.filter((p) => {
+                                        const key = String(placeKey || '').trim();
+                                        if (!key) return false;
+                                        const loc = String(p?.location || '');
+                                        const place = String(p?.placeName || '');
+                                        const detailed = String(p?.detailedLocation || '');
+                                        if (loc === key || place === key || detailed === key) return true;
+                                        return loc.includes(key) || place.includes(key) || detailed.includes(key);
                                     });
                                     const rawImages = [
                                         item.liveImage || item.image,
@@ -1444,18 +1445,22 @@ const MainScreen = () => {
                                     const placeOneLine = String(item.placeOneLine || '').trim();
                                     const topTags = Array.isArray(item.topTags) ? item.topTags.filter(Boolean).slice(0, 3) : [];
 
-                                    const regionToken = String(placeKey).trim().split(/\s+/)[0] || placeKey;
-                                    const regionForUrl = normalizeRegionName(regionToken);
+                                    const feedPosts = [...placePosts].sort((a, b) => {
+                                        const ta = new Date(a.timestamp || a.createdAt || a.photoDate || 0).getTime();
+                                        const tb = new Date(b.timestamp || b.createdAt || b.photoDate || 0).getTime();
+                                        return tb - ta;
+                                    });
 
                                     return (
                                         <div
                                             key={idx}
                                             onClick={withDragCheck(() =>
-                                                navigate(`/region/${encodeURIComponent(regionForUrl)}`, {
+                                                navigate('/recommended-place-feed', {
                                                     state: {
-                                                        region: { name: regionForUrl },
-                                                        focusLocation: placeKey,
-                                                        placeTitle: placeKey,
+                                                        placeKey,
+                                                        posts: feedPosts,
+                                                        placeOneLine,
+                                                        topTags,
                                                     },
                                                 })
                                             )}
