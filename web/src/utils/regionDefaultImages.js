@@ -1,6 +1,6 @@
-// 각 지역의 대표 기본 이미지 - 그 지역의 특징/랜드마크가 담긴 사진 (관심지역·지역상세 상단용)
+// 각 지역의 대표 기본 이미지 - 그 지역의 특징/랜드마크가 담긴 사진 (지역상세 등)
 export const regionDefaultImages = {
-  // 도(道) 단위 — 관심지역 슬라이드용
+  // 도(道) 단위
   '전북': 'https://images.unsplash.com/photo-1548013146-72479768bada?w=800&auto=format&fit=crop', // 전주 한옥/전통
   '전남': 'https://images.unsplash.com/photo-1578022761797-b8636ac1773c?w=800&auto=format&fit=crop', // 등대·해안
   '경북': 'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=800&auto=format&fit=crop', // 경주 석탑·불국사

@@ -24,7 +24,6 @@ import DetailScreen from '../screens/DetailScreen';
 import MagazineDetailScreen from '../screens/MagazineDetailScreen';
 import RegionCategoryScreen from '../screens/RegionCategoryScreen';
 import BadgeListScreen from '../screens/BadgeListScreen';
-import InterestPlacesScreen from '../screens/InterestPlacesScreen';
 import RealtimeFeedScreen from '../screens/RealtimeFeedScreen';
 import CrowdedPlaceScreen from '../screens/CrowdedPlaceScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
@@ -244,10 +243,6 @@ export default function AppNavigator() {
             <Stack.Screen
               name="BadgeList"
               component={BadgeListScreen}
-            />
-            <Stack.Screen
-              name="InterestPlaces"
-              component={InterestPlacesScreen}
             />
             <Stack.Screen
               name="RealtimeFeed"

@@ -5,14 +5,12 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TextInput,
   Image,
   TouchableOpacity,
   RefreshControl,
   Animated,
   Dimensions,
   FlatList,
-  Modal,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,7 +19,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { COLORS, SPACING } from '../constants/styles';
 import { getTimeAgo, filterRecentPosts } from '../utils/timeUtils';
-import { getRegionIcon } from '../utils/regionIcons';
 import { getCombinedPosts } from '../utils/mockData';
 import { getRecommendedRegions, RECOMMENDATION_TYPES } from '../utils/recommendationEngine';
 import { ScreenLayout, ScreenContent, ScreenHeader, ScreenBody } from '../components/ScreenLayout';
@@ -79,13 +76,6 @@ const MainScreen = () => {
   const [crowdedData, setCrowdedData] = useState([]);
   const [recommendedData, setRecommendedData] = useState([]);
   const [selectedRecommendTag, setSelectedRecommendTag] = useState('blooming');
-
-  // 관심 장소 관련
-  const [interestPlaces, setInterestPlaces] = useState([]);
-  const [selectedInterest, setSelectedInterest] = useState(null);
-  const [showAddInterestModal, setShowAddInterestModal] = useState(false);
-  const [newInterestPlace, setNewInterestPlace] = useState('');
-  const [deleteConfirmPlace, setDeleteConfirmPlace] = useState(null);
 
   // SOS 관련
   const [nearbySosRequests, setNearbySosRequests] = useState([]);
@@ -181,54 +171,11 @@ const MainScreen = () => {
     useCallback(() => () => clearAll(), [clearAll])
   );
 
-  useEffect(() => {
-    const loadInterestPlaces = async () => {
-      try {
-        const initialPlaces = [{ id: 1, name: '제주도' }, { id: 2, name: '서울 강남' }, { id: 3, name: '부산 해운대' }];
-        const stored = await AsyncStorage.getItem('interestPlaces');
-        if (stored) setInterestPlaces(JSON.parse(stored));
-        else {
-          setInterestPlaces(initialPlaces);
-          await AsyncStorage.setItem('interestPlaces', JSON.stringify(initialPlaces));
-        }
-      } catch (e) { console.error(e); }
-    };
-    loadInterestPlaces();
-  }, []);
-
-  const handleAddInterestPlace = async () => {
-    if (!newInterestPlace.trim()) return;
-    const newPlace = { id: Date.now(), name: newInterestPlace.trim() };
-    const updated = [...interestPlaces, newPlace];
-    setInterestPlaces(updated);
-    await AsyncStorage.setItem('interestPlaces', JSON.stringify(updated));
-    setNewInterestPlace('');
-    setShowAddInterestModal(false);
-  };
-
-  const handleDeleteInterestPlace = async () => {
-    if (!deleteConfirmPlace) return;
-    const updated = interestPlaces.filter(p => p.name !== deleteConfirmPlace);
-    setInterestPlaces(updated);
-    await AsyncStorage.setItem('interestPlaces', JSON.stringify(updated));
-    if (selectedInterest === deleteConfirmPlace) setSelectedInterest(null);
-    setDeleteConfirmPlace(null);
-  };
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadMockData();
     setRefreshing(false);
   }, [loadMockData]);
-
-  const filteredInterestPosts = useMemo(() => {
-    if (!selectedInterest) return [];
-    const allPosts = [...realtimeData, ...crowdedData];
-    return allPosts.filter(item => {
-      const loc = item.location || '';
-      return loc.includes(selectedInterest) || selectedInterest.includes(loc);
-    }).filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
-  }, [selectedInterest, realtimeData, crowdedData]);
 
   return (
     <ScreenLayout style={{ backgroundColor: '#fafafa' }}>
@@ -270,69 +217,9 @@ const MainScreen = () => {
             <Animated.Text style={[styles.searchPlaceholder, { opacity: fadeAnim }]}>{placeholderText}</Animated.Text>
           </TouchableOpacity>
 
-          <View style={styles.interestSection}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.interestTitle}>⭐ 관심 지역/장소</Text>
-              {interestPlaces.length === 0 && <Text style={styles.interestSubtext}>관심지역을 추가해보세요</Text>}
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.interestList}>
-              {interestPlaces.map((place, idx) => (
-                <TouchableOpacity key={idx} style={styles.interestItem} onPress={() => setSelectedInterest(selectedInterest === place.name ? null : place.name)}>
-                  <View style={[styles.interestIconCircle, selectedInterest === place.name && styles.interestIconCircleSelected]}>
-                    <Text style={styles.interestIcon}>{getRegionIcon(place.name)}</Text>
-                    <TouchableOpacity style={styles.interestDeleteBtn} onPress={() => setDeleteConfirmPlace(place.name)}>
-                      <Ionicons name="close-circle" size={18} color="#ef4444" />
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={[styles.interestName, selectedInterest === place.name && styles.interestNameSelected]}>{place.name}</Text>
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity style={styles.interestItem} onPress={() => setShowAddInterestModal(true)}>
-                <View style={styles.interestAddCircle}>
-                  <Ionicons name="add" size={24} color={COLORS.primary} />
-                </View>
-                <Text style={styles.interestName}>추가</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
         </ScreenHeader>
 
         <ScreenBody>
-          {selectedInterest ? (
-            <View style={styles.mainPadding}>
-              <View style={styles.interestBanner}>
-                <Text style={styles.interestBannerText}>🏷️ "{selectedInterest}" 모아보기</Text>
-                <TouchableOpacity onPress={() => setSelectedInterest(null)}><Text style={styles.interestBannerBtn}>전체 보기</Text></TouchableOpacity>
-              </View>
-              {filteredInterestPosts.length > 0 ? (
-                <View style={styles.gridContainer}>
-                  {filteredInterestPosts.map((post) => (
-                    <TouchableOpacity key={post.id} style={styles.gridCard} onPress={() => navigation.navigate('PostDetail', { post })}>
-                      <View style={styles.gridImageWrapper}>
-                        <Image source={{ uri: post.image }} style={styles.gridImage} />
-                        <View style={styles.gridLikeBadge}>
-                          <Text style={styles.gridLikeText}>❤️ {post.likes}</Text>
-                        </View>
-                      </View>
-                      <View style={styles.gridInfo}>
-                        <Text style={styles.gridContent} numberOfLines={1}>{post.content}</Text>
-                        <View style={styles.gridMeta}>
-                          <Text style={styles.gridTime}>{post.time}</Text>
-                          <Text style={styles.gridLocation} numberOfLines={1}>📍 {post.location}</Text>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              ) : (
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyIcon}>📷</Text>
-                  <Text style={styles.emptyText}>아직 이 지역의 사진이 없어요.</Text>
-                  <Text style={styles.emptySubtext}>첫 번째 사진을 올려보세요!</Text>
-                </View>
-              )}
-            </View>
-          ) : (
             <View style={[styles.mainPadding, { alignSelf: 'center', width: '100%', maxWidth: LAYOUT_MAX_WIDTH }]}>
               {/* 지금 여기는 */}
               <View style={styles.section}>
@@ -478,37 +365,8 @@ const MainScreen = () => {
                 </ScrollView>
               </View>
             </View>
-          )}
         </ScreenBody>
       </ScreenContent>
-
-      <Modal visible={showAddInterestModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>관심 지역 추가</Text>
-              <TouchableOpacity onPress={() => setShowAddInterestModal(false)}><Ionicons name="close" size={24} color="#333" /></TouchableOpacity>
-            </View>
-            <TextInput style={styles.modalInput} placeholder="예: 제주도, 강남, 부산" value={newInterestPlace} onChangeText={setNewInterestPlace} />
-            <TouchableOpacity style={[styles.modalBtn, !newInterestPlace.trim() && styles.modalBtnDisabled]} onPress={handleAddInterestPlace} disabled={!newInterestPlace.trim()}>
-              <Text style={styles.modalBtnText}>추가하기</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={!!deleteConfirmPlace} transparent animationType="fade">
-        <View style={styles.modalOverlayCenter}>
-          <View style={styles.alertBox}>
-            <Text style={styles.alertTitle}>관심 지역 삭제</Text>
-            <Text style={styles.alertMsg}>'{deleteConfirmPlace}'을(를) 관심 지역에서 삭제하시겠습니까?</Text>
-            <View style={styles.alertBtns}>
-              <TouchableOpacity style={styles.alertBtnCancel} onPress={() => setDeleteConfirmPlace(null)}><Text style={styles.alertBtnCancelText}>취소</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.alertBtnDelete} onPress={handleDeleteInterestPlace}><Text style={styles.alertBtnDeleteText}>삭제</Text></TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </ScreenLayout>
   );
 };

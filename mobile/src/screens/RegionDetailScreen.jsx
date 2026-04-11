@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SPACING } from '../constants/styles';
 import { filterRecentPosts, getTimeAgo } from '../utils/timeUtils';
 import { isPostLiked } from '../utils/socialInteractions';
-import { toggleInterestPlace, isInterestPlace } from '../utils/interestPlaces';
 import { ScreenLayout, ScreenContent, ScreenHeader, ScreenBody } from '../components/ScreenLayout';
 import { getLandmarksByRegion, isPostMatchingLandmarks } from '../utils/regionLandmarks';
 import { getRegionDefaultImage } from '../utils/regionDefaultImages';
@@ -116,7 +115,6 @@ const RegionDetailScreen = () => {
   const [touristSpots, setTouristSpots] = useState([]);
   const [foodPhotos, setFoodPhotos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isInterest, setIsInterest] = useState(false);
   const [regionHashtags, setRegionHashtags] = useState([]);
   const [activeCategory, setActiveCategory] = useState('전체');
 
@@ -177,10 +175,6 @@ const RegionDetailScreen = () => {
         .slice(0, 10);
       setRegionHashtags(topTags);
 
-      // 관심 지역 여부 확인
-      const interested = await isInterestPlace(region.name);
-      setIsInterest(interested);
-
     } catch (error) {
       console.error('Region data load error:', error);
     } finally {
@@ -219,11 +213,6 @@ const RegionDetailScreen = () => {
     fetchWeatherData();
     fetchTrafficData();
   }, [loadRegionData, fetchWeatherData, fetchTrafficData]);
-
-  const toggleInterest = async () => {
-    const newState = await toggleInterestPlace(region.name);
-    setIsInterest(newState);
-  };
 
   const facetedPhotos = useMemo(() => {
     if (activeCategory === '전체') return realtimePhotos;
@@ -311,9 +300,7 @@ const RegionDetailScreen = () => {
             <TouchableOpacity style={styles.iconButton} onPress={() => navigation.goBack()}>
               <Ionicons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton} onPress={toggleInterest}>
-              <Ionicons name={isInterest ? "heart" : "heart-outline"} size={24} color={isInterest ? COLORS.error : "#fff"} />
-            </TouchableOpacity>
+            <View style={styles.iconButton} />
           </View>
           <View style={styles.bannerInfo}>
             <Text style={styles.bannerRegionName}>{region.name}</Text>

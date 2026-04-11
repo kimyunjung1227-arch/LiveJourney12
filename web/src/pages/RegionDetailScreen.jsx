@@ -3,7 +3,6 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { getWeatherByRegion } from '../api/weather';
 import { filterRecentPosts, filterActivePosts48 } from '../utils/timeUtils';
-import { toggleInterestPlace, isInterestPlace } from '../utils/interestPlaces';
 import { getLandmarksByRegion } from '../utils/regionLandmarks';
 import { logger } from '../utils/logger';
 import { getCombinedPosts } from '../utils/mockData';
@@ -48,20 +47,9 @@ const RegionDetailScreen = () => {
     loading: false
   });
 
-  const [isNotificationEnabled, setIsNotificationEnabled] = useState(false);
   const [selectedLandmarks, setSelectedLandmarks] = useState([]); // 선택된 명소 ID 목록
   const [showLandmarkModal, setShowLandmarkModal] = useState(false); // 명소 선택 모달 표시 여부
   const bodyRef = useRef(null);
-
-  // 관심 지역 상태 확인
-  useEffect(() => {
-    setIsNotificationEnabled(isInterestPlace(region.name || canonicalRegionName));
-  }, [region.name, canonicalRegionName]);
-
-  const handleNotificationToggle = () => {
-    const newState = toggleInterestPlace(region.name || canonicalRegionName);
-    setIsNotificationEnabled(newState);
-  };
 
   // 시간을 숫자로 변환하는 함수 (정렬용)
   const timeToMinutes = useCallback((timeLabel) => {
@@ -332,24 +320,7 @@ const RegionDetailScreen = () => {
             <h1 className="flex-1 text-center text-base font-bold leading-tight tracking-[-0.01em] text-black dark:text-white px-1 line-clamp-2">
               {headerTitle}
             </h1>
-            <button
-              type="button"
-              onClick={handleNotificationToggle}
-              className="flex size-11 shrink-0 items-center justify-center rounded-full bg-transparent hover:bg-black/5 active:bg-black/10 transition-colors"
-              title={isNotificationEnabled ? '관심 지역 해제' : '관심 지역 추가'}
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              <span
-                className="material-symbols-outlined"
-                style={{
-                  fontSize: 24,
-                  color: isNotificationEnabled ? '#00BCD4' : '#64748b',
-                  fontVariationSettings: isNotificationEnabled ? "'FILL' 1" : "'FILL' 0",
-                }}
-              >
-                star
-              </span>
-            </button>
+            <div className="size-11 shrink-0" aria-hidden />
           </div>
 
           {/* 날씨 — 은은한 회색 패널로 가독성 확보 */}

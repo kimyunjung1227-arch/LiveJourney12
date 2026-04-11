@@ -4,8 +4,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { getUnreadCount } from '../utils/notifications';
 import { getTimeAgo, filterRecentPosts, filterActivePosts48 } from '../utils/timeUtils';
-import { getInterestPlaces, toggleInterestPlace } from '../utils/interestPlaces';
-import { getRegionDefaultImage } from '../utils/regionDefaultImages';
 import { logger } from '../utils/logger';
 import { getRecommendedRegions, RECOMMENDATION_TYPES } from '../utils/recommendationEngine';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
@@ -43,16 +41,7 @@ const MainScreen = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
-    const [interestPlaces, setInterestPlaces] = useState([]);
-    const [selectedInterest, setSelectedInterest] = useState(null);
     const [hotFeedVideoPoster, setHotFeedVideoPoster] = useState(null);
-    const [showAddInterestModal, setShowAddInterestModal] = useState(false);
-    const [newInterestPlace, setNewInterestPlace] = useState('');
-    // 국내 관심지역 선택용 상태 (전국 8도)
-    const [selectedCountry, setSelectedCountry] = useState('서울');
-    const [selectedCity, setSelectedCity] = useState('서울 전체');
-    const [selectedInterestLabels, setSelectedInterestLabels] = useState([]);
-    const [deleteConfirmPlace, setDeleteConfirmPlace] = useState(null);
     const [selectedRecommendTag, setSelectedRecommendTag] = useState('season_peak');
     const [hotFeedSlideIndex, setHotFeedSlideIndex] = useState(0);
     const [hotFeedSocialIdx, setHotFeedSocialIdx] = useState(0);
@@ -124,7 +113,7 @@ const MainScreen = () => {
             });
             observer.disconnect();
         };
-    }, [realtimeData, crowdedData, recommendedData, selectedInterest]);
+    }, [realtimeData, crowdedData, recommendedData]);
 
     const loadMockData = useCallback(async () => {
         const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
@@ -448,11 +437,6 @@ const MainScreen = () => {
         }
     }, [loadMockData]);
 
-    const loadInterestPlaces = useCallback(() => {
-        const places = getInterestPlaces();
-        setInterestPlaces(places);
-    }, []);
-
     useEffect(() => {
         let alive = true;
         const load = async () => {
@@ -507,42 +491,6 @@ const MainScreen = () => {
             })
             .slice(0, 6);
     }, [publishedMagazines, allPostsForRecommend]);
-
-    const filteredInterestPosts = useMemo(() => {
-        if (!selectedInterest) return [];
-        const allPosts = [...realtimeData, ...crowdedData, ...recommendedData];
-        return allPosts.filter(item => {
-            const location = item.location || item.title || '';
-            return location.includes(selectedInterest) || selectedInterest.includes(location);
-        }).filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
-    }, [selectedInterest, realtimeData, crowdedData, recommendedData]);
-
-    const handleAddInterestPlace = useCallback(() => {
-        // 새 UI: 여러 개의 국내 관심지역을 한 번에 추가
-        if (!selectedInterestLabels || selectedInterestLabels.length === 0) return;
-
-        let addedAny = false;
-        selectedInterestLabels.forEach((label) => {
-            const added = toggleInterestPlace(label);
-            if (added) addedAny = true;
-        });
-
-        if (addedAny) {
-            loadInterestPlaces();
-        }
-
-        setShowAddInterestModal(false);
-        setSelectedInterestLabels([]);
-    }, [selectedInterestLabels, loadInterestPlaces]);
-
-    const handleDeleteInterestPlace = useCallback(() => {
-        if (deleteConfirmPlace) {
-            toggleInterestPlace(deleteConfirmPlace);
-            loadInterestPlaces();
-            if (selectedInterest === deleteConfirmPlace) setSelectedInterest(null);
-            setDeleteConfirmPlace(null);
-        }
-    }, [deleteConfirmPlace, loadInterestPlaces, selectedInterest]);
 
     const crowdedIdsKey = useMemo(() => crowdedData.map((p) => String(p.id)).join(','), [crowdedData]);
 
@@ -685,8 +633,7 @@ const MainScreen = () => {
     useEffect(() => {
         fetchPosts();
         setUnreadNotificationCount(getUnreadCount());
-        loadInterestPlaces();
-    }, [fetchPosts, loadInterestPlaces]);
+    }, [fetchPosts]);
 
     // 메인 화면으로 돌아올 때마다 목록 재조회 (좋아요·댓글 DB 반영 확인)
     const prevPathRef = useRef('');
@@ -937,138 +884,7 @@ const MainScreen = () => {
 
                 {/* 상단 배너는 현재 사용하지 않음 */}
 
-                {/* 관심 지역/장소 — 라벨 없이 원형 목록만 */}
-                <div style={{ padding: '4px 16px 5px', background: '#ffffff' }}>
-                    <div
-                        style={{ display: 'flex', gap: '10px', padding: '0 0 2px 0', overflowX: 'auto', scrollbarWidth: 'none', cursor: 'grab', scrollSnapType: 'x mandatory' }}
-                        className="hide-scrollbar"
-                        onMouseDown={handleDragStart}
-                    >
-                        {interestPlaces.map((place, idx) => {
-                            const isSelected = selectedInterest === place.name;
-                            return (
-                                <div
-                                    key={idx}
-                                    style={{
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        alignItems: 'center',
-                                        gap: 4,
-                                        flexShrink: 0,
-                                        position: 'relative',
-                                        scrollSnapAlign: 'start',
-                                        minWidth: 56,
-                                    }}
-                                >
-                                        <div style={{ position: 'relative' }}>
-                                            <div
-                                                role="button"
-                                                tabIndex={0}
-                                                onClick={withDragCheck(() => setSelectedInterest(isSelected ? null : place.name))}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' || e.key === ' ') {
-                                                        e.preventDefault();
-                                                        setSelectedInterest(isSelected ? null : place.name);
-                                                    }
-                                                }}
-                                                style={{
-                                                    width: 48,
-                                                    height: 48,
-                                                    minWidth: 48,
-                                                    minHeight: 48,
-                                                    borderRadius: '50%',
-                                                    border: isSelected
-                                                        ? '2px solid rgba(15,23,42,0.9)'
-                                                        : '1px solid rgba(148,163,184,0.7)',
-                                                    overflow: 'hidden',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    cursor: 'pointer',
-                                                    background: '#E5E7EB',
-                                                }}
-                                            >
-                                                <img
-                                                    src={getRegionDefaultImage(place.name)}
-                                                    alt={place.name}
-                                                    style={{
-                                                        width: '100%',
-                                                        height: '100%',
-                                                        objectFit: 'cover',
-                                                        display: 'block',
-                                                    }}
-                                                />
-                                            </div>
-                                            {isSelected && (
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        withDragCheck(() => setDeleteConfirmPlace(place.name))();
-                                                    }}
-                                                    style={{
-                                                        position: 'absolute',
-                                                        top: -4,
-                                                        right: 0,
-                                                        transform: 'translate(30%, -40%)',
-                                                        width: 56,
-                                                        height: 56,
-                                                        minWidth: 56,
-                                                        minHeight: 56,
-                                                        padding: 0,
-                                                        border: 'none',
-                                                        background: 'transparent',
-                                                        cursor: 'pointer',
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        zIndex: 2,
-                                                    }}
-                                                    aria-label={`${place.name} 관심 지역 삭제`}
-                                                >
-                                                    <span style={{
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        width: 28,
-                                                        height: 28,
-                                                        borderRadius: '999px',
-                                                        backgroundColor: '#ffffff',
-                                                        border: '1px solid #ffeded',
-                                                        color: '#ff4d4f',
-                                                        fontSize: 18,
-                                                        lineHeight: 0,
-                                                        fontWeight: 700,
-                                                        boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
-                                                    }}>
-                                                        ×
-                                                    </span>
-                                                </button>
-                                            )}
-                                        </div>
-                                    <span
-                                        style={{
-                                            fontSize: 11,
-                                            color: isSelected ? '#0F172A' : '#94A3B8',
-                                            fontWeight: isSelected ? 600 : 400,
-                                            maxWidth: 56,
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                            whiteSpace: 'nowrap',
-                                            textAlign: 'center',
-                                        }}
-                                    >
-                                        {place.name}
-                                    </span>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {/* 지금 여기는 — 관심 지역 선택 시 숨김, 한 화면에 핫플까지 보이도록 높이 축소 */}
-                {!selectedInterest && (
-                    <div style={{ padding: '2px 16px 6px', background: '#ffffff' }}>
+                <div style={{ padding: '2px 16px 6px', background: '#ffffff' }}>
                     <div style={{ padding: '0 0 2px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#111827' }}>지금 여기는</h2>
@@ -1233,91 +1049,8 @@ const MainScreen = () => {
                         })}
                     </div>
                 </div>
-                )}
 
                 {/* 메인 컨텐츠 */}
-                {selectedInterest ? (
-                    <div style={{ padding: '0 16px 16px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', background: '#f0f9ff', padding: '6px 12px', borderRadius: '12px' }}>
-                            <span style={{ fontWeight: 700, color: '#0284c7', fontSize: '14px', lineHeight: 1.3 }}>"{selectedInterest}" 모아보기</span>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    // 관심지역 전체 피드를 별도 화면(지역 상세)에서 볼 수 있도록 이동
-                                    navigate(`/region/${encodeURIComponent(selectedInterest)}`, {
-                                        state: { region: { name: selectedInterest } },
-                                    });
-                                }}
-                                style={{
-                                    border: 'none',
-                                    background: 'none',
-                                    color: '#0284c7',
-                                    fontSize: '14px',
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    padding: '4px 10px',
-                                    minHeight: 'auto',
-                                    lineHeight: 1.3,
-                                }}
-                            >
-                                전체 보기
-                            </button>
-                        </div>
-                        {filteredInterestPosts.length > 0 ? (
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-                                {filteredInterestPosts.map((post) => (
-                                    <div key={post.id} onClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts: filteredInterestPosts } })} style={{ overflow: 'hidden', cursor: 'pointer', display: 'flex', flexDirection: 'column' }}>
-                                        {/* 정사각형 썸네일 — 2x2 그리드 통일 */}
-                                        <div style={{ width: '100%', aspectRatio: '1', background: '#eee', position: 'relative', overflow: 'hidden', borderRadius: '12px' }}>
-                                            {(Array.isArray(post.videos) && post.videos.length > 0) ? (
-                                                <video
-                                                    ref={(el) => {
-                                                        if (el) {
-                                                            videoRefs.current.set(`interest-${post.id}`, el);
-                                                        } else {
-                                                            videoRefs.current.delete(`interest-${post.id}`);
-                                                        }
-                                                    }}
-                                                    data-video-id={`interest-${post.id}`}
-                                                    src={getDisplayImageUrl(post.videos[0])}
-                                                    poster={getDisplayImageUrl(post.images?.[0] || post.image || post.thumbnail)}
-                                                    muted
-                                                    loop
-                                                    playsInline
-                                                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '12px' }}
-                                                />
-                                            ) : post.thumbnailIsVideo && post.firstVideoUrl ? (
-                                                <video src={post.firstVideoUrl} muted playsInline preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '12px' }} />
-                                            ) : (post.images && post.images.length > 0) ? (
-                                                <img src={getDisplayImageUrl(post.images[0])} alt={post.location} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '12px' }} />
-                                            ) : (
-                                                <img src={getDisplayImageUrl(post.image || post.thumbnail)} alt={post.location} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '12px' }} />
-                                            )}
-                                            {/* 실시간 인증 배지 - 이미지 좌측 상단 */}
-                                            {getPhotoStatusFromPost(post) !== 'NONE' && (
-                                                <div style={{ position: 'absolute', top: '6px', left: '6px', zIndex: 10 }}>
-                                                    <StatusBadge status={getPhotoStatusFromPost(post)} />
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div style={{ padding: '8px 4px 6px' }}>
-                                            <div style={{ fontSize: '12px', fontWeight: 600, color: '#333', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.content || post.note || post.location || ''}</div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#94a3b8' }}>
-                                                <span>{getTimeAgo(post.photoDate || post.timestamp || post.createdAt || post.time) || ''}</span>
-                                                <span style={{ maxWidth: '55%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.location || ''}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div style={{ textAlign: 'center', padding: '60px 0', color: '#94a3b8' }}>
-                                <p style={{ margin: 0, fontSize: '14px' }}>아직 이 지역의 사진이 없어요.</p>
-                                <p style={{ margin: '4px 0 0 0', fontSize: '12px' }}>첫 번째 사진을 올려보세요!</p>
-                            </div>
-                        )}
-                    </div>
-                ) : (
                 <div style={{ padding: '2px 16px 20px', background: '#ffffff', minHeight: '100%' }}>
 
                         {/* 실시간 핫플 — 이미지 4:3 세로 비중 + 섹션 여백 */}
@@ -1603,179 +1336,8 @@ const MainScreen = () => {
                             </div>
                         </div>
                     </div>
-                )}
 
             </div>
-
-            {/* 관심 지역 삭제 확인 모달 */}
-            {deleteConfirmPlace && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ background: 'white', width: '85%', maxWidth: '300px', padding: '24px', borderRadius: '20px', textAlign: 'center' }}>
-                        <h3 style={{ margin: '0 0 12px 0', fontSize: '18px', fontWeight: 700 }}>관심 지역 삭제</h3>
-                        <p style={{ margin: '0 0 24px 0', fontSize: '14px', color: '#64748b' }}>'{deleteConfirmPlace}'을(를) 관심 지역에서 삭제하시겠습니까?</p>
-                        <div style={{ display: 'flex', gap: '12px' }}>
-                            <button type="button" onClick={() => setDeleteConfirmPlace(null)} style={{ flex: 1, padding: '14px 16px', minHeight: 48, borderRadius: '12px', background: '#f1f5f9', color: '#64748b', fontWeight: 600, fontSize: '15px' }}>취소</button>
-                            <button type="button" onClick={handleDeleteInterestPlace} style={{ flex: 1, padding: '14px 16px', minHeight: 48, borderRadius: '12px', background: '#ef4444', color: 'white', fontWeight: 600, fontSize: '15px' }}>삭제</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* 관심 지역 추가 모달 - 지역 선택 UI */}
-            {showAddInterestModal && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        inset: 0,
-                        background: 'rgba(0,0,0,0.45)',
-                        backdropFilter: 'blur(8px)',
-                        zIndex: 2000,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: '16px',
-                    }}
-                >
-                    <div style={{ background: '#ffffff', width: '100%', maxWidth: 420, maxHeight: '80vh', borderRadius: 28, overflowY: 'auto', overflowX: 'hidden', boxShadow: '0 18px 45px rgba(15,23,42,0.35)', display: 'flex', flexDirection: 'column', margin: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                        {/* 헤더 */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px 14px', borderBottom: '1px solid #e5e7eb' }}>
-                            <button
-                                type="button"
-                                onClick={() => { setShowAddInterestModal(false); }}
-                                style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'flex-start', color: '#111827' }}
-                                aria-label="닫기"
-                            >
-                                <span style={{ fontSize: 20 }}>×</span>
-                            </button>
-                            <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: '#111827' }}>관심지역 설정</h3>
-                            <div style={{ width: 44, height: 44 }} />
-                        </div>
-                        {/* 본문: 좌우 2열 레이아웃 */}
-                        <div style={{ display: 'flex', flex: 1, minHeight: 260 }}>
-                            {/* 왼쪽: 국내 권역 리스트 (전국 8도 개념) */}
-                            <div style={{ width: '38%', borderRight: '1px solid #f1f5f9', background: '#f8fafc' }}>
-                                {['서울', '경기', '인천', '강원', '충청', '전라', '경상', '제주'].map((country) => {
-                                    const isActive = selectedCountry === country;
-                                    return (
-                                        <button
-                                            key={country}
-                                            type="button"
-                                            onClick={() => { setSelectedCountry(country); setSelectedCity(`${country} 전체`); }}
-                                            style={{
-                                                width: '100%',
-                                                padding: '10px 12px',
-                                                textAlign: 'left',
-                                                border: 'none',
-                                                background: isActive ? '#e5f0ff' : 'transparent',
-                                                color: isActive ? '#111827' : '#94a3b8',
-                                                fontSize: 14,
-                                                fontWeight: isActive ? 600 : 500,
-                                                cursor: 'pointer',
-                                            }}
-                                        >
-                                            {country}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            {/* 오른쪽: 선택한 권역의 세부 지역 리스트 */}
-                            <div style={{ flex: 1, background: '#ffffff', display: 'flex', flexDirection: 'column' }}>
-                                <div style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9', fontSize: 14, fontWeight: 600, color: '#111827' }}>
-                                    {selectedCountry}
-                                </div>
-                                <div style={{ flex: 1, overflowY: 'auto' }}>
-                                    {(() => {
-                                        const cityMap = {
-                                            '서울': ['서울 전체', '종로·중구', '강남·서초', '송파·강동', '마포·용산', '홍대·신촌', '여의도'],
-                                            '경기': ['경기 전체', '성남·분당', '수원', '고양·일산', '용인', '김포·파주', '가평·양평'],
-                                            '인천': ['인천 전체', '송도', '연수·남동', '부평·계양', '중구(월미·영종)'],
-                                            '강원': ['강원 전체', '춘천', '강릉', '속초', '평창', '양양'],
-                                            '충청': ['충청 전체', '대전', '세종', '천안·아산', '청주'],
-                                            '전라': ['전라 전체', '전주', '광주', '여수', '순천', '목포', '군산'],
-                                            '경상': ['경상 전체', '부산', '대구', '울산', '경주', '포항', '창원·마산·진해'],
-                                            '제주': ['제주 전체', '제주시', '서귀포', '애월', '성산·표선'],
-                                        };
-                                        const cities = cityMap[selectedCountry] || [`${selectedCountry} 전체`];
-                                        return cities.map((city) => {
-                                            const label = city.includes('전체') ? city : `${selectedCountry} ${city}`;
-                                            const isActive = selectedInterestLabels.includes(label);
-                                            return (
-                                                <button
-                                                    key={city}
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setSelectedInterestLabels((prev) =>
-                                                            prev.includes(label)
-                                                                ? prev.filter((v) => v !== label)
-                                                                : [...prev, label]
-                                                        )
-                                                    }
-                                                    style={{
-                                                        width: '100%',
-                                                        padding: '12px 16px',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'space-between',
-                                                        border: 'none',
-                                                        borderBottom: '1px solid #f1f5f9',
-                                                        background: isActive ? '#f9fafb' : '#ffffff',
-                                                        cursor: 'pointer',
-                                                        fontSize: 14,
-                                                        color: '#111827',
-                                                    }}
-                                                >
-                                                    <span>{city}</span>
-                                                    {isActive && (
-                                                        <span style={{ color: '#0ea5e9', fontSize: 12 }}>선택</span>
-                                                    )}
-                                                </button>
-                                            );
-                                        });
-                                    })()}
-                                </div>
-                            </div>
-                        </div>
-                        {/* 하단 버튼 */}
-                        <div style={{ padding: '14px 18px', borderTop: '1px solid #e5e7eb', display: 'flex', gap: 10 }}>
-                            <button
-                                type="button"
-                                onClick={() => { setShowAddInterestModal(false); setSelectedInterestLabels([]); }}
-                                style={{
-                                    flex: 1,
-                                    padding: '12px 14px',
-                                    borderRadius: 999,
-                                    border: '1px solid #e5e7eb',
-                                    background: '#ffffff',
-                                    color: '#6b7280',
-                                    fontWeight: 600,
-                                    fontSize: 14,
-                                    cursor: 'pointer',
-                                }}
-                            >
-                                취소
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleAddInterestPlace}
-                                style={{
-                                    flex: 1,
-                                    padding: '12px 14px',
-                                    borderRadius: 999,
-                                    border: 'none',
-                                    background: selectedInterestLabels.length > 0 ? '#111827' : '#cbd5e1',
-                                    color: '#ffffff',
-                                    fontWeight: 700,
-                                    fontSize: 14,
-                                    cursor: selectedInterestLabels.length > 0 ? 'pointer' : 'default',
-                                }}
-                                disabled={selectedInterestLabels.length === 0}
-                            >
-                                추가하기
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             <BottomNavigation />
         </div >

@@ -7,7 +7,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { notifyBadge } from '../utils/notifications';
 import { safeSetItem, logLocalStorageStatus } from '../utils/localStorageManager';
 import { checkNewBadges, awardBadge, hasSeenBadge, markBadgeAsSeen, calculateUserStats } from '../utils/badgeSystem';
-import { checkAndNotifyInterestPlace } from '../utils/interestPlaces';
 import { analyzeImageForTags } from '../utils/aiImageAnalyzer';
 import { getWeatherByRegion } from '../api/weather';
 import { createPostSupabase, getMergedMyPostsForStats, fetchPostByIdSupabase, updatePostSupabase } from '../api/postsSupabase';
@@ -1597,12 +1596,6 @@ const UploadScreen = () => {
           setShowSuccessModal(true);
 
           logger.log('Backend upload success! Checking badges...');
-
-          // 관심 지역/장소 알림 발송
-          setTimeout(async () => {
-            logger.log('🔔 관심 지역/장소 알림 체크 중...');
-            await checkAndNotifyInterestPlace(uploadedPost);
-          }, 200);
 
           // 보조 리스너용 (postsUpdated는 위에서 즉시 발생)
           setTimeout(() => {

@@ -55,7 +55,6 @@ const BusinessInfoScreen = lazy(() => import('./pages/BusinessInfoScreen'))
 const TermsOfServiceScreen = lazy(() => import('./pages/TermsOfServiceScreen'))
 const UploadGuideScreen = lazy(() => import('./pages/UploadGuideScreen'))
 const NotificationsScreen = lazy(() => import('./pages/NotificationsScreen'))
-const InterestPlacesScreen = lazy(() => import('./pages/InterestPlacesScreen'))
 const RealtimeFeedScreen = lazy(() => import('./pages/RealtimeFeedScreen'))
 const CrowdedPlaceScreen = lazy(() => import('./pages/CrowdedPlaceScreen'))
 const RecommendedPlaceFeedScreen = lazy(() => import('./pages/RecommendedPlaceFeedScreen'))
@@ -142,7 +141,6 @@ function App() {
                 <Route path="/badge/achievement" element={<BadgeAchievementScreen />} />
                 <Route path="/coupons" element={<MyCouponsScreen />} />
                 <Route path="/notifications" element={<NotificationsScreen />} />
-                <Route path="/interest-places" element={<InterestPlacesScreen />} />
                 <Route path="/notices" element={<NoticesScreen />} />
                 <Route path="/faq" element={<FAQScreen />} />
                 <Route path="/inquiry" element={<InquiryScreen />} />

@@ -12,7 +12,6 @@ import { getWeatherByRegion } from '../api/weather';
 import PostThumbnail from '../components/PostThumbnail';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import BackButton from '../components/BackButton';
-import InterestPlacesContent from '../components/InterestPlacesContent';
 import { normalizeRegionName } from '../utils/regionNames';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 
@@ -69,7 +68,6 @@ const SearchScreen = () => {
   const [searchEvents, setSearchEvents] = useState([]);
   const [photoFocusMode, setPhotoFocusMode] = useState(false);
   const [weatherData, setWeatherData] = useState({});
-  const [showInterestPlacesModal, setShowInterestPlacesModal] = useState(false);
   const [cycleIndex, setCycleIndex] = useState(0);
 
   const recommendedScrollRef = useRef(null);
@@ -523,7 +521,7 @@ const SearchScreen = () => {
     }
   }, [searchParams]);
 
-  // 전체 게시물 (Supabase + 로컬), 최근 검색어, 검색 횟수, 관심 지역 로드
+  // 전체 게시물 (Supabase + 로컬), 최근 검색어, 검색 횟수 로드
   useEffect(() => {
     const loadAllPosts = async () => {
       const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
@@ -677,24 +675,6 @@ const SearchScreen = () => {
           className="screen-body flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain"
           style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}
         >
-          {/* 관심 지역 설정 - 스크롤과 함께 이동 */}
-          <div className="px-4 pt-1 pb-2">
-            <button
-              type="button"
-              onClick={() => setShowInterestPlacesModal(true)}
-              className="w-full flex items-center justify-between py-2 px-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left"
-            >
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-[20px]">location_on</span>
-                <div>
-                  <span className="text-[#1c140d] dark:text-background-light font-semibold text-sm block">관심 지역 설정</span>
-                  <span className="text-gray-500 dark:text-gray-400 text-xs">알림 받을 지역 추가·관리</span>
-                </div>
-              </div>
-              <span className="material-symbols-outlined text-gray-400 dark:text-gray-500 text-[20px]">chevron_right</span>
-            </button>
-          </div>
-
           {/* 최근 검색한 지역 - 해시태그 위 (공간 최소화) */}
           {recentRegionSearches.length > 0 && (
             <div className={`px-4 pt-1 pb-1 ${showSuggestions ? 'opacity-30' : ''}`}>
@@ -915,39 +895,6 @@ const SearchScreen = () => {
 
         </div>
       </div>
-
-      {/* 관심 지역 설정 팝업 - 화면에 맞게 */}
-      {showInterestPlacesModal && (
-        <div
-          className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center p-0 sm:p-4"
-          style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
-          onClick={() => setShowInterestPlacesModal(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="관심 지역 설정"
-        >
-          <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
-          <div
-            className="relative w-full max-w-md bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-xl flex flex-col min-h-0 h-[90dvh] max-h-[90dvh] sm:h-auto sm:max-h-[85vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-white">관심 지역 설정</h2>
-              <button
-                type="button"
-                onClick={() => setShowInterestPlacesModal(false)}
-                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"
-                aria-label="닫기"
-              >
-                <span className="material-symbols-outlined text-xl">close</span>
-              </button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-3 pb-6">
-              <InterestPlacesContent compact />
-            </div>
-          </div>
-        </div>
-      )}
 
       <BottomNavigation />
     </div >

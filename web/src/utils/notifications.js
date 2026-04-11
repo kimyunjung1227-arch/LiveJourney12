@@ -17,11 +17,6 @@ const NOTIFICATION_TYPES = {
     iconBg: 'bg-primary/10',
     iconColor: 'text-primary'
   },
-  interest: {
-    icon: 'place',
-    iconBg: 'bg-teal-100 dark:bg-teal-900/20',
-    iconColor: 'text-teal-600'
-  },
   like: {
     icon: 'favorite',
     iconBg: 'bg-red-100 dark:bg-red-900/20',
@@ -119,7 +114,7 @@ export const syncNotificationsFromSupabase = async (userId) => {
     };
   });
 
-  // 서버에 행이 없거나 조회 실패 시에도 관심지역·로컬 전용 알림이 사라지지 않도록 병합
+  // 서버에 행이 없거나 조회 실패 시에도 로컬 전용 알림이 사라지지 않도록 병합
   const serverIds = new Set(mapped.map((m) => String(m.id)));
   const keptLocal = existing.filter((n) => !serverIds.has(String(n.id || '')));
   const merged = [...mapped, ...keptLocal];

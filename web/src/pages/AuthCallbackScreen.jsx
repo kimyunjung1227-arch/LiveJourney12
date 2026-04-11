@@ -44,7 +44,7 @@ const AuthCallbackScreen = () => {
             
             logger.log('✅ 소셜 로그인 성공:', user);
             
-            // 로그인 후 바로 메인으로 (관심지역 설정 단계 제거)
+            // 로그인 후 바로 메인으로
             navigate('/main', { replace: true });
           } catch (parseError) {
             logger.error('사용자 정보 파싱 오류:', parseError);

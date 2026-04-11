@@ -16,7 +16,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { getWeatherByRegion } from '../api/weather';
 import { getTimeAgo } from '../utils/dateUtils';
 import { toggleLike, isPostLiked, setLikedPostLocalCache, addComment, deleteCommentFromPost, updateCommentInPost, getPostAccuracyCount, hasUserMarkedAccurate, toggleAccuracyFeedback } from '../utils/socialInteractions';
-import { toggleInterestPlace, isInterestPlace } from '../utils/interestPlaces';
 import { getEarnedBadgesForUser } from '../utils/badgeSystem';
 import { getTrustRawScore, getTrustGrade } from '../utils/trustIndex';
 import { follow, unfollow, isFollowing } from '../utils/followSystem';
@@ -54,7 +53,6 @@ const PostDetailScreen = () => {
   const [likeCount, setLikeCount] = useState(post?.likes || 0);
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState([]);
-  const [isFavorited, setIsFavorited] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [representativeBadge, setRepresentativeBadge] = useState(null);
   const [userBadges, setUserBadges] = useState([]);
@@ -194,7 +192,6 @@ const PostDetailScreen = () => {
       setComments(mergeCommentsWithCache(passedPost.id, allComments));
       setLikeCount(passedPost.likes ?? passedPost.likeCount ?? 0);
       setLiked(isPostLiked(passedPost.id));
-      setIsFavorited(isInterestPlace(passedPost.location || passedPost.placeName));
       setAccuracyMarked(hasUserMarkedAccurate(passedPost.id));
       setAccuracyCount(getPostAccuracyCount(passedPost.id));
       setLoading(false);
@@ -223,7 +220,6 @@ const PostDetailScreen = () => {
           } else {
             setLiked(isPostLiked(fresh.id));
           }
-          setIsFavorited(isInterestPlace(fresh.location || fresh.placeName));
           setAccuracyMarked(hasUserMarkedAccurate(fresh.id));
           setAccuracyCount(getPostAccuracyCount(fresh.id));
           setLoading(false);
@@ -248,7 +244,6 @@ const PostDetailScreen = () => {
         setComments(mergeCommentsWithCache(localPost.id, allComments));
         setLikeCount(localPost.likes ?? localPost.likeCount ?? 0);
         setLiked(isPostLiked(localPost.id));
-        setIsFavorited(isInterestPlace(localPost.location || localPost.placeName));
         setAccuracyMarked(hasUserMarkedAccurate(localPost.id));
         setAccuracyCount(getPostAccuracyCount(localPost.id));
         setLoading(false);
@@ -266,7 +261,6 @@ const PostDetailScreen = () => {
         setComments(mergeCommentsWithCache(serverPost.id, [...serverComments, ...qnaFormatted]));
         setLikeCount(serverPost.likesCount ?? serverPost.likes ?? 0);
         setLiked(isPostLiked(serverPost.id));
-        setIsFavorited(isInterestPlace(serverPost.location || serverPost.placeName));
         setAccuracyMarked(hasUserMarkedAccurate(serverPost.id));
         setAccuracyCount(getPostAccuracyCount(serverPost.id));
       } else {
@@ -360,27 +354,6 @@ const PostDetailScreen = () => {
   }, [post?.id]);
 
   // 좋아요 처리
-  const handleFavorite = useCallback(() => {
-    if (!post) return;
-
-    const place = {
-      name: post.location || post.placeName || '장소',
-      location: post.location || post.placeName,
-      region: post.region || post.location?.split(' ')[0],
-      coordinates: post.coordinates
-    };
-
-    const newState = toggleInterestPlace(place);
-    setIsFavorited(newState);
-
-    // 토스트 메시지
-    if (newState) {
-      console.log(`⭐ "${place.name}" 관심 장소 추가!`);
-    } else {
-      console.log(`⭐ "${place.name}" 관심 장소 해제`);
-    }
-  }, [post]);
-
   const handleLike = useCallback(() => {
     if (!post) return;
 
@@ -1628,7 +1601,7 @@ const PostDetailScreen = () => {
             </button>
           </div>
 
-          {/* 인터랙션 바 — 좌: 좋아요·댓글 / 우: 북마크(관심)·공유 */}
+          {/* 인터랙션 바 — 좌: 좋아요·댓글 / 우: 공유 */}
           <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3 dark:border-gray-800">
             <div className="flex items-center gap-5">
               <button type="button" onClick={handleLike} className="flex items-center gap-1.5" aria-label="좋아요">
@@ -1666,19 +1639,6 @@ const PostDetailScreen = () => {
               </button>
             </div>
             <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={handleFavorite}
-                className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-                aria-label={isFavorited ? '관심 장소 해제' : '관심 장소 등록'}
-              >
-                <span
-                  className={`material-symbols-outlined text-[26px] ${isFavorited ? 'text-primary' : 'text-gray-600 dark:text-gray-400'}`}
-                  style={isFavorited ? { fontVariationSettings: "'FILL' 1" } : {}}
-                >
-                  {isFavorited ? 'bookmark' : 'bookmark_border'}
-                </span>
-              </button>
               <div className="relative" ref={shareMenuRef}>
                 <button
                   type="button"

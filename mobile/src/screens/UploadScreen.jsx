@@ -30,7 +30,6 @@ import { checkAndAwardTitles } from '../utils/dailyTitleSystem';
 import { gainExp } from '../utils/levelSystem';
 import { checkNewBadges, awardBadge, calculateUserStats } from '../utils/badgeSystem';
 import { getBadgeCongratulationMessage, getBadgeDifficultyEffects } from '../utils/badgeMessages';
-import { checkAndNotifyInterestPlace } from '../utils/interestPlaces';
 import { ScreenLayout, ScreenContent, ScreenHeader, ScreenBody } from '../components/ScreenLayout';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');

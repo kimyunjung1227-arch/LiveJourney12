@@ -67,16 +67,6 @@ const SettingsScreen = () => {
             />
           </View>
 
-          <TouchableOpacity
-            style={styles.settingItem}
-            onPress={() => navigation.navigate('InterestPlaces')}
-          >
-            <View style={styles.settingLabelContainer}>
-              <Ionicons name="star" size={20} color={COLORS.primary} style={{marginRight: 12}} />
-              <Text style={styles.settingLabel}>관심 지역/장소 관리</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
         </View>
 
         {/* 구분선 */}

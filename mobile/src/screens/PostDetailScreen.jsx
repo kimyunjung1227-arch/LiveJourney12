@@ -24,7 +24,6 @@ import { getTimeAgo } from '../utils/timeUtils';
 import { buildMediaItemsFromPost } from '../utils/postMedia';
 import { guessWeatherRegionKey, getWeatherByRegion } from '../utils/weatherApi';
 import { toggleLike, isPostLiked, addComment } from '../utils/socialInteractions';
-import { toggleInterestPlace, isInterestPlace } from '../utils/interestPlaces';
 import { ScreenLayout, ScreenContent, ScreenHeader, ScreenBody } from '../components/ScreenLayout';
 import { BADGES, getEarnedBadgesForUser } from '../utils/badgeSystem';
 import { getUserLevel } from '../utils/levelSystem';
@@ -64,7 +63,6 @@ const PostDetailScreen = () => {
 
   const [post, setPost] = useState(passedPost);
   const [loading, setLoading] = useState(!passedPost);
-  const [isFavorited, setIsFavorited] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [currentPostIndexState, setCurrentPostIndexState] = useState(currentPostIndex || 0);
   const [liked, setLiked] = useState(false);
@@ -401,9 +399,6 @@ const PostDetailScreen = () => {
       await loadRepresentativeBadge(postUserId);
     }
 
-    // 즐겨찾기 상태 업데이트
-    isInterestPlace(newPost.location || newPost.placeName).then(setIsFavorited);
-
     setTimeout(() => {
       setIsTransitioning(false);
     }, 300);
@@ -491,13 +486,6 @@ const PostDetailScreen = () => {
   useEffect(() => {
     fetchPost();
   }, [fetchPost]);
-
-  // 초기 즐겨찾기 상태 확인
-  useEffect(() => {
-    if (post) {
-      isInterestPlace(post.location || post.placeName).then(setIsFavorited);
-    }
-  }, [post]);
 
   useEffect(() => {
     setDetailVideoMuted(true);

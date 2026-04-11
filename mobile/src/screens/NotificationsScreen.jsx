@@ -27,7 +27,6 @@ const formatWhen = (n) => {
 const NotificationsScreen = () => {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const [filter, setFilter] = useState('all');
   const [items, setItems] = useState([]);
 
   const load = useCallback(async () => {
@@ -41,9 +40,6 @@ const NotificationsScreen = () => {
     }, [load])
   );
 
-  const filtered =
-    filter === 'interest' ? items.filter((n) => n.type === 'interest') : items;
-
   const onOpen = async (n) => {
     if (!n.read) await markNotificationAsRead(n.id);
     await load();
@@ -55,8 +51,6 @@ const NotificationsScreen = () => {
     await deleteNotification(id);
     await load();
   };
-
-  const interestCount = items.filter((n) => n.type === 'interest').length;
 
   const renderItem = ({ item: n }) => (
     <TouchableOpacity
@@ -94,27 +88,8 @@ const NotificationsScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.tabs}>
-        <TouchableOpacity
-          style={[styles.tab, filter === 'all' && styles.tabOn]}
-          onPress={() => setFilter('all')}
-        >
-          <Text style={[styles.tabText, filter === 'all' && styles.tabTextOn]}>
-            전체 ({items.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, filter === 'interest' && styles.tabOn]}
-          onPress={() => setFilter('interest')}
-        >
-          <Text style={[styles.tabText, filter === 'interest' && styles.tabTextOn]}>
-            관심지역 소식 ({interestCount})
-          </Text>
-        </TouchableOpacity>
-      </View>
-
       <FlatList
-        data={filtered}
+        data={items}
         keyExtractor={(n) => n.id}
         renderItem={renderItem}
         contentContainerStyle={styles.list}
@@ -142,22 +117,6 @@ const styles = StyleSheet.create({
   back: { padding: 8 },
   headerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text },
   markAll: { fontSize: 13, fontWeight: '600', color: COLORS.primary, padding: 8 },
-  tabs: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-    gap: 10,
-  },
-  tab: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 22,
-    backgroundColor: '#f1f5f9',
-  },
-  tabOn: { backgroundColor: COLORS.primary },
-  tabText: { fontSize: 13, fontWeight: '700', color: '#64748b' },
-  tabTextOn: { color: '#fff' },
   list: { paddingBottom: 24 },
   row: {
     flexDirection: 'row',

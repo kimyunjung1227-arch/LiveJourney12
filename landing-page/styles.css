@@ -1055,73 +1055,6 @@ a {
   color: var(--gray-400);
 }
 
-/* 관심 지역 (스토리 스타일) */
-.interest-places {
-  display: flex;
-  gap: 10px;
-  padding: 0 16px 6px 16px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.interest-places::-webkit-scrollbar {
-  display: none;
-}
-
-.interest-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  min-width: 52px;
-}
-
-.interest-avatar {
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  background: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  border: 2px solid transparent;
-  color: #4B5563;
-  box-shadow: none;
-}
-
-.interest-avatar .material-symbols-outlined {
-  font-weight: 300;
-}
-
-.interest-item.active .interest-avatar {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px var(--primary-light);
-}
-
-.interest-name {
-  font-size: 10px;
-  font-weight: 500;
-  color: #374151;
-  text-align: center;
-  white-space: nowrap;
-}
-
-.interest-item.active .interest-name {
-  color: var(--primary);
-}
-
-/* 추가 버튼 스타일 */
-.interest-item:last-child .interest-avatar {
-  background: linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%);
-  border: 1.5px dashed #9CA3AF;
-  color: #9CA3AF;
-}
-
-.interest-item:last-child .interest-name {
-  color: #9CA3AF;
-}
-
 /* 앱 콘텐츠 */
 .app-content {
   padding: 0 0 20px 0;
@@ -3266,63 +3199,6 @@ a {
   font-weight: 400;
 }
 
-/* 관심 지역 (Instagram 스토리 스타일) */
-.how-interest-places {
-  display: flex;
-  gap: 14px;
-  padding: 0 16px 14px 16px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.how-interest-places::-webkit-scrollbar {
-  display: none;
-}
-
-.how-interest-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  min-width: 64px;
-}
-
-.how-interest-avatar {
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  background: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  border: 2.5px solid transparent;
-  color: #4B5563;
-}
-
-.how-interest-avatar .material-symbols-outlined {
-  font-size: 28px;
-  color: #4B5563;
-  font-weight: 300;
-}
-
-.how-interest-item.active .how-interest-avatar {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px var(--primary-light);
-}
-
-.how-interest-item.active .how-interest-avatar .material-symbols-outlined {
-  color: var(--primary);
-}
-
-.how-interest-name {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--gray-700);
-  text-align: center;
-  white-space: nowrap;
-}
-
 /* 실시간 피드 섹션 */
 .how-feed-section {
   padding: 0 16px 16px 16px;
@@ -4359,12 +4235,6 @@ a {
 
   .how-phone-screen {
     height: 360px;
-  }
-
-  .how-interest-avatar {
-    width: 48px;
-    height: 48px;
-    font-size: 24px;
   }
 
   .how-feed-card-small img {

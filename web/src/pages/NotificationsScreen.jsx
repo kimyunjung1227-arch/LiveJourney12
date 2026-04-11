@@ -19,7 +19,6 @@ const typeMeta = {
   comment: { icon: 'chat_bubble', bg: 'bg-zinc-100 dark:bg-zinc-800' },
   follow: { icon: 'person', bg: 'bg-zinc-100 dark:bg-zinc-800' },
   post: { icon: 'photo_camera', bg: 'bg-zinc-100 dark:bg-zinc-800' },
-  interest: { icon: 'place', bg: 'bg-zinc-100 dark:bg-zinc-800' },
   system: { icon: 'notifications', bg: 'bg-zinc-100 dark:bg-zinc-800' },
 };
 
@@ -40,7 +39,6 @@ function bucketLabel(daysAgo) {
 const NotificationsScreen = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [filter, setFilter] = useState('all');
   const [showMarkAllReadModal, setShowMarkAllReadModal] = useState(false);
   const [allNotifications, setAllNotifications] = useState([]);
   const [, setTick] = useState(0);
@@ -63,12 +61,8 @@ const NotificationsScreen = () => {
   };
 
   const filteredNotifications = useMemo(() => {
-    const list =
-      filter === 'interest'
-        ? allNotifications.filter((n) => n.type === 'interest')
-        : allNotifications;
-    return [...list].sort((a, b) => notificationTimeMs(b) - notificationTimeMs(a));
-  }, [allNotifications, filter]);
+    return [...allNotifications].sort((a, b) => notificationTimeMs(b) - notificationTimeMs(a));
+  }, [allNotifications]);
 
   const grouped = useMemo(() => {
     const now = Date.now();
@@ -218,31 +212,6 @@ const NotificationsScreen = () => {
         </header>
 
         <div className="screen-body">
-          <div className="flex gap-2 border-b border-border-light bg-white px-3 py-2.5 dark:border-border-dark dark:bg-gray-900">
-            <button
-              type="button"
-              onClick={() => setFilter('all')}
-              className={`flex-1 rounded-full py-2 text-xs font-semibold transition-colors ${
-                filter === 'all'
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
-              }`}
-            >
-              전체 ({allNotifications.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilter('interest')}
-              className={`flex-1 rounded-full py-2 text-xs font-semibold transition-colors ${
-                filter === 'interest'
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700'
-              }`}
-            >
-              관심지역 ({allNotifications.filter((n) => n.type === 'interest').length})
-            </button>
-          </div>
-
           <div className="pb-24 pt-1">
             {filteredNotifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center px-6 py-20">
