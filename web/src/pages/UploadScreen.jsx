@@ -19,7 +19,6 @@ import { slugsFromAnalysisResult } from '../utils/travelCategories';
 import { normalizeRegionName } from '../utils/regionNames';
 import { searchPlaceWithKakaoFirst } from '../utils/kakaoPlacesGeocode';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
-import { addMissionResponse, updateMissionResponseLinkedPostId } from '../utils/sosMissionStore';
 import StatusBadge from '../components/StatusBadge';
 import { usePhotoValidation } from '../hooks/usePhotoValidation';
 import { useExifConsent } from '../contexts/ExifConsentContext';
@@ -260,21 +259,6 @@ const UploadScreen = () => {
   const setBadgeAnimationKeyRef = useRef(setBadgeAnimationKey);
   setBadgeAnimationKeyRef.current = setBadgeAnimationKey;
   const [editFormReady, setEditFormReady] = useState(!editingPostId);
-  const missionContext = location.state?.fromMission ? {
-    missionId: location.state?.missionId,
-    missionQuestion: location.state?.missionQuestion,
-    missionLocationName: location.state?.missionLocationName,
-    missionCoordinates: location.state?.missionCoordinates
-  } : null;
-
-  useEffect(() => {
-    if (!missionContext) return;
-    setFormData((prev) => ({
-      ...prev,
-      location: prev.location || missionContext.missionLocationName || '',
-      coordinates: prev.coordinates || missionContext.missionCoordinates || null
-    }));
-  }, [missionContext]);
 
   const lastEditRouteIdRef = useRef(null);
 
@@ -743,7 +727,7 @@ const UploadScreen = () => {
             coordinates: prev.coordinates || exifCoordinates || null,
           }));
 
-          if (!exifData.gpsCoordinates && !missionContext) {
+          if (!exifData.gpsCoordinates) {
             getCurrentLocation();
           }
         } else {
@@ -755,7 +739,7 @@ const UploadScreen = () => {
             photoDate: null,
             verifiedLocation: null,
           }));
-          if (!missionContext) getCurrentLocation();
+          getCurrentLocation();
         }
 
         const { location: loc, note } = locNoteRef.current;
@@ -771,7 +755,7 @@ const UploadScreen = () => {
             photoDate: null,
             verifiedLocation: null,
           }));
-          if (!missionContext) getCurrentLocation();
+          getCurrentLocation();
           const { location: loc, note } = locNoteRef.current;
           lastExifAiKeyRef.current = fk;
           analyzeImageAndGenerateTags(f, loc, note, null);
@@ -791,7 +775,6 @@ const UploadScreen = () => {
     formData.exifForFileKey,
     analyzeImageAndGenerateTags,
     getCurrentLocation,
-    missionContext,
   ]);
 
   const generateVideoTags = useCallback(async (locationName = '', noteText = '') => {
@@ -865,12 +848,12 @@ const UploadScreen = () => {
       if (isFirstMedia && (imageFiles.length > 0 || videoFiles.length > 0)) {
         const firstNewImage = imageFiles[0];
         if (!firstNewImage || firstNewImage.type.startsWith('video/')) {
-          if (!missionContext) getCurrentLocation();
+          getCurrentLocation();
           generateVideoTags(formData.location, formData.note);
         }
       }
     },
-    [formData.images.length, formData.videos.length, formData.location, formData.note, getCurrentLocation, missionContext, generateVideoTags]
+    [formData.images.length, formData.videos.length, formData.location, formData.note, getCurrentLocation, generateVideoTags]
   );
 
   const handleImageSelect = useCallback(
@@ -1510,22 +1493,6 @@ const UploadScreen = () => {
             verifiedLocation: formData.verifiedLocation || null // EXIF에서 검증된 위치
           };
 
-          const missionResponseId = missionContext?.missionId ? `resp-${Date.now()}` : null;
-          if (missionContext?.missionId) {
-            addMissionResponse(missionContext.missionId, {
-              id: missionResponseId,
-              responderId: currentUserId,
-              responderName: username,
-              note: descriptionWithDate || `${formData.location} 현장 정보`,
-              photoUrl: finalImages[0] || '',
-              linkedPostId: uploadedPost.id,
-              locationName: missionContext.missionLocationName || formData.location,
-              coordinates: missionContext.missionCoordinates || formData.coordinates || null,
-              status: 'pending',
-              createdAt: new Date().toISOString()
-            });
-          }
-
           // localStorage에도 이미지/동영상 URL 저장 (표시용; 서버 또는 blob URL)
           const sanitizedPost = {
             ...uploadedPost,
@@ -1594,9 +1561,6 @@ const UploadScreen = () => {
                     localStorage.setItem('uploadedPosts', JSON.stringify(current));
                   }
                 } catch (_) {}
-                if (missionContext?.missionId && missionResponseId) {
-                  updateMissionResponseLinkedPostId(missionContext.missionId, missionResponseId, supabasePostId);
-                }
                 window.dispatchEvent(new Event('postsUpdated'));
               }
             } else {
@@ -1934,12 +1898,6 @@ const UploadScreen = () => {
           WebkitOverflowScrolling: 'touch',
           minHeight: 0
         }}>
-          {missionContext && (
-            <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2">
-              <p className="text-[11px] font-semibold text-sky-700">미션 정보 제공 업로드</p>
-              <p className="text-xs text-sky-900 mt-1 truncate">{missionContext.missionLocationName || '근처 지역'} · {missionContext.missionQuestion || '지금 상황 미션'}</p>
-            </div>
-          )}
           <div className="pt-4 space-y-5">
             {/* 사진 / 동영상 + 업로드 가이드 버튼 한 줄 */}
             <div className="flex items-center justify-between px-1 mb-1">
@@ -2118,37 +2076,34 @@ const UploadScreen = () => {
                     className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft min-h-[40px] h-10 px-3 text-sm font-normal placeholder:text-gray-400"
                       placeholder="위치를 입력해 주세요."
                       value={formData.location}
-                      readOnly={!!missionContext}
                       onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
                     />
-                    {!missionContext && (
-                      <button
-                        type="button"
-                        onClick={getCurrentLocation}
-                        disabled={loadingLocation}
-                        style={{
-                          width: '40px',
-                          height: '40px',
-                          borderRadius: '9999px',
-                          border: 'none',
-                          background: 'white',
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: loadingLocation ? 'not-allowed' : 'pointer',
-                          opacity: loadingLocation ? 0.5 : 1,
-                          transition: 'all 0.2s'
-                        }}
-                        title="현재 위치 자동 입력"
-                      >
-                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#00BCD4' }}>
-                          {loadingLocation ? 'hourglass_empty' : 'my_location'}
-                        </span>
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={getCurrentLocation}
+                      disabled={loadingLocation}
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '9999px',
+                        border: 'none',
+                        background: 'white',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: loadingLocation ? 'not-allowed' : 'pointer',
+                        opacity: loadingLocation ? 0.5 : 1,
+                        transition: 'all 0.2s'
+                      }}
+                      title="현재 위치 자동 입력"
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#00BCD4' }}>
+                        {loadingLocation ? 'hourglass_empty' : 'my_location'}
+                      </span>
+                    </button>
                   </div>
-                  {loadingLocation && !missionContext && (
+                  {loadingLocation && (
                     <p className="text-xs text-primary mt-1">위치를 찾고 있어요...</p>
                   )}
                 </div>

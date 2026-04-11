@@ -12,7 +12,7 @@ import { fetchPostsSupabase } from '../api/postsSupabase';
 import { logger } from '../utils/logger';
 import { getMapThumbnailUri, getFirstVideoUriFromPost } from '../utils/postMedia';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
-import { appendSOSMission, getSOSMissions } from '../utils/sosMissionStore';
+import { appendSOSMission } from '../utils/sosMissionStore';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
 
@@ -592,12 +592,12 @@ const MapScreen = () => {
   const [selectedPost, setSelectedPost] = useState(null); // 선택된 게시물 (상세화면용)
   const [selectedPinId, setSelectedPinId] = useState(null); // 지도/시트에서 선택된 핀 ID (강조 표시용)
   const [pinDetailView, setPinDetailView] = useState(null); // 지도 핀 또는 하단 시트 선택 시 보여줄 설명 카드 { post } (통일)
-  const [showSOSModal, setShowSOSModal] = useState(false); // 도움 요청 모달 표시 여부
+  const [showSOSModal, setShowSOSModal] = useState(false); // 1단계: 위치 선택 모달
+  const [showSOSQuestionSheet, setShowSOSQuestionSheet] = useState(false); // 2단계: 지도 위 질문 입력 시트
   const [selectedSOSLocation, setSelectedSOSLocation] = useState(null); // 선택된 도움 요청 위치
   const [sosQuestion, setSosQuestion] = useState(''); // 궁금한 내용
   const [sosLocationSearch, setSosLocationSearch] = useState('');
   const [sosLocationSuggestions, setSosLocationSuggestions] = useState([]);
-  const [missionFeedTick, setMissionFeedTick] = useState(0);
   const [isSelectingLocation, setIsSelectingLocation] = useState(false); // 지도에서 위치 선택 중인지 여부
   const [showAdModal, setShowAdModal] = useState(false); // 광고 모달 표시 여부
   const [pendingSOSRequest, setPendingSOSRequest] = useState(null); // 광고를 보기 전 대기 중인 도움 요청
@@ -614,10 +614,6 @@ const MapScreen = () => {
   const isRouteModeRef = useRef(false); // 최신 경로 모드 상태 저장용 ref
   const setSelectedPinIdRef = useRef(() => {});
   const setPinDetailViewRef = useRef(() => {});
-  const sosMissions = useMemo(
-    () => getSOSMissions().filter((m) => m && typeof m === 'object' && m.status !== 'resolved'),
-    [missionFeedTick]
-  );
   useEffect(() => {
     const query = (sosLocationSearch || '').trim();
     if (!query) {
@@ -1967,11 +1963,28 @@ const MapScreen = () => {
   };
 
   const handleSOSRequest = () => {
-    // 도움 요청 모달 열기
     setSelectedSOSLocation(null);
     setSosLocationSearch('');
+    setSosQuestion('');
     setIsSelectingLocation(false);
+    setShowSOSQuestionSheet(false);
     setShowSOSModal(true);
+  };
+
+  /** 위치 선택 완료 → 전체 지도 + 질문 시트 */
+  const goToSOSQuestionStep = () => {
+    if (!selectedSOSLocation) {
+      alert('위치를 선택해주세요.');
+      return;
+    }
+    setShowSOSModal(false);
+    setIsSelectingLocation(false);
+    setShowSOSQuestionSheet(true);
+    if (map && selectedSOSLocation && window.kakao?.maps) {
+      updateSOSMarker(map, selectedSOSLocation);
+      map.panTo(new window.kakao.maps.LatLng(selectedSOSLocation.lat, selectedSOSLocation.lng));
+      map.setLevel(4);
+    }
   };
 
   // 도움 요청 위치 마커 업데이트 (내 위치 표시와 동일한 스타일: 하늘색 원점 + 파동)
@@ -2271,6 +2284,21 @@ const MapScreen = () => {
     };
   }, [selectedSOSLocation, showSOSModal, isSelectingLocation]);
 
+  // 질문 단계에서 지도 클릭으로 위치 변경
+  useEffect(() => {
+    if (!map || !showSOSQuestionSheet || !window.kakao?.maps?.event) return undefined;
+    const listener = (mouseEvent) => {
+      const latlng = mouseEvent.latLng;
+      const loc = { lat: latlng.getLat(), lng: latlng.getLng() };
+      setSelectedSOSLocation(loc);
+      updateSOSMarker(map, loc);
+    };
+    window.kakao.maps.event.addListener(map, 'click', listener);
+    return () => {
+      window.kakao.maps.event.removeListener(map, 'click', listener);
+    };
+  }, [map, showSOSQuestionSheet]);
+
   // 도움 요청 제출
   const handleSOSSubmit = () => {
     if (!selectedSOSLocation) {
@@ -2292,8 +2320,8 @@ const MapScreen = () => {
       userId: 'current-user' // TODO: 실제 사용자 ID로 교체
     };
 
-    // 모달 닫고 광고 모달 표시
     setShowSOSModal(false);
+    setShowSOSQuestionSheet(false);
     setPendingSOSRequest(newSOSRequest);
     setShowAdModal(true);
   };
@@ -2312,18 +2340,6 @@ const MapScreen = () => {
       map.setLevel(4);
       updateSOSMarker(map, point);
     }
-  };
-
-  const handleProvideMissionInfo = (mission) => {
-    navigate('/upload', {
-      state: {
-        fromMission: true,
-        missionId: mission.id,
-        missionQuestion: mission.question,
-        missionLocationName: mission.locationName,
-        missionCoordinates: mission.coordinates
-      }
-    });
   };
 
   // 광고를 본 후 도움 요청 완료
@@ -2360,7 +2376,6 @@ const MapScreen = () => {
         createdAt: new Date().toISOString()
       };
       appendSOSMission(mission);
-      setMissionFeedTick((v) => v + 1);
 
       // 라이브저니 스타일 알림 생성 (속보형 + 개인화)
       // 속보형: 궁금증을 유발하는 텍스트 스니펫
@@ -2392,6 +2407,7 @@ const MapScreen = () => {
       setSosQuestion('');
       setSosLocationSearch('');
       setIsSelectingLocation(false);
+      setShowSOSQuestionSheet(false);
       setSelectedSOSLocation(null);
 
       // 마커 제거
@@ -2400,19 +2416,19 @@ const MapScreen = () => {
         sosMarkerRef.current = null;
       }
 
-      // 외부 시스템에서 알림이 전송된 것처럼 메시지 표시
-      alert('도움 요청이 등록되었습니다.\n근처에 있는 분들에게 알림이 전송되었습니다.');
+      alert('지금 상황 알아보기 요청이 등록되었습니다.\n근처에 있는 분들에게 알림이 전송되었습니다.');
     } catch (error) {
-      logger.error('도움 요청 저장 실패:', error);
-      alert('도움 요청 등록에 실패했습니다. 다시 시도해주세요.');
+      logger.error('상황 알아보기 요청 저장 실패:', error);
+      alert('등록에 실패했습니다. 다시 시도해주세요.');
       setShowAdModal(false);
       setPendingSOSRequest(null);
     }
   };
 
-  // 도움 요청 모달 닫기
+  // 상황 알아보기 흐름 닫기
   const handleSOSModalClose = () => {
     setShowSOSModal(false);
+    setShowSOSQuestionSheet(false);
     setSosQuestion('');
     setSosLocationSearch('');
     setIsSelectingLocation(false);
@@ -2446,8 +2462,9 @@ const MapScreen = () => {
 
   // 지도에서 위치 선택하기 시작
   const handleStartLocationSelection = () => {
+    setShowSOSQuestionSheet(false);
     setIsSelectingLocation(true);
-    setShowSOSModal(false); // 모달 닫기
+    setShowSOSModal(false);
 
     // 기존 SOS 마커 제거 (중심 마커로 대체됨)
     if (sosMarkerRef.current) {
@@ -4193,12 +4210,7 @@ const MapScreen = () => {
               </span>
               <button
                 onClick={() => {
-                  setIsSelectingLocation(false);
-                  // 선택된 위치에 일반 마커 표시
-                  if (map && selectedSOSLocation) {
-                    updateSOSMarker(map, selectedSOSLocation);
-                  }
-                  setShowSOSModal(true);
+                  goToSOSQuestionStep();
                 }}
                 style={{
                   width: '100%',
@@ -4227,7 +4239,7 @@ const MapScreen = () => {
           </div>
         )}
 
-        {/* 도움 요청 모달 */}
+        {/* 지금 상황 알아보기 — 위치 선택 모달 */}
         {showSOSModal && !isSelectingLocation && (
           <>
             {/* 모달 배경 - 지도가 보이도록 반투명 */}
@@ -4287,7 +4299,7 @@ const MapScreen = () => {
                     fontWeight: 'bold',
                     color: '#333'
                   }}>
-                    도움 요청
+                    지금 상황 알아보기
                   </span>
                   <button
                     onClick={handleSOSModalClose}
@@ -4424,137 +4436,189 @@ const MapScreen = () => {
                     )}
                   </div>
 
-                  {/* 내용 입력 */}
-                  <div>
-                    <span style={{
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      color: '#333',
-                      display: 'block',
-                      marginBottom: '10px'
-                    }}>
-                      내용
-                    </span>
-                    <textarea
-                      value={sosQuestion}
-                      onChange={(e) => setSosQuestion(e.target.value)}
-                      placeholder="무엇이 궁금하신가요?"
-                      style={{
-                        width: '100%',
-                        minHeight: '80px',
-                        padding: '12px',
-                        border: '1px solid #e0e0e0',
-                        borderRadius: '12px',
-                        fontSize: '14px',
-                        fontFamily: 'inherit',
-                        resize: 'vertical',
-                        outline: 'none',
-                        lineHeight: '1.6',
-                        background: '#fafafa'
-                      }}
-                      onFocus={(e) => {
-                        e.target.style.borderColor = '#00BCD4';
-                        e.target.style.background = 'white';
-                      }}
-                      onBlur={(e) => {
-                        e.target.style.borderColor = '#e0e0e0';
-                        e.target.style.background = '#fafafa';
-                      }}
-                    />
-                  </div>
-
-                  <div style={{ marginTop: '16px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <p style={{ margin: 0, fontSize: '13px', fontWeight: '700', color: '#111827' }}>
-                        열린 미션
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => navigate('/my-missions')}
-                        style={{ border: 'none', background: 'transparent', color: '#0284c7', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}
-                      >
-                        내가 올린 미션
-                      </button>
-                    </div>
-                    <p style={{ margin: '0 0 10px 0', fontSize: '11px', color: '#6b7280' }}>
-                      정보 제공은 업로드 화면에서 진행됩니다.
-                    </p>
-                    <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {sosMissions.length === 0 && (
-                        <div style={{ fontSize: '12px', color: '#9ca3af', textAlign: 'center', padding: '8px' }}>
-                          등록된 미션이 없습니다.
-                        </div>
-                      )}
-                      {sosMissions.map((mission) => {
-                        const responses = Array.isArray(mission.responses) ? mission.responses : [];
-                        return (
-                          <div key={mission.id} style={{ border: '1px solid #e5e7eb', borderRadius: '10px', padding: '8px' }}>
-                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#111827' }}>{mission.locationName || '근처 지역'}</div>
-                            <div style={{ fontSize: '12px', color: '#374151', marginTop: '2px' }}>{mission.question}</div>
-                            <div style={{ marginTop: '6px', fontSize: '11px', color: '#6b7280' }}>응답 {responses.length}개</div>
-                            {mission.status === 'open' && (
-                              <button
-                                type="button"
-                                onClick={() => handleProvideMissionInfo(mission)}
-                                style={{ marginTop: '7px', border: 'none', background: '#00BCD4', color: '#fff', borderRadius: '8px', padding: '6px 10px', fontSize: '11px', cursor: 'pointer' }}
-                              >
-                                업로드로 정보 제공하기
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  <p style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#64748b', lineHeight: 1.45 }}>
+                    다음 단계에서 궁금한 내용을 입력합니다. 지도에서 핀을 옮긴 뒤 완료를 누르면 전체 지도가 바로 보입니다.
+                  </p>
                 </div>
 
-                {/* 하단 버튼 */}
+                {/* 하단: 위치만 확정 → 지도로 */}
                 <div style={{
                   padding: '12px 20px 16px',
                   borderTop: '1px solid #f0f0f0',
                   background: '#fafafa'
                 }}>
                   <button
-                    onClick={handleSOSSubmit}
-                    disabled={!selectedSOSLocation || !sosQuestion.trim()}
+                    type="button"
+                    onClick={goToSOSQuestionStep}
+                    disabled={!selectedSOSLocation}
                     style={{
                       width: '100%',
                       padding: '14px',
-                      background: selectedSOSLocation && sosQuestion.trim() ? '#00BCD4' : '#ddd',
+                      background: selectedSOSLocation ? '#00BCD4' : '#ddd',
                       color: 'white',
                       border: 'none',
                       borderRadius: '12px',
                       fontSize: '15px',
                       fontWeight: 'bold',
-                      cursor: selectedSOSLocation && sosQuestion.trim() ? 'pointer' : 'not-allowed',
+                      cursor: selectedSOSLocation ? 'pointer' : 'not-allowed',
                       transition: 'all 0.2s',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '6px'
                     }}
-                    onMouseEnter={(e) => {
-                      if (selectedSOSLocation && sosQuestion.trim()) {
-                        e.currentTarget.style.background = '#00ACC1';
-                        e.currentTarget.style.transform = 'scale(1.02)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (selectedSOSLocation && sosQuestion.trim()) {
-                        e.currentTarget.style.background = '#00BCD4';
-                        e.currentTarget.style.transform = 'scale(1)';
-                      }
-                    }}
                   >
                     <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-                      send
+                      map
                     </span>
-                    요청하기
+                    지도에서 보고 질문 입력하기
                   </button>
                 </div>
               </div>
             </div>
           </>
+        )}
+
+        {/* 지금 상황 알아보기 — 질문 입력 (전체 지도 위, 맵 클릭으로 위치 변경 가능) */}
+        {showSOSQuestionSheet && !isSelectingLocation && !showAdModal && (
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: '68px',
+              zIndex: 1002,
+              pointerEvents: 'none',
+            }}
+          >
+            <div
+              style={{
+                margin: '0 12px 0',
+                pointerEvents: 'auto',
+                background: 'white',
+                borderRadius: '16px',
+                boxShadow: '0 -4px 24px rgba(0,0,0,0.12)',
+                border: '1px solid #e2e8f0',
+                padding: '14px 16px 16px',
+                maxHeight: '46vh',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <span style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>지금 상황 알아보기</span>
+                <button
+                  type="button"
+                  onClick={handleSOSModalClose}
+                  style={{
+                    border: 'none',
+                    background: '#f1f5f9',
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#64748b' }}>close</span>
+                </button>
+              </div>
+              <p style={{ margin: 0, fontSize: '11px', color: '#64748b', lineHeight: 1.45 }}>
+                지도 빈 곳을 누르면 그 지점으로 핀이 옮겨집니다. 검색으로 고르거나 십자선으로 고르려면 아래를 눌러 주세요.
+              </p>
+              <textarea
+                value={sosQuestion}
+                onChange={(e) => setSosQuestion(e.target.value)}
+                placeholder="무엇이 궁금하신가요?"
+                style={{
+                  width: '100%',
+                  minHeight: '88px',
+                  padding: '12px',
+                  border: '1px solid #e0e0e0',
+                  borderRadius: '12px',
+                  fontSize: '14px',
+                  fontFamily: 'inherit',
+                  resize: 'vertical',
+                  outline: 'none',
+                  lineHeight: 1.55,
+                  background: '#fafafa',
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#00BCD4';
+                  e.target.style.background = 'white';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = '#e0e0e0';
+                  e.target.style.background = '#fafafa';
+                }}
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSOSQuestionSheet(false);
+                    setShowSOSModal(true);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '11px',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 12,
+                    background: '#fff',
+                    fontWeight: 600,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    color: '#334155',
+                  }}
+                >
+                  위치 검색·설정
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStartLocationSelection}
+                  style={{
+                    flex: 1,
+                    padding: '11px',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 12,
+                    background: '#fff',
+                    fontWeight: 600,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    color: '#334155',
+                  }}
+                >
+                  지도에서 선택
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={handleSOSSubmit}
+                disabled={!selectedSOSLocation || !sosQuestion.trim()}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  background: selectedSOSLocation && sosQuestion.trim() ? '#00BCD4' : '#ddd',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '15px',
+                  fontWeight: 'bold',
+                  cursor: selectedSOSLocation && sosQuestion.trim() ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>send</span>
+                요청하기
+              </button>
+            </div>
+          </div>
         )}
 
         {/* 검색 시트 모달 */}
@@ -4888,7 +4952,7 @@ const MapScreen = () => {
                   fontSize: '14px',
                   color: '#666'
                 }}>
-                  광고를 보시면 도움 요청이 완료됩니다
+                  광고를 보시면 요청이 완료됩니다
                 </p>
               </div>
 

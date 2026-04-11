@@ -89,16 +89,7 @@ const NotificationsScreen = () => {
       loadNotifications();
     }
     if (notification.data?.type === 'sos_request' && notification.data.sosRequest) {
-      const sosRequest = notification.data.sosRequest;
-      navigate('/upload', {
-        state: {
-          fromMission: true,
-          missionId: notification.data?.missionId || `mission-${sosRequest.id || Date.now()}`,
-          missionQuestion: sosRequest.question,
-          missionLocationName: sosRequest.coordinates ? '요청 위치' : '근처 지역',
-          missionCoordinates: sosRequest.coordinates,
-        },
-      });
+      navigate('/map');
       return;
     }
     if (notification.link) navigate(notification.link);
