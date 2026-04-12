@@ -30,6 +30,13 @@ const tiles = [
     icon: 'library_books',
     path: '/admin/magazine/manage',
   },
+  {
+    id: 'raffles',
+    title: '래플 관리',
+    desc: '진행 중·완료 래플 등록 및 수정',
+    icon: 'redeem',
+    path: '/admin/raffles',
+  },
 ];
 
 const AdminHubScreen = () => {

@@ -66,6 +66,7 @@ const AdminHubScreen = lazy(() => import('./pages/AdminHubScreen'))
 const AdminPostsScreen = lazy(() => import('./pages/AdminPostsScreen'))
 const AdminNoticesScreen = lazy(() => import('./pages/AdminNoticesScreen'))
 const AdminPublishedMagazinesScreen = lazy(() => import('./pages/AdminPublishedMagazinesScreen'))
+const AdminRafflesScreen = lazy(() => import('./pages/AdminRafflesScreen'))
 
 function App() {
   // StatusBar 초기화 (앱 시작 시 한 번만)
@@ -200,6 +201,16 @@ function App() {
                     <ProtectedRoute>
                       <AdminRoute>
                         <AdminPublishedMagazinesScreen />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/raffles"
+                  element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminRafflesScreen />
                       </AdminRoute>
                     </ProtectedRoute>
                   }

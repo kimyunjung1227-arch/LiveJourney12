@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BackButton from '../components/BackButton';
 import BottomNavigation from '../components/BottomNavigation';
+import { fetchRafflesForUi } from '../api/rafflesSupabase';
 
 const GUIDE_ITEMS = [
   {
@@ -126,10 +127,25 @@ const RaffleScreen = () => {
   const navigate = useNavigate();
   const [guideOpen, setGuideOpen] = useState(null);
   const [completedExpanded, setCompletedExpanded] = useState(false);
+  const [ongoingList, setOngoingList] = useState(ONGOING_ALL);
+  const [completedSource, setCompletedSource] = useState(COMPLETED_ALL);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { ongoing, completed } = await fetchRafflesForUi();
+      if (cancelled) return;
+      if (ongoing.length > 0) setOngoingList(ongoing);
+      if (completed.length > 0) setCompletedSource(completed);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const completedList = useMemo(
-    () => (completedExpanded ? COMPLETED_ALL : COMPLETED_ALL.slice(0, INITIAL_COUNT)),
-    [completedExpanded]
+    () => (completedExpanded ? completedSource : completedSource.slice(0, INITIAL_COUNT)),
+    [completedExpanded, completedSource]
   );
 
   return (
@@ -221,7 +237,7 @@ const RaffleScreen = () => {
                   className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                   style={{ WebkitOverflowScrolling: 'touch' }}
                 >
-                  {ONGOING_ALL.map((item) => (
+                  {ongoingList.map((item) => (
                     <div
                       key={item.id}
                       className="box-border w-full shrink-0 snap-center px-0"
@@ -272,7 +288,7 @@ const RaffleScreen = () => {
                 <h2 className="border-l-[3px] border-primary pl-2 text-sm font-bold uppercase tracking-wide text-gray-900 dark:text-gray-100 sm:text-[15px]">
                   완료된 래플
                 </h2>
-                {COMPLETED_ALL.length > INITIAL_COUNT && (
+                {completedSource.length > INITIAL_COUNT && (
                   <button
                     type="button"
                     onClick={() => setCompletedExpanded((v) => !v)}
