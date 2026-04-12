@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BackButton from '../components/BackButton';
 import BottomNavigation from '../components/BottomNavigation';
@@ -88,7 +88,6 @@ const COMPLETED_ALL = [
     category: '국내/근교 여행',
     statusMessage: '당첨을 축하드려요.',
     badge: '당첨',
-    showReviewLink: true,
     image:
       'https://images.unsplash.com/photo-1517154421773-0529f29ea451?w=200&h=200&fit=crop&q=80',
   },
@@ -98,7 +97,6 @@ const COMPLETED_ALL = [
     category: '국내/스키',
     statusMessage: '다음 기회에..',
     badge: '미당첨',
-    showReviewLink: false,
     image:
       'https://images.unsplash.com/photo-1551524160-587fd5c115f9?w=200&h=200&fit=crop&q=80',
   },
@@ -108,7 +106,6 @@ const COMPLETED_ALL = [
     category: '국내/먹거리',
     statusMessage: '응모하지 않은 래플입니다',
     badge: '미응모',
-    showReviewLink: false,
     image:
       'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=200&h=200&fit=crop&q=80',
   },
@@ -118,7 +115,6 @@ const COMPLETED_ALL = [
     category: '국내/섬 여행',
     statusMessage: '응모하지 않은 래플입니다',
     badge: '미응모',
-    showReviewLink: false,
     image:
       'https://images.unsplash.com/photo-1500375592092-40eb2168fd21?w=200&h=200&fit=crop&q=80',
   },
@@ -129,29 +125,7 @@ const INITIAL_COUNT = 3;
 const RaffleScreen = () => {
   const navigate = useNavigate();
   const [guideOpen, setGuideOpen] = useState(null);
-  const [ongoingIndex, setOngoingIndex] = useState(0);
-  const ongoingScrollRef = useRef(null);
   const [completedExpanded, setCompletedExpanded] = useState(false);
-
-  const scrollToOngoing = useCallback((i) => {
-    const el = ongoingScrollRef.current;
-    if (!el) return;
-    const n = ONGOING_ALL.length;
-    const next = ((i % n) + n) % n;
-    const w = el.clientWidth;
-    el.scrollTo({ left: next * w, behavior: 'smooth' });
-    setOngoingIndex(next);
-  }, []);
-
-  const onOngoingScroll = useCallback((e) => {
-    const el = e.currentTarget;
-    const w = el.clientWidth;
-    if (w <= 0) return;
-    const i = Math.round(el.scrollLeft / w);
-    if (i >= 0 && i < ONGOING_ALL.length) {
-      setOngoingIndex((prev) => (prev !== i ? i : prev));
-    }
-  }, []);
 
   const completedList = useMemo(
     () => (completedExpanded ? COMPLETED_ALL : COMPLETED_ALL.slice(0, INITIAL_COUNT)),
@@ -163,7 +137,7 @@ const RaffleScreen = () => {
       <div className="screen-content">
         <header className="screen-header flex items-center justify-between gap-2 bg-white dark:bg-gray-900 px-2 border-b border-gray-100 dark:border-gray-800">
           <BackButton onClick={() => navigate('/main')} ariaLabel="홈으로" />
-          <h1 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark flex-1 text-center pr-10">
+          <h1 className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark flex-1 text-center pr-10">
             래플
           </h1>
         </header>
@@ -183,22 +157,22 @@ const RaffleScreen = () => {
               />
             </div>
             <div className="absolute bottom-0 left-0 right-0 z-10 px-3 pb-2.5 pt-6 sm:px-4 sm:pb-3">
-              <p className="text-[9px] font-semibold uppercase tracking-wider text-white/85 mb-0.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-white/90 mb-0.5">
                 LiveJourney
               </p>
-              <p className="text-xs sm:text-sm font-bold text-white leading-snug drop-shadow-sm">
+              <p className="text-sm sm:text-base font-bold text-white leading-snug drop-shadow-sm">
                 실시간 여행을 즐기는 분들을 위한 이벤트
               </p>
             </div>
           </section>
 
-          <div className="px-3 pt-3 space-y-5 sm:px-4 sm:pt-4">
+          <div className="px-3 pt-3 space-y-5 text-[15px] sm:px-4 sm:pt-4 sm:text-base">
             {/* 소개 */}
             <section>
-              <h2 className="mb-1.5 border-l-[3px] border-primary pl-2 text-[11px] font-bold uppercase tracking-wide text-gray-900 dark:text-gray-100">
+              <h2 className="mb-2 border-l-[3px] border-primary pl-2 text-sm font-bold uppercase tracking-wide text-gray-900 dark:text-gray-100 sm:text-[15px]">
                 라이브저니의 래플
               </h2>
-              <p className="text-[11px] leading-relaxed text-text-secondary-light dark:text-text-secondary-dark">
+              <p className="text-sm leading-relaxed text-text-secondary-light dark:text-text-secondary-dark sm:text-[15px]">
                 라이브저니 래플은 지금 이 순간의 여행 정보를 나누는 커뮤니티를 위한 이벤트입니다. 응모를
                 통해 여행지 굿즈·쿠폰·소규모 지원 등 다양한 혜택에 도전해 보세요. 진행 일정과 당첨
                 안내는 앱 알림과 공지사항으로 안내드립니다.
@@ -207,26 +181,26 @@ const RaffleScreen = () => {
 
             {/* 가이드 버튼 */}
             <section>
-              <h2 className="mb-2 border-l-[3px] border-primary pl-2 text-[11px] font-bold uppercase tracking-wide text-gray-900 dark:text-gray-100">
+              <h2 className="mb-2 border-l-[3px] border-primary pl-2 text-sm font-bold uppercase tracking-wide text-gray-900 dark:text-gray-100 sm:text-[15px]">
                 라이브저니 래플 가이드
               </h2>
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-2 gap-2">
                 {GUIDE_ITEMS.map((g) => (
                   <button
                     key={g.id}
                     type="button"
                     onClick={() => setGuideOpen(g)}
-                    className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-2 text-left shadow-sm hover:border-primary/40 transition-colors"
+                    className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-2.5 text-left text-sm shadow-sm hover:border-primary/40 transition-colors sm:p-3"
                   >
-                    <div className="flex items-start gap-1.5">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                        <span className="material-symbols-outlined text-base">{g.icon}</span>
+                    <div className="flex items-start gap-2">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <span className="material-symbols-outlined text-[22px]">{g.icon}</span>
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-[11px] font-semibold text-text-primary-light dark:text-text-primary-dark">
+                        <span className="block text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
                           {g.title}
                         </span>
-                        <span className="mt-0.5 block text-[10px] text-text-secondary-light dark:text-text-secondary-dark leading-snug line-clamp-2">
+                        <span className="mt-0.5 block text-xs text-text-secondary-light dark:text-text-secondary-dark leading-snug line-clamp-2 sm:text-[13px]">
                           {g.summary}
                         </span>
                       </span>
@@ -238,15 +212,13 @@ const RaffleScreen = () => {
 
             {/* 진행 중 — 스와이프만 (개수·화살표 없음), 사진 / 설명 / 응모 분리 */}
             <section aria-roledescription="carousel" aria-label="현재 진행 중인 래플">
-              <h2 className="mb-2 border-l-[3px] border-primary pl-2 text-[11px] font-bold uppercase tracking-wide text-gray-900 dark:text-gray-100">
+              <h2 className="mb-2 border-l-[3px] border-primary pl-2 text-sm font-bold uppercase tracking-wide text-gray-900 dark:text-gray-100 sm:text-[15px]">
                 현재 진행 중인 래플
               </h2>
 
               <div className="relative">
                 <div
-                  ref={ongoingScrollRef}
-                  onScroll={onOngoingScroll}
-                  className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden scroll-smooth pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                   style={{ WebkitOverflowScrolling: 'touch' }}
                 >
                   {ONGOING_ALL.map((item) => (
@@ -255,35 +227,35 @@ const RaffleScreen = () => {
                       className="box-border w-full shrink-0 snap-center px-0"
                       style={{ flex: '0 0 100%' }}
                     >
-                      <div className="mx-auto flex max-w-[280px] flex-col gap-2 sm:max-w-xs">
-                        {/* 1. 대표 사진만 */}
-                        <div className="relative w-full overflow-hidden rounded-lg border border-gray-200/90 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
-                          <div className="relative aspect-[3/4] max-h-[min(38vh,240px)] w-full">
+                      <div className="mx-auto flex max-w-[300px] flex-col gap-3 sm:max-w-sm">
+                        {/* 1. 대표 사진 — 라운드 최소 */}
+                        <div className="relative w-full overflow-hidden rounded-sm border border-gray-200/90 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
+                          <div className="relative aspect-[3/4] max-h-[min(40vh,260px)] w-full">
                             <img
                               src={item.image}
                               alt=""
-                              className="absolute inset-0 h-full w-full object-cover"
+                              className="absolute inset-0 h-full w-full rounded-sm object-cover"
                             />
                           </div>
-                          <div className="absolute top-2 right-2 z-[1]">
-                            <span className="inline-block rounded-full bg-white/95 px-2 py-0.5 text-[9px] font-semibold text-sky-800 shadow-sm backdrop-blur-sm dark:bg-gray-800/95 dark:text-sky-200">
+                          <div className="absolute top-2.5 right-2.5 z-[1]">
+                            <span className="inline-block rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-sky-800 shadow-sm backdrop-blur-sm dark:bg-gray-800/95 dark:text-sky-200">
                               {item.daysLeft}
                             </span>
                           </div>
                         </div>
-                        {/* 2. 래플 설명만 */}
-                        <div className="rounded-lg border border-gray-200/90 bg-white px-3 py-2.5 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-                          <h3 className="text-sm font-bold leading-snug text-gray-900 dark:text-gray-100">
+                        {/* 2. 래플 설명 — 배경 박스 없음 */}
+                        <div className="px-0.5">
+                          <h3 className="text-base font-bold leading-snug text-gray-900 dark:text-gray-100 sm:text-[17px]">
                             {item.title}
                           </h3>
-                          <p className="mt-1.5 text-[11px] leading-relaxed text-gray-600 dark:text-gray-400">
+                          <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400 sm:text-[15px]">
                             {item.desc}
                           </p>
                         </div>
-                        {/* 3. 응모 버튼만 */}
+                        {/* 3. 응모 버튼 */}
                         <button
                           type="button"
-                          className="w-full shrink-0 rounded-lg bg-gradient-to-r from-cyan-500 to-sky-500 py-2 text-xs font-bold text-white shadow-sm transition-transform active:scale-[0.98] dark:from-[#00a8cc] dark:to-[#00bdfd]"
+                          className="w-full shrink-0 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 py-3 text-sm font-bold text-white shadow-sm transition-transform active:scale-[0.98] dark:from-[#00a8cc] dark:to-[#00bdfd] sm:text-[15px]"
                         >
                           응모하기
                         </button>
@@ -291,37 +263,20 @@ const RaffleScreen = () => {
                     </div>
                   ))}
                 </div>
-
-                {ONGOING_ALL.length > 1 && (
-                  <div className="mt-2 flex justify-center gap-1.5" role="tablist" aria-label="래플 선택">
-                    {ONGOING_ALL.map((row, i) => (
-                      <button
-                        key={row.id}
-                        type="button"
-                        role="tab"
-                        aria-selected={i === ongoingIndex}
-                        onClick={() => scrollToOngoing(i)}
-                        className={`h-1.5 rounded-full transition-all ${i === ongoingIndex ? 'w-5 bg-primary' : 'w-1.5 bg-gray-300 dark:bg-gray-600'
-                          }`}
-                        aria-label={`${i + 1}번째 래플`}
-                      />
-                    ))}
-                  </div>
-                )}
               </div>
             </section>
 
-            {/* 완료 — 썸네일+제목·카테고리·상태, 우상단 배지, 당첨 시 리뷰 링크 */}
+            {/* 완료 — 썸네일+제목·카테고리·상태, 우상단 배지, 당첨 리뷰(전 항목) */}
             <section className="pb-6">
               <div className="mb-2.5 flex items-center justify-between gap-2">
-                <h2 className="border-l-[3px] border-primary pl-2 text-[11px] font-bold uppercase tracking-wide text-gray-900 dark:text-gray-100">
+                <h2 className="border-l-[3px] border-primary pl-2 text-sm font-bold uppercase tracking-wide text-gray-900 dark:text-gray-100 sm:text-[15px]">
                   완료된 래플
                 </h2>
                 {COMPLETED_ALL.length > INITIAL_COUNT && (
                   <button
                     type="button"
                     onClick={() => setCompletedExpanded((v) => !v)}
-                    className="shrink-0 text-xs font-medium text-primary hover:underline"
+                    className="shrink-0 text-sm font-medium text-primary hover:underline"
                   >
                     {completedExpanded ? '접기' : '더보기'}
                   </button>
@@ -329,32 +284,30 @@ const RaffleScreen = () => {
               </div>
               <ul className="flex flex-col gap-0 divide-y divide-gray-100 dark:divide-gray-800">
                 {completedList.map((row) => (
-                  <li key={row.id} className="flex gap-2.5 py-2.5 first:pt-0">
-                    <div className="h-[3.25rem] w-[3.25rem] shrink-0 overflow-hidden rounded-none border border-gray-200/80 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
+                  <li key={row.id} className="flex gap-3 py-3 first:pt-0">
+                    <div className="h-[3.5rem] w-[3.5rem] shrink-0 overflow-hidden rounded-md border border-gray-200/80 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
                       <img src={row.image} alt="" className="h-full w-full object-cover" />
                     </div>
-                    <div className="relative min-w-0 flex-1 pr-[4rem]">
-                      <h3 className="text-xs font-bold leading-tight text-gray-900 dark:text-gray-100">
+                    <div className="relative min-w-0 flex-1 pr-[4.25rem]">
+                      <h3 className="text-sm font-bold leading-tight text-gray-900 dark:text-gray-100 sm:text-[15px]">
                         {row.title}
                       </h3>
-                      <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
+                      <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 sm:text-[13px]">
                         {row.category}
                       </p>
-                      <p className="mt-1 text-[10px] leading-snug text-gray-400 dark:text-gray-500">
+                      <p className="mt-1 text-xs leading-snug text-gray-400 dark:text-gray-500 sm:text-[13px]">
                         {row.statusMessage}
                       </p>
-                      {row.showReviewLink && (
-                        <button
-                          type="button"
-                          className="mt-1.5 inline-flex items-center gap-0.5 text-xs font-bold text-gray-900 dark:text-gray-100"
-                        >
-                          당첨 리뷰
-                          <span className="material-symbols-outlined text-sm" aria-hidden>
-                            chevron_right
-                          </span>
-                        </button>
-                      )}
-                      <span className="absolute right-0 top-0 inline-flex rounded-md border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-medium text-gray-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-400">
+                      <button
+                        type="button"
+                        className="mt-2 inline-flex items-center gap-0.5 text-sm font-bold text-gray-900 dark:text-gray-100 sm:text-[15px]"
+                      >
+                        당첨 리뷰
+                        <span className="material-symbols-outlined text-lg" aria-hidden>
+                          chevron_right
+                        </span>
+                      </button>
+                      <span className="absolute right-0 top-0 inline-flex rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-500 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-400">
                         {row.badge}
                       </span>
                     </div>
@@ -379,7 +332,7 @@ const RaffleScreen = () => {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-2 mb-3">
-                <h3 id="raffle-guide-title" className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark pr-2">
+                <h3 id="raffle-guide-title" className="text-xl font-bold text-text-primary-light dark:text-text-primary-dark pr-2">
                   {guideOpen.title}
                 </h3>
                 <button
@@ -391,7 +344,7 @@ const RaffleScreen = () => {
                   <span className="material-symbols-outlined">close</span>
                 </button>
               </div>
-              <p className="text-sm leading-relaxed text-text-secondary-light dark:text-text-secondary-dark whitespace-pre-wrap">
+              <p className="text-base leading-relaxed text-text-secondary-light dark:text-text-secondary-dark whitespace-pre-wrap">
                 {guideOpen.body}
               </p>
             </div>
