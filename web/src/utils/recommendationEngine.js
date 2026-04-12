@@ -1270,71 +1270,69 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming', op
     return userNorm.includes(ns.slice(0, Math.min(36, ns.length)));
   };
 
-  const dedupeSentencePool = (sentences) => {
-    const out = [];
-    for (const s of sentences) {
-      const ns = normalizeText(s);
-      if (ns.length < 6) continue;
-      if (out.some((o) => {
-        const no = normalizeText(o);
-        const n = Math.min(22, no.length, ns.length);
-        return n >= 12 && (no.slice(0, n) === ns.slice(0, n) || no.includes(ns.slice(0, 20)) || ns.includes(no.slice(0, 20)));
-      })) continue;
-      out.push(s);
-    }
-    return out;
-  };
-
-  const splitLongIntoParts = (s, maxChars) => {
-    const t = String(s || '').replace(/\s+/g, ' ').trim();
-    if (!t) return [];
-    if (t.length <= maxChars * 1.15) return [t];
-    const byComma = t.split(/[,，]\s*/).map((x) => x.trim()).filter((x) => x.length >= 4);
-    if (byComma.length > 1) return byComma;
-    return [t];
-  };
-
   /**
-   * 사용자 제보 문장과 AI 맥락 문장을 붙이지 않고 풀에 넣어 중복 제거 후 3줄로 요약(… 없음).
-   * 장소 한줄(placeOneLine)은 본문과 겹치지 않게 비움.
+   * AI 장소 소개와 사용자 제보를 하나의 문장으로 묶어 카드 본문에 사용.
+   * placeOneLine은 피드·카드와 중복되지 않게 비움(본문은 description만).
    */
+  const firstUserClauseForMerge = (userBlob, maxLen = 88) => {
+    const t = String(userBlob || '').replace(/\s+/g, ' ').trim();
+    if (!t) return '';
+    const sents = splitIntoSentences(t);
+    const pick = sents.find((s) => String(s).replace(/\s+/g, ' ').trim().length >= 8) || t;
+    const raw = String(pick).trim();
+    if (raw.length <= maxLen) return raw.replace(/[.!?…]+\s*$/, '').trim();
+    return fitLineNoEllipsis(raw, maxLen).replace(/[.!?…]+\s*$/, '').trim();
+  };
+
   const buildUnifiedPlaceCardCopy = (userBlob, introLine, maxLineChars) => {
     const u = String(userBlob || '').replace(/\s+/g, ' ').trim();
     const intro = String(introLine || '').replace(/\s+/g, ' ').trim();
     const nu = normalizeText(u);
 
-    let userSents = splitIntoSentences(u);
     let introSents = splitIntoSentences(intro).filter((sent) => !sentenceOverlapsUserBlob(nu, sent));
     introSents = introSents.filter((sent) => {
       const ns = normalizeText(sent);
+      const userSents = splitIntoSentences(u);
       return !userSents.some((us) => {
         const nus = normalizeText(us);
         return nus.includes(ns.slice(0, Math.min(24, ns.length))) || ns.includes(nus.slice(0, 24));
       });
     });
 
-    let flat = [];
-    for (const s of [...userSents, ...introSents]) {
-      flat.push(...splitLongIntoParts(s, maxLineChars));
-    }
-    flat = dedupeSentencePool(flat);
-
-    if (flat.length === 0 && intro) {
-      flat = dedupeSentencePool(splitLongIntoParts(intro, maxLineChars));
-    }
-    if (flat.length === 0) {
-      flat = FALLBACK_DESC_LINES.slice();
+    let aiSent = (introSents[0] || intro).trim();
+    if (u && aiSent && sentenceOverlapsUserBlob(nu, aiSent)) {
+      aiSent = (introSents.find((s) => !sentenceOverlapsUserBlob(nu, s)) || '').trim();
     }
 
-    const lines = [];
-    for (let i = 0; i < 3; i += 1) {
-      if (i < flat.length) lines.push(fitLineNoEllipsis(flat[i], maxLineChars));
-      else lines.push(fitLineNoEllipsis(FALLBACK_DESC_LINES[i], maxLineChars));
+    const userClause = firstUserClauseForMerge(u, Math.max(56, maxLineChars + 24));
+
+    let one = '';
+    if (aiSent && userClause) {
+      const aiNorm = normalizeText(aiSent);
+      const uNorm = normalizeText(userClause);
+      if (uNorm.length >= 12 && (aiNorm.includes(uNorm.slice(0, 28)) || uNorm.includes(aiNorm.slice(0, 28)))) {
+        one = ensurePeriod(aiSent);
+      } else {
+        const aiStem = aiSent.replace(/[.!?…]+\s*$/, '').trim();
+        const quoted = userClause.replace(/[「」]/g, '').trim();
+        one = `${aiStem}, 최근 제보에는 「${quoted}」 같은 현장 이야기가 함께 붙어 있어요.`;
+      }
+    } else if (aiSent) {
+      one = ensurePeriod(aiSent);
+    } else if (userClause) {
+      one = ensurePeriod(userClause);
+    } else {
+      one = ensurePeriod(FALLBACK_DESC_LINES[0]);
+    }
+
+    const maxTotal = Math.max(140, maxLineChars * 2 + 40);
+    if (one.length > maxTotal) {
+      one = fitLineNoEllipsis(one, maxTotal);
     }
 
     return {
       placeOneLine: '',
-      description: lines.join('\n'),
+      description: one,
     };
   };
 

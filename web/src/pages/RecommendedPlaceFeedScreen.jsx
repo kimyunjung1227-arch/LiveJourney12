@@ -80,6 +80,7 @@ export default function RecommendedPlaceFeedScreen() {
   const location = useLocation();
   const placeKey = location.state?.placeKey || '';
   const placeOneLine = location.state?.placeOneLine || '';
+  const placeDescription = location.state?.placeDescription || '';
   const rawPosts = location.state?.posts;
 
   const [expanded, setExpanded] = useState({});
@@ -198,7 +199,11 @@ export default function RecommendedPlaceFeedScreen() {
         </button>
         <div className="flex-1 min-w-0">
           <h1 className="text-[16px] font-bold text-slate-900 truncate leading-tight">{placeKey}</h1>
-          {placeOneLine ? (
+          {placeDescription ? (
+            <p className="text-[12px] text-slate-500 mt-0.5 line-clamp-3 leading-snug">
+              {placeDescription}
+            </p>
+          ) : placeOneLine ? (
             <p className="text-[12px] text-slate-500 mt-0.5 line-clamp-1">
               {typeof placeOneLine === 'string' ? placeOneLine : String(placeOneLine ?? '')}
             </p>

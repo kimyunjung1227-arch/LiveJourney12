@@ -1221,6 +1221,7 @@ const MainScreen = () => {
                                                         placeKey,
                                                         posts: feedPosts,
                                                         placeOneLine,
+                                                        placeDescription,
                                                         topTags,
                                                     },
                                                 })
