@@ -800,7 +800,7 @@ const MainScreen = () => {
                         </span>
                         <button
                             type="button"
-                            onClick={() => navigate('/coupons')}
+                            onClick={() => navigate('/raffle')}
                             style={{
                                 flexShrink: 0,
                                 height: 24,

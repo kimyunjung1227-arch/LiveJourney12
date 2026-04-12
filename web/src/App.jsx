@@ -40,6 +40,7 @@ const AccountDeleteConfirmScreen = lazy(() => import('./pages/AccountDeleteConfi
 const BadgeListScreen = lazy(() => import('./pages/BadgeListScreen'))
 const BadgeAchievementScreen = lazy(() => import('./pages/BadgeAchievementScreen'))
 const MyCouponsScreen = lazy(() => import('./pages/MyCouponsScreen'))
+const RaffleScreen = lazy(() => import('./pages/RaffleScreen'))
 const SettingsScreen = lazy(() => import('./pages/SettingsScreen'))
 const FeedUpdateFrequencyScreen = lazy(() => import('./pages/FeedUpdateFrequencyScreen'))
 const NoticesScreen = lazy(() => import('./pages/NoticesScreen'))
@@ -140,6 +141,7 @@ function App() {
                 <Route path="/badge-achievement/:badgeId" element={<BadgeAchievementScreen />} />
                 <Route path="/badge/achievement" element={<BadgeAchievementScreen />} />
                 <Route path="/coupons" element={<MyCouponsScreen />} />
+                <Route path="/raffle" element={<RaffleScreen />} />
                 <Route path="/notifications" element={<NotificationsScreen />} />
                 <Route path="/notices" element={<NoticesScreen />} />
                 <Route path="/faq" element={<FAQScreen />} />
