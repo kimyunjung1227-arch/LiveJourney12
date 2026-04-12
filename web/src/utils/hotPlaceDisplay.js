@@ -1,4 +1,18 @@
 /**
+ * post.location이 문자열 또는 { name, label, title } 형태일 때 카드/피드용 한 줄 문자열
+ */
+export function getPostLocationText(post) {
+    if (!post) return '';
+    const loc = post.location;
+    if (loc == null || loc === '') return '';
+    if (typeof loc === 'string') return loc.trim();
+    if (typeof loc === 'object') {
+        return String(loc.name ?? loc.label ?? loc.title ?? loc.address ?? '').trim();
+    }
+    return String(loc).trim();
+}
+
+/**
  * 메인/공통 — 장소명 아래 한 줄 부가 설명 (예: 김천 교동 · 벚꽃 명소)
  */
 export function getLocationSubtitle(post, title) {
@@ -6,7 +20,7 @@ export function getLocationSubtitle(post, title) {
     const detailed = (post.detailedLocation || '').trim();
     if (detailed) return detailed;
     const region = (post.region || '').trim();
-    const loc = (post.location || '').trim();
+    const loc = getPostLocationText(post);
     const tagFromReason = post.reasonTags?.[0]
         ? String(post.reasonTags[0]).replace(/#/g, '').replace(/_/g, ' ').trim()
         : '';
@@ -48,7 +62,7 @@ export function getAvatarUrls(post) {
  */
 export function getHotFeedAddressLine(post) {
     if (!post) return '';
-    const loc = (post.location || '').trim();
+    const loc = getPostLocationText(post);
     if (loc) return loc;
     return (post.placeName || post.detailedLocation || '').trim() || '핫플레이스';
 }
@@ -64,7 +78,7 @@ export function getCityDongLine(post) {
         if (base) return base;
     }
     const region = (post.region || '').trim();
-    const loc = (post.location || '').trim();
+    const loc = getPostLocationText(post);
     const tokens = loc.split(/\s+/).filter(Boolean);
     if (tokens.length >= 3) {
         return `${tokens[0]} ${tokens[1]}`;
@@ -82,7 +96,7 @@ export function getPhotoCategoryLabel(post) {
     if (!post) return '명소';
     const tags = Array.isArray(post.tags) ? post.tags.join(' ').toLowerCase() : '';
     const note = `${post.note || ''} ${post.content || ''}`.toLowerCase();
-    const blob = `${tags} ${note} ${(post.location || '').toLowerCase()}`;
+    const blob = `${tags} ${note} ${getPostLocationText(post).toLowerCase()}`;
     if (blob.includes('카페') || blob.includes('cafe') || post.category === 'cafe') return '카페';
     if (post.category === 'food' || blob.includes('맛집')) return '맛집';
     if (post.category === 'scenic' || post.category === 'landmark' || blob.includes('명소')) return '명소';
@@ -161,7 +175,7 @@ export function getDongCategoryLine(post) {
  */
 export function getPhotoCaptionLine(post) {
     if (!post) return '';
-    const loc = (post.location || '').trim();
+    const loc = getPostLocationText(post);
     const autoTail = loc ? `${loc}의 모습` : '';
     let raw = (post.note || post.content || '').trim().replace(/\s+/g, ' ');
     if (autoTail && (raw === autoTail || raw === `${loc}의 모습`)) {

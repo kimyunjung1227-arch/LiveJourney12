@@ -1,6 +1,6 @@
 import React from 'react';
 import { getDisplayImageUrl } from '../api/upload';
-import { getMapThumbnailUri } from '../utils/postMedia';
+import { getMapThumbnailUri, toMediaStr } from '../utils/postMedia';
 
 /** 핫플 사유 뱃지 — EXIF와 구분해 중립 톤으로 통일 */
 const HOT_INDICATOR_BG = 'rgba(15, 23, 42, 0.88)';
@@ -91,13 +91,17 @@ const HotFeedCard = ({
                 </div>
                 {(() => {
                     const still = getMapThumbnailUri(post);
-                    const src = still
-                        || videoPosterUrl
-                        || (Array.isArray(post.images) && post.images.length > 0 ? post.images[0] : (post.image || post.thumbnail || ''));
+                    const raw =
+                        still ||
+                        videoPosterUrl ||
+                        (Array.isArray(post.images) && post.images.length > 0
+                            ? post.images[0]
+                            : post.image || post.thumbnail || '');
+                    const src = toMediaStr(raw);
                     if (!src) return <div style={{ width: '100%', height: '100%', background: '#e5e7eb' }} />;
                     return (
                         <img
-                            src={src.startsWith('data:') ? src : getDisplayImageUrl(src)}
+                            src={String(src).startsWith('data:') ? src : getDisplayImageUrl(src)}
                             alt={title}
                             decoding="async"
                             fetchPriority="high"

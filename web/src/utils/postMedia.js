@@ -4,7 +4,8 @@ export const isVideoUri = (uri) => {
   return /\.(mp4|mov|m4v|webm)(\?.*)?$/i.test(uri.trim());
 };
 
-const toMediaStr = (v) => (typeof v === 'string' ? v : (v?.url ?? v?.src ?? v?.href ?? ''));
+/** 이미지·썸네일 필드가 문자열 URL 또는 { url } 객체일 때 표시용 문자열로 통일 */
+export const toMediaStr = (v) => (typeof v === 'string' ? v : (v?.url ?? v?.src ?? v?.href ?? ''));
 
 /** API 게시물 객체를 buildMediaItemsFromPost용으로 정규화 */
 export const normalizePostForMedia = (post) => {

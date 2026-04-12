@@ -6,6 +6,7 @@ import {
     computeHotFeedViewingCount,
     getHotCategoryLabel,
     getPhotoCategoryLabels,
+    getPostLocationText,
 } from './hotPlaceDisplay';
 
 /**
@@ -14,7 +15,11 @@ import {
 export function buildHotFeedCardProps(post, weatherByRegion = {}) {
     if (!post) return null;
     const title = getHotFeedAddressLine(post);
-    const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
+    const locText = getPostLocationText(post);
+    const regionKey =
+        String(post.region || locText || '')
+            .trim()
+            .split(/\s+/)[0] || post.region || locText;
     const weather = post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
     const hasWeather = weather && (weather.icon || weather.temperature);
     const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
@@ -22,7 +27,10 @@ export function buildHotFeedCardProps(post, weatherByRegion = {}) {
     const photoCount = Math.max(1, Math.min(99, (likeCount + commentCount * 2) % 28 + 4));
     const viewingCount = computeHotFeedViewingCount(post);
     const avatars = getAvatarUrls(post);
-    const regionShort = post.region || (post.location || '').trim().split(/\s+/).slice(0, 2).join(' ') || '위치';
+    const regionShort =
+        post.region ||
+        (locText ? locText.split(/\s+/).filter(Boolean).slice(0, 2).join(' ') : '') ||
+        '위치';
     const engagementTier = getHotCategoryLabel(post);
     const tagHint = (post.reasonTags && post.reasonTags[0])
         ? String(post.reasonTags[0]).replace(/#/g, '').replace(/_/g, ' ').trim()
@@ -67,7 +75,7 @@ export function buildHotFeedCardProps(post, weatherByRegion = {}) {
         }
     })();
     const photoCaptionLine = getPhotoCaptionLine(post);
-    const loc = (post.location || '').trim();
+    const loc = locText;
     const hasUserCaption = !!(post.note || '').trim()
         || (!!(post.content || '').trim() && (post.content || '').trim() !== (loc ? `${loc}의 모습` : ''));
     const captionForCard = hasUserCaption ? photoCaptionLine : whyHotLine;
