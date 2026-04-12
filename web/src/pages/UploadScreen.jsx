@@ -2102,64 +2102,70 @@ const UploadScreen = () => {
               )}
             </div>
 
-            {/* 위치 입력: 지역 이름 + 세부 장소 → "대구 송해공원" 형태로 합쳐 저장 */}
+            {/* 위치: 한 줄 입력 → 내부는 지역 + 세부 장소로 분리 저장 */}
             <div>
               <p className="text-base font-semibold text-gray-800 mb-1">위치</p>
               <p className="text-xs text-gray-500 mb-3">
-                지역 이름과 세부 장소를 입력하면 한 줄로 저장돼요. (예: 대구 + 송해공원 → 대구 송해공원)
+                한 줄로 입력해 주세요. 첫 단어는 지역, 나머지는 세부 장소로 저장돼요. (예: 대구 송해공원)
               </p>
-              <div className="flex flex-col gap-3">
-                <label className="flex flex-col gap-1">
-                  <span className="text-xs font-semibold text-gray-600">지역 이름</span>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
                   <input
                     className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft min-h-[40px] h-10 px-3 text-sm font-normal placeholder:text-gray-400"
-                    placeholder="예: 대구"
-                    value={formData.locationRegion}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, locationRegion: e.target.value }))}
+                    placeholder="예: 대구 송해공원"
+                    value={combinedLocation}
+                    onChange={(e) => {
+                      const line = e.target.value;
+                      const { region, place } = splitLocationForForm(line);
+                      setFormData((prev) => ({
+                        ...prev,
+                        locationRegion: region,
+                        locationPlace: place,
+                      }));
+                    }}
                   />
-                </label>
-                <div className="flex items-start gap-2">
-                  <label className="flex flex-col gap-1 flex-1 min-w-0">
-                    <span className="text-xs font-semibold text-gray-600">세부 장소</span>
-                    <input
-                      className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft min-h-[40px] h-10 px-3 text-sm font-normal placeholder:text-gray-400"
-                      placeholder="예: 송해공원"
-                      value={formData.locationPlace}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, locationPlace: e.target.value }))}
-                    />
-                  </label>
-                  <div className="flex flex-col gap-1 pt-5">
-                    <button
-                      type="button"
-                      onClick={getCurrentLocation}
-                      disabled={loadingLocation}
-                      style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '9999px',
-                        border: 'none',
-                        background: 'white',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: loadingLocation ? 'not-allowed' : 'pointer',
-                        opacity: loadingLocation ? 0.5 : 1,
-                        transition: 'all 0.2s'
-                      }}
-                      title="현재 위치 자동 입력"
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#00BCD4' }}>
-                        {loadingLocation ? 'hourglass_empty' : 'my_location'}
-                      </span>
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={getCurrentLocation}
+                    disabled={loadingLocation}
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '9999px',
+                      border: 'none',
+                      background: 'white',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: loadingLocation ? 'not-allowed' : 'pointer',
+                      opacity: loadingLocation ? 0.5 : 1,
+                      transition: 'all 0.2s',
+                      flexShrink: 0,
+                    }}
+                    title="현재 위치 자동 입력"
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#00BCD4' }}>
+                      {loadingLocation ? 'hourglass_empty' : 'my_location'}
+                    </span>
+                  </button>
                 </div>
                 {combinedLocation.trim() ? (
-                  <p className="text-xs text-gray-600">
-                    <span className="font-semibold text-gray-700">저장되는 위치: </span>
-                    {combinedLocation}
-                  </p>
+                  <div
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                    style={{ lineHeight: 1.45 }}
+                  >
+                    <span className="font-semibold text-slate-800">구조 </span>
+                    <span className="text-slate-500">지역</span>{' '}
+                    <span className="font-medium text-slate-900">
+                      {formData.locationRegion.trim() || '—'}
+                    </span>
+                    <span className="mx-1.5 text-slate-300">·</span>
+                    <span className="text-slate-500">세부 장소</span>{' '}
+                    <span className="font-medium text-slate-900">
+                      {formData.locationPlace.trim() || '—'}
+                    </span>
+                  </div>
                 ) : null}
                 {loadingLocation && (
                   <p className="text-xs text-primary">위치를 찾고 있어요...</p>
