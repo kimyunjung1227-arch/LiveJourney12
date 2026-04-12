@@ -2260,10 +2260,10 @@ const UploadScreen = () => {
               )}
             </div>
 
-            {/* 설명 (필수) */}
+            {/* 설명 */}
             <div>
               <label className="flex flex-col">
-                <p className="text-base font-semibold text-gray-800 mb-3">설명 (필수)</p>
+                <p className="text-base font-semibold text-gray-800 mb-3">설명</p>
                 <div className="relative">
                   <textarea
                     className="form-textarea w-full rounded-2xl border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft px-4 py-3 text-sm font-normal text-gray-900 placeholder:text-[11px] placeholder:whitespace-nowrap resize-none leading-relaxed min-h-[150px]"
