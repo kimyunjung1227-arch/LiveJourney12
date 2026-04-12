@@ -41,51 +41,41 @@ const GUIDE_ITEMS = [
 const ONGOING_ALL = [
   {
     id: 'o1',
-    region: '제주',
     title: '제주 실시간 여행 굿즈 패키지',
     desc: '라이브저니와 함께하는 제주 감성 굿즈·쿠폰을 응모해 보세요.',
-    priceLabel: '무료 응모',
-    badge: '진행 중',
+    daysLeft: '5일 남음',
     image:
       'https://images.unsplash.com/photo-1596422846543-75c6fc197f07?w=600&h=800&fit=crop&q=80',
   },
   {
     id: 'o2',
-    region: '강원',
     title: '동해안 드라이브 스페셜 기프티콘',
     desc: '해안도로 추천 스팟과 함께하는 커피·디저트 쿠폰 래플입니다.',
-    priceLabel: '무료 응모',
-    badge: '마감 임박',
+    daysLeft: '12일 남음',
     image:
       'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&h=800&fit=crop&q=80',
   },
   {
     id: 'o3',
-    region: '부산',
     title: '야경 명소 포토 투어 응모권',
     desc: '야경 촬영 명소 코스 안내와 함께 소정의 여행 지원금이 제공됩니다.',
-    priceLabel: '무료 응모',
-    badge: '진행 중',
+    daysLeft: '2일 남음',
     image:
       'https://images.unsplash.com/photo-1590523277543-a94d2e4eb00b?w=600&h=800&fit=crop&q=80',
   },
   {
     id: 'o4',
-    region: '서울',
     title: '도심 속 피크닉 키트',
     desc: '한강·숲길 피크닉에 어울리는 휴대용 매트·에코백을 드립니다.',
-    priceLabel: '무료 응모',
-    badge: '진행 중',
+    daysLeft: '8일 남음',
     image:
       'https://images.unsplash.com/photo-1527004013197-933c4bb611b3?w=600&h=800&fit=crop&q=80',
   },
   {
     id: 'o5',
-    region: '경주',
     title: '역사 탐방 스탬프 투어',
     desc: '보물급 유적 코스 안내 스탬프북과 기념품 세트.',
-    priceLabel: '무료 응모',
-    badge: '진행 중',
+    daysLeft: '20일 남음',
     image:
       'https://images.unsplash.com/photo-1570077188670-e3a318d66009?w=600&h=800&fit=crop&q=80',
   },
@@ -96,7 +86,7 @@ const COMPLETED_ALL = [
     id: 'c1',
     title: '서울 근교 당일치기 패스',
     winner: 'journey_seoul_07',
-    date: '2025. 3. 1.',
+    periodLabel: '2025. 3월',
     image:
       'https://images.unsplash.com/photo-1517154421773-0529f29ea451?w=200&h=200&fit=crop&q=80',
   },
@@ -104,7 +94,7 @@ const COMPLETED_ALL = [
     id: 'c2',
     title: '겨울 스키 리조트 숙박권',
     winner: 'snow_travel_kr',
-    date: '2025. 2. 15.',
+    periodLabel: '2025. 2월',
     image:
       'https://images.unsplash.com/photo-1551524160-587fd5c115f9?w=200&h=200&fit=crop&q=80',
   },
@@ -112,7 +102,7 @@ const COMPLETED_ALL = [
     id: 'c3',
     title: '전통시장 먹거리 세트',
     winner: 'market_lover',
-    date: '2025. 1. 20.',
+    periodLabel: '2025. 1월',
     image:
       'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=200&h=200&fit=crop&q=80',
   },
@@ -120,7 +110,7 @@ const COMPLETED_ALL = [
     id: 'c4',
     title: '남해 섬 루트 가이드북',
     winner: 'island_walk',
-    date: '2024. 12. 8.',
+    periodLabel: '2024. 12월',
     image:
       'https://images.unsplash.com/photo-1500375592092-40eb2168fd21?w=200&h=200&fit=crop&q=80',
   },
@@ -221,57 +211,50 @@ const RaffleScreen = () => {
               </div>
             </section>
 
-            {/* 진행 중 */}
+            {/* 진행 중 — 참고: 카드 래퍼 + 3:4 이미지 + 우상단 D-day + p-5 본문 + 전폭 그라데이션 버튼 */}
             <section>
-              <div className="flex items-center justify-between gap-2 mb-4">
-                <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">
+              <div className="flex items-center justify-between gap-2 mb-6">
+                <h2 className="text-2xl font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark">
                   현재 진행 중인 래플
                 </h2>
                 {ONGOING_ALL.length > INITIAL_COUNT && (
                   <button
                     type="button"
                     onClick={() => setOngoingExpanded((v) => !v)}
-                    className="text-sm font-semibold text-primary shrink-0"
+                    className="text-sm font-bold text-primary hover:underline shrink-0"
                   >
                     {ongoingExpanded ? '접기' : '더보기'}
                   </button>
                 )}
               </div>
-              <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {ongoingList.map((item) => (
-                  <article key={item.id} className="flex flex-col">
-                    <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-gray-100 dark:bg-gray-800 shadow-sm group">
+                  <article
+                    key={item.id}
+                    className="group overflow-hidden rounded-xl border border-gray-200/80 bg-white shadow-sm transition-shadow hover:shadow-md dark:border-gray-700 dark:bg-gray-900/90"
+                  >
+                    <div className="relative aspect-[3/4] overflow-hidden bg-gray-100 dark:bg-gray-800">
                       <img
                         src={item.image}
                         alt=""
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
-                      <div className="absolute top-3 left-3">
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-gray-800 backdrop-blur-sm dark:bg-gray-900/85 dark:text-gray-100">
-                          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                          {item.badge}
+                      <div className="absolute top-3 right-3 z-[1]">
+                        <span className="inline-block rounded-full bg-white/90 px-3 py-1 text-[10px] font-bold text-primary shadow-sm backdrop-blur-md dark:bg-gray-900/85 dark:text-primary">
+                          {item.daysLeft}
                         </span>
                       </div>
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 to-transparent px-4 pb-4 pt-12">
-                        <p className="text-[11px] font-medium uppercase tracking-wide text-white/75">
-                          {item.region}
-                        </p>
-                        <h3 className="text-lg font-bold text-white leading-tight mt-0.5">{item.title}</h3>
-                      </div>
                     </div>
-                    <p className="mt-3 text-sm text-text-secondary-light dark:text-text-secondary-dark leading-relaxed">
-                      {item.desc}
-                    </p>
-                    <div className="mt-4 flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-[10px] text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
-                          응모
-                        </p>
-                        <p className="text-base font-bold text-primary">{item.priceLabel}</p>
-                      </div>
+                    <div className="p-5">
+                      <h3 className="mb-2 text-lg font-bold text-sky-900 dark:text-sky-100">
+                        {item.title}
+                      </h3>
+                      <p className="mb-4 line-clamp-2 text-xs leading-relaxed text-text-secondary-light dark:text-text-secondary-dark">
+                        {item.desc}
+                      </p>
                       <button
                         type="button"
-                        className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-primary/20 active:scale-[0.98] transition-transform"
+                        className="w-full rounded-lg bg-gradient-to-r from-primary to-cyan-400 py-2.5 text-sm font-bold text-white shadow-sm transition-transform active:scale-95 dark:from-[#00668b] dark:to-[#00bdfd]"
                       >
                         응모하기
                       </button>
@@ -281,59 +264,54 @@ const RaffleScreen = () => {
               </div>
             </section>
 
-            {/* 완료 */}
+            {/* 완료 — 참고: 가로 스크롤 + w-72 카드 + 16×16 썸네일 + 트로피 + 기간 */}
             <section className="pb-4">
-              <div className="flex items-center justify-between gap-2 mb-4">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="material-symbols-outlined text-gray-500 dark:text-gray-400 text-xl">
-                    history
-                  </span>
-                  <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark truncate">
-                    완료된 래플
-                  </h2>
-                </div>
+              <div className="flex items-center justify-between gap-2 mb-6">
+                <h2 className="text-xl font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark">
+                  완료된 래플
+                </h2>
                 {COMPLETED_ALL.length > INITIAL_COUNT && (
                   <button
                     type="button"
                     onClick={() => setCompletedExpanded((v) => !v)}
-                    className="text-sm font-semibold text-primary shrink-0"
+                    className="text-sm font-bold text-primary hover:underline shrink-0"
                   >
                     {completedExpanded ? '접기' : '더보기'}
                   </button>
                 )}
               </div>
-              <ul className="flex flex-col gap-3">
+              <div
+                className="flex gap-4 overflow-x-auto pb-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
                 {completedList.map((row) => (
-                  <li
+                  <div
                     key={row.id}
-                    className="flex gap-3 rounded-xl bg-gray-50 dark:bg-gray-800/80 p-3 border border-gray-100 dark:border-gray-700"
+                    className="flex w-72 max-w-[85vw] shrink-0 items-center gap-4 rounded-xl bg-gray-100 p-3 dark:bg-gray-800"
                   >
-                    <div className="h-[72px] w-[72px] shrink-0 overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-700">
-                      <img
-                        src={row.image}
-                        alt=""
-                        className="h-full w-full object-cover opacity-90"
-                      />
+                    <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-700">
+                      <img src={row.image} alt="" className="h-full w-full object-cover" />
                     </div>
-                    <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-                      <h3 className="text-sm font-bold text-text-primary-light dark:text-text-primary-dark line-clamp-2">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-sm font-bold text-text-primary-light dark:text-text-primary-dark">
                         {row.title}
                       </h3>
-                      <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
-                        당첨자 @{row.winner}
+                      <p className="mt-0.5 flex items-center gap-1 text-[11px] text-text-secondary-light dark:text-text-secondary-dark">
+                        <span
+                          className="material-symbols-outlined text-[14px] text-primary"
+                          style={{ fontVariationSettings: "'FILL' 1" }}
+                          aria-hidden
+                        >
+                          emoji_events
+                        </span>
+                        <span>당첨자 {row.winner}</span>
                       </p>
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-text-secondary-light dark:text-text-secondary-dark">
-                        <span className="text-gray-400 dark:text-gray-500 uppercase tracking-tight">
-                          종료
-                        </span>
-                        <span className="font-semibold text-text-primary-light dark:text-text-primary-dark">
-                          {row.date}
-                        </span>
-                      </div>
+                      <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                        {row.periodLabel}
+                      </p>
                     </div>
-                  </li>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </section>
           </div>
         </div>
