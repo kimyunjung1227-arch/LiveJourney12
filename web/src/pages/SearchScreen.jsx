@@ -14,6 +14,7 @@ import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import BackButton from '../components/BackButton';
 import { normalizeRegionName } from '../utils/regionNames';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
+import { getPostUserId, resolveUserDisplayFromPosts } from '../utils/userProfileHints';
 
 // 해시태그 파싱: #동백꽃 #바다 #힐링 → ['동백꽃','바다','힐링']
 const parseHashtags = (q) => {
@@ -58,9 +59,12 @@ const SearchScreen = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
+  /** 'place': 지역·해시태그, 'person': 여행자 닉네임 */
+  const [searchMode, setSearchMode] = useState('place');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredRegions, setFilteredRegions] = useState([]);
   const [filteredHashtags, setFilteredHashtags] = useState([]);
+  const [filteredTravelers, setFilteredTravelers] = useState([]);
   const [recentSearches, setRecentSearches] = useState([]);
   const [allPosts, setAllPosts] = useState([]);
   const [selectedHashtag, setSelectedHashtag] = useState(null);
@@ -345,6 +349,76 @@ const SearchScreen = () => {
       .map((x) => x.region);
   }, [recommendedRegions, matchChosung]);
 
+  // 인물 검색: 게시물에 등장한 userId 기준 여행자 목록
+  const travelerDirectory = useMemo(() => {
+    const byId = new Map();
+    for (const p of allPosts) {
+      const uid = getPostUserId(p);
+      if (!uid || uid === 'undefined' || uid === 'null') continue;
+      if (!byId.has(uid)) byId.set(uid, { userId: uid, postCount: 0 });
+      byId.get(uid).postCount += 1;
+    }
+    return Array.from(byId.values())
+      .map((row) => {
+        const resolved = resolveUserDisplayFromPosts(row.userId, allPosts);
+        let username = resolved.username && resolved.username !== '사용자' ? resolved.username : '';
+        if (!username) {
+          const sample = allPosts.find((p) => getPostUserId(p) === String(row.userId));
+          const u = sample?.user;
+          if (u && typeof u === 'object' && (u.username || u.name)) {
+            username = String(u.username || u.name).trim();
+          } else if (typeof u === 'string' && u.trim()) {
+            username = u.trim();
+          }
+        }
+        if (!username) return null;
+        return {
+          userId: row.userId,
+          username,
+          profileImage: resolved.profileImage || null,
+          postCount: row.postCount,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.postCount - a.postCount || a.username.localeCompare(b.username, 'ko'));
+  }, [allPosts]);
+
+  const getMatchingTravelers = useCallback(
+    (searchTerm, raw) => {
+      if (!searchTerm || !travelerDirectory.length) return [];
+      return travelerDirectory
+        .map((t) => {
+          const name = String(t.username || '').toLowerCase();
+          let rank = 99;
+          if (name === searchTerm) rank = 0;
+          else if (name.startsWith(searchTerm)) rank = 1;
+          else if (name.includes(searchTerm)) rank = 2;
+          else if (matchChosung(t.username, raw)) rank = 3;
+          else return null;
+          return { ...t, rank };
+        })
+        .filter(Boolean)
+        .sort(
+          (a, b) =>
+            a.rank - b.rank ||
+            b.postCount - a.postCount ||
+            a.username.localeCompare(b.username, 'ko')
+        )
+        .slice(0, 20);
+    },
+    [travelerDirectory, matchChosung]
+  );
+
+  const switchSearchMode = useCallback((mode) => {
+    if (mode !== 'place' && mode !== 'person') return;
+    setSearchMode(mode);
+    setSearchQuery('');
+    setShowSuggestions(false);
+    setFilteredRegions([]);
+    setFilteredHashtags([]);
+    setFilteredTravelers([]);
+  }, []);
+
   const incrementSearchCount = useCallback((term = '') => {
     const n = parseInt(localStorage.getItem('searchCount') || '0', 10) + 1;
     localStorage.setItem('searchCount', String(n));
@@ -367,33 +441,43 @@ const SearchScreen = () => {
     }
   }, []);
 
-  // 검색어 입력 핸들러: 지역 + 해시태그 자동완성
-  const handleSearchInput = useCallback((e) => {
-    const value = e.target.value;
-    setSearchQuery(value);
+  // 검색어 입력 핸들러: 장소 모드(지역+해시태그) / 인물 모드(여행자)
+  const handleSearchInput = useCallback(
+    (e) => {
+      const value = e.target.value;
+      setSearchQuery(value);
 
-    if (value.trim()) {
-      const raw = value.replace(/^#+/, '').trim();
-      const searchTerm = raw.toLowerCase();
+      if (value.trim()) {
+        const raw = value.replace(/^#+/, '').trim();
+        const searchTerm = raw.toLowerCase();
 
-      // 지역 매칭: 검색어 기준 완전일치 > 앞글자일치 > 포함 > 초성
-      setFilteredRegions(getMatchingRegions(searchTerm, raw));
+        if (searchMode === 'person') {
+          setFilteredRegions([]);
+          setFilteredHashtags([]);
+          setFilteredTravelers(getMatchingTravelers(searchTerm, raw));
+          setShowSuggestions(true);
+        } else {
+          setFilteredRegions(getMatchingRegions(searchTerm, raw));
+          const hashtagMatches = (hashtagChips || []).filter(
+            (h) =>
+              (h.key && h.key.includes(searchTerm)) ||
+              (h.display && String(h.display).toLowerCase().includes(searchTerm))
+          );
+          setFilteredHashtags(hashtagMatches);
+          setFilteredTravelers([]);
+          setShowSuggestions(true);
+        }
+      } else {
+        setFilteredRegions([]);
+        setFilteredHashtags([]);
+        setFilteredTravelers([]);
+        setShowSuggestions(false);
+      }
+    },
+    [getMatchingRegions, hashtagChips, getMatchingTravelers, searchMode]
+  );
 
-      // 해시태그 매칭: key 또는 display에 검색어 포함
-      const hashtagMatches = (hashtagChips || []).filter(
-        h => (h.key && h.key.includes(searchTerm)) || (h.display && String(h.display).toLowerCase().includes(searchTerm))
-      );
-      setFilteredHashtags(hashtagMatches);
-      setShowSuggestions(true);
-    } else {
-      setFilteredRegions([]);
-      setFilteredHashtags([]);
-      setShowSuggestions(false);
-    }
-  }, [getMatchingRegions, hashtagChips]);
-
-  // 검색 핸들러: 지역 또는 해시태그
-  // 매칭 순서: 완전일치(경주→경주) > 앞글자일치 > 포함 > 초성 (getMatchingRegions 사용으로 경주/광주, 구미/군산 등 오매칭 방지)
+  // 검색 핸들러: 장소(지역·해시태그) 또는 인물(프로필)
   const handleSearch = useCallback((e) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
@@ -401,6 +485,21 @@ const SearchScreen = () => {
 
     const raw = searchQuery.replace(/^#+/, '').trim();
     const searchTerm = raw.toLowerCase();
+
+    if (searchMode === 'person') {
+      const matches = getMatchingTravelers(searchTerm, raw);
+      if (matches.length > 0) {
+        const t = matches[0];
+        navigate(`/user/${encodeURIComponent(t.userId)}`, {
+          state: { profileHint: { username: t.username, profileImage: t.profileImage || null } },
+        });
+        setSearchQuery('');
+        setShowSuggestions(false);
+        return;
+      }
+      alert('일치하는 여행자를 찾지 못했어요. 닉네임을 확인해 주세요.');
+      return;
+    }
 
     // 1) 지역 먼저 — getMatchingRegions로 완전일치·앞글자·포함·초성 순 정렬 후 첫 항목 사용
     const matchedRegions = getMatchingRegions(searchTerm, raw);
@@ -431,7 +530,16 @@ const SearchScreen = () => {
     }
 
     alert('검색 결과가 없습니다. 지역명이나 #해시태그를 입력해보세요.');
-  }, [searchQuery, getMatchingRegions, recentSearches, navigate, hashtagChips, incrementSearchCount]);
+  }, [
+    searchQuery,
+    searchMode,
+    getMatchingRegions,
+    getMatchingTravelers,
+    recentSearches,
+    navigate,
+    hashtagChips,
+    incrementSearchCount,
+  ]);
 
   // 자동완성 항목 클릭 (useCallback)
   const handleSuggestionClick = useCallback((regionName) => {
@@ -458,6 +566,19 @@ const SearchScreen = () => {
     setSearchQuery('');
     setShowSuggestions(false);
   }, [incrementSearchCount]);
+
+  const handleTravelerSuggestionClick = useCallback(
+    (t) => {
+      if (!t?.userId) return;
+      incrementSearchCount(t.username);
+      setSearchQuery('');
+      setShowSuggestions(false);
+      navigate(`/user/${encodeURIComponent(t.userId)}`, {
+        state: { profileHint: { username: t.username, profileImage: t.profileImage || null } },
+      });
+    },
+    [incrementSearchCount, navigate]
+  );
 
   const handleRecentSearchClick = useCallback((search) => {
     incrementSearchCount();
@@ -601,28 +722,98 @@ const SearchScreen = () => {
 
         {/* 검색창 - 스크롤해도 계속 보이게 (고정) */}
         <div className="flex-shrink-0 px-4 pb-2 bg-white dark:bg-gray-900 relative" ref={searchContainerRef}>
+          <div className="flex rounded-xl bg-gray-100 dark:bg-gray-800/90 p-0.5 mb-2" role="tablist" aria-label="검색 유형">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={searchMode === 'place'}
+              onClick={() => switchSearchMode('place')}
+              className={`flex-1 py-2 rounded-[10px] text-sm font-semibold transition-colors ${
+                searchMode === 'place'
+                  ? 'bg-white dark:bg-gray-700 text-primary shadow-sm dark:text-[#FFC599]'
+                  : 'text-gray-500 dark:text-gray-400'
+              }`}
+            >
+              장소
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={searchMode === 'person'}
+              onClick={() => switchSearchMode('person')}
+              className={`flex-1 py-2 rounded-[10px] text-sm font-semibold transition-colors ${
+                searchMode === 'person'
+                  ? 'bg-white dark:bg-gray-700 text-primary shadow-sm dark:text-[#FFC599]'
+                  : 'text-gray-500 dark:text-gray-400'
+              }`}
+            >
+              인물
+            </button>
+          </div>
           <form onSubmit={handleSearch}>
             <div className="flex items-center w-full h-10 rounded-xl border border-gray-200 dark:border-gray-600 bg-primary-5 dark:bg-gray-800 px-3 gap-2">
-              <span className="material-symbols-outlined text-gray-500 dark:text-gray-400 text-[20px]">search</span>
+              <span className="material-symbols-outlined text-gray-500 dark:text-gray-400 text-[20px]">
+                {searchMode === 'person' ? 'person_search' : 'search'}
+              </span>
               <input
                 className="flex-1 min-w-0 bg-transparent text-black dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 text-base focus:outline-none"
-                placeholder="어디로 떠나볼까요?"
+                placeholder={searchMode === 'person' ? '여행자 닉네임 검색' : '어디로 떠나볼까요?'}
                 value={searchQuery}
                 onChange={handleSearchInput}
                 onFocus={() => {
-                  if (searchQuery.trim() && (filteredRegions.length > 0 || filteredHashtags.length > 0)) setShowSuggestions(true);
+                  if (searchQuery.trim()) setShowSuggestions(true);
                 }}
               />
             </div>
           </form>
 
-          {/* 검색 결과 - 지역 + 해시태그 자동완성 */}
-          {showSuggestions && (filteredRegions.length > 0 || filteredHashtags.length > 0 || searchQuery.trim()) && (
+          {/* 자동완성: 장소(지역·해시태그) / 인물(여행자) */}
+          {showSuggestions && searchQuery.trim() && (
             <div
               className="mt-3 absolute left-4 right-4 z-[200]"
               style={{ top: 'calc(100% + 12px)' }}
             >
-              {filteredRegions.length > 0 || filteredHashtags.length > 0 ? (
+              {searchMode === 'person' ? (
+                filteredTravelers.length > 0 ? (
+                  <div
+                    className="bg-white dark:bg-[#2F2418] rounded-2xl shadow-2xl ring-2 ring-primary/30 dark:ring-primary/50 overflow-y-auto"
+                    style={{ maxHeight: 'calc(60px * 6)' }}
+                  >
+                    {filteredTravelers.map((t) => (
+                      <div
+                        key={t.userId}
+                        onClick={() => handleTravelerSuggestionClick(t)}
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-[#3a2d1f] cursor-pointer transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0 min-h-[56px]"
+                      >
+                        {t.profileImage ? (
+                          <img
+                            src={getDisplayImageUrl(t.profileImage)}
+                            alt=""
+                            className="w-10 h-10 rounded-full object-cover shrink-0 bg-gray-200 dark:bg-gray-600"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-sm shrink-0">
+                            {String(t.username || '?').slice(0, 1)}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[#1c140d] dark:text-background-light font-semibold text-base truncate">
+                            {t.username}
+                          </div>
+                          <div className="text-gray-500 dark:text-gray-400 text-xs">게시 {t.postCount}건</div>
+                        </div>
+                        <span className="material-symbols-outlined text-gray-400 text-[20px] shrink-0">chevron_right</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-white dark:bg-[#2F2418] rounded-2xl ring-2 ring-red-300 dark:ring-red-800 px-4 py-6 text-center">
+                    <span className="material-symbols-outlined text-gray-400 text-4xl mb-2">person_off</span>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm">일치하는 여행자가 없어요</p>
+                    <p className="text-gray-400 dark:text-gray-500 text-xs mt-1">게시물에 올라온 닉네임으로 검색해 보세요</p>
+                  </div>
+                )
+              ) : filteredRegions.length > 0 || filteredHashtags.length > 0 ? (
                 <div
                   className="bg-white dark:bg-[#2F2418] rounded-2xl shadow-2xl ring-2 ring-primary/30 dark:ring-primary/50 overflow-y-auto"
                   style={{ maxHeight: 'calc(60px * 6)' }}
