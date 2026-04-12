@@ -221,57 +221,63 @@ const RaffleScreen = () => {
               </div>
             </section>
 
-            {/* 진행 중 */}
-            <section>
-              <div className="flex items-center justify-between gap-2 mb-4">
-                <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">
+            {/* 진행 중 — 참고 레이아웃: Active Journeys + 3:4 카드 + 가격 + 그라데이션 CTA */}
+            <section className="mt-10">
+              <div className="flex items-baseline justify-between gap-3 mb-8">
+                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-text-primary-light dark:text-text-primary-dark">
                   현재 진행 중인 래플
                 </h2>
-                {ONGOING_ALL.length > INITIAL_COUNT && (
-                  <button
-                    type="button"
-                    onClick={() => setOngoingExpanded((v) => !v)}
-                    className="text-sm font-semibold text-primary shrink-0"
-                  >
-                    {ongoingExpanded ? '접기' : '더보기'}
-                  </button>
-                )}
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-sm font-bold text-primary">
+                    {ONGOING_ALL.length}개 진행 중
+                  </span>
+                  {ONGOING_ALL.length > INITIAL_COUNT && (
+                    <button
+                      type="button"
+                      onClick={() => setOngoingExpanded((v) => !v)}
+                      className="text-sm font-semibold text-primary underline-offset-2 hover:underline"
+                    >
+                      {ongoingExpanded ? '접기' : '더보기'}
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
                 {ongoingList.map((item) => (
-                  <article key={item.id} className="flex flex-col">
-                    <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-gray-100 dark:bg-gray-800 shadow-sm group">
+                  <article key={item.id} className="flex flex-col group">
+                    <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-gray-100 dark:bg-gray-800 shadow-sm mb-6">
                       <img
                         src={item.image}
                         alt=""
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
                       />
-                      <div className="absolute top-3 left-3">
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-gray-800 backdrop-blur-sm dark:bg-gray-900/85 dark:text-gray-100">
-                          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                          {item.badge}
-                        </span>
+                      <div className="absolute top-4 left-4 z-[1]">
+                        <div className="flex items-center gap-2 rounded-full border border-white/20 bg-white/80 px-3 py-1.5 backdrop-blur-md dark:bg-gray-900/75 dark:border-gray-600/40">
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-primary animate-pulse" />
+                          <span className="text-[11px] font-bold tracking-wide text-gray-900 dark:text-gray-100">
+                            {item.badge}
+                          </span>
+                        </div>
                       </div>
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 to-transparent px-4 pb-4 pt-12">
-                        <p className="text-[11px] font-medium uppercase tracking-wide text-white/75">
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6 pt-16">
+                        <p className="text-white/70 text-[11px] font-medium uppercase tracking-widest mb-1">
                           {item.region}
                         </p>
-                        <h3 className="text-lg font-bold text-white leading-tight mt-0.5">{item.title}</h3>
+                        <h3 className="text-white text-xl sm:text-2xl font-bold leading-tight tracking-tight">
+                          {item.title}
+                        </h3>
                       </div>
                     </div>
-                    <p className="mt-3 text-sm text-text-secondary-light dark:text-text-secondary-dark leading-relaxed">
-                      {item.desc}
-                    </p>
-                    <div className="mt-4 flex items-center justify-between gap-2">
+                    <div className="mt-auto flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-[10px] text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wide">
-                          응모
+                        <p className="text-text-secondary-light dark:text-text-secondary-dark text-[11px] font-medium uppercase tracking-wide">
+                          응모 조건
                         </p>
-                        <p className="text-base font-bold text-primary">{item.priceLabel}</p>
+                        <p className="text-primary font-extrabold text-xl">{item.priceLabel}</p>
                       </div>
                       <button
                         type="button"
-                        className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-primary/20 active:scale-[0.98] transition-transform"
+                        className="shrink-0 rounded-xl px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-sky-900/10 transition-all active:scale-95 bg-gradient-to-br from-[#00668b] to-[#00bdfd] hover:opacity-95"
                       >
                         응모하기
                       </button>
@@ -281,14 +287,14 @@ const RaffleScreen = () => {
               </div>
             </section>
 
-            {/* 완료 */}
-            <section className="pb-4">
-              <div className="flex items-center justify-between gap-2 mb-4">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="material-symbols-outlined text-gray-500 dark:text-gray-400 text-xl">
+            {/* 완료 — 참고 레이아웃: Past Journeys 행 + 좌 썸네일 / 우측 종료·일자 */}
+            <section className="mt-16 pb-4">
+              <div className="flex items-center justify-between gap-2 mb-6">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="material-symbols-outlined text-gray-500 dark:text-gray-400 text-2xl shrink-0">
                     history
                   </span>
-                  <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark truncate">
+                  <h2 className="text-xl font-bold tracking-tight text-text-secondary-light dark:text-text-secondary-dark truncate">
                     완료된 래플
                   </h2>
                 </div>
@@ -306,30 +312,32 @@ const RaffleScreen = () => {
                 {completedList.map((row) => (
                   <li
                     key={row.id}
-                    className="flex gap-3 rounded-xl bg-gray-50 dark:bg-gray-800/80 p-3 border border-gray-100 dark:border-gray-700"
+                    className="flex items-center justify-between gap-3 p-4 rounded-xl bg-gray-100 dark:bg-gray-800/90 border border-gray-200/80 dark:border-gray-700"
                   >
-                    <div className="h-[72px] w-[72px] shrink-0 overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-700">
-                      <img
-                        src={row.image}
-                        alt=""
-                        className="h-full w-full object-cover opacity-90"
-                      />
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
-                      <h3 className="text-sm font-bold text-text-primary-light dark:text-text-primary-dark line-clamp-2">
-                        {row.title}
-                      </h3>
-                      <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
-                        당첨자 @{row.winner}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-text-secondary-light dark:text-text-secondary-dark">
-                        <span className="text-gray-400 dark:text-gray-500 uppercase tracking-tight">
-                          종료
-                        </span>
-                        <span className="font-semibold text-text-primary-light dark:text-text-primary-dark">
-                          {row.date}
-                        </span>
+                    <div className="flex items-center gap-4 min-w-0 flex-1">
+                      <div className="w-12 h-12 shrink-0 rounded-lg overflow-hidden bg-gray-300 dark:bg-gray-600">
+                        <img
+                          src={row.image}
+                          alt=""
+                          className="h-full w-full object-cover grayscale"
+                        />
                       </div>
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-bold text-text-primary-light dark:text-text-primary-dark truncate">
+                          {row.title}
+                        </h3>
+                        <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-0.5">
+                          당첨자 @{row.winner}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-tighter">
+                        종료
+                      </p>
+                      <p className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
+                        {row.date}
+                      </p>
                     </div>
                   </li>
                 ))}
