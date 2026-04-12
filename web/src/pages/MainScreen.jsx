@@ -351,13 +351,19 @@ const MainScreen = () => {
             }
 
             const aiBasedTags = (Array.isArray(post.tags) ? post.tags : [])
-                .map((t) => String(t || '').replace(/^#+/, '').trim())
+                .map((t) =>
+                    String(typeof t === 'string' ? t : (t?.name || t?.label || '')).replace(/^#+/, '').trim()
+                )
                 .filter(Boolean)
                 .slice(0, 3)
                 .map((t) => `#${t}`);
 
             // 아무 태그도 없으면 가벼운 기본 태그로 보완 (정보 과부하 방지용 1~2개)
             const uniqueReasons = [...new Set([...postReasonTags, ...reasonTags])];
+
+            /** 지금 여기는 카드: 사용자 입력 태그 우선, 없을 때만 자동 추론 태그 */
+            const feedReasonTags =
+                aiBasedTags.length > 0 ? aiBasedTags : uniqueReasons.slice(0, 3);
 
             const firstImageUrl = (post.images && post.images.length > 0) ? post.images[0] : (post.image || post.thumbnail || '');
             const firstVideoUrl = (post.videos && post.videos.length > 0) ? post.videos[0] : '';
@@ -381,9 +387,9 @@ const MainScreen = () => {
                 surgePercent,
                 // 메타데이터 기반 촬영 시간 라벨
                 captureLabel: formatCaptureLabel(post),
-                // 카드당 최대 2~3개 태그만 노출
+                // 카드당 최대 2~3개 태그만 노출 (사용자 태그 → 자동 태그 순)
                 aiHotTags: aiBasedTags,
-                reasonTags: uniqueReasons.slice(0, 3),
+                reasonTags: feedReasonTags,
             };
         };
 
