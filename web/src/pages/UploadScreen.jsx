@@ -22,6 +22,25 @@ import StatusBadge from '../components/StatusBadge';
 import { usePhotoValidation } from '../hooks/usePhotoValidation';
 import { useExifConsent } from '../contexts/ExifConsentContext';
 
+/** 지역 + 세부 장소 → "대구 송해공원" 한 줄 */
+function combineLocationParts(region, place) {
+  const r = String(region || '').trim();
+  const p = String(place || '').trim();
+  if (!r && !p) return '';
+  if (!r) return p;
+  if (!p) return r;
+  return `${r} ${p}`;
+}
+
+/** 기존 한 줄 주소·장소명 → 입력 폼용 분리 (첫 토큰 = 지역) */
+function splitLocationForForm(full) {
+  const s = String(full || '').trim();
+  if (!s) return { region: '', place: '' };
+  const parts = s.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return { region: parts[0], place: '' };
+  return { region: parts[0], place: parts.slice(1).join(' ') };
+}
+
 const UploadScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -42,7 +61,8 @@ const UploadScreen = () => {
     imageFiles: [],
     videos: [],
     videoFiles: [],
-    location: '',
+    locationRegion: '',
+    locationPlace: '',
     tags: [],
     note: '',
     coordinates: null,
@@ -57,6 +77,11 @@ const UploadScreen = () => {
     /** 편집 모드: 서버에 저장된 앱 내 촬영 여부(로컬 파일 없을 때 배지용) */
     savedInAppCamera: null,
   });
+
+  const combinedLocation = useMemo(
+    () => combineLocationParts(formData.locationRegion, formData.locationPlace),
+    [formData.locationRegion, formData.locationPlace]
+  );
 
   /** 라이브저니 웹 카메라로 찍은 파일명(capture-타임스탬프.jpg) — 첫 장만 배지에 사용 */
   const isInAppCamera = useMemo(() => {
@@ -92,7 +117,7 @@ const UploadScreen = () => {
   const normalizeTag = (tag) => (tag || '').replace('#', '').trim();
 
   useEffect(() => {
-    locNoteRef.current = { location: formData.location, note: formData.note };
+    locNoteRef.current = { location: combinedLocation, note: formData.note };
   });
 
   const firstImageFile = formData.imageFiles?.[0] ?? null;
@@ -304,6 +329,7 @@ const UploadScreen = () => {
       const vids = Array.isArray(post.videos) ? post.videos : [];
       const locRaw = post.location || post.detailedLocation || post.placeName || '';
       const loc = typeof locRaw === 'string' ? locRaw : locRaw?.name || '';
+      const locParts = splitLocationForForm(loc);
       const note = post.note || post.content || '';
       const tagList = Array.isArray(post.tags) ? post.tags : [];
       const tagsNormalized = dedupeHashtags(
@@ -320,7 +346,8 @@ const UploadScreen = () => {
         videos: vids.map((u) => getDisplayImageUrl(u)),
         imageFiles: [],
         videoFiles: [],
-        location: loc,
+        locationRegion: locParts.region,
+        locationPlace: locParts.place,
         tags: tagsNormalized.length ? tagsNormalized : prev.tags,
         note,
         coordinates: post.coordinates || prev.coordinates,
@@ -435,9 +462,11 @@ const UploadScreen = () => {
               detailedAddress = address.address_name;
             }
 
+            const lp = splitLocationForForm(locationName);
             setFormData(prev => ({
               ...prev,
-              location: locationName,
+              locationRegion: lp.region,
+              locationPlace: lp.place,
               coordinates: { lat: latitude, lng: longitude },
               address: detailedAddress,
               detailedLocation: locationName
@@ -446,7 +475,8 @@ const UploadScreen = () => {
           } else {
             setFormData(prev => ({
               ...prev,
-              location: '서울',
+              locationRegion: '서울',
+              locationPlace: '',
               coordinates: { lat: latitude, lng: longitude }
             }));
             setLoadingLocation(false);
@@ -455,7 +485,8 @@ const UploadScreen = () => {
       } else {
         setFormData(prev => ({
           ...prev,
-          location: '서울',
+          locationRegion: '서울',
+          locationPlace: '',
           coordinates: { lat: latitude, lng: longitude }
         }));
         setLoadingLocation(false);
@@ -627,7 +658,7 @@ const UploadScreen = () => {
     } finally {
       setLoadingAITags(false);
     }
-  }, [formData.location, formData.note, formData.tags]);
+  }, [combinedLocation, formData.note, formData.tags]);
 
   const lastExifAiKeyRef = useRef('');
 
@@ -716,15 +747,27 @@ const UploadScreen = () => {
             }
           }
 
-          setFormData((prev) => ({
-            ...prev,
-            exifData,
-            exifForFileKey: fk,
-            photoDate: exifData.photoDate || null,
-            verifiedLocation,
-            location: prev.location || verifiedLocation || '',
-            coordinates: prev.coordinates || exifCoordinates || null,
-          }));
+          setFormData((prev) => {
+            let region = prev.locationRegion;
+            let place = prev.locationPlace;
+            if (!region && !place) {
+              if (verifiedLocation) {
+                const sp = splitLocationForForm(verifiedLocation);
+                region = sp.region;
+                place = sp.place;
+              }
+            }
+            return {
+              ...prev,
+              exifData,
+              exifForFileKey: fk,
+              photoDate: exifData.photoDate || null,
+              verifiedLocation,
+              locationRegion: region,
+              locationPlace: place,
+              coordinates: prev.coordinates || exifCoordinates || null,
+            };
+          });
 
           if (!exifData.gpsCoordinates) {
             getCurrentLocation();
@@ -848,11 +891,11 @@ const UploadScreen = () => {
         const firstNewImage = imageFiles[0];
         if (!firstNewImage || firstNewImage.type.startsWith('video/')) {
           getCurrentLocation();
-          generateVideoTags(formData.location, formData.note);
+          generateVideoTags(combinedLocation, formData.note);
         }
       }
     },
-    [formData.images.length, formData.videos.length, formData.location, formData.note, getCurrentLocation, generateVideoTags]
+    [formData.images.length, formData.videos.length, combinedLocation, formData.note, getCurrentLocation, generateVideoTags]
   );
 
   const handleImageSelect = useCallback(
@@ -870,8 +913,8 @@ const UploadScreen = () => {
   useEffect(() => {
     if (formData.imageFiles.length > 0) return;
     if (formData.videoFiles.length === 0) return;
-    generateVideoTags(formData.location, formData.note);
-  }, [formData.videoFiles, formData.imageFiles.length, formData.location, formData.note, generateVideoTags]);
+    generateVideoTags(combinedLocation, formData.note);
+  }, [formData.videoFiles, formData.imageFiles.length, combinedLocation, formData.note, generateVideoTags]);
 
   // 태그가 변경될 때마다 자동 태그에서 이미 등록된 태그 제거
   useEffect(() => {
@@ -1109,14 +1152,14 @@ const UploadScreen = () => {
   const handleSubmit = useCallback(async () => {
     logger.log('Upload started!');
     logger.debug('Image count:', formData.images.length);
-    logger.debug('Location:', formData.location);
+    logger.debug('Location:', combinedLocation);
 
     if (formData.images.length === 0 && formData.videos.length === 0) {
       alert('사진 또는 동영상을 추가해주세요');
       return;
     }
 
-    if (!formData.location.trim()) {
+    if (!combinedLocation.trim()) {
       alert('위치를 입력해주세요');
       return;
     }
@@ -1200,16 +1243,16 @@ const UploadScreen = () => {
         const tagPayload = dedupeHashtags(finalTags)
           .map((t) => t.replace(/^#+/, '').trim())
           .filter(Boolean);
-        const region = normalizeRegionName(formData.location?.split(' ')[0] || '기타');
+        const region = normalizeRegionName(formData.locationRegion || combinedLocation.split(' ')[0] || '기타');
         const postIdStr = String(editingPostId);
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postIdStr.trim());
 
         if (isUuid) {
           const res = await updatePostSupabase(postIdStr, {
-            content: formData.note.trim() || `${formData.location}에서의 여행 기록`,
-            location: formData.location.trim(),
-            detailed_location: formData.location.trim(),
-            place_name: formData.location.trim(),
+            content: formData.note.trim() || `${combinedLocation}에서의 여행 기록`,
+            location: combinedLocation.trim(),
+            detailed_location: combinedLocation.trim(),
+            place_name: combinedLocation.trim(),
             region,
             images: finalImages,
             videos: finalVideos,
@@ -1236,9 +1279,9 @@ const UploadScreen = () => {
             videos: finalVideos,
             note: formData.note.trim(),
             content: formData.note.trim(),
-            location: formData.location.trim(),
-            detailedLocation: formData.location.trim(),
-            placeName: formData.location.trim(),
+            location: combinedLocation.trim(),
+            detailedLocation: combinedLocation.trim(),
+            placeName: combinedLocation.trim(),
             region,
             tags: finalTags,
             category: formData.aiCategory,
@@ -1329,8 +1372,8 @@ const UploadScreen = () => {
         lng: formData.exifData.gpsCoordinates.lng
       } : null);
 
-      if (!coordinates && formData.location.trim()) {
-        const geo = await searchPlaceWithKakaoFirst(formData.location.trim());
+      if (!coordinates && combinedLocation.trim()) {
+        const geo = await searchPlaceWithKakaoFirst(combinedLocation.trim());
         if (geo && !Number.isNaN(geo.lat) && !Number.isNaN(geo.lng)) {
           coordinates = { lat: geo.lat, lng: geo.lng };
           logger.log('📍 위치 문구로 카카오 좌표 확정:', geo.placeName || geo.address, coordinates);
@@ -1353,7 +1396,7 @@ const UploadScreen = () => {
         const dateLabel = formatDateLabel(ts);
         if (note.startsWith(dateLabel)) return note;
         if (note.startsWith(`[${dateLabel}]`)) return note;
-        if (!note) return `${dateLabel} ${formData.location}에서의 여행 기록`;
+        if (!note) return `${dateLabel} ${combinedLocation}에서의 여행 기록`;
         return `${dateLabel} ${note}`;
       };
 
@@ -1362,10 +1405,10 @@ const UploadScreen = () => {
         videos: uploadedVideoUrls.length > 0 ? uploadedVideoUrls : formData.videos,
         content: withDateInDescription(formData.note, formData.photoDate ? new Date(formData.photoDate).getTime() : Date.now()),
         location: {
-          name: formData.verifiedLocation || formData.location,
+          name: formData.verifiedLocation || combinedLocation,
           lat: coordinates?.lat ?? null,
           lon: coordinates?.lng ?? null,
-          region: normalizeRegionName(formData.location?.split(' ')[0] || '지역'),
+          region: normalizeRegionName(formData.locationRegion || combinedLocation.split(' ')[0] || '지역'),
           country: '대한민국'
         },
         tags: finalTags.map((tag) => String(tag).replace(/^#+/, '').trim()).filter(Boolean),
@@ -1421,7 +1464,7 @@ const UploadScreen = () => {
           }
 
           // 지역 정보 추출 (첫 번째 단어 — 구미/구미시 등 표기 통일)
-          const region = normalizeRegionName(formData.location?.split(' ')[0] || '기타');
+          const region = normalizeRegionName(formData.locationRegion || combinedLocation.split(' ')[0] || '기타');
 
           const resolvedPhotoDate =
             formData.photoDate || (isInAppCamera ? new Date().toISOString() : null);
@@ -1457,7 +1500,7 @@ const UploadScreen = () => {
             userId: currentUserId,
             images: finalImages,
             videos: finalVideos,
-            location: formData.location,
+            location: combinedLocation,
             tags: Array.isArray(finalTags) ? finalTags : [],
             note: descriptionWithDate,
             content: descriptionWithDate,
@@ -1478,8 +1521,8 @@ const UploadScreen = () => {
             categories: Array.isArray(formData.aiCategories) ? formData.aiCategories : [aiCategory],
             categoryName: aiCategoryName,
             coordinates: coordinates || null,
-            detailedLocation: formData.verifiedLocation || formData.location,
-            placeName: formData.location,
+            detailedLocation: formData.verifiedLocation || combinedLocation,
+            placeName: combinedLocation,
             region: region, // 지역 정보 추가
             weather: weatherAtUpload,
             weatherSnapshot: weatherAtUpload,
@@ -2059,18 +2102,33 @@ const UploadScreen = () => {
               )}
             </div>
 
-            {/* 위치 입력 */}
+            {/* 위치 입력: 지역 이름 + 세부 장소 → "대구 송해공원" 형태로 합쳐 저장 */}
             <div>
-              <label className="flex flex-col">
-                <p className="text-base font-semibold text-gray-800 mb-3">위치</p>
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <input
+              <p className="text-base font-semibold text-gray-800 mb-1">위치</p>
+              <p className="text-xs text-gray-500 mb-3">
+                지역 이름과 세부 장소를 입력하면 한 줄로 저장돼요. (예: 대구 + 송해공원 → 대구 송해공원)
+              </p>
+              <div className="flex flex-col gap-3">
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold text-gray-600">지역 이름</span>
+                  <input
                     className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft min-h-[40px] h-10 px-3 text-sm font-normal placeholder:text-gray-400"
-                      placeholder="위치를 입력해 주세요."
-                      value={formData.location}
-                      onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                    placeholder="예: 대구"
+                    value={formData.locationRegion}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, locationRegion: e.target.value }))}
+                  />
+                </label>
+                <div className="flex items-start gap-2">
+                  <label className="flex flex-col gap-1 flex-1 min-w-0">
+                    <span className="text-xs font-semibold text-gray-600">세부 장소</span>
+                    <input
+                      className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft min-h-[40px] h-10 px-3 text-sm font-normal placeholder:text-gray-400"
+                      placeholder="예: 송해공원"
+                      value={formData.locationPlace}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, locationPlace: e.target.value }))}
                     />
+                  </label>
+                  <div className="flex flex-col gap-1 pt-5">
                     <button
                       type="button"
                       onClick={getCurrentLocation}
@@ -2096,11 +2154,17 @@ const UploadScreen = () => {
                       </span>
                     </button>
                   </div>
-                  {loadingLocation && (
-                    <p className="text-xs text-primary mt-1">위치를 찾고 있어요...</p>
-                  )}
                 </div>
-              </label>
+                {combinedLocation.trim() ? (
+                  <p className="text-xs text-gray-600">
+                    <span className="font-semibold text-gray-700">저장되는 위치: </span>
+                    {combinedLocation}
+                  </p>
+                ) : null}
+                {loadingLocation && (
+                  <p className="text-xs text-primary">위치를 찾고 있어요...</p>
+                )}
+              </div>
             </div>
 
             {/* 태그 */}
@@ -2221,14 +2285,14 @@ const UploadScreen = () => {
                 disabled={
                   uploading ||
                   (formData.images.length + formData.videos.length) === 0 ||
-                  !formData.location.trim() ||
+                  !combinedLocation.trim() ||
                   !formData.note.trim() ||
                   isExifCaptureBlocked
                 }
                 className={`flex w-full items-center justify-center rounded-full min-h-[44px] h-11 px-4 text-sm font-semibold text-white transition-all ${
                   uploading ||
                   (formData.images.length + formData.videos.length) === 0 ||
-                  !formData.location.trim() ||
+                  !combinedLocation.trim() ||
                   !formData.note.trim() ||
                   isExifCaptureBlocked
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
@@ -2251,12 +2315,12 @@ const UploadScreen = () => {
               )}
               {!isExifCaptureBlocked &&
                 ((formData.images.length + formData.videos.length) === 0 ||
-                  !formData.location.trim() ||
+                  !combinedLocation.trim() ||
                   !formData.note.trim()) && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
                   {(formData.images.length + formData.videos.length) === 0
                     ? '사진 또는 동영상을 추가해주세요'
-                    : !formData.location.trim()
+                    : !combinedLocation.trim()
                       ? '위치를 입력해주세요'
                       : '설명을 입력해주세요'}
                 </p>
