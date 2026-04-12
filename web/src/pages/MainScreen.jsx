@@ -5,7 +5,7 @@ import BottomNavigation from '../components/BottomNavigation';
 import { getUnreadCount } from '../utils/notifications';
 import { getTimeAgo, filterRecentPosts, filterActivePosts48 } from '../utils/timeUtils';
 import { logger } from '../utils/logger';
-import { getRecommendedRegions, RECOMMENDATION_TYPES } from '../utils/recommendationEngine';
+import { getRecommendedRegions, getRecommendationTypesForUi } from '../utils/recommendationEngine';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import './MainScreen.css';
 import { getCombinedPosts } from '../utils/mockData';
@@ -43,6 +43,7 @@ const MainScreen = () => {
     const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
     const [hotFeedVideoPoster, setHotFeedVideoPoster] = useState(null);
     const [selectedRecommendTag, setSelectedRecommendTag] = useState('season_peak');
+    const [recommendationTypesUi, setRecommendationTypesUi] = useState(() => getRecommendationTypesForUi());
     const [hotFeedSlideIndex, setHotFeedSlideIndex] = useState(0);
     const [hotFeedSocialIdx, setHotFeedSocialIdx] = useState(0);
     const { handleDragStart, hasMovedRef } = useHorizontalDragScroll();
@@ -754,6 +755,27 @@ const MainScreen = () => {
         setRecommendedData(recs.slice(0, 10));
     }, [selectedRecommendTag, allPostsForRecommend]);
 
+    useEffect(() => {
+        const refresh = () => setRecommendationTypesUi(getRecommendationTypesForUi());
+        window.addEventListener('recommendedFilterUiUpdated', refresh);
+        const onStorage = (e) => {
+            if (e.key === 'lj_recommended_filter_ui') refresh();
+        };
+        window.addEventListener('storage', onStorage);
+        return () => {
+            window.removeEventListener('recommendedFilterUiUpdated', refresh);
+            window.removeEventListener('storage', onStorage);
+        };
+    }, []);
+
+    useEffect(() => {
+        const enabled = recommendationTypesUi.filter((t) => t.enabled !== false);
+        if (enabled.length === 0) return;
+        if (!enabled.some((t) => t.id === selectedRecommendTag)) {
+            setSelectedRecommendTag(enabled[0].id);
+        }
+    }, [recommendationTypesUi, selectedRecommendTag]);
+
     return (
         <div className="screen-layout bg-background-light dark:bg-background-dark">
             <div
@@ -1112,7 +1134,7 @@ const MainScreen = () => {
                                 className="hide-scrollbar"
                                 onMouseDown={handleDragStart}
                             >
-                                {RECOMMENDATION_TYPES.map((tag) => {
+                                {recommendationTypesUi.filter((t) => t.enabled !== false).map((tag) => {
                                     const isActive = selectedRecommendTag === tag.id;
                                     return (
                                         <button
@@ -1176,7 +1198,7 @@ const MainScreen = () => {
                                     const mainSrc = displayImages[0] || 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80';
                                     const placeDescription = (item.description || '').trim();
                                     const placeOneLine = String(item.placeOneLine || '').trim();
-                                    const topTags = Array.isArray(item.topTags) ? item.topTags.filter(Boolean).slice(0, 3) : [];
+                                    const topTags = Array.isArray(item.topTags) ? item.topTags.filter(Boolean).slice(0, 5) : [];
 
                                     const feedPosts = [...placePosts].sort((a, b) => {
                                         const ta = new Date(a.timestamp || a.createdAt || a.photoDate || 0).getTime();

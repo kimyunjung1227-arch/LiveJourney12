@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
-import { getRecommendedRegions, RECOMMENDATION_TYPES } from '../utils/recommendationEngine';
+import { getRecommendedRegions, getRecommendationTypesForUi } from '../utils/recommendationEngine';
 import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
 import './MainScreen.css';
@@ -13,6 +13,7 @@ const RecommendedPlaceScreen = () => {
   const [selectedTag, setSelectedTag] = useState('season_peak');
   const [recommendedData, setRecommendedData] = useState([]);
   const [allPosts, setAllPosts] = useState([]);
+  const [filterTypesUi, setFilterTypesUi] = useState(() => getRecommendationTypesForUi());
 
   const loadData = useCallback(() => {
     const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
@@ -25,6 +26,20 @@ const RecommendedPlaceScreen = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    const refresh = () => setFilterTypesUi(getRecommendationTypesForUi());
+    window.addEventListener('recommendedFilterUiUpdated', refresh);
+    return () => window.removeEventListener('recommendedFilterUiUpdated', refresh);
+  }, []);
+
+  useEffect(() => {
+    const enabled = filterTypesUi.filter((t) => t.enabled !== false);
+    if (enabled.length === 0) return;
+    if (!enabled.some((t) => t.id === selectedTag)) {
+      setSelectedTag(enabled[0].id);
+    }
+  }, [filterTypesUi, selectedTag]);
 
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col">
@@ -54,7 +69,7 @@ const RecommendedPlaceScreen = () => {
       {/* 필터 탭 */}
       <div style={{ padding: '12px 16px', background: 'white', borderBottom: '1px solid #f0f0f0', flexShrink: 0 }}>
         <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', scrollbarWidth: 'none' }} className="hide-scrollbar">
-          {RECOMMENDATION_TYPES.map(tag => (
+          {filterTypesUi.filter((t) => t.enabled !== false).map(tag => (
             <button
               key={tag.id}
               onClick={() => setSelectedTag(tag.id)}

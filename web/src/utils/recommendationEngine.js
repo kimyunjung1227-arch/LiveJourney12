@@ -44,6 +44,32 @@ const getPostTextBlob = (post) => {
   return normalizeText(parts.join(' ')).replace(/#+/g, '');
 };
 
+/** 장소에 묶인 게시물의 사용자·업로드 태그(# 제외) — 최신 게시물 우선, 중복 제거 */
+const collectUserInputTagsForPlace = (placePosts, maxTags = 5) => {
+  const posts = Array.isArray(placePosts) ? placePosts : [];
+  const sorted = [...posts].sort((a, b) => {
+    const tb = new Date(b?.timestamp || b?.createdAt || b?.photoDate || 0).getTime();
+    const ta = new Date(a?.timestamp || a?.createdAt || a?.photoDate || 0).getTime();
+    return tb - ta;
+  });
+  const seen = new Set();
+  const out = [];
+  for (const p of sorted) {
+    const tags = Array.isArray(p?.tags) ? p.tags : [];
+    for (const t of tags) {
+      const raw = typeof t === 'string' ? t : (t?.name || t?.label || '');
+      const s = String(raw || '').replace(/^#+/, '').trim();
+      if (!s) continue;
+      const key = normalizeText(s);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(s);
+      if (out.length >= maxTags) return out;
+    }
+  }
+  return out;
+};
+
 /**
  * 추천 카드의 "장소 단위" 키 추출 (가능하면 placeName/상세명 우선)
  * - 예: "여의도 윤중로" 그대로 유지
@@ -1362,8 +1388,10 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming', op
     const { proofSummary, timelineThumbs } = buildProof(stat, type, eligiblePosts);
     const statusBadges = buildStatusBadges(type, stat, extra);
     const liveIndicator = buildLiveIndicator(type, stat, extra, globalCtx, fd);
-    const topTags = diversifyTopTags(buildTopTags(type, stat, extra));
     const placePosts = Array.isArray(stat.placePosts) ? stat.placePosts : [];
+    const poolTags = diversifyTopTags(buildTopTags(type, stat, extra));
+    const userTags = collectUserInputTagsForPlace(placePosts, 8);
+    const topTags = userTags.length > 0 ? userTags.slice(0, 5) : poolTags;
     const userBlob = collectVisitorVoiceSnippets(placePosts, 8, 220).join(' ').trim();
     const introLine = pickVariedAiIntro(type, stat.placeKey, placePosts, placeDescHash(stat.placeKey, type));
     const { placeOneLine, description: unifiedDescription } = buildUnifiedPlaceCardCopy(userBlob, introLine, 56);
@@ -1435,3 +1463,56 @@ export const RECOMMENDATION_TYPES = [
     icon: '🌙'
   }
 ];
+
+const LS_KEY_RECOMMENDED_FILTER_UI = 'lj_recommended_filter_ui';
+
+/**
+ * 메인·추천 화면 상단 필터 칩(5개 테마) 표시용 — 로컬 저장 이름·아이콘·순서·노출
+ * 내부 추천 로직 id(season_peak 등)는 고정이며, 라벨만 바꿉니다.
+ */
+export const getRecommendationTypesForUi = () => {
+  const baseIds = new Set(RECOMMENDATION_TYPES.map((t) => t.id));
+  const defaults = RECOMMENDATION_TYPES.map((t, i) => ({ ...t, enabled: true, order: i }));
+  try {
+    if (typeof localStorage === 'undefined') return defaults;
+    const raw = localStorage.getItem(LS_KEY_RECOMMENDED_FILTER_UI);
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw);
+    const items = Array.isArray(parsed?.items) ? parsed.items : [];
+    const byId = new Map(
+      items.filter((x) => x && baseIds.has(x.id)).map((x) => [x.id, x])
+    );
+    const merged = defaults.map((d, i) => {
+      const o = byId.get(d.id);
+      if (!o) return { ...d, enabled: true, order: i };
+      return {
+        ...d,
+        name: typeof o.name === 'string' && o.name.trim() ? o.name.trim() : d.name,
+        icon: typeof o.icon === 'string' ? o.icon : d.icon,
+        description: typeof o.description === 'string' ? o.description : d.description,
+        enabled: o.enabled !== false,
+        order: typeof o.order === 'number' && !Number.isNaN(o.order) ? o.order : i,
+      };
+    });
+    merged.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return merged;
+  } catch {
+    return defaults;
+  }
+};
+
+export const saveRecommendedFilterUi = (items) => {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(LS_KEY_RECOMMENDED_FILTER_UI, JSON.stringify({ items }));
+    window.dispatchEvent(new CustomEvent('recommendedFilterUiUpdated'));
+  } catch (_) {}
+};
+
+export const resetRecommendedFilterUi = () => {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.removeItem(LS_KEY_RECOMMENDED_FILTER_UI);
+    window.dispatchEvent(new CustomEvent('recommendedFilterUiUpdated'));
+  } catch (_) {}
+};
