@@ -94,6 +94,7 @@ const UploadScreen = () => {
   }, [formData.imageFiles, formData.savedInAppCamera, editingPostId]);
 
   const [exifExtracting, setExifExtracting] = useState(false);
+  const [exifGeoResolving, setExifGeoResolving] = useState(false);
   const locNoteRef = useRef({ location: '', note: '' });
   const [tagInput, setTagInput] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -667,6 +668,7 @@ const UploadScreen = () => {
     const f = formData.imageFiles[0];
     if (!f || f.type.startsWith('video/')) {
       setExifExtracting(false);
+      setExifGeoResolving(false);
       if (!f && !editingPostId) {
         lastExifAiKeyRef.current = '';
         setFormData((prev) =>
@@ -688,6 +690,7 @@ const UploadScreen = () => {
 
     if (!exifAllowed) {
       setExifExtracting(false);
+      setExifGeoResolving(false);
       if (formData.exifForFileKey === fk) {
         return;
       }
@@ -707,6 +710,7 @@ const UploadScreen = () => {
 
     if (formData.exifForFileKey === fk) {
       setExifExtracting(false);
+      setExifGeoResolving(false);
       return;
     }
 
@@ -727,49 +731,50 @@ const UploadScreen = () => {
             gps: exifData.gpsCoordinates,
           });
 
-          let verifiedLocation = null;
-          let exifCoordinates = null;
-          if (exifData.gpsCoordinates) {
-            exifCoordinates = {
-              lat: exifData.gpsCoordinates.lat,
-              lng: exifData.gpsCoordinates.lng,
-            };
-            try {
-              verifiedLocation = await convertGpsToAddress(
-                exifData.gpsCoordinates.lat,
-                exifData.gpsCoordinates.lng
-              );
-              if (verifiedLocation) {
+          const exifCoordinates = exifData.gpsCoordinates
+            ? { lat: exifData.gpsCoordinates.lat, lng: exifData.gpsCoordinates.lng }
+            : null;
+
+          // 1) EXIF 파싱 결과는 즉시 반영 (촬영 시각·기기 정보 등 빠르게 UI 노출)
+          setFormData((prev) => ({
+            ...prev,
+            exifData,
+            exifForFileKey: fk,
+            photoDate: exifData.photoDate || null,
+            // verifiedLocation은 좌표 → 주소 변환이 끝난 뒤에만 채움
+            verifiedLocation: prev.verifiedLocation || null,
+            coordinates: prev.coordinates || exifCoordinates || null,
+          }));
+
+          // 2) GPS → 주소 변환은 비동기로 따로 진행 (EXIF UI를 늦추지 않음)
+          if (exifCoordinates) {
+            setExifGeoResolving(true);
+            void (async () => {
+              try {
+                const verifiedLocation = await convertGpsToAddress(exifCoordinates.lat, exifCoordinates.lng);
+                if (cancelled) return;
+                if (!verifiedLocation) return;
                 logger.log('📍 EXIF GPS 주소 변환 성공:', verifiedLocation);
+                setFormData((prev) => {
+                  // 사용자가 이미 수동으로 입력했으면 덮어쓰지 않음
+                  const hasManual = String(prev.locationRegion || '').trim() || String(prev.locationPlace || '').trim();
+                  const sp = splitLocationForForm(verifiedLocation);
+                  return {
+                    ...prev,
+                    verifiedLocation,
+                    locationRegion: hasManual ? prev.locationRegion : (prev.locationRegion || sp.region),
+                    locationPlace: hasManual ? prev.locationPlace : (prev.locationPlace || sp.place),
+                    coordinates: prev.coordinates || exifCoordinates || null,
+                  };
+                });
+              } catch (error) {
+                logger.warn('GPS 주소 변환 실패:', error);
+              } finally {
+                if (!cancelled) setExifGeoResolving(false);
               }
-            } catch (error) {
-              logger.warn('GPS 주소 변환 실패:', error);
-            }
-          }
-
-          setFormData((prev) => {
-            let region = prev.locationRegion;
-            let place = prev.locationPlace;
-            if (!region && !place) {
-              if (verifiedLocation) {
-                const sp = splitLocationForForm(verifiedLocation);
-                region = sp.region;
-                place = sp.place;
-              }
-            }
-            return {
-              ...prev,
-              exifData,
-              exifForFileKey: fk,
-              photoDate: exifData.photoDate || null,
-              verifiedLocation,
-              locationRegion: region,
-              locationPlace: place,
-              coordinates: prev.coordinates || exifCoordinates || null,
-            };
-          });
-
-          if (!exifData.gpsCoordinates) {
+            })();
+          } else {
+            setExifGeoResolving(false);
             getCurrentLocation();
           }
         } else {
@@ -781,6 +786,7 @@ const UploadScreen = () => {
             photoDate: null,
             verifiedLocation: null,
           }));
+          setExifGeoResolving(false);
           getCurrentLocation();
         }
 
@@ -797,6 +803,7 @@ const UploadScreen = () => {
             photoDate: null,
             verifiedLocation: null,
           }));
+          setExifGeoResolving(false);
           getCurrentLocation();
           const { location: loc, note } = locNoteRef.current;
           lastExifAiKeyRef.current = fk;
@@ -1991,6 +1998,12 @@ const UploadScreen = () => {
                         <span>촬영 정보 확인 중...</span>
                       </div>
                     )}
+                    {!validatingPhoto && exifGeoResolving && (
+                      <div className="mt-1 inline-flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                        <div className="h-3 w-3 animate-spin rounded-full border border-gray-400 border-t-transparent" />
+                        <span>촬영 위치 확인 중...</span>
+                      </div>
+                    )}
                     {formData.photoDate && (
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         {(() => {
@@ -2015,6 +2028,12 @@ const UploadScreen = () => {
                             </>
                           );
                         })()}
+                      </div>
+                    )}
+                    {formData.exifData?.cameraModel && (
+                      <div className="text-[11px] text-gray-500 dark:text-gray-400">
+                        <span className="mr-1 font-medium text-slate-600 dark:text-slate-300">촬영 기기</span>
+                        <span>{String(formData.exifData.cameraMake || '').trim()} {String(formData.exifData.cameraModel || '').trim()}</span>
                       </div>
                     )}
                     {formData.photoDate && formData.images.length > 0 && (
@@ -2393,33 +2412,92 @@ const UploadScreen = () => {
 
         {showCameraCapture && (
           <div className="absolute inset-0 z-[70] flex flex-col bg-black">
-            <div className="flex min-h-0 flex-1 items-center justify-center p-2">
-              <video
-                ref={cameraVideoRef}
-                className="max-h-full max-w-full object-contain"
-                autoPlay
-                muted
-                playsInline
-              />
-            </div>
+            {/* 상단 바: 닫기 + 가벼운 브랜드 톤 */}
             <div
-              className="flex gap-3 border-t border-white/10 bg-black/95 p-4"
-              style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}
+              className="flex items-center justify-between px-3 py-2 text-white/90"
+              style={{ paddingTop: 'calc(10px + env(safe-area-inset-top, 0px))' }}
             >
               <button
                 type="button"
                 onClick={() => setShowCameraCapture(false)}
-                className="flex min-h-[44px] flex-1 items-center justify-center rounded-xl border border-white/30 text-base font-semibold text-white"
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-black/40 ring-1 ring-white/10 backdrop-blur"
+                aria-label="닫기"
               >
-                닫기
+                <span className="material-symbols-outlined text-[22px]">close</span>
               </button>
-              <button
-                type="button"
-                onClick={captureFromCamera}
-                className="flex min-h-[44px] flex-1 items-center justify-center rounded-xl bg-primary text-base font-semibold text-white"
-              >
-                촬영
-              </button>
+              <div className="flex items-center gap-2 rounded-full bg-black/30 px-3 py-1.5 ring-1 ring-white/10 backdrop-blur">
+                <span className="inline-block h-2 w-2 rounded-full bg-primary shadow-[0_0_10px_rgba(0,188,212,0.7)]" />
+                <span className="text-[12px] font-semibold tracking-tight">LiveJourney Camera</span>
+              </div>
+              <div className="h-11 w-11" />
+            </div>
+
+            {/* 프리뷰 */}
+            <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+              <video
+                ref={cameraVideoRef}
+                className="h-full w-full object-cover"
+                autoPlay
+                muted
+                playsInline
+              />
+
+              {/* 중앙 포커스 프레임 (첨부 이미지 느낌) */}
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="relative h-20 w-20">
+                  <span className="absolute left-0 top-0 h-4 w-4 border-l-2 border-t-2 border-white/60" />
+                  <span className="absolute right-0 top-0 h-4 w-4 border-r-2 border-t-2 border-white/60" />
+                  <span className="absolute left-0 bottom-0 h-4 w-4 border-l-2 border-b-2 border-white/60" />
+                  <span className="absolute right-0 bottom-0 h-4 w-4 border-r-2 border-b-2 border-white/60" />
+                </div>
+              </div>
+
+              {/* 우측 세로 슬라이더(장식/가벼운 톤) */}
+              <div className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 sm:flex flex-col items-center gap-2">
+                <div className="h-44 w-1 rounded-full bg-white/20" />
+                <div className="h-4 w-4 rounded-full bg-white/80 shadow" />
+              </div>
+            </div>
+
+            {/* 하단 컨트롤: 첨부 이미지 레이아웃 느낌 */}
+            <div
+              className="border-t border-white/10 bg-black/90 px-4 pt-3"
+              style={{ paddingBottom: 'calc(18px + env(safe-area-inset-bottom, 0px))' }}
+            >
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {}}
+                  className="flex h-11 w-11 items-center justify-center rounded-full bg-black/40 ring-1 ring-white/10 text-white/90"
+                  aria-label="그리드"
+                >
+                  <span className="material-symbols-outlined text-[22px]">grid_on</span>
+                </button>
+
+                {/* 셔터 */}
+                <button
+                  type="button"
+                  onClick={captureFromCamera}
+                  className="relative flex h-[74px] w-[74px] items-center justify-center"
+                  aria-label="촬영"
+                >
+                  <div className="absolute inset-0 rounded-full bg-white/90" />
+                  <div className="absolute inset-[6px] rounded-full bg-black" />
+                  <div className="absolute inset-[12px] rounded-full bg-primary shadow-[0_0_18px_rgba(0,188,212,0.55)]" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {}}
+                  className="flex h-11 w-11 items-center justify-center rounded-full bg-black/40 ring-1 ring-white/10 text-white/90"
+                  aria-label="플래시"
+                >
+                  <span className="material-symbols-outlined text-[22px]">bolt</span>
+                </button>
+              </div>
+              <div className="mt-2 flex items-center justify-center text-[11px] font-medium text-white/60">
+                셔터 버튼을 눌러 촬영하세요
+              </div>
             </div>
           </div>
         )}
