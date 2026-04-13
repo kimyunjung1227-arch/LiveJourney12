@@ -7,15 +7,18 @@
 import { logger } from './logger';
 import { getTrustRawScore } from './trustIndex';
 import { fetchUserBadgesSupabase, saveUserBadgeSupabase } from '../api/userBadgesSupabase';
+import { normalizeRegionName } from './regionNames';
 
 /** [지역명] 뱃지일 때 표시명 반환. 그 외는 name 그대로 */
 export const getBadgeDisplayName = (badge) => {
+  if (badge?.displayName) return String(badge.displayName);
   if (badge?.region && badge?.name && /^지역\s/.test(badge.name))
     return `${badge.region} ${badge.name.replace(/^지역\s/, '')}`;
   return badge?.name || '';
 };
 
 const REGION_AWARE_NAMES = ['지역 가이드', '지역 지킴이', '지역 통신원', '지역 마스터'];
+const DYNAMIC_BADGE_PREFIX = 'dyn:';
 
 const getPostText = (p) => String(p?.note ?? p?.content ?? p?.description ?? p?.caption ?? '').trim();
 const getPostCreatedAtMs = (p) => {
@@ -62,6 +65,37 @@ const IMPORTANT_INFO_TAGS = [
 ];
 
 const normalizeTagText = (v) => String(v || '').replace(/^#/, '').replace(/\s+/g, '').trim();
+
+const normalizeLoose = (v) => String(v || '').replace(/^#+/, '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+const getPostBlobLower = (p) => {
+  const tags = Array.isArray(p?.tags) ? p.tags : (p?.tags ? [p.tags] : []);
+  const ai = Array.isArray(p?.aiLabels) ? p.aiLabels : (p?.aiLabels ? [p.aiLabels] : []);
+  const tagStr = [...tags, ...ai]
+    .map((x) => (typeof x === 'string' ? x : (x?.name || x?.label || '')))
+    .join(' ');
+  const loc = [p?.placeName, p?.detailedLocation, typeof p?.location === 'string' ? p.location : '', p?.region]
+    .filter(Boolean)
+    .join(' ');
+  const cat = String(p?.categoryName || p?.category || '').trim();
+  const txt = getPostText(p);
+  return normalizeLoose(`${tagStr} ${loc} ${cat} ${txt}`);
+};
+
+const matchesAny = (blobLower, keywords = []) => {
+  if (!blobLower) return false;
+  return (keywords || []).some((kw) => {
+    const k = normalizeLoose(kw);
+    return k && blobLower.includes(k);
+  });
+};
+
+const isWithinHours = (p, hours) => {
+  const ms = getPostCreatedAtMs(p) || getPostCapturedAtMs(p) || 0;
+  if (!ms) return false;
+  const ageH = (Date.now() - ms) / (1000 * 60 * 60);
+  return Number.isFinite(ageH) && ageH >= 0 && ageH <= hours;
+};
 
 const isImportantInfoPost = (p) => {
   // "명확한 행동" 기준: 태그(또는 카테고리)로 중요정보를 표시한 경우만 카운트
@@ -158,14 +192,20 @@ export const calculateUserStats = (posts = [], user = {}) => {
   logger.log('📊 사용자 통계 계산 시작');
 
   const regionCounts = {};
+  const regionCountsByName = {};
   const byRegionAndDate = {};
   const byDate = {};
   const dateSet = new Set();
+  const recent48h = [];
+  const seasonSignals48h = { cherry: 0, foliage: 0, snow: 0, sea: 0 };
+  const valueSignals48h = { waiting: 0, photo: 0, weather: 0 };
 
   (posts || []).forEach((p) => {
-    const r = p.region || (p.location && p.location.split(' ')[0]) || null;
+    const rRaw = p.region || (p.location && typeof p.location === 'string' ? p.location.split(' ')[0] : null) || null;
+    const r = rRaw ? normalizeRegionName(rRaw) : null;
     if (r) {
       regionCounts[r] = (regionCounts[r] || 0) + 1;
+      regionCountsByName[r] = (regionCountsByName[r] || 0) + 1;
       const createdAt = p.createdAt || p.created;
       if (createdAt) {
         const d = new Date(createdAt).toDateString();
@@ -245,6 +285,34 @@ export const calculateUserStats = (posts = [], user = {}) => {
     return Math.abs(created - captured) <= 10 * 60 * 1000;
   }).length;
 
+  // 시즌/가치 테마: 최근 48시간 "실시간" 시그널
+  (posts || []).forEach((p) => {
+    if (isWithinHours(p, 48)) recent48h.push(p);
+  });
+
+  const SEASON_KW = {
+    cherry: ['벚꽃', '개화', '만개', '봄꽃', '벚꽃길', '벚꽃축제'],
+    foliage: ['단풍', '낙엽', '단풍절정', '단풍길', '단풍명소'],
+    snow: ['첫눈', '눈', '설경', '적설', '빙판', '결빙', '눈길', '폭설'],
+    sea: ['바다', '해변', '파도', '수온', '서핑', '해수욕장', '윤슬', '물멍'],
+  };
+  const VALUE_KW = {
+    photo: ['인생샷', '구도', '채광', '역광', '노을', '일몰', '일출', '골든아워', '블루아워', '매직아워'],
+    waiting: ['웨이팅', '대기', '줄', 'queue', 'waiting', '입장', '만차'],
+    weather: ['날씨', '비', '눈', '바람', '안개', '구름', '소나기', '강수', '기상', '예보'],
+  };
+
+  recent48h.forEach((p) => {
+    const blob = getPostBlobLower(p);
+    if (matchesAny(blob, SEASON_KW.cherry)) seasonSignals48h.cherry += 1;
+    if (matchesAny(blob, SEASON_KW.foliage)) seasonSignals48h.foliage += 1;
+    if (matchesAny(blob, SEASON_KW.snow)) seasonSignals48h.snow += 1;
+    if (matchesAny(blob, SEASON_KW.sea)) seasonSignals48h.sea += 1;
+    if (matchesAny(blob, VALUE_KW.photo)) valueSignals48h.photo += 1;
+    if (matchesAny(blob, VALUE_KW.waiting) || hasWaitingTag(p)) valueSignals48h.waiting += 1;
+    if (matchesAny(blob, VALUE_KW.weather) || hasWeatherTag(p)) valueSignals48h.weather += 1;
+  });
+
   const stats = {
     totalPosts: (posts || []).length,
     posts: posts || [],
@@ -259,10 +327,14 @@ export const calculateUserStats = (posts = [], user = {}) => {
     regionImportantInfo,
     regionConsecutiveDays,
     regionTop1Percent: 0,
+    regionCountsByName,
 
     weatherReports,
     waitingShares,
     fastUploads,
+    recent48hCount: recent48h.length,
+    seasonSignals48h,
+    valueSignals48h,
 
     totalInfoViews: 0,
     preventedFailFeedback: 0,
@@ -300,6 +372,132 @@ export const calculateUserStats = (posts = [], user = {}) => {
 };
 
 /**
+ * 동적(성장형) 뱃지 빌더: 시즌/지역/가치 3축
+ * - 미획득이라도 progress/progressCurrent가 0보다 크면 "자연스럽게" 노출될 수 있음
+ * - badge.name은 저장 키로 쓰이므로 유니크하게 구성(dyn:...)
+ */
+const buildDynamicBadges = (stats) => {
+  const s = stats || null;
+  if (!s) return [];
+
+  const out = [];
+  const mk = (key, b) => {
+    const name = `${DYNAMIC_BADGE_PREFIX}${key}`;
+    out.push({ ...b, name, dynamic: true });
+  };
+
+  // 1) 시즌 테마 (희소성: 시즌에만 활성화)
+  const month = new Date().getMonth() + 1;
+  const inSpring = month >= 3 && month <= 5;
+  const inSummer = month >= 6 && month <= 8;
+  const inAutumn = month >= 9 && month <= 11;
+  const inWinter = month === 12 || month <= 2;
+
+  const seasonCount = s.seasonSignals48h || {};
+  const seasonBadge = (id, enabled, count, stages, icon, gradient) => {
+    if (!enabled) return;
+    const [t1, t2, t3] = stages;
+    const thresholds = [1, 3, 6];
+    const st =
+      count >= thresholds[2] ? { title: t3, tier: 3, target: thresholds[2] } :
+      count >= thresholds[1] ? { title: t2, tier: 2, target: thresholds[1] } :
+      { title: t1, tier: 1, target: thresholds[0] };
+    mk(
+      `season:${id}:tier${st.tier}`,
+      {
+        displayName: st.title,
+        description: '48시간 내 실시간 제보로 시즌 현장을 인증해요.',
+        icon,
+        category: '시즌 테마',
+        difficulty: st.tier,
+        gradient,
+        condition: () => count >= st.target,
+        getProgress: () => Math.min(100, (count / st.target) * 100),
+        progressCurrent: count,
+        progressTarget: st.target,
+        progressUnit: '회',
+        shortCondition: `최근 48시간 제보 ${st.target}회`,
+        seasonLimited: true,
+      }
+    );
+  };
+
+  seasonBadge('cherry', inSpring, Number(seasonCount.cherry || 0), ['벚꽃 탐색가', '벚꽃 헌터', '벚꽃 사랑꾼'], '🌸', 'from-pink-400 to-rose-500');
+  seasonBadge('foliage', inAutumn, Number(seasonCount.foliage || 0), ['단풍 관찰자', '단풍 스나이퍼', '낙엽 기록가'], '🍁', 'from-orange-400 to-amber-600');
+  seasonBadge('snow', inWinter, Number(seasonCount.snow || 0), ['첫눈 목격자', '설경 스나이퍼', '겨울왕국 통치자'], '❄️', 'from-sky-300 to-blue-600');
+  seasonBadge('sea', inSummer, Number(seasonCount.sea || 0), ['파도 추적자', '서핑 스카우트', '오션 가디언'], '🌊', 'from-cyan-400 to-blue-600');
+
+  // 2) 지역 테마 (전국 지역: "활동한 지역만" 자연 노출)
+  const regionCounts = s.regionCountsByName && typeof s.regionCountsByName === 'object' ? s.regionCountsByName : {};
+  const regionStages = [
+    { tier: 1, label: '비기너', target: 3 },
+    { tier: 2, label: '특파원', target: 10 },
+    { tier: 3, label: '마스터', target: 30 },
+  ];
+  Object.entries(regionCounts)
+    .filter(([region]) => region && String(region).trim().length >= 2)
+    .forEach(([region, cntRaw]) => {
+      const cnt = Number(cntRaw || 0) || 0;
+      if (cnt <= 0) return;
+      const st =
+        cnt >= regionStages[2].target ? regionStages[2] :
+        cnt >= regionStages[1].target ? regionStages[1] :
+        regionStages[0];
+      mk(
+        `region:${region}:tier${st.tier}`,
+        {
+          displayName: `${region} ${st.label}`,
+          description: `${region} 실시간 정보를 꾸준히 올리면 성장하는 지역 전문가 뱃지예요.`,
+          icon: st.tier === 3 ? '👑' : st.tier === 2 ? '📡' : '🧭',
+          category: '지역 테마',
+          difficulty: st.tier,
+          gradient: st.tier === 3 ? 'from-purple-600 to-fuchsia-700' : st.tier === 2 ? 'from-cyan-500 to-blue-600' : 'from-slate-500 to-slate-700',
+          region,
+          condition: () => cnt >= st.target,
+          getProgress: () => Math.min(100, (cnt / st.target) * 100),
+          progressCurrent: cnt,
+          progressTarget: st.target,
+          progressUnit: '회',
+          shortCondition: `${region} 제보 ${st.target}회`,
+        }
+      );
+    });
+
+  // 3) 가치 테마 (페인포인트 해결)
+  const v = s.valueSignals48h || {};
+  const valueBadge = (id, count, stages, icon, gradient) => {
+    if (count <= 0) return; // 활동 없으면 미노출
+    const thresholds = [1, 3, 6];
+    const st =
+      count >= thresholds[2] ? { title: stages[2], tier: 3, target: thresholds[2] } :
+      count >= thresholds[1] ? { title: stages[1], tier: 2, target: thresholds[1] } :
+      { title: stages[0], tier: 1, target: thresholds[0] };
+    mk(
+      `value:${id}:tier${st.tier}`,
+      {
+        displayName: st.title,
+        description: '48시간 내 실시간 제보로 실패를 줄여주는 솔루션 테마예요.',
+        icon,
+        category: '가치 테마',
+        difficulty: st.tier,
+        gradient,
+        condition: () => count >= st.target,
+        getProgress: () => Math.min(100, (count / st.target) * 100),
+        progressCurrent: count,
+        progressTarget: st.target,
+        progressUnit: '회',
+        shortCondition: `최근 48시간 제보 ${st.target}회`,
+      }
+    );
+  };
+  valueBadge('waiting', Number(v.waiting || 0), ['줄 서기 관찰자', '대기 시간 스나이퍼', '패스트패스 설계자'], '⏱️', 'from-lime-400 to-green-600');
+  valueBadge('photo', Number(v.photo || 0), ['매직아워 마스터', '구도 설계자', '인생샷 디렉터'], '📸', 'from-amber-400 to-orange-600');
+  valueBadge('weather', Number(v.weather || 0), ['구름 추적자', '기상 예보관', '맑음의 연금술사'], '🌦️', 'from-cyan-400 to-blue-600');
+
+  return out;
+};
+
+/**
  * 새로 획득한 뱃지 확인
  */
 export const checkNewBadges = (stats) => {
@@ -311,7 +509,11 @@ export const checkNewBadges = (stats) => {
     
     const newBadges = [];
     
-    for (const [badgeName, badgeInfo] of Object.entries(BADGES)) {
+    const staticBadges = Object.values(BADGES);
+    const dynamicBadges = buildDynamicBadges(stats);
+    for (const badgeInfo of [...staticBadges, ...dynamicBadges]) {
+      const badgeName = badgeInfo?.name;
+      if (!badgeName) continue;
       // 이미 획득한 뱃지는 스킵
       if (earnedBadgeNames.includes(badgeName)) {
         continue;
@@ -352,6 +554,18 @@ export const awardBadge = (badge, opts = {}) => {
     if (earnedBadges.some((b) => b.name === badge.name)) {
       logger.warn(`⚠️ 이미 획득한 뱃지: ${badge.name}`);
       return false;
+    }
+
+    // 성장형(동적) 뱃지는 "같은 트랙의 낮은 티어"를 교체
+    const badgeName = String(badge?.name || '');
+    if (badgeName.startsWith(DYNAMIC_BADGE_PREFIX)) {
+      const baseKey = badgeName.replace(/:tier\d+$/, '');
+      for (let i = earnedBadges.length - 1; i >= 0; i -= 1) {
+        const n = String(earnedBadges[i]?.name || '');
+        if (n && n !== badgeName && n.replace(/:tier\d+$/, '') === baseKey) {
+          earnedBadges.splice(i, 1);
+        }
+      }
     }
 
     const newBadge = {
@@ -449,7 +663,8 @@ export const getEarnedBadgesForDisplay = () => {
  * 뱃지 진행도 계산
  */
 export const getBadgeProgress = (badgeName, stats) => {
-  const badge = BADGES[badgeName];
+  const isDynamic = String(badgeName || '').startsWith(DYNAMIC_BADGE_PREFIX);
+  const badge = isDynamic ? (buildDynamicBadges(stats).find((b) => b.name === badgeName) || null) : BADGES[badgeName];
   if (!badge || !badge.getProgress) return 0;
   
   try {
@@ -510,7 +725,11 @@ export const markBadgeAsSeen = (badgeName) => {
 export const getEarnedBadgesFromStats = (stats) => {
   if (!stats) return [];
   const list = [];
-  for (const [badgeName, badgeInfo] of Object.entries(BADGES)) {
+  const staticBadges = Object.values(BADGES);
+  const dynamicBadges = buildDynamicBadges(stats);
+  for (const badgeInfo of [...staticBadges, ...dynamicBadges]) {
+    const badgeName = badgeInfo?.name;
+    if (!badgeName) continue;
     if (badgeInfo.category === TRUST_CATEGORY || badgeInfo.hidden) continue;
     try {
       if (badgeInfo.condition(stats)) {
@@ -567,8 +786,10 @@ export const getEarnedBadgesForUser = (userId, posts = null) => {
  */
 export const getAvailableBadges = (stats = null) => {
   const earnedBadges = getEarnedBadges();
+  const earnedSet = new Set(earnedBadges.map((b) => String(b?.name || '')).filter(Boolean));
+  const dynamic = stats ? buildDynamicBadges(stats) : [];
 
-  return Object.entries(BADGES)
+  const base = Object.entries(BADGES)
     .filter(([, badge]) => badge.category !== TRUST_CATEGORY)
     .map(([name, badge]) => {
       const earnedBadge = earnedBadges.find((b) => b.name === name);
@@ -593,6 +814,30 @@ export const getAvailableBadges = (stats = null) => {
         ...(!isEarned && stats?.topRegionName && (badge.regionAware || REGION_AWARE_NAMES.includes(name)) && { displayRegion: stats.topRegionName })
       };
     });
+
+  // earnedBadges에만 존재하는 동적/확장 뱃지도 UI에서 보이게(정의가 없어도)
+  const earnedUnknown = earnedBadges
+    .filter((b) => b && b.name && !BADGES[b.name])
+    .map((b) => ({
+      ...b,
+      name: b.name,
+      isEarned: true,
+      progress: 100,
+      shortCondition: b.shortCondition || '',
+    }));
+
+  const merged = [...base, ...dynamic, ...earnedUnknown];
+
+  // "미획득 뱃지 미노출": 획득했거나, 활동으로 진행도가 생긴 뱃지만 반환
+  return merged.filter((b) => {
+    if (!b) return false;
+    const isEarned = !!b.isEarned || earnedSet.has(String(b.name));
+    if (isEarned) return true;
+    if (!stats) return false;
+    const cur = typeof b.progressCurrent === 'number' ? b.progressCurrent : 0;
+    const prog = typeof b.progress === 'number' ? b.progress : getBadgeProgress(b.name, stats);
+    return (Number.isFinite(cur) && cur > 0) || (Number.isFinite(prog) && prog > 0);
+  });
 };
 
 /**
