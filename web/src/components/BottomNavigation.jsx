@@ -123,8 +123,7 @@ const BottomNavigation = React.memo(() => {
         location.pathname.startsWith('/terms') ||
         location.pathname.startsWith('/coupons') ||
         location.pathname.startsWith('/points') ||
-        location.pathname.startsWith('/exchange-success') ||
-        location.pathname.startsWith('/badges');
+        location.pathname.startsWith('/exchange-success');
     }
     return false;
   }, [location.pathname]);

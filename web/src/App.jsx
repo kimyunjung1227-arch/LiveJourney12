@@ -37,7 +37,6 @@ const PasswordChangeScreen = lazy(() => import('./pages/PasswordChangeScreen'))
 const AccountConnectionScreen = lazy(() => import('./pages/AccountConnectionScreen'))
 const AccountDeleteScreen = lazy(() => import('./pages/AccountDeleteScreen'))
 const AccountDeleteConfirmScreen = lazy(() => import('./pages/AccountDeleteConfirmScreen'))
-const BadgeListScreen = lazy(() => import('./pages/BadgeListScreen'))
 const BadgeAchievementScreen = lazy(() => import('./pages/BadgeAchievementScreen'))
 const MyCouponsScreen = lazy(() => import('./pages/MyCouponsScreen'))
 const RaffleScreen = lazy(() => import('./pages/RaffleScreen'))
@@ -139,7 +138,6 @@ function App() {
                 <Route path="/map/photos" element={<MapPhotoGridScreen />} />
                 <Route path="/profile" element={<ProfileScreen />} />
                 <Route path="/user/:userId" element={<UserProfileScreen />} />
-                <Route path="/badges" element={<BadgeListScreen />} />
                 <Route path="/badge-achievement/:badgeId" element={<BadgeAchievementScreen />} />
                 <Route path="/badge/achievement" element={<BadgeAchievementScreen />} />
                 <Route path="/coupons" element={<MyCouponsScreen />} />

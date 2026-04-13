@@ -1546,14 +1546,7 @@ const ProfileScreen = () => {
                       )}
                     </button>
                     {/* 뱃지 모아보기 버튼 - 메인 컬러 */}
-                    <button
-                      onClick={() => navigate('/badges')}
-                      className="flex items-center justify-center rounded-full transition-colors bg-primary/10 dark:bg-primary/20 hover:bg-primary/20 dark:hover:bg-primary/30"
-                      style={{ width: 32, height: 32, minWidth: 32, minHeight: 32 }}
-                      title="뱃지 모아보기"
-                    >
-                      <span className="material-symbols-outlined text-primary" style={{ fontSize: 16 }}>add</span>
-                    </button>
+                    {/* 뱃지 목록 화면 제거됨 */}
                   </div>
                   {/* 프로필 편집 버튼 - 메인 컬러 */}
                   <button

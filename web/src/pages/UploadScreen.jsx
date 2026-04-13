@@ -6,7 +6,7 @@ import { uploadImage, uploadVideo, getDisplayImageUrl } from '../api/upload';
 import { useAuth } from '../contexts/AuthContext';
 import { notifyBadge } from '../utils/notifications';
 import { safeSetItem, logLocalStorageStatus } from '../utils/localStorageManager';
-import { checkNewBadges, awardBadge, hasSeenBadge, markBadgeAsSeen, calculateUserStats } from '../utils/badgeSystem';
+import { checkNewBadges, awardBadge, calculateUserStats } from '../utils/badgeSystem';
 import { analyzeImageForTags } from '../utils/aiImageAnalyzer';
 import { getWeatherByRegion } from '../api/weather';
 import { createPostSupabase, getMergedMyPostsForStats, fetchPostByIdSupabase, updatePostSupabase } from '../api/postsSupabase';

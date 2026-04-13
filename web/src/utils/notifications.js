@@ -310,7 +310,7 @@ export const notifyBadge = (badgeName, difficulty = '중') => {
     icon: 'military_tech',
     iconBg: 'bg-amber-50 dark:bg-amber-900/20',
     iconColor: 'text-amber-700',
-    link: '/badges',
+    link: '/profile',
   });
 };
 
