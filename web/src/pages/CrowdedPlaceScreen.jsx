@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
-import { filterActivePosts48, getTimeAgo } from '../utils/timeUtils';
+import { filterActivePosts48 } from '../utils/timeUtils';
 import './MainScreen.css';
 
 import { getCombinedPosts } from '../utils/mockData';
@@ -13,6 +13,7 @@ import { togglePostLikeSupabase } from '../api/socialSupabase';
 import { getMapThumbnailUri } from '../utils/postMedia';
 import HotFeedCard from '../components/HotFeedCard';
 import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCardModel';
+import { buildPlaceStatsMap, selectPostsForPlaceStats, transformPostForHotFeed } from '../utils/hotFeedPostTransform';
 import { getWeatherByRegion } from '../api/weather';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 
@@ -148,29 +149,25 @@ const CrowdedPlaceScreen = () => {
             const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
             const supabasePosts = await fetchPostsSupabase();
             const allPosts = getCombinedPosts(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
+            // 메인 실시간 핫플과 동일한 장소 집계 → 좌상단 핫 태그(reasonTags·급상승 등) 일치
+            const postsForPlaceStats = selectPostsForPlaceStats(allPosts);
+            const placeStats = buildPlaceStatsMap(postsForPlaceStats);
             const posts = filterActivePosts48(allPosts);
 
             const transformPost = (post) => {
+                const base = transformPostForHotFeed(post, placeStats);
                 const firstImage = post.images?.[0] || post.image || post.thumbnail || '';
                 const firstVideo = post.videos?.[0] || '';
-                const likesNum = Number(post.likes ?? post.likeCount ?? 0) || 0;
-                const commentsArr = Array.isArray(post.comments) ? post.comments : [];
-                const timeStr = getTimeAgo(post.timestamp || post.createdAt || post.time);
                 const coverStill = getMapThumbnailUri(post);
                 return {
-                    ...post,
-                    id: post.id,
+                    ...base,
                     // 동영상은 재생하지 않고, 가능한 정지 썸네일(이미지/thumbnail/poster)만 사용
                     image: getDisplayImageUrl(coverStill || firstImage || ''),
                     thumbnailIsVideo: !firstImage && !!firstVideo,
                     firstVideoUrl: firstVideo ? getDisplayImageUrl(firstVideo) : null,
                     location: post.location,
                     region: post.region || (post.location || '').trim().split(/\s+/).slice(0, 2).join(' ') || post.location,
-                    time: timeStr,
                     content: post.note || post.content || `${post.location || '장소'}의 모습`,
-                    likes: likesNum,
-                    likeCount: likesNum,
-                    comments: commentsArr,
                 };
             };
 
