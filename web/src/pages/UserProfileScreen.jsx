@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import BackButton from '../components/BackButton';
+import ProfileInjangSection from '../components/ProfileInjangSection';
 import BottomNavigation from '../components/BottomNavigation';
 import { useAuth } from '../contexts/AuthContext';
-import { getEarnedBadgesForUser, BADGES, getBadgeDisplayName } from '../utils/badgeSystem';
+import { getEarnedBadgesForUser } from '../utils/badgeSystem';
 import { getMergedMyPostsForStats } from '../api/postsSupabase';
 import { getCoordinatesByLocation } from '../utils/regionLocationMapping';
 import {
@@ -38,7 +39,6 @@ const UserProfileScreen = () => {
   const [earnedBadges, setEarnedBadges] = useState([]);
   const [representativeBadge, setRepresentativeBadge] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showAllBadges, setShowAllBadges] = useState(false);
   const [mapLoading, setMapLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState('');
   const [availableDates, setAvailableDates] = useState([]);
@@ -99,7 +99,6 @@ const UserProfileScreen = () => {
     setUserPosts([]);
     setEarnedBadges([]);
     setRepresentativeBadge(null);
-    setShowAllBadges(false);
     setTrustRawScore(0);
 
     // 해당 사용자의 정보 찾기 (게시물에서)
@@ -287,7 +286,6 @@ const UserProfileScreen = () => {
       setUserPosts([]);
       setEarnedBadges([]);
       setRepresentativeBadge(null);
-      setShowAllBadges(false);
       setSelectedDate('');
       setAvailableDates([]);
     };
@@ -695,17 +693,6 @@ const UserProfileScreen = () => {
                     {user.bio}
                   </p>
                 )}
-                {earnedBadges.length > (representativeBadge ? 1 : 0) && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAllBadges(true)}
-                    className="mt-1 inline-flex min-w-[32px] h-7 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 items-center justify-center px-2 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">
-                      +{earnedBadges.length - (representativeBadge ? 1 : 0)}
-                    </span>
-                  </button>
-                )}
                 <div className="flex items-center w-full mt-2 text-gray-600 dark:text-gray-400">
                   <span className="flex-1 text-left text-sm font-medium">{userPosts.length} 게시물</span>
                   <button
@@ -737,6 +724,11 @@ const UserProfileScreen = () => {
                 </div>
               </div>
             </div>
+
+            <ProfileInjangSection
+              badges={earnedBadges}
+              onViewAll={() => userId && navigate(`/user/${userId}/badges`)}
+            />
 
             <div className="px-6 py-4">
               {(() => {
@@ -1538,62 +1530,6 @@ const UserProfileScreen = () => {
         )
       }
 
-      {/* 뱃지 모두보기 모달 */}
-      {
-        showAllBadges && (
-          <div
-            className="fixed inset-0 bg-black/50 z-[200] flex items-end justify-center"
-            onClick={() => setShowAllBadges(false)}
-          >
-            <div
-              className="bg-white dark:bg-gray-900 w-full max-w-[360px] rounded-3xl overflow-hidden mb-2 mx-2 flex flex-col"
-              onClick={(e) => e.stopPropagation()}
-              style={{ maxHeight: 'calc(100vh - 16px)' }}
-            >
-              {/* 모달 헤더 */}
-              <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white">획득한 뱃지</h2>
-                <button
-                  onClick={() => setShowAllBadges(false)}
-                  className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                >
-                  <span className="material-symbols-outlined">close</span>
-                </button>
-              </div>
-
-              {/* 뱃지 그리드 - 스크롤 가능 */}
-              <div className="p-4 overflow-y-auto flex-1" style={{ maxHeight: 'calc(100vh - 120px)' }}>
-                <div className="grid grid-cols-3 gap-4">
-                  {earnedBadges.map((badge, index) => {
-                    const isRepresentative = representativeBadge?.name === badge.name;
-                    return (
-                      <div
-                        key={index}
-                        className="flex flex-col items-center"
-                      >
-                        <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-2 ${isRepresentative
-                          ? 'bg-primary/20 border-2 border-primary'
-                          : 'bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
-                          }`}>
-                          <span className="text-3xl">{badge.icon}</span>
-                        </div>
-                        <p className="text-xs font-semibold text-gray-900 dark:text-white text-center mb-1">
-                          {getBadgeDisplayName(badge)}
-                        </p>
-                        {isRepresentative && (
-                          <span className="text-[10px] font-bold text-white bg-primary px-2 py-0.5 rounded">
-                            대표
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        )
-      }
     </div >
   );
 };

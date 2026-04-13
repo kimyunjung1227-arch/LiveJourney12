@@ -30,6 +30,7 @@ const UploadScreen = lazy(() => import('./pages/UploadScreen'))
 const MapScreen = lazy(() => import('./pages/MapScreen'))
 const MapPhotoGridScreen = lazy(() => import('./pages/MapPhotoGridScreen'))
 const ProfileScreen = lazy(() => import('./pages/ProfileScreen'))
+const EarnedBadgesScreen = lazy(() => import('./pages/EarnedBadgesScreen'))
 const UserProfileScreen = lazy(() => import('./pages/UserProfileScreen'))
 const EditProfileScreen = lazy(() => import('./pages/EditProfileScreen'))
 const PersonalInfoEditScreen = lazy(() => import('./pages/PersonalInfoEditScreen'))
@@ -137,6 +138,15 @@ function App() {
                 <Route path="/map" element={<MapScreen />} />
                 <Route path="/map/photos" element={<MapPhotoGridScreen />} />
                 <Route path="/profile" element={<ProfileScreen />} />
+                <Route
+                  path="/profile/badges"
+                  element={
+                    <ProtectedRoute>
+                      <EarnedBadgesScreen />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="/user/:userId/badges" element={<EarnedBadgesScreen />} />
                 <Route path="/user/:userId" element={<UserProfileScreen />} />
                 <Route path="/badge-achievement/:badgeId" element={<BadgeAchievementScreen />} />
                 <Route path="/badge/achievement" element={<BadgeAchievementScreen />} />

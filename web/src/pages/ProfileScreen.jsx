@@ -6,7 +6,8 @@ import BackButton from '../components/BackButton';
 import { useAuth } from '../contexts/AuthContext';
 import BottomNavigation from '../components/BottomNavigation';
 import { getUnreadCount, notifyFollowingStarted } from '../utils/notifications';
-import { getEarnedBadgesForDisplay, getBadgeDisplayName } from '../utils/badgeSystem';
+import { getEarnedBadgesForUser, getBadgeDisplayName } from '../utils/badgeSystem';
+import ProfileInjangSection from '../components/ProfileInjangSection';
 import { getTrustScore, getTrustRawScore, getTrustGrade, TRUST_GRADES } from '../utils/trustIndex';
 import { getCoordinatesByLocation } from '../utils/regionLocationMapping';
 import { follow, unfollow, isFollowing, getFollowerCount, getFollowingCount, getFollowerIds, getFollowingIds } from '../utils/followSystem';
@@ -108,6 +109,7 @@ const ProfileScreen = () => {
   const { user: authUser, logout, isAuthenticated } = useAuth();
   const [user, setUser] = useState(null);
   const [myPosts, setMyPosts] = useState([]);
+  const myPostsRef = useRef(myPosts);
   const [earnedBadges, setEarnedBadges] = useState([]);
   const [representativeBadge, setRepresentativeBadge] = useState(null);
   const [showBadgeSelector, setShowBadgeSelector] = useState(false);
@@ -142,6 +144,25 @@ const ProfileScreen = () => {
   useEffect(() => {
     if (isAuthenticated) refreshTrustScore();
   }, [isAuthenticated, refreshTrustScore]);
+
+  useEffect(() => {
+    myPostsRef.current = myPosts;
+  }, [myPosts]);
+
+  // 게시물·저장소 기준 획득 인장 목록 (신뢰지수 등급 제외)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const uid = (authUser || user)?.id;
+    if (!uid) return;
+    const postsArg = myPosts.length > 0 ? myPosts : null;
+    const next = getEarnedBadgesForUser(String(uid), postsArg);
+    setEarnedBadges(next);
+    setRepresentativeBadge((prev) => {
+      if (!prev) return prev;
+      if (!next.some((b) => b.name === prev.name)) return null;
+      return prev;
+    });
+  }, [isAuthenticated, authUser?.id, user?.id, myPosts]);
 
   useEffect(() => {
     const tab = location.state?.tab;
@@ -387,13 +408,12 @@ const ProfileScreen = () => {
       setUser(userData);
     }
 
-    // 획득한 뱃지 로드 (신뢰지수 등급 제외, 뱃지 구역에만 표시)
-    const badges = getEarnedBadgesForDisplay();
-    setEarnedBadges(badges);
-    logger.log('🏆 프로필 화면 - 획득한 뱃지 로드:', badges.length);
+    const userId = userData?.id;
+    // 대표 뱃지 검증용 획득 목록(게시물 로드 전에는 저장소 기준)
+    const badges = userId ? getEarnedBadgesForUser(String(userId), null) : [];
+    logger.log('🏆 프로필 화면 - 획득한 뱃지(초기):', badges.length);
 
     // 대표 뱃지 로드 (반드시 획득한 뱃지 중에서 선택)
-    const userId = userData?.id;
     let savedRepBadgeJson = userId
       ? localStorage.getItem(`representativeBadge_${userId}`) || localStorage.getItem('representativeBadge')
       : localStorage.getItem('representativeBadge');
@@ -500,7 +520,10 @@ const ProfileScreen = () => {
 
     // 뱃지 업데이트 이벤트 리스너
     const handleBadgeUpdate = () => {
-      const updatedBadges = getEarnedBadgesForDisplay();
+      const uid = (authUser || JSON.parse(localStorage.getItem('user') || '{}'))?.id;
+      if (!uid) return;
+      const posts = myPostsRef.current?.length ? myPostsRef.current : null;
+      const updatedBadges = getEarnedBadgesForUser(String(uid), posts);
       setEarnedBadges(updatedBadges);
       logger.log('🏆 뱃지 업데이트:', updatedBadges.length);
     };
@@ -1593,6 +1616,11 @@ const ProfileScreen = () => {
                 </div>
               </div>
             </div>
+
+            <ProfileInjangSection
+              badges={earnedBadges}
+              onViewAll={() => navigate('/profile/badges')}
+            />
 
             {/* 신뢰지수 구역 - 신뢰지수만 좌측, 수치·등급 우측, 등급 전체 보기 */}
             <div className="px-6 py-4">
