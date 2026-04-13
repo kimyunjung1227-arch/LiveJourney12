@@ -483,13 +483,12 @@ const SearchScreen = () => {
       return out.slice(0, n);
     };
 
-    // 팔로우 목록(순서 유지) → 부족하면 추천으로 채워서 항상 5개
+    // 팔로우 목록(순서 유지): "진짜 팔로우한 사용자"만 노출 (부족해도 추천으로 채우지 않음)
     const byId = new Map(travelerDirectory.map((t) => [String(t.userId), t]));
-    const followed = fillTo(
-      (followingIds || []).map((id) => byId.get(String(id))).filter(Boolean),
-      ranked,
-      5
-    );
+    const followed = (followingIds || [])
+      .map((id) => byId.get(String(id)))
+      .filter(Boolean)
+      .slice(0, 5);
 
     // 추천은 ranked 우선, 부족하면 전체 디렉토리로 채움
     const rec = fillTo(ranked, travelerDirectory, 5);
@@ -502,6 +501,12 @@ const SearchScreen = () => {
 
   const followedTravelersTop5 = travelerRecommendations.followedTop5;
   const recommendedTravelersTop5 = travelerRecommendations.recommendedTop5;
+
+  const fillTravelerSlots = useCallback((list, n = 5) => {
+    const arr = Array.isArray(list) ? list.slice(0, n) : [];
+    while (arr.length < n) arr.push(null);
+    return arr;
+  }, []);
 
   const goTravelerProfile = useCallback(
     (t) => {
@@ -1007,40 +1012,54 @@ const SearchScreen = () => {
               <div className="mb-3">
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">팔로우한 여행자</div>
-                  <div className="text-[11px] text-slate-400 dark:text-slate-400">5/5</div>
                 </div>
                 <div
                   onMouseDown={handleDragStart}
                   className="flex overflow-x-auto overflow-y-hidden gap-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                   style={{ WebkitOverflowScrolling: 'touch' }}
                 >
-                  {followedTravelersTop5.map((t) => (
-                    <button
-                      key={`followed-${t.userId}`}
-                      type="button"
-                      onClick={() => { if (!hasMovedRef.current) goTravelerProfile(t); }}
-                      className="flex-shrink-0 w-[132px] rounded-2xl border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#2F2418] p-3 text-left shadow-sm hover:shadow transition"
-                    >
-                      <div className="flex items-center gap-2">
-                        {t.profileImage ? (
-                          <img
-                            src={getDisplayImageUrl(t.profileImage)}
-                            alt=""
-                            className="w-10 h-10 rounded-full object-cover bg-slate-200 dark:bg-slate-700"
-                            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1520975682031-ae3f39f19b64?w=200&q=60'; }}
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-sm shrink-0">
-                            {String(t.username || '?').slice(0, 1)}
+                  {fillTravelerSlots(followedTravelersTop5, 5).map((t, i) =>
+                    t ? (
+                      <button
+                        key={`followed-${t.userId}`}
+                        type="button"
+                        onClick={() => { if (!hasMovedRef.current) goTravelerProfile(t); }}
+                        className="flex-shrink-0 w-[132px] rounded-2xl border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#2F2418] p-3 text-left shadow-sm hover:shadow transition"
+                      >
+                        <div className="flex items-center gap-2">
+                          {t.profileImage ? (
+                            <img
+                              src={getDisplayImageUrl(t.profileImage)}
+                              alt=""
+                              className="w-10 h-10 rounded-full object-cover bg-slate-200 dark:bg-slate-700"
+                              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1520975682031-ae3f39f19b64?w=200&q=60'; }}
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-sm shrink-0">
+                              {String(t.username || '?').slice(0, 1)}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-bold text-slate-900 dark:text-white truncate">{t.username}</div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-300">게시 {t.postCount}건</div>
                           </div>
-                        )}
-                        <div className="min-w-0">
-                          <div className="text-[13px] font-bold text-slate-900 dark:text-white truncate">{t.username}</div>
-                          <div className="text-[11px] text-slate-500 dark:text-slate-300">게시 {t.postCount}건</div>
+                        </div>
+                      </button>
+                    ) : (
+                      <div
+                        key={`followed-empty-${i}`}
+                        className="flex-shrink-0 w-[132px] rounded-2xl border border-dashed border-slate-200/70 dark:border-white/10 bg-white/70 dark:bg-[#2F2418]/70 p-3 text-left"
+                      >
+                        <div className="flex items-center gap-2 opacity-70">
+                          <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700" />
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-bold text-slate-400 dark:text-slate-400 truncate">비어있음</div>
+                            <div className="text-[11px] text-slate-400 dark:text-slate-500">팔로우로 채워요</div>
+                          </div>
                         </div>
                       </div>
-                    </button>
-                  ))}
+                    )
+                  )}
                 </div>
               </div>
 
@@ -1048,40 +1067,54 @@ const SearchScreen = () => {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">추천 여행자</div>
-                  <div className="text-[11px] text-slate-400 dark:text-slate-400">5/5</div>
                 </div>
                 <div
                   onMouseDown={handleDragStart}
                   className="flex overflow-x-auto overflow-y-hidden gap-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                   style={{ WebkitOverflowScrolling: 'touch' }}
                 >
-                  {recommendedTravelersTop5.map((t) => (
-                    <button
-                      key={`rec-${t.userId}`}
-                      type="button"
-                      onClick={() => { if (!hasMovedRef.current) goTravelerProfile(t); }}
-                      className="flex-shrink-0 w-[132px] rounded-2xl border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#2F2418] p-3 text-left shadow-sm hover:shadow transition"
-                    >
-                      <div className="flex items-center gap-2">
-                        {t.profileImage ? (
-                          <img
-                            src={getDisplayImageUrl(t.profileImage)}
-                            alt=""
-                            className="w-10 h-10 rounded-full object-cover bg-slate-200 dark:bg-slate-700"
-                            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1520975682031-ae3f39f19b64?w=200&q=60'; }}
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-sm shrink-0">
-                            {String(t.username || '?').slice(0, 1)}
+                  {fillTravelerSlots(recommendedTravelersTop5, 5).map((t, i) =>
+                    t ? (
+                      <button
+                        key={`rec-${t.userId}`}
+                        type="button"
+                        onClick={() => { if (!hasMovedRef.current) goTravelerProfile(t); }}
+                        className="flex-shrink-0 w-[132px] rounded-2xl border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#2F2418] p-3 text-left shadow-sm hover:shadow transition"
+                      >
+                        <div className="flex items-center gap-2">
+                          {t.profileImage ? (
+                            <img
+                              src={getDisplayImageUrl(t.profileImage)}
+                              alt=""
+                              className="w-10 h-10 rounded-full object-cover bg-slate-200 dark:bg-slate-700"
+                              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1520975682031-ae3f39f19b64?w=200&q=60'; }}
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-sm shrink-0">
+                              {String(t.username || '?').slice(0, 1)}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-bold text-slate-900 dark:text-white truncate">{t.username}</div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-300">게시 {t.postCount}건</div>
                           </div>
-                        )}
-                        <div className="min-w-0">
-                          <div className="text-[13px] font-bold text-slate-900 dark:text-white truncate">{t.username}</div>
-                          <div className="text-[11px] text-slate-500 dark:text-slate-300">게시 {t.postCount}건</div>
+                        </div>
+                      </button>
+                    ) : (
+                      <div
+                        key={`rec-empty-${i}`}
+                        className="flex-shrink-0 w-[132px] rounded-2xl border border-dashed border-slate-200/70 dark:border-white/10 bg-white/70 dark:bg-[#2F2418]/70 p-3 text-left"
+                      >
+                        <div className="flex items-center gap-2 opacity-70">
+                          <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700" />
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-bold text-slate-400 dark:text-slate-400 truncate">비어있음</div>
+                            <div className="text-[11px] text-slate-400 dark:text-slate-500">업로드가 필요해요</div>
+                          </div>
                         </div>
                       </div>
-                    </button>
-                  ))}
+                    )
+                  )}
                 </div>
               </div>
             </div>
