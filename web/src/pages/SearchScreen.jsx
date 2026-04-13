@@ -394,24 +394,114 @@ const SearchScreen = () => {
     return getFollowingIds(myUserId).filter(Boolean).map(String);
   }, [myUserId]);
 
-  const followedTravelersTop5 = useMemo(() => {
-    if (!followingIds.length) return [];
-    const map = new Map(travelerDirectory.map((t) => [String(t.userId), t]));
-    const out = [];
-    for (const id of followingIds) {
-      const t = map.get(String(id));
-      if (t) out.push(t);
-      if (out.length >= 5) break;
-    }
-    return out.slice(0, 5);
-  }, [followingIds, travelerDirectory]);
+  const travelerRecommendations = useMemo(() => {
+    const normalize = (s) => String(s || '').replace(/^#+/, '').trim().toLowerCase();
+    const interest = new Set();
 
-  const recommendedTravelersTop5 = useMemo(() => {
+    // 1) 최근 검색(의도) 기반 관심 키워드
+    (Array.isArray(searchEvents) ? searchEvents : [])
+      .slice(0, 60)
+      .forEach((ev) => {
+        const t = normalize(ev?.term || '');
+        if (t && t.length >= 2) interest.add(t);
+      });
+
+    // 2) 내 게시물 태그 기반 관심 키워드
+    if (myUserId) {
+      const mine = (Array.isArray(allPosts) ? allPosts : []).filter((p) => getPostUserId(p) === String(myUserId));
+      mine.slice(0, 40).forEach((p) => {
+        const tags = [
+          ...(Array.isArray(p?.tags) ? p.tags : []),
+          ...(Array.isArray(p?.aiLabels) ? p.aiLabels : []),
+        ]
+          .map((x) => (typeof x === 'string' ? x : (x?.name || x?.label || '')))
+          .map(normalize)
+          .filter(Boolean);
+        tags.forEach((t) => interest.add(t));
+      });
+    }
+
+    const interests = Array.from(interest).filter(Boolean).slice(0, 80);
+    const interestSet = new Set(interests);
+
+    const scoreForTraveler = (userId) => {
+      const uid = String(userId || '');
+      if (!uid) return 0;
+      const posts = (Array.isArray(allPosts) ? allPosts : []).filter((p) => getPostUserId(p) === uid);
+      if (posts.length === 0) return 0;
+
+      let newest = 0;
+      let overlap = 0;
+      const seen = new Set();
+      posts.slice(0, 40).forEach((p) => {
+        const ts = new Date(p?.timestamp || p?.createdAt || p?.photoDate || 0).getTime();
+        if (Number.isFinite(ts)) newest = Math.max(newest, ts);
+        const bag = [
+          ...(Array.isArray(p?.tags) ? p.tags : []),
+          ...(Array.isArray(p?.aiLabels) ? p.aiLabels : []),
+          p?.placeName,
+          p?.detailedLocation,
+          typeof p?.location === 'string' ? p.location : '',
+        ]
+          .map((x) => (typeof x === 'string' ? x : (x?.name || x?.label || '')))
+          .flatMap((s) => String(s || '').split(/[\s,/#]+/g))
+          .map(normalize)
+          .filter((t) => t && t.length >= 2);
+        bag.forEach((t) => {
+          if (seen.has(t)) return;
+          seen.add(t);
+          if (interestSet.has(t)) overlap += 1;
+        });
+      });
+
+      const hours = newest ? (Date.now() - newest) / (1000 * 60 * 60) : 9999;
+      const recencyBoost = hours <= 6 ? 10 : hours <= 24 ? 6 : hours <= 48 ? 3 : 0;
+      const postCount = posts.length;
+      const base = Math.log1p(postCount) * 3;
+      return overlap * 8 + base + recencyBoost;
+    };
+
     const exclude = new Set([...(followingIds || []).map(String), myUserId ? String(myUserId) : '']);
-    return travelerDirectory
+    const ranked = travelerDirectory
       .filter((t) => t && t.userId && !exclude.has(String(t.userId)))
-      .slice(0, 5);
-  }, [travelerDirectory, followingIds, myUserId]);
+      .map((t) => ({ ...t, _score: scoreForTraveler(t.userId) }))
+      .sort((a, b) => (b._score || 0) - (a._score || 0) || b.postCount - a.postCount)
+      .map(({ _score, ...rest }) => rest);
+
+    const fillTo = (primary, pool, n = 5) => {
+      const out = [];
+      const used = new Set();
+      const push = (t) => {
+        if (!t?.userId) return;
+        const k = String(t.userId);
+        if (used.has(k)) return;
+        used.add(k);
+        out.push(t);
+      };
+      (primary || []).forEach(push);
+      (pool || []).forEach(push);
+      return out.slice(0, n);
+    };
+
+    // 팔로우 목록(순서 유지) → 부족하면 추천으로 채워서 항상 5개
+    const byId = new Map(travelerDirectory.map((t) => [String(t.userId), t]));
+    const followed = fillTo(
+      (followingIds || []).map((id) => byId.get(String(id))).filter(Boolean),
+      ranked,
+      5
+    );
+
+    // 추천은 ranked 우선, 부족하면 전체 디렉토리로 채움
+    const rec = fillTo(ranked, travelerDirectory, 5);
+
+    return {
+      followedTop5: followed,
+      recommendedTop5: rec,
+    };
+  }, [travelerDirectory, followingIds, myUserId, allPosts, searchEvents]);
+
+  const followedTravelersTop5 = travelerRecommendations.followedTop5;
+  const recommendedTravelersTop5 = travelerRecommendations.recommendedTop5;
 
   const goTravelerProfile = useCallback(
     (t) => {
@@ -787,7 +877,7 @@ const SearchScreen = () => {
                   : 'text-gray-500 dark:text-gray-400'
               }`}
             >
-              인물
+              여행자
             </button>
           </div>
           <form onSubmit={handleSearch}>
@@ -917,100 +1007,88 @@ const SearchScreen = () => {
               <div className="mb-3">
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">팔로우한 여행자</div>
-                  <div className="text-[11px] text-slate-400 dark:text-slate-400">{followedTravelersTop5.length}/5</div>
+                  <div className="text-[11px] text-slate-400 dark:text-slate-400">5/5</div>
                 </div>
-                {followedTravelersTop5.length === 0 ? (
-                  <div className="rounded-2xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#2F2418] p-4 text-center text-[12px] text-slate-500 dark:text-slate-300">
-                    아직 팔로우한 여행자가 없어요.
-                  </div>
-                ) : (
-                  <div
-                    onMouseDown={handleDragStart}
-                    className="flex overflow-x-auto overflow-y-hidden gap-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                    style={{ WebkitOverflowScrolling: 'touch' }}
-                  >
-                    {followedTravelersTop5.map((t) => (
-                      <button
-                        key={`followed-${t.userId}`}
-                        type="button"
-                        onClick={() => { if (!hasMovedRef.current) goTravelerProfile(t); }}
-                        className="flex-shrink-0 w-[132px] rounded-2xl border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#2F2418] p-3 text-left shadow-sm hover:shadow transition"
-                      >
-                        <div className="flex items-center gap-2">
-                          {t.profileImage ? (
-                            <img
-                              src={getDisplayImageUrl(t.profileImage)}
-                              alt=""
-                              className="w-10 h-10 rounded-full object-cover bg-slate-200 dark:bg-slate-700"
-                              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1520975682031-ae3f39f19b64?w=200&q=60'; }}
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-sm shrink-0">
-                              {String(t.username || '?').slice(0, 1)}
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <div className="text-[13px] font-bold text-slate-900 dark:text-white truncate">{t.username}</div>
-                            <div className="text-[11px] text-slate-500 dark:text-slate-300">게시 {t.postCount}건</div>
+                <div
+                  onMouseDown={handleDragStart}
+                  className="flex overflow-x-auto overflow-y-hidden gap-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  style={{ WebkitOverflowScrolling: 'touch' }}
+                >
+                  {followedTravelersTop5.map((t) => (
+                    <button
+                      key={`followed-${t.userId}`}
+                      type="button"
+                      onClick={() => { if (!hasMovedRef.current) goTravelerProfile(t); }}
+                      className="flex-shrink-0 w-[132px] rounded-2xl border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#2F2418] p-3 text-left shadow-sm hover:shadow transition"
+                    >
+                      <div className="flex items-center gap-2">
+                        {t.profileImage ? (
+                          <img
+                            src={getDisplayImageUrl(t.profileImage)}
+                            alt=""
+                            className="w-10 h-10 rounded-full object-cover bg-slate-200 dark:bg-slate-700"
+                            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1520975682031-ae3f39f19b64?w=200&q=60'; }}
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-sm shrink-0">
+                            {String(t.username || '?').slice(0, 1)}
                           </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="text-[13px] font-bold text-slate-900 dark:text-white truncate">{t.username}</div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-300">게시 {t.postCount}건</div>
                         </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* 추천 여행자 5 */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">추천 여행자</div>
-                  <div className="text-[11px] text-slate-400 dark:text-slate-400">{recommendedTravelersTop5.length}/5</div>
+                  <div className="text-[11px] text-slate-400 dark:text-slate-400">5/5</div>
                 </div>
-                {recommendedTravelersTop5.length === 0 ? (
-                  <div className="rounded-2xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#2F2418] p-4 text-center text-[12px] text-slate-500 dark:text-slate-300">
-                    추천할 여행자가 아직 없어요.
-                  </div>
-                ) : (
-                  <div
-                    onMouseDown={handleDragStart}
-                    className="flex overflow-x-auto overflow-y-hidden gap-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                    style={{ WebkitOverflowScrolling: 'touch' }}
-                  >
-                    {recommendedTravelersTop5.map((t) => (
-                      <button
-                        key={`rec-${t.userId}`}
-                        type="button"
-                        onClick={() => { if (!hasMovedRef.current) goTravelerProfile(t); }}
-                        className="flex-shrink-0 w-[132px] rounded-2xl border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#2F2418] p-3 text-left shadow-sm hover:shadow transition"
-                      >
-                        <div className="flex items-center gap-2">
-                          {t.profileImage ? (
-                            <img
-                              src={getDisplayImageUrl(t.profileImage)}
-                              alt=""
-                              className="w-10 h-10 rounded-full object-cover bg-slate-200 dark:bg-slate-700"
-                              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1520975682031-ae3f39f19b64?w=200&q=60'; }}
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-sm shrink-0">
-                              {String(t.username || '?').slice(0, 1)}
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <div className="text-[13px] font-bold text-slate-900 dark:text-white truncate">{t.username}</div>
-                            <div className="text-[11px] text-slate-500 dark:text-slate-300">게시 {t.postCount}건</div>
+                <div
+                  onMouseDown={handleDragStart}
+                  className="flex overflow-x-auto overflow-y-hidden gap-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  style={{ WebkitOverflowScrolling: 'touch' }}
+                >
+                  {recommendedTravelersTop5.map((t) => (
+                    <button
+                      key={`rec-${t.userId}`}
+                      type="button"
+                      onClick={() => { if (!hasMovedRef.current) goTravelerProfile(t); }}
+                      className="flex-shrink-0 w-[132px] rounded-2xl border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#2F2418] p-3 text-left shadow-sm hover:shadow transition"
+                    >
+                      <div className="flex items-center gap-2">
+                        {t.profileImage ? (
+                          <img
+                            src={getDisplayImageUrl(t.profileImage)}
+                            alt=""
+                            className="w-10 h-10 rounded-full object-cover bg-slate-200 dark:bg-slate-700"
+                            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1520975682031-ae3f39f19b64?w=200&q=60'; }}
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-sm shrink-0">
+                            {String(t.username || '?').slice(0, 1)}
                           </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="text-[13px] font-bold text-slate-900 dark:text-white truncate">{t.username}</div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-300">게시 {t.postCount}건</div>
                         </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
 
-          {/* 최근 검색한 지역 - 해시태그 위 (공간 최소화) */}
-          {recentRegionSearches.length > 0 && (
+          {/* 장소 모드에서만: 최근 검색/추천 지역/해시태그 노출 */}
+          {searchMode === 'place' && recentRegionSearches.length > 0 && (
             <div className={`px-4 pt-1 pb-1 ${showSuggestions ? 'opacity-30' : ''}`}>
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-[#1c140d] dark:text-background-light text-sm font-bold leading-tight tracking-[-0.015em]">
@@ -1054,6 +1132,7 @@ const SearchScreen = () => {
           )}
 
           {/* 추천 · 인기 지역 (통합) */}
+          {searchMode === 'place' && (
           <div className={`px-4 pt-2 pb-2 ${showSuggestions ? 'opacity-30 pointer-events-none' : ''}`}>
             <h2 className="text-black dark:text-white text-sm font-bold leading-tight tracking-[-0.015em] mb-2">
               추천 · 인기 지역
@@ -1140,9 +1219,10 @@ const SearchScreen = () => {
               <div className="flex-shrink-0" style={{ width: '160px' }}></div>
             </div>
           </div>
+          )}
 
           {/* 해시태그 - 클릭 시 하단에 사진 표시 */}
-          {hashtagChips.length > 0 && (
+          {searchMode === 'place' && hashtagChips.length > 0 && (
             <div className={`px-4 pt-1 pb-2 ${showSuggestions ? 'opacity-30 pointer-events-none' : ''}`}>
               <div className="flex items-center justify-between mb-1.5">
                 <h2 className="text-black dark:text-white text-sm font-bold">해시태그</h2>
@@ -1188,7 +1268,7 @@ const SearchScreen = () => {
           )}
 
           {/* 선택된 해시태그 사진 그리드 */}
-          {selectedHashtag && (
+          {searchMode === 'place' && selectedHashtag && (
             <div className={`px-4 pt-0 pb-2 ${showSuggestions ? 'opacity-30 pointer-events-none' : ''}`}>
               <div className="flex items-center justify-between mb-1.5">
                 <h3 className="text-black dark:text-white text-xs font-bold">#{selectedHashtag} ({hashtagPostResults.length}장)</h3>
