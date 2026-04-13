@@ -53,6 +53,9 @@ const UploadScreen = () => {
   const [showCameraCapture, setShowCameraCapture] = useState(false);
   const [cameraPreviewStream, setCameraPreviewStream] = useState(null);
   const cameraVideoRef = useRef(null);
+  const [cameraFacingMode, setCameraFacingMode] = useState('environment'); // 'environment' | 'user'
+  const [cameraTorchOn, setCameraTorchOn] = useState(false);
+  const [cameraTorchSupported, setCameraTorchSupported] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showUploadGuide, setShowUploadGuide] = useState(false);
   const [dontShowGuideAgain, setDontShowGuideAgain] = useState(false);
@@ -960,6 +963,8 @@ const UploadScreen = () => {
         if (prev) prev.getTracks().forEach((t) => t.stop());
         return null;
       });
+      setCameraTorchOn(false);
+      setCameraTorchSupported(false);
       return;
     }
     let cancelled = false;
@@ -972,12 +977,20 @@ const UploadScreen = () => {
           return;
         }
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 } },
+          video: { facingMode: { ideal: cameraFacingMode }, width: { ideal: 1920 } },
           audio: false,
         });
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
           return;
+        }
+        // torch 지원 여부 탐지 (지원 시에만 플래시 버튼 동작)
+        try {
+          const track = stream.getVideoTracks?.()[0];
+          const caps = track?.getCapabilities?.();
+          setCameraTorchSupported(!!caps?.torch);
+        } catch {
+          setCameraTorchSupported(false);
         }
         setCameraPreviewStream(stream);
       } catch (err) {
@@ -990,7 +1003,43 @@ const UploadScreen = () => {
       cancelled = true;
       if (stream) stream.getTracks().forEach((t) => t.stop());
     };
-  }, [showCameraCapture]);
+  }, [showCameraCapture, cameraFacingMode]);
+
+  const toggleCameraFacing = useCallback(() => {
+    setCameraFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
+    // 전면/후면 전환 시 torch는 꺼두기 (일부 기기에서 충돌)
+    setCameraTorchOn(false);
+  }, []);
+
+  const toggleCameraTorch = useCallback(() => {
+    const stream = cameraPreviewStream;
+    const track = stream?.getVideoTracks?.()?.[0];
+    if (!track) return;
+    try {
+      const caps = track.getCapabilities?.();
+      if (!caps?.torch) {
+        setCameraTorchSupported(false);
+        alert('이 기기에서는 플래시(손전등)를 지원하지 않습니다.');
+        return;
+      }
+      const next = !cameraTorchOn;
+      track.applyConstraints({ advanced: [{ torch: next }] });
+      setCameraTorchOn(next);
+      setCameraTorchSupported(true);
+    } catch (e) {
+      logger.debug('torch applyConstraints 실패:', e);
+      alert('플래시를 켤 수 없습니다.');
+    }
+  }, [cameraPreviewStream, cameraTorchOn]);
+
+  const openGalleryFromCamera = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*,video/*';
+    input.multiple = true;
+    input.onchange = handleImageSelect;
+    input.click();
+  }, [handleImageSelect]);
 
   useEffect(() => {
     const el = cameraVideoRef.current;
@@ -2391,92 +2440,77 @@ const UploadScreen = () => {
         )}
 
         {showCameraCapture && (
-          <div className="absolute inset-0 z-[70] flex flex-col bg-black">
-            {/* 상단 바: 닫기 + 가벼운 브랜드 톤 */}
-            <div
-              className="flex items-center justify-between px-3 py-2 text-white/90"
-              style={{ paddingTop: 'calc(10px + env(safe-area-inset-top, 0px))' }}
-            >
-              <button
-                type="button"
-                onClick={() => setShowCameraCapture(false)}
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-black/40 ring-1 ring-white/10 backdrop-blur"
-                aria-label="닫기"
+          <div className="absolute inset-0 z-[70] bg-black">
+            {/* 카메라 프리뷰 (풀 스크린) */}
+            <video
+              ref={cameraVideoRef}
+              className="absolute inset-0 h-full w-full object-cover"
+              autoPlay
+              muted
+              playsInline
+            />
+
+            {/* 버튼 오버레이만 (상/하 검은 띠 제거) */}
+            <div className="absolute inset-0 pointer-events-none">
+              {/* 상단: 갤러리 / 전환 / 플래시 / 닫기 */}
+              <div
+                className="absolute left-0 right-0 top-0 flex items-center justify-between px-4"
+                style={{ paddingTop: 'calc(12px + env(safe-area-inset-top, 0px))' }}
               >
-                <span className="material-symbols-outlined text-[22px]">close</span>
-              </button>
-              <div className="flex items-center gap-2 rounded-full bg-black/30 px-3 py-1.5 ring-1 ring-white/10 backdrop-blur">
-                <span className="inline-block h-2 w-2 rounded-full bg-primary shadow-[0_0_10px_rgba(0,188,212,0.7)]" />
-                <span className="text-[12px] font-semibold tracking-tight">LiveJourney Camera</span>
-              </div>
-              <div className="h-11 w-11" />
-            </div>
+                <button
+                  type="button"
+                  onClick={openGalleryFromCamera}
+                  className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/25 ring-1 ring-white/15 backdrop-blur-sm"
+                  aria-label="갤러리"
+                >
+                  <span className="material-symbols-outlined text-[22px] text-white">image</span>
+                </button>
 
-            {/* 프리뷰 */}
-            <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden">
-              <video
-                ref={cameraVideoRef}
-                className="h-full w-full object-cover"
-                autoPlay
-                muted
-                playsInline
-              />
-
-              {/* 중앙 포커스 프레임 (첨부 이미지 느낌) */}
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <div className="relative h-20 w-20">
-                  <span className="absolute left-0 top-0 h-4 w-4 border-l-2 border-t-2 border-white/60" />
-                  <span className="absolute right-0 top-0 h-4 w-4 border-r-2 border-t-2 border-white/60" />
-                  <span className="absolute left-0 bottom-0 h-4 w-4 border-l-2 border-b-2 border-white/60" />
-                  <span className="absolute right-0 bottom-0 h-4 w-4 border-r-2 border-b-2 border-white/60" />
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={toggleCameraFacing}
+                    className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/25 ring-1 ring-white/15 backdrop-blur-sm"
+                    aria-label="카메라 전환"
+                  >
+                    <span className="material-symbols-outlined text-[22px] text-white">cameraswitch</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleCameraTorch}
+                    disabled={!cameraTorchSupported && !cameraTorchOn}
+                    className={`pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/25 ring-1 ring-white/15 backdrop-blur-sm ${(!cameraTorchSupported && !cameraTorchOn) ? 'opacity-50' : ''}`}
+                    aria-label="플래시"
+                    title={!cameraTorchSupported ? '이 기기에서는 플래시를 지원하지 않을 수 있어요' : '플래시'}
+                  >
+                    <span className={`material-symbols-outlined text-[22px] ${cameraTorchOn ? 'text-primary' : 'text-white'}`}>bolt</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCameraCapture(false)}
+                    className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/25 ring-1 ring-white/15 backdrop-blur-sm"
+                    aria-label="닫기"
+                  >
+                    <span className="material-symbols-outlined text-[22px] text-white">close</span>
+                  </button>
                 </div>
               </div>
 
-              {/* 우측 세로 슬라이더(장식/가벼운 톤) */}
-              <div className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 sm:flex flex-col items-center gap-2">
-                <div className="h-44 w-1 rounded-full bg-white/20" />
-                <div className="h-4 w-4 rounded-full bg-white/80 shadow" />
-              </div>
-            </div>
-
-            {/* 하단 컨트롤: 첨부 이미지 레이아웃 느낌 */}
-            <div
-              className="border-t border-white/10 bg-black/90 px-4 pt-3"
-              style={{ paddingBottom: 'calc(18px + env(safe-area-inset-bottom, 0px))' }}
-            >
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => {}}
-                  className="flex h-11 w-11 items-center justify-center rounded-full bg-black/40 ring-1 ring-white/10 text-white/90"
-                  aria-label="그리드"
-                >
-                  <span className="material-symbols-outlined text-[22px]">grid_on</span>
-                </button>
-
-                {/* 셔터 */}
+              {/* 하단: 셔터만 (LiveJourney 톤: 라이트 링 + 메인컬러) */}
+              <div
+                className="absolute left-0 right-0 bottom-0 flex items-center justify-center"
+                style={{ paddingBottom: 'calc(22px + env(safe-area-inset-bottom, 0px))' }}
+              >
                 <button
                   type="button"
                   onClick={captureFromCamera}
-                  className="relative flex h-[74px] w-[74px] items-center justify-center"
+                  className="pointer-events-auto relative flex h-[84px] w-[84px] items-center justify-center"
                   aria-label="촬영"
                 >
-                  <div className="absolute inset-0 rounded-full bg-white/90" />
-                  <div className="absolute inset-[6px] rounded-full bg-black" />
-                  <div className="absolute inset-[12px] rounded-full bg-primary shadow-[0_0_18px_rgba(0,188,212,0.55)]" />
+                  <div className="absolute inset-0 rounded-full bg-white/85 shadow-[0_10px_30px_rgba(0,0,0,0.35)]" />
+                  <div className="absolute inset-[7px] rounded-full bg-black/65 backdrop-blur-sm ring-1 ring-white/10" />
+                  <div className="absolute inset-[14px] rounded-full bg-primary shadow-[0_0_22px_rgba(0,188,212,0.55)]" />
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => {}}
-                  className="flex h-11 w-11 items-center justify-center rounded-full bg-black/40 ring-1 ring-white/10 text-white/90"
-                  aria-label="플래시"
-                >
-                  <span className="material-symbols-outlined text-[22px]">bolt</span>
-                </button>
-              </div>
-              <div className="mt-2 flex items-center justify-center text-[11px] font-medium text-white/60">
-                셔터 버튼을 눌러 촬영하세요
               </div>
             </div>
           </div>
