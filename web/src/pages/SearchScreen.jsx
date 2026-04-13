@@ -15,6 +15,7 @@ import BackButton from '../components/BackButton';
 import { normalizeRegionName } from '../utils/regionNames';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { getPostUserId, resolveUserDisplayFromPosts } from '../utils/userProfileHints';
+import { getCurrentUserId, getFollowingIds } from '../utils/followSystem';
 
 // 해시태그 파싱: #동백꽃 #바다 #힐링 → ['동백꽃','바다','힐링']
 const parseHashtags = (q) => {
@@ -382,6 +383,45 @@ const SearchScreen = () => {
       .filter(Boolean)
       .sort((a, b) => b.postCount - a.postCount || a.username.localeCompare(b.username, 'ko'));
   }, [allPosts]);
+
+  const myUserId = useMemo(() => {
+    const id = getCurrentUserId();
+    return id ? String(id) : '';
+  }, []);
+
+  const followingIds = useMemo(() => {
+    if (!myUserId) return [];
+    return getFollowingIds(myUserId).filter(Boolean).map(String);
+  }, [myUserId]);
+
+  const followedTravelersTop5 = useMemo(() => {
+    if (!followingIds.length) return [];
+    const map = new Map(travelerDirectory.map((t) => [String(t.userId), t]));
+    const out = [];
+    for (const id of followingIds) {
+      const t = map.get(String(id));
+      if (t) out.push(t);
+      if (out.length >= 5) break;
+    }
+    return out.slice(0, 5);
+  }, [followingIds, travelerDirectory]);
+
+  const recommendedTravelersTop5 = useMemo(() => {
+    const exclude = new Set([...(followingIds || []).map(String), myUserId ? String(myUserId) : '']);
+    return travelerDirectory
+      .filter((t) => t && t.userId && !exclude.has(String(t.userId)))
+      .slice(0, 5);
+  }, [travelerDirectory, followingIds, myUserId]);
+
+  const goTravelerProfile = useCallback(
+    (t) => {
+      if (!t?.userId) return;
+      navigate(`/user/${encodeURIComponent(t.userId)}`, {
+        state: { profileHint: { username: t.username, profileImage: t.profileImage || null } },
+      });
+    },
+    [navigate]
+  );
 
   const getMatchingTravelers = useCallback(
     (searchTerm, raw) => {
@@ -866,6 +906,109 @@ const SearchScreen = () => {
           className="screen-body flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain"
           style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}
         >
+          {/* 인물 모드: 팔로우/추천 여행자 프로필 섹션 */}
+          {searchMode === 'person' && !searchQuery.trim() && (
+            <div className={`px-4 pt-2 pb-2 ${showSuggestions ? 'opacity-30 pointer-events-none' : ''}`}>
+              <h2 className="text-black dark:text-white text-sm font-bold leading-tight tracking-[-0.015em] mb-2">
+                여행자
+              </h2>
+
+              {/* 팔로우한 여행자 5 */}
+              <div className="mb-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">팔로우한 여행자</div>
+                  <div className="text-[11px] text-slate-400 dark:text-slate-400">{followedTravelersTop5.length}/5</div>
+                </div>
+                {followedTravelersTop5.length === 0 ? (
+                  <div className="rounded-2xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#2F2418] p-4 text-center text-[12px] text-slate-500 dark:text-slate-300">
+                    아직 팔로우한 여행자가 없어요.
+                  </div>
+                ) : (
+                  <div
+                    onMouseDown={handleDragStart}
+                    className="flex overflow-x-auto overflow-y-hidden gap-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    style={{ WebkitOverflowScrolling: 'touch' }}
+                  >
+                    {followedTravelersTop5.map((t) => (
+                      <button
+                        key={`followed-${t.userId}`}
+                        type="button"
+                        onClick={() => { if (!hasMovedRef.current) goTravelerProfile(t); }}
+                        className="flex-shrink-0 w-[132px] rounded-2xl border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#2F2418] p-3 text-left shadow-sm hover:shadow transition"
+                      >
+                        <div className="flex items-center gap-2">
+                          {t.profileImage ? (
+                            <img
+                              src={getDisplayImageUrl(t.profileImage)}
+                              alt=""
+                              className="w-10 h-10 rounded-full object-cover bg-slate-200 dark:bg-slate-700"
+                              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1520975682031-ae3f39f19b64?w=200&q=60'; }}
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-sm shrink-0">
+                              {String(t.username || '?').slice(0, 1)}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-bold text-slate-900 dark:text-white truncate">{t.username}</div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-300">게시 {t.postCount}건</div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 추천 여행자 5 */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">추천 여행자</div>
+                  <div className="text-[11px] text-slate-400 dark:text-slate-400">{recommendedTravelersTop5.length}/5</div>
+                </div>
+                {recommendedTravelersTop5.length === 0 ? (
+                  <div className="rounded-2xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#2F2418] p-4 text-center text-[12px] text-slate-500 dark:text-slate-300">
+                    추천할 여행자가 아직 없어요.
+                  </div>
+                ) : (
+                  <div
+                    onMouseDown={handleDragStart}
+                    className="flex overflow-x-auto overflow-y-hidden gap-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    style={{ WebkitOverflowScrolling: 'touch' }}
+                  >
+                    {recommendedTravelersTop5.map((t) => (
+                      <button
+                        key={`rec-${t.userId}`}
+                        type="button"
+                        onClick={() => { if (!hasMovedRef.current) goTravelerProfile(t); }}
+                        className="flex-shrink-0 w-[132px] rounded-2xl border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#2F2418] p-3 text-left shadow-sm hover:shadow transition"
+                      >
+                        <div className="flex items-center gap-2">
+                          {t.profileImage ? (
+                            <img
+                              src={getDisplayImageUrl(t.profileImage)}
+                              alt=""
+                              className="w-10 h-10 rounded-full object-cover bg-slate-200 dark:bg-slate-700"
+                              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1520975682031-ae3f39f19b64?w=200&q=60'; }}
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-sm shrink-0">
+                              {String(t.username || '?').slice(0, 1)}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-bold text-slate-900 dark:text-white truncate">{t.username}</div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-300">게시 {t.postCount}건</div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* 최근 검색한 지역 - 해시태그 위 (공간 최소화) */}
           {recentRegionSearches.length > 0 && (
             <div className={`px-4 pt-1 pb-1 ${showSuggestions ? 'opacity-30' : ''}`}>
