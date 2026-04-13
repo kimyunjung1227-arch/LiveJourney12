@@ -92,14 +92,9 @@ const BadgeListScreen = () => {
 
       // 2) 카테고리 순서
       const categoryOrder = {
-        '온보딩': 1,
-        '지역 가이드': 2,
-        '실시간 정보': 3,
-        '도움 지수': 4,
-        '정확한 정보': 5,
-        '친절한 여행자': 6,
-        '기여도': 7,
-        '신뢰지수': 8
+        '시즌 테마': 1,
+        '지역 테마': 2,
+        '가치 테마': 3,
       };
       const orderA = categoryOrder[a.category] || 999;
       const orderB = categoryOrder[b.category] || 999;
@@ -108,6 +103,16 @@ const BadgeListScreen = () => {
       // 3) 난이도 순
       return (a.difficulty || 1) - (b.difficulty || 1);
     });
+
+  const getBadgeToneStyle = (badge, opts = {}) => {
+    const isEarned = !!badge?.isEarned;
+    const from = badge?.tone?.from || '#7C3AED';
+    const to = badge?.tone?.to || '#EC4899';
+    const opacity = typeof opts.opacity === 'number' ? opts.opacity : (isEarned ? 0.22 : 0.12);
+    return {
+      backgroundImage: `linear-gradient(135deg, ${from}${Math.round(opacity * 255).toString(16).padStart(2, '0')}, ${to}${Math.round(opacity * 255).toString(16).padStart(2, '0')})`,
+    };
+  };
 
   // 삭제된 긴 badgeDefinitions 배열
   /* const badgeDefinitions = [
@@ -517,13 +522,17 @@ const BadgeListScreen = () => {
               <button
                 key={badge.name || index}
                 onClick={() => handleBadgeClick(badge)}
-                className={`flex flex-col gap-2 items-center text-center p-4 rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] ${badge.isEarned
-                    ? 'bg-gradient-to-br from-primary/15 to-primary/5 border-2 border-primary shadow-lg ring-2 ring-primary/20'
-                    : 'bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700'
+                style={getBadgeToneStyle(badge)}
+                className={`flex flex-col gap-2 items-center text-center p-4 rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm ${badge.isEarned
+                    ? 'border-2 border-primary/60 shadow-lg ring-2 ring-primary/20'
+                    : 'border border-gray-200/70 dark:border-gray-700/60'
                   }`}
               >
                 {/* 뱃지 아이콘 */}
-                <div className={`relative w-16 h-16 rounded-full flex items-center justify-center ${badge.isEarned ? 'bg-primary/20 shadow-md' : 'bg-gray-200 dark:bg-gray-700'}`}>
+                <div
+                  className={`relative w-16 h-16 rounded-full flex items-center justify-center shadow-sm ${badge.isEarned ? 'bg-white/35 dark:bg-white/10' : 'bg-white/30 dark:bg-white/5'}`}
+                  style={badge?.gradientCss ? { backgroundImage: badge.gradientCss } : undefined}
+                >
                   <span className="text-4xl">
                     {badge.icon || '🏆'}
                   </span>
@@ -534,11 +543,11 @@ const BadgeListScreen = () => {
 
                 {/* 뱃지 정보 */}
                 <div className="flex flex-col gap-0.5 w-full min-w-0">
-                  <p className={`text-sm font-bold leading-tight truncate ${badge.isEarned ? 'text-primary' : 'text-gray-700 dark:text-gray-300'}`}>
+                  <p className={`text-sm font-bold leading-tight truncate ${badge.isEarned ? 'text-gray-900 dark:text-white' : 'text-gray-800 dark:text-gray-200'}`}>
                     {getBadgeDisplayName(badge)}
                   </p>
                   {badge.shortCondition && (
-                    <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate" title={badge.shortCondition}>
+                    <p className="text-[10px] text-gray-600/80 dark:text-gray-300/70 truncate" title={badge.shortCondition}>
                       {badge.shortCondition}
                     </p>
                   )}
@@ -554,8 +563,11 @@ const BadgeListScreen = () => {
                     <div className="mt-1.5 w-full">
                       <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
                         <div
-                          className="bg-primary h-2 rounded-full transition-all duration-500 min-w-0"
-                          style={{ width: `${Math.min(100, badge.progress || 0)}%` }}
+                          className="h-2 rounded-full transition-all duration-500 min-w-0"
+                          style={{
+                            width: `${Math.min(100, badge.progress || 0)}%`,
+                            backgroundImage: badge?.gradientCss || 'linear-gradient(90deg, #7C3AED, #EC4899)',
+                          }}
                         />
                       </div>
                       <p className="text-[10px] font-semibold text-gray-600 dark:text-gray-400 mt-0.5">
@@ -579,7 +591,7 @@ const BadgeListScreen = () => {
                 아직 획득한 뱃지가 없습니다
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-4">
-                첫 사진을 올려서 뱃지를 획득해보세요!
+                실시간 제보를 올리면 시즌/지역/가치 뱃지가 자연스럽게 나타나요.
               </p>
               <button
                 onClick={() => navigate('/upload')}
