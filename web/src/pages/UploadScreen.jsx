@@ -2124,9 +2124,6 @@ const UploadScreen = () => {
             {/* 위치: 한 줄 입력 → 내부는 지역 + 세부 장소로 분리 저장 */}
             <div>
               <p className="text-base font-semibold text-gray-800 mb-1">위치</p>
-              <p className="text-xs text-gray-500 mb-3">
-                한 줄로 입력해 주세요. 첫 단어는 지역, 나머지는 세부 장소로 저장돼요. (예: 대구 송해공원)
-              </p>
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
                   <input
@@ -2169,23 +2166,6 @@ const UploadScreen = () => {
                     </span>
                   </button>
                 </div>
-                {combinedLocation.trim() ? (
-                  <div
-                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
-                    style={{ lineHeight: 1.45 }}
-                  >
-                    <span className="font-semibold text-slate-800">구조 </span>
-                    <span className="text-slate-500">지역</span>{' '}
-                    <span className="font-medium text-slate-900">
-                      {formData.locationRegion.trim() || '—'}
-                    </span>
-                    <span className="mx-1.5 text-slate-300">·</span>
-                    <span className="text-slate-500">세부 장소</span>{' '}
-                    <span className="font-medium text-slate-900">
-                      {formData.locationPlace.trim() || '—'}
-                    </span>
-                  </div>
-                ) : null}
                 {loadingLocation && (
                   <p className="text-xs text-primary">위치를 찾고 있어요...</p>
                 )}

@@ -10,7 +10,7 @@ import api from './axios';
 import { logger } from '../utils/logger';
 import { supabase } from '../utils/supabaseClient';
 
-/** 502 방지: 해상도·용량을 더 보수적으로 (640px, 220KB 이하 권장) */
+/** 502 방지: 해상도·용량을 더 보수적으로 (기본 640px, 220KB 이하 권장) */
 const MAX_WIDTH_AI = 640;
 const JPEG_QUALITY = 0.58;
 /** 이 크기 초과 시 무조건 리사이즈 */
@@ -24,7 +24,7 @@ const EDGE_FN_NAME = 'analyze-tags';
 const EDGE_FN_COOLDOWN_KEY = 'aiTags_edgeCooldownUntil';
 const EDGE_FN_COOLDOWN_MS = 10 * 60 * 1000; // 10분
 
-/** 이미지를 AI 분석용으로 리사이즈·압축 (Edge Function 502 방지, 항상 안전한 크기로 전송) */
+/** 이미지를 AI 분석용으로 리사이즈·압축 (Edge Function 502 방지, 최대한 호출 가능 크기로 맞춤) */
 const resizeImageForAI = (file) => {
   return new Promise((resolve) => {
     if (!file || !file.type.startsWith('image/')) {
@@ -53,7 +53,12 @@ const resizeImageForAI = (file) => {
           }
         }
 
-        const doResize = (image, w, h, quality = JPEG_QUALITY) => {
+        const doResize = (image, w, h, quality = JPEG_QUALITY, depth = 0) => {
+          // 과도한 재귀 방지
+          if (depth > 10) {
+            resolve(file);
+            return;
+          }
           const canvas = document.createElement('canvas');
           canvas.width = w;
           canvas.height = h;
@@ -70,8 +75,15 @@ const resizeImageForAI = (file) => {
                 return;
               }
               const resized = new File([blob], file.name, { type: 'image/jpeg' });
-              if (resized.size > TARGET_MAX_BYTES && quality > 0.35) {
-                doResize(image, w, h, quality - 0.08);
+              // 1) 목표치보다 크면 품질을 더 낮춰 재시도
+              if (resized.size > TARGET_MAX_BYTES && quality > 0.28) {
+                doResize(image, w, h, Math.max(0.26, quality - 0.08), depth + 1);
+                return;
+              }
+              // 2) Edge 호출 상한(240KB)도 넘으면 해상도를 더 줄여 재시도 (대부분 여기서 해결)
+              if (resized.size > MAX_BYTES_FOR_EDGE_CALL && Math.max(w, h) > 360) {
+                const scale = 0.86;
+                doResize(image, Math.round(w * scale), Math.round(h * scale), Math.min(quality, 0.5), depth + 1);
                 return;
               }
               logger.log('📐 AI용 이미지 리사이즈:', `${(file.size / 1024).toFixed(0)}KB → ${(resized.size / 1024).toFixed(0)}KB`);

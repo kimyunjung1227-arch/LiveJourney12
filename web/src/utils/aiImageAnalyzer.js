@@ -676,14 +676,57 @@ export const analyzeImageForTags = async (imageFile, location = '', existingNote
     const categoryList = detectCategories(keywords, location, existingNote);
     const categoryResult = categoryList[0] || { category: 'scenic', categoryName: '추천장소', categoryIcon: '🏞️' };
     
-    // 9. 중복 제거 및 배열 변환 - 한국어만 필터링 (5개로 제한)
-    const finalTags = Array.from(keywords)
-      .filter(tag => {
-        // 한국어만 허용 (한글, 공백, 숫자만)
-        const isKorean = /^[가-힣\s\d]+$/.test(tag);
-        return tag && tag.length >= 2 && isKorean;
-      })
-      .slice(0, 5); // 최대 5개로 제한
+    const hashSeedFromFile = (f) => {
+      const name = f?.name || '';
+      const size = Number(f?.size || 0);
+      const lm = Number(f?.lastModified || 0);
+      const s = `${name}\0${size}\0${lm}\0${location}\0${existingNote}`.slice(0, 500);
+      let h = 2166136261;
+      for (let i = 0; i < s.length; i += 1) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+      const rgb = colorAnalysis?.dominantColor;
+      if (rgb && typeof rgb === 'object') {
+        const extra = `${rgb.r ?? 0},${rgb.g ?? 0},${rgb.b ?? 0}`;
+        for (let i = 0; i < extra.length; i += 1) h = Math.imul(h ^ extra.charCodeAt(i), 16777619);
+      }
+      return h >>> 0;
+    };
+
+    const seededShuffle = (arr, seed) => {
+      const a = arr.slice();
+      let x = seed || 1;
+      const next = () => {
+        // xorshift32
+        x ^= x << 13;
+        x ^= x >>> 17;
+        x ^= x << 5;
+        return (x >>> 0) / 4294967296;
+      };
+      for (let i = a.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(next() * (i + 1));
+        const tmp = a[i];
+        a[i] = a[j];
+        a[j] = tmp;
+      }
+      return a;
+    };
+
+    // 9. 배열 변환 - 한국어만 필터링 후 "순서를 섞어" 5개 선택 (같은 사진이라도 항상 똑같은 앞 5개만 나오지 않게)
+    const candidates = Array.from(keywords).filter((tag) => {
+      const isKorean = /^[가-힣\s\d]+$/.test(tag);
+      return tag && tag.length >= 2 && isKorean;
+    });
+    const seed = hashSeedFromFile(imageFile);
+    const shuffled = seededShuffle(candidates, seed);
+
+    // 위치가 있으면 위치 키워드 1개는 우선 포함(가능하면)
+    const locKw = generateLocationKeywords(location).find((t) => shuffled.includes(t));
+    const picked = [];
+    if (locKw) picked.push(locKw);
+    for (const t of shuffled) {
+      if (picked.length >= 5) break;
+      if (!picked.includes(t)) picked.push(t);
+    }
+    const finalTags = picked.slice(0, 5);
     
     logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     logger.log('✅ AI 분석 완료! (기존 방식)');

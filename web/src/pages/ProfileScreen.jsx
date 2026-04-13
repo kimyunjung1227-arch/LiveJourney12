@@ -214,6 +214,26 @@ const ProfileScreen = () => {
   const [filteredPosts, setFilteredPosts] = useState([]);
   const [availableDates, setAvailableDates] = useState([]);
   const [mapDatesExpanded, setMapDatesExpanded] = useState(false); // 나의 기록 지도 날짜 5개 이상일 때 펼치기
+  // 지도(내 기록)에서 "사용자 입력 위치"를 최대한 정확히 찍기 위한 키워드→좌표 캐시
+  const GEO_CACHE_KEY = 'lj_geo_cache_v1';
+  const readGeoCache = () => {
+    try {
+      const raw = localStorage.getItem(GEO_CACHE_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  };
+  const writeGeoCache = (map) => {
+    try {
+      localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(map));
+    } catch {
+      /* ignore */
+    }
+  };
+  const geoCacheRef = useRef(readGeoCache());
+  const geoSaveTimerRef = useRef(null);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [followerCount, setFollowerCount] = useState(0);
@@ -228,6 +248,92 @@ const ProfileScreen = () => {
   // 내 사진 탭 보기 방식: 'date' | 'custom'
   // 기본은 "모아보기"가 먼저 보이도록 custom으로 설정
   const [photoViewMode, setPhotoViewMode] = useState('custom');
+
+  // 내 지도 탭: 좌표가 없는 게시물은 카카오 키워드 검색으로 좌표를 보강(사용자 입력 위치 우선)
+  useEffect(() => {
+    if (activeTab !== 'map') return;
+    if (!window.kakao || !window.kakao.maps || !window.kakao.maps.services) return;
+    const list = Array.isArray(filteredPosts) ? filteredPosts : [];
+    if (list.length === 0) return;
+
+    let cancelled = false;
+    const places = new window.kakao.maps.services.Places();
+
+    const getQuery = (p) =>
+      String(p?.detailedLocation || (typeof p?.location === 'string' ? p.location : '') || p?.placeName || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const ensureCoords = (post) =>
+      new Promise((resolve) => {
+        if (!post) return resolve(post);
+        if (getPostCoordinates(post)) return resolve(post);
+        const q = getQuery(post);
+        if (!q) return resolve(post);
+
+        const cached = geoCacheRef.current?.[q];
+        if (cached && cached.lat != null && cached.lng != null) {
+          return resolve({ ...post, coordinates: { lat: Number(cached.lat), lng: Number(cached.lng) } });
+        }
+
+        places.keywordSearch(q, (data, status) => {
+          if (cancelled) return resolve(post);
+          if (status !== window.kakao.maps.services.Status.OK || !Array.isArray(data) || !data[0]) {
+            // 마지막 fallback: 지역 매핑(현재 동작 유지)
+            const fallback = getCoordinatesByLocation(q);
+            return resolve(fallback ? { ...post, coordinates: fallback } : post);
+          }
+          const best = data[0];
+          const lat = Number(best.y);
+          const lng = Number(best.x);
+          if (Number.isNaN(lat) || Number.isNaN(lng)) return resolve(post);
+          geoCacheRef.current[q] = { lat, lng };
+          if (geoSaveTimerRef.current) clearTimeout(geoSaveTimerRef.current);
+          geoSaveTimerRef.current = setTimeout(() => {
+            writeGeoCache(geoCacheRef.current);
+          }, 350);
+          return resolve({ ...post, coordinates: { lat, lng } });
+        });
+      });
+
+    // 동시 요청 과다 방지: 간단한 배치 처리(최대 4개씩)
+    const run = async () => {
+      const next = [];
+      for (let i = 0; i < list.length; i += 1) next.push(list[i]);
+      const out = [];
+      const concurrency = 4;
+      for (let i = 0; i < next.length; i += concurrency) {
+        const chunk = next.slice(i, i + concurrency);
+        // eslint-disable-next-line no-await-in-loop
+        const resolvedChunk = await Promise.all(chunk.map(ensureCoords));
+        out.push(...resolvedChunk);
+      }
+      if (cancelled) return;
+      // 좌표가 새로 생긴 게시물이 있으면 map 렌더 데이터도 같이 갱신
+      const changed = out.some((p, idx) => {
+        const before = list[idx];
+        const a = getPostCoordinates(before);
+        const b = getPostCoordinates(p);
+        return (!a && !!b) || (a && b && (a.lat !== b.lat || a.lng !== b.lng));
+      });
+      if (changed) {
+        setFilteredPosts(out);
+        setMyPosts((prev) => {
+          const byId = new Map((Array.isArray(prev) ? prev : []).map((p) => [String(p?.id), p]));
+          out.forEach((p) => {
+            if (!p?.id) return;
+            byId.set(String(p.id), p);
+          });
+          return Array.from(byId.values());
+        });
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, filteredPosts]);
 
   // 팔로워/팔로잉 모달: 전체·개별 Supabase 게시물로 이름·프로필 추론 보강
   useEffect(() => {
