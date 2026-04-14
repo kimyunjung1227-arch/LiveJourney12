@@ -1525,7 +1525,7 @@ const ProfileScreen = () => {
         <div className="screen-body">
           {/* 프로필 정보 */}
           <div className="bg-white dark:bg-gray-900 px-4 py-2.5">
-            <div className="flex items-center gap-3 mb-2.5">
+            <div className="flex items-start gap-3 mb-2.5">
               {/* 프로필 사진 */}
               <div className="flex-shrink-0">
                 {currentUser?.profileImage && currentUser.profileImage !== 'default' ? (
@@ -1541,11 +1541,15 @@ const ProfileScreen = () => {
 
               {/* 사용자 정보 */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
-                  <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
-                    <h2 className="text-text-primary-light dark:text-text-primary-dark text-sm font-bold truncate max-w-[180px] sm:max-w-[240px]" title={currentUser?.username || '모사모'}>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="min-w-0 flex items-center gap-2">
+                    <h2
+                      className="text-text-primary-light dark:text-text-primary-dark text-sm font-bold truncate max-w-[160px] sm:max-w-[220px]"
+                      title={currentUser?.username || '모사모'}
+                    >
                       {currentUser?.username || '모사모'}
                     </h2>
+
                     {/* 대표 뱃지 - 클릭 가능 */}
                     <button
                       onClick={() => {
@@ -1556,14 +1560,15 @@ const ProfileScreen = () => {
                         }
                       }}
                       disabled={earnedBadges.length === 0}
-                      className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-full border-2 border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed max-w-[140px]"
+                      title={representativeBadge ? (getBadgeDisplayName(representativeBadge) || representativeBadge.name) : '뱃지 없음'}
                     >
                       {representativeBadge ? (
                         <>
                           <span className="text-base leading-none" role="img" aria-label={getBadgeDisplayName(representativeBadge) || representativeBadge.name}>
                             {representativeBadge.icon || '🏆'}
                           </span>
-                          <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                          <span className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">
                             {getBadgeDisplayName(representativeBadge) || representativeBadge.name}
                           </span>
                         </>
@@ -1571,17 +1576,16 @@ const ProfileScreen = () => {
                         <span className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">뱃지 없음</span>
                       )}
                     </button>
-                    {/* 뱃지 모아보기 버튼 - 메인 컬러 */}
-                    {/* 뱃지 목록 화면 제거됨 */}
                   </div>
-                  {/* 프로필 편집 버튼 - 메인 컬러 */}
+
+                  {/* 수정 버튼 */}
                   <button
                     onClick={() => {
                       logger.debug('🔧 프로필 편집 버튼 클릭 → /profile/edit으로 이동');
                       navigate('/profile/edit');
                     }}
                     className="flex items-center justify-center rounded-full transition-colors bg-primary/10 dark:bg-primary/20 hover:bg-primary/20 dark:hover:bg-primary/30"
-                    style={{ width: 32, height: 32, minWidth: 32, minHeight: 32 }}
+                    style={{ width: 30, height: 30, minWidth: 30, minHeight: 30 }}
                     title="프로필 편집"
                   >
                     <span className="material-symbols-outlined text-primary" style={{ fontSize: 16 }}>edit</span>
@@ -1593,16 +1597,16 @@ const ProfileScreen = () => {
                     {currentUser.bio}
                   </p>
                 )}
-                {/* 게시물·팔로워·팔로잉 - 한 줄, 동일 여백, 왼쪽·중앙·우측 */}
-                <div className="flex items-center w-full mt-2 text-gray-600 dark:text-gray-400">
-                  <span className="flex-1 text-left text-xs font-medium">{myPosts.length} 게시물</span>
+                {/* 게시물·팔로워·팔로잉 - 이름 아래, 좌측 정렬 */}
+                <div className="flex items-center gap-4 mt-2 text-gray-600 dark:text-gray-400">
+                  <span className="text-xs font-medium">{myPosts.length} 게시물</span>
                   <button
                     type="button"
                     onClick={() => {
                       const uid = (authUser || user)?.id;
                       if (uid) { setFollowListIds(getFollowerIds(uid)); setFollowListType('follower'); setShowFollowListModal(true); }
                     }}
-                    className="flex-1 text-center text-xs font-medium hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                    className="text-xs font-medium hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
                   >
                     {followerCount} 팔로워
                   </button>
@@ -1612,7 +1616,7 @@ const ProfileScreen = () => {
                       const uid = (authUser || user)?.id;
                       if (uid) { setFollowListIds(getFollowingIds(uid)); setFollowListType('following'); setShowFollowListModal(true); }
                     }}
-                    className="flex-1 text-right text-xs font-medium hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                    className="text-xs font-medium hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
                   >
                     {followingCount} 팔로잉
                   </button>

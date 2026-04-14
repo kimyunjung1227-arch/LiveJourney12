@@ -615,7 +615,7 @@ const UserProfileScreen = () => {
 
         <div className="screen-body">
           <div className="bg-white dark:bg-gray-900 px-4 py-2.5">
-            <div className="flex items-center gap-3 mb-2.5">
+            <div className="flex items-start gap-3 mb-2.5">
               <div className="flex-shrink-0">
                 {user.profileImage ? (
                   <img
@@ -631,15 +631,18 @@ const UserProfileScreen = () => {
               </div>
 
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <h2 className="text-text-primary-light dark:text-text-primary-dark text-sm font-bold truncate max-w-[180px] sm:max-w-[240px]" title={user.username || '사용자'}>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="min-w-0 flex items-center gap-2">
+                    <h2
+                      className="text-text-primary-light dark:text-text-primary-dark text-sm font-bold truncate max-w-[160px] sm:max-w-[220px]"
+                      title={user.username || '사용자'}
+                    >
                       {user.username || '사용자'}
                     </h2>
                     {representativeBadge && (
-                      <div className="flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full flex-shrink-0 border border-gray-200 dark:border-gray-600">
+                      <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-full flex-shrink-0 border border-gray-200 dark:border-gray-600 max-w-[140px]">
                         <span className="text-sm">{representativeBadge.icon}</span>
-                        <span className="text-[10px] font-semibold text-gray-800 dark:text-gray-200 max-w-[72px] truncate">
+                        <span className="text-[10px] font-semibold text-gray-800 dark:text-gray-200 truncate">
                           {getBadgeDisplayName(representativeBadge) || representativeBadge.name}
                         </span>
                       </div>
@@ -693,8 +696,8 @@ const UserProfileScreen = () => {
                     {user.bio}
                   </p>
                 )}
-                <div className="flex items-center w-full mt-2 text-gray-600 dark:text-gray-400">
-                  <span className="flex-1 text-left text-xs font-medium">{userPosts.length} 게시물</span>
+                <div className="flex items-center gap-4 mt-2 text-gray-600 dark:text-gray-400">
+                  <span className="text-xs font-medium">{userPosts.length} 게시물</span>
                   <button
                     type="button"
                     onClick={() => {
@@ -704,7 +707,7 @@ const UserProfileScreen = () => {
                         setShowFollowListModal(true);
                       }
                     }}
-                    className="flex-1 text-center text-xs font-medium hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                    className="text-xs font-medium hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
                   >
                     {followerCount} 팔로워
                   </button>
@@ -717,7 +720,7 @@ const UserProfileScreen = () => {
                         setShowFollowListModal(true);
                       }
                     }}
-                    className="flex-1 text-right text-xs font-medium hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                    className="text-xs font-medium hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
                   >
                     {followingCount} 팔로잉
                   </button>

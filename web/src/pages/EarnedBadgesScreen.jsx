@@ -5,7 +5,6 @@ import BottomNavigation from '../components/BottomNavigation';
 import { useAuth } from '../contexts/AuthContext';
 import { getEarnedBadgesForUser, getBadgeDisplayName } from '../utils/badgeSystem';
 import { getMergedMyPostsForStats, fetchPostsByUserIdSupabase } from '../api/postsSupabase';
-import { getPosts } from '../api/posts';
 import api from '../api/axios';
 
 const getPostUserId = (post) => {
@@ -92,30 +91,6 @@ const EarnedBadgesScreen = () => {
       (remote || []).forEach((p) => {
         if (p?.id) byId.set(p.id, { ...byId.get(p.id), ...p });
       });
-    } catch {
-      /* ignore */
-    }
-
-    try {
-      const res = await getPosts({ limit: 100 });
-      if (res?.posts && Array.isArray(res.posts)) {
-        res.posts
-          .filter((post) => getPostUserId(post) === String(uid))
-          .forEach((apiPost) => {
-            const id = apiPost.id || apiPost._id;
-            if (!id) return;
-            const normalized = {
-              ...apiPost,
-              id,
-              imageUrl: apiPost.imageUrl || apiPost.image || (apiPost.images && apiPost.images[0]),
-              images: apiPost.images || (apiPost.imageUrl ? [apiPost.imageUrl] : []),
-              createdAt: apiPost.createdAt || apiPost.timestamp,
-              timestamp: apiPost.timestamp || apiPost.createdAt,
-            };
-            if (!byId.has(id)) byId.set(id, normalized);
-            else byId.set(id, { ...byId.get(id), ...normalized });
-          });
-      }
     } catch {
       /* ignore */
     }
