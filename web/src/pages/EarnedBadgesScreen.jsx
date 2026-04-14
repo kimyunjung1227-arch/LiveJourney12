@@ -39,7 +39,7 @@ const EarnedBadgesScreen = () => {
 
   const [loading, setLoading] = useState(true);
   const [badges, setBadges] = useState([]);
-  const [screenTitle, setScreenTitle] = useState('획득한 인장');
+  const [screenTitle, setScreenTitle] = useState('획득한 라이브뱃지');
   const [selectedBadge, setSelectedBadge] = useState(null);
 
   const sortedBadges = useMemo(() => sortBadges(badges), [badges]);
@@ -113,7 +113,7 @@ const EarnedBadgesScreen = () => {
       if (isSelf) {
         const saved = JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('user') || '{}' : '{}');
         const name = saved?.username || authUser?.username;
-        setScreenTitle(name ? `${name}님의 인장` : '내 인장');
+        setScreenTitle(name ? `${name}님의 라이브뱃지` : '내 라이브뱃지');
       } else {
         const isServerId = /^[a-fA-F0-9]{24}$/.test(String(targetUserId));
         if (isServerId) {
@@ -128,7 +128,7 @@ const EarnedBadgesScreen = () => {
             /* ignore */
           }
         }
-        if (!cancelled) setScreenTitle('획득한 인장');
+        if (!cancelled) setScreenTitle('획득한 라이브뱃지');
       }
       setLoading(false);
     })();
@@ -155,19 +155,13 @@ const EarnedBadgesScreen = () => {
             </div>
           ) : sortedBadges.length === 0 ? (
             <p className="text-center text-text-secondary-light dark:text-text-secondary-dark text-sm py-12">
-              아직 획득한 인장이 없습니다.
+              아직 획득한 라이브뱃지가 없습니다.
             </p>
           ) : (
             <div className="grid grid-cols-3 gap-5 sm:grid-cols-4">
               {sortedBadges.map((badge, index) => {
-                const label = getBadgeDisplayName(badge) || badge?.name || '인장';
+                const label = getBadgeDisplayName(badge) || badge?.name || '라이브뱃지';
                 const icon = badge?.icon;
-                const shortCondition = badge?.shortCondition || '';
-                const progressCurrent =
-                  typeof badge?.progressCurrent === 'number' ? badge.progressCurrent : null;
-                const progressTarget =
-                  typeof badge?.progressTarget === 'number' ? badge.progressTarget : null;
-                const progressUnit = badge?.progressUnit || '';
                 return (
                   <button
                     key={`${badge?.name || 'b'}-${index}`}
@@ -190,13 +184,6 @@ const EarnedBadgesScreen = () => {
                     >
                       {label}
                     </span>
-                    {(shortCondition || (progressCurrent != null && progressTarget != null)) && (
-                      <span className="mt-1 text-[10px] text-gray-500 dark:text-gray-400 w-full text-center truncate">
-                        {progressCurrent != null && progressTarget != null
-                          ? `${progressCurrent}/${progressTarget}${progressUnit ? ` ${progressUnit}` : ''}`
-                          : shortCondition}
-                      </span>
-                    )}
                   </button>
                 );
               })}
@@ -213,7 +200,7 @@ const EarnedBadgesScreen = () => {
           onClick={() => setSelectedBadge(null)}
           role="dialog"
           aria-modal="true"
-          aria-label="인장 조건"
+          aria-label="라이브뱃지 조건"
         >
           <div
             className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-xl overflow-hidden"
@@ -225,7 +212,7 @@ const EarnedBadgesScreen = () => {
                   {selectedBadge.icon || '🏅'}
                 </span>
                 <h4 className="text-base font-bold text-text-primary-light dark:text-text-primary-dark truncate">
-                  {getBadgeDisplayName(selectedBadge) || selectedBadge?.name || '인장'}
+                  {getBadgeDisplayName(selectedBadge) || selectedBadge?.name || '라이브뱃지'}
                 </h4>
               </div>
               <button

@@ -12,7 +12,7 @@ function sortBadgesForDisplay(badges) {
 }
 
 /**
- * 프로필 상단 「인장」: 가로 스크롤 미리보기 + 모두보기
+ * 프로필 상단 「라이브뱃지」: 가로 스크롤 미리보기 + 모두보기
  */
 export default function ProfileInjangSection({ badges, onViewAll, className = '' }) {
   const sorted = useMemo(() => sortBadgesForDisplay(badges), [badges]);
@@ -23,7 +23,7 @@ export default function ProfileInjangSection({ badges, onViewAll, className = ''
     <div className={`pt-2 pb-3 border-b border-gray-100 dark:border-gray-800 ${className}`}>
       <div className="flex items-center justify-between gap-2 mb-3">
         <h3 className="text-base font-bold text-text-primary-light dark:text-text-primary-dark shrink-0">
-          인장
+          라이브뱃지
         </h3>
         <button
           type="button"
@@ -36,19 +36,13 @@ export default function ProfileInjangSection({ badges, onViewAll, className = ''
 
       {preview.length === 0 ? (
         <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
-          아직 획득한 인장이 없습니다.
+          아직 획득한 라이브뱃지가 없습니다.
         </p>
       ) : (
-        <div className="flex gap-4 overflow-x-auto pb-1 -mx-0.5 px-0.5 [scrollbar-width:thin]">
+        <div className="flex gap-4 overflow-x-auto pb-1 -mx-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {preview.map((badge, index) => {
-            const label = getBadgeDisplayName(badge) || badge?.name || '인장';
+            const label = getBadgeDisplayName(badge) || badge?.name || '라이브뱃지';
             const icon = badge?.icon;
-            const shortCondition = badge?.shortCondition || '';
-            const progressCurrent =
-              typeof badge?.progressCurrent === 'number' ? badge.progressCurrent : null;
-            const progressTarget =
-              typeof badge?.progressTarget === 'number' ? badge.progressTarget : null;
-            const progressUnit = badge?.progressUnit || '';
             return (
               <button
                 key={`${badge?.name || 'b'}-${index}`}
@@ -76,14 +70,6 @@ export default function ProfileInjangSection({ badges, onViewAll, className = ''
                 >
                   {label}
                 </span>
-
-                {(shortCondition || (progressCurrent != null && progressTarget != null)) && (
-                  <span className="mt-1 text-[10px] text-gray-500 dark:text-gray-400 w-full text-center truncate">
-                    {progressCurrent != null && progressTarget != null
-                      ? `${progressCurrent}/${progressTarget}${progressUnit ? ` ${progressUnit}` : ''}`
-                      : shortCondition}
-                  </span>
-                )}
               </button>
             );
           })}
@@ -97,7 +83,7 @@ export default function ProfileInjangSection({ badges, onViewAll, className = ''
           onClick={() => setSelectedBadge(null)}
           role="dialog"
           aria-modal="true"
-          aria-label="인장 조건"
+          aria-label="라이브뱃지 조건"
         >
           <div
             className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-xl overflow-hidden"
@@ -109,7 +95,7 @@ export default function ProfileInjangSection({ badges, onViewAll, className = ''
                   {selectedBadge.icon || '🏅'}
                 </span>
                 <h4 className="text-base font-bold text-text-primary-light dark:text-text-primary-dark truncate">
-                  {getBadgeDisplayName(selectedBadge) || selectedBadge?.name || '인장'}
+                  {getBadgeDisplayName(selectedBadge) || selectedBadge?.name || '라이브뱃지'}
                 </h4>
               </div>
               <button

@@ -1523,18 +1523,18 @@ const ProfileScreen = () => {
         {/* 메인 컨텐츠 */}
         <div className="screen-body">
           {/* 프로필 정보 */}
-          <div className="bg-white dark:bg-gray-900 px-5 py-4">
-            <div className="flex items-center gap-4 mb-4">
+          <div className="bg-white dark:bg-gray-900 px-4 py-3">
+            <div className="flex items-center gap-3 mb-3">
               {/* 프로필 사진 */}
               <div className="flex-shrink-0">
                 {currentUser?.profileImage && currentUser.profileImage !== 'default' ? (
                   <img
                     src={currentUser.profileImage}
                     alt="Profile"
-                    className="w-14 h-14 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+                    className="w-12 h-12 rounded-full object-cover border border-gray-200 dark:border-gray-700"
                   />
                 ) : (
-                  <div className="w-14 h-14 rounded-full bg-gray-200 dark:bg-gray-700" />
+                  <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700" />
                 )}
               </div>
 
@@ -1542,7 +1542,7 @@ const ProfileScreen = () => {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
-                    <h2 className="text-text-primary-light dark:text-text-primary-dark text-base font-bold truncate max-w-[180px] sm:max-w-[240px]" title={currentUser?.username || '모사모'}>
+                    <h2 className="text-text-primary-light dark:text-text-primary-dark text-sm font-bold truncate max-w-[180px] sm:max-w-[240px]" title={currentUser?.username || '모사모'}>
                       {currentUser?.username || '모사모'}
                     </h2>
                     {/* 대표 뱃지 - 클릭 가능 */}
@@ -1592,14 +1592,14 @@ const ProfileScreen = () => {
                 )}
                 {/* 게시물·팔로워·팔로잉 - 한 줄, 동일 여백, 왼쪽·중앙·우측 */}
                 <div className="flex items-center w-full mt-2 text-gray-600 dark:text-gray-400">
-                  <span className="flex-1 text-left text-sm font-medium">{myPosts.length} 게시물</span>
+                  <span className="flex-1 text-left text-xs font-medium">{myPosts.length} 게시물</span>
                   <button
                     type="button"
                     onClick={() => {
                       const uid = (authUser || user)?.id;
                       if (uid) { setFollowListIds(getFollowerIds(uid)); setFollowListType('follower'); setShowFollowListModal(true); }
                     }}
-                    className="flex-1 text-center text-sm font-medium hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                    className="flex-1 text-center text-xs font-medium hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
                   >
                     {followerCount} 팔로워
                   </button>
@@ -1609,7 +1609,7 @@ const ProfileScreen = () => {
                       const uid = (authUser || user)?.id;
                       if (uid) { setFollowListIds(getFollowingIds(uid)); setFollowListType('following'); setShowFollowListModal(true); }
                     }}
-                    className="flex-1 text-right text-sm font-medium hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                    className="flex-1 text-right text-xs font-medium hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
                   >
                     {followingCount} 팔로잉
                   </button>
@@ -1673,13 +1673,13 @@ const ProfileScreen = () => {
           </div>
 
           {/* 기록 탭 */}
-          <div className="bg-white dark:bg-gray-900 px-6 py-6 border-t border-gray-100 dark:border-gray-800">
+            <div className="bg-white dark:bg-gray-900 px-6 py-6 border-t border-gray-100 dark:border-gray-800">
             {/* 탭 전환 */}
             <div className="flex gap-2 mb-6">
               <button
                 onClick={() => setActiveTab('my')}
                 className={`flex-1 py-3 px-2 rounded-xl font-semibold transition-all text-sm whitespace-nowrap ${activeTab === 'my'
-                    ? 'bg-gray-900 text-white shadow-lg dark:bg-gray-100 dark:text-gray-900'
+                    ? 'bg-primary/15 text-primary border border-primary/30 shadow-sm'
                     : 'bg-gray-100 dark:bg-gray-800 text-text-secondary-light dark:text-text-secondary-dark hover:bg-gray-200 dark:hover:bg-gray-700'
                   }`}
               >
@@ -1688,7 +1688,7 @@ const ProfileScreen = () => {
               <button
                 onClick={() => setActiveTab('map')}
                 className={`flex-1 py-3 px-2 rounded-xl font-semibold transition-all text-sm whitespace-nowrap ${activeTab === 'map'
-                    ? 'bg-gray-900 text-white shadow-lg dark:bg-gray-100 dark:text-gray-900'
+                    ? 'bg-primary/15 text-primary border border-primary/30 shadow-sm'
                     : 'bg-gray-100 dark:bg-gray-800 text-text-secondary-light dark:text-text-secondary-dark hover:bg-gray-200 dark:hover:bg-gray-700'
                   }`}
               >
@@ -1716,7 +1716,7 @@ const ProfileScreen = () => {
                     onClick={() => setPhotoViewMode('custom')}
                     className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
                       photoViewMode === 'custom'
-                        ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                        ? 'bg-primary/15 text-primary border border-primary/30'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                     }`}
                   >
@@ -1727,7 +1727,7 @@ const ProfileScreen = () => {
                     onClick={() => setPhotoViewMode('date')}
                     className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
                       photoViewMode === 'date'
-                        ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                        ? 'bg-primary/15 text-primary border border-primary/30'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                     }`}
                   >
@@ -1761,7 +1761,7 @@ const ProfileScreen = () => {
                 </p>
                 <button
                   onClick={() => navigate('/upload')}
-                  className="bg-gray-900 text-white py-3 px-6 rounded-full font-semibold hover:bg-gray-800 transition-colors shadow-lg inline-flex items-center gap-2 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                  className="bg-primary/15 text-primary border border-primary/30 py-3 px-6 rounded-full font-semibold hover:bg-primary/20 transition-colors shadow-sm inline-flex items-center gap-2"
                 >
                   첫 사진 올리기
                 </button>
@@ -2002,7 +2002,7 @@ const ProfileScreen = () => {
                     </p>
                     <button
                       onClick={() => navigate('/upload')}
-                      className="bg-gray-900 text-white py-3 px-6 rounded-full font-semibold hover:bg-gray-800 transition-colors shadow-lg inline-flex items-center gap-2 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                      className="bg-primary/15 text-primary border border-primary/30 py-3 px-6 rounded-full font-semibold hover:bg-primary/20 transition-colors shadow-sm inline-flex items-center gap-2"
                     >
                       첫 사진 올리기
                     </button>
@@ -2022,7 +2022,7 @@ const ProfileScreen = () => {
                             <button
                               onClick={() => setSelectedDate('')}
                               className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${!selectedDate
-                                  ? 'bg-gray-900 text-white shadow-sm dark:bg-gray-100 dark:text-gray-900'
+                                  ? 'bg-primary/15 text-primary border border-primary/30 shadow-sm'
                                   : 'bg-white/95 backdrop-blur-md text-gray-700 border border-gray-200 hover:bg-gray-50'
                                 }`}
                             >
@@ -2040,7 +2040,7 @@ const ProfileScreen = () => {
                                   key={date}
                                   onClick={() => setSelectedDate(isSelected ? '' : date)}
                                   className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${isSelected
-                                      ? 'bg-gray-900 text-white shadow-sm dark:bg-gray-100 dark:text-gray-900'
+                                      ? 'bg-primary/15 text-primary border border-primary/30 shadow-sm'
                                       : 'bg-white/95 backdrop-blur-md text-gray-700 border border-gray-200 hover:bg-gray-50'
                                     }`}
                                 >
