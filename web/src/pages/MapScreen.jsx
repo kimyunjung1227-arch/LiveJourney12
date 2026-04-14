@@ -167,6 +167,7 @@ const MapScreen = () => {
   const sheetRef = useRef(null);
   const dragHandleRef = useRef(null);
   const markersRef = useRef([]);
+  const postMarkersRef = useRef([]); // 관광지 제외: "게시물 마커"만 별도 관리 (visiblePins 계산 최적화)
   const currentLocationMarkerRef = useRef(null);
   const searchMarkerRef = useRef(null); // 검색 결과 마커
   const filterScrollRef = useRef(null); // 필터 좌우 스크롤 (마우스 휠용)
@@ -1724,6 +1725,9 @@ const MapScreen = () => {
 
     lastMarkersKeyRef.current = postsKey;
 
+    // 게시물 마커 목록 초기화
+    postMarkersRef.current = [];
+
     markersRef.current = markersRef.current.filter((markerData) => {
       if (markerData.overlay && !markerData.touristPlace) {
         markerData.overlay.setMap(null);
@@ -1945,6 +1949,7 @@ const MapScreen = () => {
 
         const markerData = { overlay, post, position, buttonEl: button || null, badgeEl: badge || null };
         markersRef.current.push(markerData);
+        postMarkersRef.current.push(markerData);
         hasValidMarker = true;
       });
     };
@@ -1982,12 +1987,12 @@ const MapScreen = () => {
     const boundsKey = sw && ne
       ? `${sw.getLat().toFixed(4)},${sw.getLng().toFixed(4)}|${ne.getLat().toFixed(4)},${ne.getLng().toFixed(4)}`
       : 'no-bounds';
-    // 마커 길이까지 key에 포함해서 "마커 변경"도 감지
-    const key = `${boundsKey}|m:${markersRef.current.length}`;
+    // 게시물 마커 길이까지 key에 포함해서 "마커 변경"도 감지 (관광지 마커 제외)
+    const key = `${boundsKey}|pm:${postMarkersRef.current.length}`;
     if (key === lastVisiblePinsKeyRef.current) return;
     lastVisiblePinsKeyRef.current = key;
 
-    const visible = markersRef.current
+    const visible = postMarkersRef.current
       .filter(markerData => {
         if (!markerData.position) return false;
         // 마커가 실제 지도 위에 있는지 확인
