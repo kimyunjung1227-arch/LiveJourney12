@@ -132,6 +132,15 @@ const hasExifTag = (post) => getPhotoStatusFromPost(post) !== 'NONE';
 const MAP_PIN_PLACEHOLDER_SVG =
   'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiByeD0iNCIgZmlsbD0iI0YzRjRGNiIvPgo8cGF0aCBkPSJNMjAgMTNDMTcuMjQgMTMgMTUgMTUuMjQgMTUgMThDMTUgMjAuNzYgMTcuMjQgMjMgMjAgMjNDMjIuNzYgMjMgMjUgMjAuNzYgMjUgMThDMjUgMTUuMjQgMjIuNzYgMTMgMjAgMTNaIiBmaWxsPSIjOUI5Q0E1Ii8+Cjwvc3ZnPg==';
 
+const getUploadedPostsSafe = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
 const MapScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -384,8 +393,8 @@ const MapScreen = () => {
 
     // 3. 해시태그 검색 (#로 시작하는 경우)
     if (value.startsWith('#')) {
-      const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-      const allPosts = getCombinedPosts(Array.isArray(localPosts) ? localPosts : []);
+      const localPosts = getUploadedPostsSafe();
+      const allPosts = getCombinedPosts(localPosts);
       const allTagsSet = new Set();
 
       allPosts.forEach(post => {
@@ -424,7 +433,7 @@ const MapScreen = () => {
     // 4. 게시물에서 장소명 검색 (단어가 완성된 경우에만, Kakao 검색 결과와 중복되지 않는 것만)
     if (isWordComplete) {
       const matchingPosts = searchInPosts(value);
-      const sortedPosts = matchingPosts.sort((a, b) => {
+      const sortedPosts = [...matchingPosts].sort((a, b) => {
         const aPlaceName = (a.placeName || a.detailedLocation || a.location || '').toLowerCase();
         const bPlaceName = (b.placeName || b.detailedLocation || b.location || '').toLowerCase();
         const queryLowerForSort = value.toLowerCase().trim();
@@ -457,8 +466,8 @@ const MapScreen = () => {
       const recType = getRecommendationTypeForKeyword(query);
       if (recType) {
         try {
-          const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-          const allPosts = getCombinedPosts(Array.isArray(localPosts) ? localPosts : []);
+          const localPosts = getUploadedPostsSafe();
+          const allPosts = getCombinedPosts(localPosts);
           const recList = getRecommendedRegions(allPosts, recType);
           recommended = recList.map(r => ({
             type: 'recommended_region',
@@ -535,8 +544,8 @@ const MapScreen = () => {
         map.setLevel(4);
         createSearchMarker(position, suggestion.regionName, map);
         try {
-          const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-          const allPosts = getCombinedPosts(Array.isArray(localPosts) ? localPosts : []);
+          const localPosts = getUploadedPostsSafe();
+          const allPosts = getCombinedPosts(localPosts);
           const regionPosts = allPosts.filter(p =>
             (p.location && (p.location.includes(suggestion.regionName) || p.location === suggestion.regionName)) ||
             (p.detailedLocation && (p.detailedLocation.includes(suggestion.regionName) || p.detailedLocation === suggestion.regionName))
@@ -650,7 +659,7 @@ const MapScreen = () => {
     });
 
     const matchingPosts = searchInPosts(value);
-    const sortedPosts = matchingPosts.sort((a, b) => {
+    const sortedPosts = [...matchingPosts].sort((a, b) => {
       const aPlaceName = (a.placeName || a.detailedLocation || a.location || '').toLowerCase();
       const bPlaceName = (b.placeName || b.detailedLocation || b.location || '').toLowerCase();
       const q = value.toLowerCase().trim();
@@ -681,8 +690,8 @@ const MapScreen = () => {
     const recType = getRecommendationTypeForKeyword(query);
     if (recType) {
       try {
-        const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-        const allPosts = getCombinedPosts(Array.isArray(localPosts) ? localPosts : []);
+        const localPosts = getUploadedPostsSafe();
+        const allPosts = getCombinedPosts(localPosts);
         const recList = getRecommendedRegions(allPosts, recType);
         recommended = recList.map((r) => ({
           id: `sos-rec-${r.regionName}`,
