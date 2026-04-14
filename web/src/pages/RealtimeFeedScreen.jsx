@@ -81,10 +81,12 @@ const RealtimeFeedScreen = () => {
   useEffect(() => {
     const regions = new Set();
     realtimeData.forEach((p) => {
-      if (p && !p.weather && !p.weatherSnapshot && (p.region || p.location)) {
-        const r = (p.region || p.location || '').trim().split(/\s+/)[0] || p.region || p.location;
-        if (r) regions.add(r);
-      }
+      if (!p || p.weather || p.weatherSnapshot) return;
+      const r = (p.region || p.location || '').trim().split(/\s+/)[0] || p.region || p.location;
+      if (!r) return;
+      // 이미 받아온 지역은 재요청하지 않음
+      if (weatherByRegion?.[r]) return;
+      regions.add(r);
     });
     if (regions.size === 0) return;
     let cancelled = false;
@@ -103,7 +105,7 @@ const RealtimeFeedScreen = () => {
       setWeatherByRegion((prev) => ({ ...prev, ...map }));
     });
     return () => { cancelled = true; };
-  }, [realtimeData]);
+  }, [realtimeData, weatherByRegion]);
 
   useEffect(() => {
     const handler = () => setRefreshKey((k) => k + 1);
