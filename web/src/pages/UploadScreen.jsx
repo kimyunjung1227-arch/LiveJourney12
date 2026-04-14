@@ -287,6 +287,22 @@ const UploadScreen = () => {
   const setBadgeAnimationKeyRef = useRef(setBadgeAnimationKey);
   setBadgeAnimationKeyRef.current = setBadgeAnimationKey;
   const [editFormReady, setEditFormReady] = useState(!editingPostId);
+  const weatherCacheRef = useRef(new Map()); // regionName -> weather
+
+  const getWeatherCached = useCallback(async (regionName) => {
+    const key = String(regionName || '').trim();
+    if (!key) return null;
+    const cached = weatherCacheRef.current.get(key);
+    if (cached) return cached;
+    try {
+      const res = await getWeatherByRegion(key);
+      const weather = res?.success && res.weather ? res.weather : null;
+      if (weather) weatherCacheRef.current.set(key, weather);
+      return weather;
+    } catch {
+      return null;
+    }
+  }, []);
 
   const lastEditRouteIdRef = useRef(null);
 
@@ -516,11 +532,11 @@ const UploadScreen = () => {
 
       if (regionName) {
         try {
-          const weatherResult = await getWeatherByRegion(regionName);
-          if (weatherResult?.success && weatherResult.weather) {
+          const weather = await getWeatherCached(regionName);
+          if (weather) {
             weatherTags = buildWeatherTagsFromCondition(
-              weatherResult.weather.condition,
-              weatherResult.weather.temperature
+              weather.condition,
+              weather.temperature
             );
           }
         } catch (weatherError) {
@@ -834,11 +850,11 @@ const UploadScreen = () => {
     let weatherTags = [];
     if (regionName) {
       try {
-        const weatherResult = await getWeatherByRegion(regionName);
-        if (weatherResult?.success && weatherResult.weather) {
+        const weather = await getWeatherCached(regionName);
+        if (weather) {
           weatherTags = buildWeatherTagsFromCondition(
-            weatherResult.weather.condition,
-            weatherResult.weather.temperature
+            weather.condition,
+            weather.temperature
           );
         }
       } catch (e) {
@@ -1533,13 +1549,13 @@ const UploadScreen = () => {
           // 업로드 시점의 날씨 정보 가져오기
           let weatherAtUpload = null;
           try {
-            const weatherResult = await getWeatherByRegion(region);
-            if (weatherResult?.success && weatherResult.weather) {
+            const weather = await getWeatherCached(region);
+            if (weather) {
               const snapshotAt = new Date().toISOString();
               weatherAtUpload = {
-                icon: weatherResult.weather.icon,
-                condition: weatherResult.weather.condition,
-                temperature: weatherResult.weather.temperature,
+                icon: weather.icon,
+                condition: weather.condition,
+                temperature: weather.temperature,
                 fetchedAt: Date.now(),
                 snapshotAt,
                 snapshotLabel: '업로드 시점 기준 기록(고정)',
