@@ -742,7 +742,23 @@ const UserProfileScreen = () => {
               badges={earnedBadges}
               onViewAll={() => userId && navigate(`/user/${userId}/badges`, {
                 state: {
-                  badges: earnedBadges,
+                  badges: (earnedBadges || []).map((b) => ({
+                    name: b?.name,
+                    displayName: b?.displayName,
+                    icon: b?.icon,
+                    category: b?.category,
+                    earnedAt: b?.earnedAt,
+                    region: b?.region,
+                    description: b?.description,
+                    shortCondition: b?.shortCondition,
+                    progressCurrent: b?.progressCurrent,
+                    progressTarget: b?.progressTarget,
+                    progressUnit: b?.progressUnit,
+                    tone: b?.tone,
+                    gradientCss: b?.gradientCss,
+                    difficulty: b?.difficulty,
+                    dynamic: b?.dynamic,
+                  })),
                   profileHint: { username: user?.username || '사용자', profileImage: user?.profileImage || null },
                 },
               })}

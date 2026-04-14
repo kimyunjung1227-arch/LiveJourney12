@@ -1635,9 +1635,26 @@ const ProfileScreen = () => {
               badges={earnedBadges}
               onViewAll={() => {
                 const u = user || authUser || null;
+                const serializableBadges = (earnedBadges || []).map((b) => ({
+                  name: b?.name,
+                  displayName: b?.displayName,
+                  icon: b?.icon,
+                  category: b?.category,
+                  earnedAt: b?.earnedAt,
+                  region: b?.region,
+                  description: b?.description,
+                  shortCondition: b?.shortCondition,
+                  progressCurrent: b?.progressCurrent,
+                  progressTarget: b?.progressTarget,
+                  progressUnit: b?.progressUnit,
+                  tone: b?.tone,
+                  gradientCss: b?.gradientCss,
+                  difficulty: b?.difficulty,
+                  dynamic: b?.dynamic,
+                }));
                 navigate('/profile/badges', {
                   state: {
-                    badges: earnedBadges,
+                    badges: serializableBadges,
                     profileHint: { username: u?.username || '나', profileImage: u?.profileImage || null },
                   },
                 });
