@@ -20,6 +20,7 @@ import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { getTimeAgo } from '../utils/timeUtils';
+import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
 const RegionDetailScreen = () => {
   const navigate = useNavigate();
@@ -62,7 +63,7 @@ const RegionDetailScreen = () => {
 
   // 지역 데이터 로드 (useCallback) — Supabase + 로컬 병합 후 사용자 업로드 사진 연동
   const loadRegionData = useCallback(async () => {
-    const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+    const localPosts = getUploadedPostsSafe();
     const supabasePosts = await fetchPostsSupabase();
     const combinedPosts = getCombinedPosts(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
 

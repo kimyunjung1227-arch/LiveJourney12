@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchPostsSupabase, deletePostSupabase } from '../api/postsSupabase';
 import { getDisplayImageUrl } from '../api/upload';
+import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
 const AdminPostsScreen = () => {
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ const AdminPostsScreen = () => {
       setPosts((prev) => prev.filter((p) => p && String(p.id) !== idStr));
       setDeleteConfirm({ postId: null });
       try {
-        const uploaded = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+        const uploaded = getUploadedPostsSafe();
         const filtered = uploaded.filter((p) => p && String(p.id) !== idStr);
         if (filtered.length !== uploaded.length) {
           localStorage.setItem('uploadedPosts', JSON.stringify(filtered));

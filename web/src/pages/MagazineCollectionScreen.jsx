@@ -5,6 +5,7 @@ import { listPublishedMagazines } from '../utils/magazinesStore';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
+import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
 const pickCoverForMagazine = (mag, posts) => {
   const firstSection = Array.isArray(mag?.sections) ? mag.sections[0] : null;
@@ -45,7 +46,7 @@ const MagazineCollectionScreen = () => {
     try {
       const pubs = await listPublishedMagazines();
       setPublished(Array.isArray(pubs) ? pubs : []);
-      const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+      const localPosts = getUploadedPostsSafe();
       const supabasePosts = await fetchPostsSupabase();
       const byId = new Map();
       [...(Array.isArray(supabasePosts) ? supabasePosts : []), ...(Array.isArray(localPosts) ? localPosts : [])].forEach(

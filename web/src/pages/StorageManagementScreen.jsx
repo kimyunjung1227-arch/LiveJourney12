@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import {
+  getUploadedPostsSafe,
   getLocalStorageSizeMB,
   cleanOldUserPosts,
   limitPostsCount,
@@ -25,7 +26,7 @@ const StorageManagementScreen = () => {
 
   const loadStorageInfo = () => {
     const sizeMB = getLocalStorageSizeMB();
-    const posts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+    const posts = getUploadedPostsSafe();
 
     setStorageInfo({
       totalSize: sizeMB,

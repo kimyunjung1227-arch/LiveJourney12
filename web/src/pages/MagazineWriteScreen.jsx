@@ -8,6 +8,7 @@ import { useAdminState } from '../utils/admin';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getCombinedPosts } from '../utils/mockData';
 import { buildSlidesForMagazine, getGridPostsPool, getRegionPostsForSlide } from '../utils/magazinePublishedUi';
+import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
 const DRAFT_KEY = 'magazinePublishDraft';
 
@@ -70,7 +71,7 @@ const MagazineWriteScreen = () => {
     let alive = true;
     (async () => {
       try {
-        const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+        const localPosts = getUploadedPostsSafe();
         const supabasePosts = await fetchPostsSupabase();
         const byId = new Map();
         [...(Array.isArray(supabasePosts) ? supabasePosts : []), ...(Array.isArray(localPosts) ? localPosts : [])].forEach(

@@ -19,6 +19,7 @@ import {
   getRegionPostsForSlide,
 } from '../utils/magazinePublishedUi';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
+import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
 const MagazineDetailScreen = () => {
   const navigate = useNavigate();
@@ -111,7 +112,7 @@ const MagazineDetailScreen = () => {
     const load = async () => {
       setLoading(true);
       try {
-        const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+        const localPosts = getUploadedPostsSafe();
         const supabasePosts = await fetchPostsSupabase();
 
         const byId = new Map();

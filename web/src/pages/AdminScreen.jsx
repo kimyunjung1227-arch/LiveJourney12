@@ -9,6 +9,7 @@ import {
   deleteNotice,
 } from '../api/noticesSupabase';
 import { getDisplayImageUrl } from '../api/upload';
+import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
 const TAB_POSTS = 'posts';
 const TAB_NOTICES = 'notices';
@@ -51,7 +52,7 @@ const AdminScreen = () => {
       setDeleteConfirm((prev) => ({ ...prev, postId: null }));
       // DB에서 삭제됐으므로 앱에서도 완전 제거: localStorage에서 제거
       try {
-        const uploaded = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+        const uploaded = getUploadedPostsSafe();
         const filtered = uploaded.filter((p) => p && String(p.id) !== idStr);
         if (filtered.length !== uploaded.length) {
           localStorage.setItem('uploadedPosts', JSON.stringify(filtered));

@@ -15,6 +15,7 @@ import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import { appendSOSMission } from '../utils/sosMissionStore';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
+import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
 /** false면 라이브 코스(경로 만들기·저장·최근 경로) UI를 숨깁니다. */
 const LIVE_COURSE_UI_ENABLED = false;
@@ -131,15 +132,6 @@ const hasExifTag = (post) => getPhotoStatusFromPost(post) !== 'NONE';
 
 const MAP_PIN_PLACEHOLDER_SVG =
   'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiByeD0iNCIgZmlsbD0iI0YzRjRGNiIvPgo8cGF0aCBkPSJNMjAgMTNDMTcuMjQgMTMgMTUgMTUuMjQgMTUgMThDMTUgMjAuNzYgMTcuMjQgMjMgMjAgMjNDMjIuNzYgMjMgMjUgMjAuNzYgMjUgMThDMjUgMTUuMjQgMjIuNzYgMTMgMjAgMTNaIiBmaWxsPSIjOUI5Q0E1Ii8+Cjwvc3ZnPg==';
-
-const getUploadedPostsSafe = () => {
-  try {
-    const parsed = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-};
 
 const MapScreen = () => {
   const navigate = useNavigate();
@@ -1068,7 +1060,7 @@ const MapScreen = () => {
         return;
       }
 
-      const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+      const localPosts = getUploadedPostsSafe();
       const supabasePosts = await fetchPostsSupabase();
       const combined = [
         ...(Array.isArray(supabasePosts) ? supabasePosts : []),
@@ -1128,7 +1120,7 @@ const MapScreen = () => {
     const queryWithoutHash = queryLower.replace(/^#+/, ''); // # 제거
 
     // 모든 게시물 가져오기
-    const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+    const localPosts = getUploadedPostsSafe();
     const allPosts = getCombinedPosts(Array.isArray(localPosts) ? localPosts : []);
 
     const validPosts = allPosts.filter(post => {

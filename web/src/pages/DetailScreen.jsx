@@ -4,6 +4,7 @@ import BottomNavigation from '../components/BottomNavigation';
 import { filterRecentPosts, filterActivePosts48, getTimeAgo } from '../utils/timeUtils';
 import { logger } from '../utils/logger';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
+import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
 const DetailScreen = () => {
   const navigate = useNavigate();
@@ -101,7 +102,7 @@ const DetailScreen = () => {
 
   // 모든 데이터 로드 (useCallback)
   const loadAllData = useCallback(() => {
-    let posts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+    let posts = getUploadedPostsSafe();
 
     // 2일 이상 된 게시물 필터링 ⭐
     posts = filterActivePosts48(posts);

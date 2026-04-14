@@ -10,6 +10,7 @@ import {
   getGridPostsPool,
   getRegionPostsForSlide,
 } from '../utils/magazinePublishedUi';
+import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
 const MagazineListScreen = () => {
   const navigate = useNavigate();
@@ -23,7 +24,7 @@ const MagazineListScreen = () => {
       const pubs = await listPublishedMagazines();
       setPublished(Array.isArray(pubs) ? pubs : []);
 
-      const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+      const localPosts = getUploadedPostsSafe();
       const supabasePosts = await fetchPostsSupabase();
       const byId = new Map();
       [...(Array.isArray(supabasePosts) ? supabasePosts : []), ...(Array.isArray(localPosts) ? localPosts : [])].forEach(
