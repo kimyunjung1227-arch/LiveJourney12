@@ -192,6 +192,42 @@ const MapScreen = () => {
   const { handleDragStart: handlePinScrollDrag, hasMovedRef: pinHasMovedRef } = useHorizontalDragScroll();
   const loadPostsSeqRef = useRef(0);
   const lastMarkersKeyRef = useRef('');
+  const postsPoolCacheRef = useRef({ ts: 0, allPosts: [] });
+  const postsPoolInflightRef = useRef(null);
+
+  const POSTS_POOL_TTL_MS = 20000;
+
+  const getAllPostsPool = useCallback(async () => {
+    const now = Date.now();
+    const cached = postsPoolCacheRef.current;
+    if (Array.isArray(cached?.allPosts) && cached.allPosts.length > 0 && now - (cached.ts || 0) < POSTS_POOL_TTL_MS) {
+      return cached.allPosts;
+    }
+    if (postsPoolInflightRef.current) return postsPoolInflightRef.current;
+
+    const p = (async () => {
+      const localPosts = getUploadedPostsSafe();
+      const supabasePosts = await fetchPostsSupabase();
+      const combined = [
+        ...(Array.isArray(supabasePosts) ? supabasePosts : []),
+        ...(Array.isArray(localPosts) ? localPosts : [])
+      ];
+      const byId = new Map();
+      combined.forEach((x) => {
+        if (x && x.id && !byId.has(x.id)) byId.set(x.id, x);
+      });
+      const allPosts = getCombinedPosts(Array.from(byId.values()));
+      postsPoolCacheRef.current = { ts: Date.now(), allPosts };
+      return allPosts;
+    })();
+
+    postsPoolInflightRef.current = p;
+    try {
+      return await p;
+    } finally {
+      postsPoolInflightRef.current = null;
+    }
+  }, []);
 
   const hashPostIds = useCallback((arr) => {
     // 빠른 32-bit 해시(마커 재생성 스킵 판단용)
@@ -1104,17 +1140,7 @@ const MapScreen = () => {
         return;
       }
 
-      const localPosts = getUploadedPostsSafe();
-      const supabasePosts = await fetchPostsSupabase();
-      const combined = [
-        ...(Array.isArray(supabasePosts) ? supabasePosts : []),
-        ...(Array.isArray(localPosts) ? localPosts : [])
-      ];
-      const byId = new Map();
-      combined.forEach((p) => {
-        if (p && p.id && !byId.has(p.id)) byId.set(p.id, p);
-      });
-      const allPosts = getCombinedPosts(Array.from(byId.values()));
+      const allPosts = await getAllPostsPool();
 
       let validPosts = allPosts.filter(post => {
         return post.coordinates || post.location || post.detailedLocation || post.region || post.placeName;
