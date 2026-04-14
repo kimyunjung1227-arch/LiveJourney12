@@ -1048,13 +1048,11 @@ const MapScreen = () => {
         setTimeout(() => drawRoute(selectedRoutePins), 500);
       }
 
-      // 지도 범위 변경 시 보이는 핀 업데이트 (디바운싱으로 성능 개선)
-      let boundsUpdateTimeout = null;
+      // 지도 범위 변경 시 보이는 핀 업데이트
+      // scheduleUpdateVisiblePins 내부에서 requestAnimationFrame 스로틀을 이미 적용하므로
+      // setTimeout 디바운스는 중복 제어가 되어 오히려 낭비가 될 수 있어 제거한다.
       window.kakao.maps.event.addListener(kakaoMap, 'bounds_changed', () => {
-        if (boundsUpdateTimeout) clearTimeout(boundsUpdateTimeout);
-        boundsUpdateTimeout = setTimeout(() => {
-          scheduleUpdateVisiblePins(kakaoMap);
-        }, 100); // 300 -> 100으로 응답성 개선
+        scheduleUpdateVisiblePins(kakaoMap);
       });
 
       // 지도가 멈췄을 때 최종 업데이트
