@@ -153,6 +153,9 @@ const MapScreen = () => {
   const searchMarkerRef = useRef(null); // 검색 결과 마커
   const filterScrollRef = useRef(null); // 필터 좌우 스크롤 (마우스 휠용)
   const hasDraggedFilterRef = useRef(false); // 버튼 위에서 드래그했으면 클릭 방지
+  // 지도 이동/줌 시 visiblePins 계산 스로틀 + 중복 업데이트 방지
+  const visiblePinsRafRef = useRef(0);
+  const lastVisiblePinsKeyRef = useRef('');
   const [map, setMap] = useState(null);
   const [posts, setPosts] = useState([]);
   const [visiblePins, setVisiblePins] = useState([]);
@@ -1014,17 +1017,17 @@ const MapScreen = () => {
       window.kakao.maps.event.addListener(kakaoMap, 'bounds_changed', () => {
         if (boundsUpdateTimeout) clearTimeout(boundsUpdateTimeout);
         boundsUpdateTimeout = setTimeout(() => {
-          updateVisiblePins(kakaoMap);
+          scheduleUpdateVisiblePins(kakaoMap);
         }, 100); // 300 -> 100으로 응답성 개선
       });
 
       // 지도가 멈췄을 때 최종 업데이트
       window.kakao.maps.event.addListener(kakaoMap, 'idle', () => {
-        updateVisiblePins(kakaoMap);
+        scheduleUpdateVisiblePins(kakaoMap);
       });
 
       // 초기 보이는 핀 업데이트를 지연 (지도가 완전히 로드된 후)
-      setTimeout(() => updateVisiblePins(kakaoMap), 1000);
+      setTimeout(() => scheduleUpdateVisiblePins(kakaoMap), 1000);
 
 
 
@@ -1880,10 +1883,20 @@ const MapScreen = () => {
     }
   };
 
-  const updateVisiblePins = (kakaoMap) => {
+  const updateVisiblePins = useCallback((kakaoMap) => {
     if (!kakaoMap) return;
 
     const bounds = kakaoMap.getBounds();
+    const sw = bounds?.getSouthWest?.();
+    const ne = bounds?.getNorthEast?.();
+    const boundsKey = sw && ne
+      ? `${sw.getLat().toFixed(4)},${sw.getLng().toFixed(4)}|${ne.getLat().toFixed(4)},${ne.getLng().toFixed(4)}`
+      : 'no-bounds';
+    // 마커 길이까지 key에 포함해서 "마커 변경"도 감지
+    const key = `${boundsKey}|m:${markersRef.current.length}`;
+    if (key === lastVisiblePinsKeyRef.current) return;
+    lastVisiblePinsKeyRef.current = key;
+
     const visible = markersRef.current
       .filter(markerData => {
         if (!markerData.position) return false;
@@ -1916,7 +1929,16 @@ const MapScreen = () => {
     // 중복 제거 및 무결성 확인
     const uniqueVisible = Array.from(new Map(visible.map(p => [p.id, p])).values());
     setVisiblePins(uniqueVisible);
-  };
+  }, []);
+
+  const scheduleUpdateVisiblePins = useCallback((kakaoMap) => {
+    if (!kakaoMap) return;
+    if (visiblePinsRafRef.current) return;
+    visiblePinsRafRef.current = window.requestAnimationFrame(() => {
+      visiblePinsRafRef.current = 0;
+      updateVisiblePins(kakaoMap);
+    });
+  }, [updateVisiblePins]);
 
   const handleSheetDragStart = (e) => {
     setIsDragging(true);
@@ -1989,7 +2011,7 @@ const MapScreen = () => {
       window.addEventListener('resize', updateSheetHeight);
       return () => window.removeEventListener('resize', updateSheetHeight);
     }
-  }, [visiblePins]);
+  }, []);
 
   const handleZoomIn = () => {
     if (map) {
