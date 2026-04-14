@@ -132,40 +132,41 @@ const EarnedBadgesScreen = () => {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const merged = await loadMergedForUser(String(targetUserId));
-      if (cancelled) return;
-      const list = getEarnedBadgesForUser(String(targetUserId), merged.length ? merged : null) || [];
-      setBadges(list);
+      try {
+        const merged = await loadMergedForUser(String(targetUserId));
+        if (cancelled) return;
+        const list = getEarnedBadgesForUser(String(targetUserId), merged.length ? merged : null) || [];
+        setBadges(list);
 
-      if (isSelf) {
-        const saved = JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('user') || '{}' : '{}');
-        const name = saved?.username || authUser?.username || '나';
-        setScreenTitle(name ? `${name}님의 라이브뱃지` : '내 라이브뱃지');
-        setProfileName(name || '나');
-        setProfileImage(saved?.profileImage || authUser?.profileImage || null);
-      } else {
-        const isServerId = /^[a-fA-F0-9]{24}$/.test(String(targetUserId));
-        if (isServerId) {
-          try {
-            const res = await api.get(`/users/${targetUserId}`);
-            const u = res.data?.user;
-            if (!cancelled && u?.username) {
-              setScreenTitle(`${u.username}님의 라이브뱃지`);
-              setProfileName(u.username);
-              setProfileImage(u.profileImage || u.avatar || null);
-              return;
+        if (isSelf) {
+          const saved = JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('user') || '{}' : '{}');
+          const name = saved?.username || authUser?.username || '나';
+          setScreenTitle(name ? `${name}님의 라이브뱃지` : '내 라이브뱃지');
+          setProfileName(name || '나');
+          setProfileImage(saved?.profileImage || authUser?.profileImage || null);
+        } else {
+          const isServerId = /^[a-fA-F0-9]{24}$/.test(String(targetUserId));
+          if (isServerId) {
+            try {
+              const res = await api.get(`/users/${targetUserId}`);
+              const u = res.data?.user;
+              if (!cancelled && u?.username) {
+                setScreenTitle(`${u.username}님의 라이브뱃지`);
+                setProfileName(u.username);
+                setProfileImage(u.profileImage || u.avatar || null);
+              }
+            } catch {
+              /* ignore */
             }
-          } catch {
-            /* ignore */
+          } else {
+            setScreenTitle('획득한 라이브뱃지');
+            setProfileName('사용자');
+            setProfileImage(null);
           }
         }
-        if (!cancelled) setScreenTitle('획득한 라이브뱃지');
-        if (!cancelled) {
-          setProfileName('사용자');
-          setProfileImage(null);
-        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setLoading(false);
     })();
 
     return () => {

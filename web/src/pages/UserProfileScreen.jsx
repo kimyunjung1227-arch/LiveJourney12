@@ -4,7 +4,7 @@ import BackButton from '../components/BackButton';
 import ProfileInjangSection from '../components/ProfileInjangSection';
 import BottomNavigation from '../components/BottomNavigation';
 import { useAuth } from '../contexts/AuthContext';
-import { getEarnedBadgesForUser } from '../utils/badgeSystem';
+import { getEarnedBadgesForUser, getBadgeDisplayName } from '../utils/badgeSystem';
 import { getMergedMyPostsForStats } from '../api/postsSupabase';
 import { getCoordinatesByLocation } from '../utils/regionLocationMapping';
 import {
@@ -614,18 +614,18 @@ const UserProfileScreen = () => {
         </header>
 
         <div className="screen-body">
-          <div className="bg-white dark:bg-gray-900 px-4 py-3">
-            <div className="flex items-center gap-3 mb-3">
+          <div className="bg-white dark:bg-gray-900 px-4 py-2.5">
+            <div className="flex items-center gap-3 mb-2.5">
               <div className="flex-shrink-0">
                 {user.profileImage ? (
                   <img
                     src={user.profileImage}
                     alt="Profile"
-                    className="w-13 h-13 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+                    className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700"
                   />
                 ) : (
-                  <div className="w-13 h-13 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-gray-600 dark:text-gray-300 text-4xl">person</span>
+                  <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-gray-600 dark:text-gray-300 text-3xl">person</span>
                   </div>
                 )}
               </div>
@@ -633,14 +633,14 @@ const UserProfileScreen = () => {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <h2 className="text-text-primary-light dark:text-text-primary-dark text-base font-bold truncate max-w-[180px] sm:max-w-[240px]" title={user.username || '사용자'}>
+                    <h2 className="text-text-primary-light dark:text-text-primary-dark text-sm font-bold truncate max-w-[180px] sm:max-w-[240px]" title={user.username || '사용자'}>
                       {user.username || '사용자'}
                     </h2>
                     {representativeBadge && (
                       <div className="flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-full flex-shrink-0 border border-gray-200 dark:border-gray-600">
                         <span className="text-sm">{representativeBadge.icon}</span>
                         <span className="text-[10px] font-semibold text-gray-800 dark:text-gray-200 max-w-[72px] truncate">
-                          {representativeBadge.name}
+                          {getBadgeDisplayName(representativeBadge) || representativeBadge.name}
                         </span>
                       </div>
                     )}

@@ -1524,18 +1524,18 @@ const ProfileScreen = () => {
         {/* 메인 컨텐츠 */}
         <div className="screen-body">
           {/* 프로필 정보 */}
-          <div className="bg-white dark:bg-gray-900 px-4 py-3">
-            <div className="flex items-center gap-3 mb-3">
+          <div className="bg-white dark:bg-gray-900 px-4 py-2.5">
+            <div className="flex items-center gap-3 mb-2.5">
               {/* 프로필 사진 */}
               <div className="flex-shrink-0">
                 {currentUser?.profileImage && currentUser.profileImage !== 'default' ? (
                   <img
                     src={currentUser.profileImage}
                     alt="Profile"
-                    className="w-13 h-13 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+                    className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700"
                   />
                 ) : (
-                  <div className="w-13 h-13 rounded-full bg-gray-200 dark:bg-gray-700" />
+                  <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700" />
                 )}
               </div>
 
@@ -1543,7 +1543,7 @@ const ProfileScreen = () => {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
-                    <h2 className="text-text-primary-light dark:text-text-primary-dark text-base font-bold truncate max-w-[180px] sm:max-w-[240px]" title={currentUser?.username || '모사모'}>
+                    <h2 className="text-text-primary-light dark:text-text-primary-dark text-sm font-bold truncate max-w-[180px] sm:max-w-[240px]" title={currentUser?.username || '모사모'}>
                       {currentUser?.username || '모사모'}
                     </h2>
                     {/* 대표 뱃지 - 클릭 가능 */}
@@ -1560,10 +1560,12 @@ const ProfileScreen = () => {
                     >
                       {representativeBadge ? (
                         <>
-                          <span className="text-base leading-none" role="img" aria-label={representativeBadge.name}>
+                          <span className="text-base leading-none" role="img" aria-label={getBadgeDisplayName(representativeBadge) || representativeBadge.name}>
                             {representativeBadge.icon || '🏆'}
                           </span>
-                          <span className="text-xs font-bold text-gray-800 dark:text-gray-200">{representativeBadge.name}</span>
+                          <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                            {getBadgeDisplayName(representativeBadge) || representativeBadge.name}
+                          </span>
                         </>
                       ) : (
                         <span className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">뱃지 없음</span>
@@ -1587,7 +1589,7 @@ const ProfileScreen = () => {
                 </div>
                 {/* 자기 소개 (있을 때만) */}
                 {currentUser?.bio && (
-                  <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-1 line-clamp-2 break-keep">
+                  <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mt-1 line-clamp-2 break-keep">
                     {currentUser.bio}
                   </p>
                 )}
