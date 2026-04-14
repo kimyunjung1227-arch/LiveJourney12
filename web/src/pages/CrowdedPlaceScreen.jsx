@@ -44,10 +44,11 @@ const CrowdedPlaceScreen = () => {
     useEffect(() => {
         const regions = new Set();
         crowdedData.forEach((p) => {
-            if (p && !p.weather && !p.weatherSnapshot && (p.region || p.location)) {
-                const r = (p.region || p.location || '').trim().split(/\s+/)[0] || p.region || p.location;
-                if (r) regions.add(r);
-            }
+            if (!p || p.weather || p.weatherSnapshot) return;
+            const r = (p.region || p.location || '').trim().split(/\s+/)[0] || p.region || p.location;
+            if (!r) return;
+            if (weatherByRegion?.[r]) return;
+            regions.add(r);
         });
         if (regions.size === 0) return undefined;
         let cancelled = false;
@@ -72,7 +73,7 @@ const CrowdedPlaceScreen = () => {
         return () => {
             cancelled = true;
         };
-    }, [crowdedRegionsKey]);
+    }, [crowdedRegionsKey, weatherByRegion]);
 
     const handleHotFeedLike = useCallback((e, post) => {
         e.stopPropagation();
