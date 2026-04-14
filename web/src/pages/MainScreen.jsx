@@ -218,20 +218,42 @@ const MainScreen = () => {
             const tb = new Date(b?.timestamp || b?.createdAt || now).getTime();
             return tb - ta;
         };
+        // 매거진별 cover 선택은 posts 전체 스캔을 반복하지 않도록,
+        // "필요한 location 후보들"에 대해서만 1회 패스에서 best cover를 뽑는다.
+        const locCandidates = publishedMagazines
+            .map((m) => {
+                const firstSection = Array.isArray(m?.sections) ? m.sections[0] : null;
+                return String(firstSection?.location || m?.title || '').trim();
+            })
+            .filter(Boolean);
+        const uniqueLocs = Array.from(new Set(locCandidates));
+        const locLower = uniqueLocs.map((x) => x.toLowerCase());
+        const coverByLocLower = new Map(locLower.map((l) => [l, { ts: -1, raw: '' }]));
+
+        const hasMedia = (p) => (Array.isArray(p?.images) && p.images.length > 0) || p?.image || p?.thumbnail;
+        posts.forEach((p) => {
+            if (!hasMedia(p)) return;
+            const loc = String(p?.location || '').toLowerCase();
+            const place = String(p?.placeName || '').toLowerCase();
+            const detailed = String(p?.detailedLocation || '').toLowerCase();
+            const hay = `${loc}\n${place}\n${detailed}`;
+            const ts = new Date(p?.timestamp || p?.createdAt || Date.now()).getTime();
+            for (const l of locLower) {
+                if (!l) continue;
+                if (!hay.includes(l)) continue;
+                const prev = coverByLocLower.get(l);
+                if (!prev || ts > prev.ts) {
+                    const raw = p?.images?.[0] || p?.image || p?.thumbnail || '';
+                    coverByLocLower.set(l, { ts, raw: raw || '' });
+                }
+            }
+        });
+
         const pickCoverByLocation = (locationText) => {
             const key = String(locationText || '').trim();
             if (!key) return '';
-            const lower = key.toLowerCase();
-            const matched = posts
-                .filter((p) => {
-                    const loc = String(p?.location || '').toLowerCase();
-                    const place = String(p?.placeName || '').toLowerCase();
-                    const detailed = String(p?.detailedLocation || '').toLowerCase();
-                    return (loc && loc.includes(lower)) || (place && place.includes(lower)) || (detailed && detailed.includes(lower));
-                })
-                .filter((p) => (Array.isArray(p?.images) && p.images.length > 0) || p?.image || p?.thumbnail)
-                .sort(byRecency)[0];
-            const raw = matched?.images?.[0] || matched?.image || matched?.thumbnail || '';
+            const entry = coverByLocLower.get(key.toLowerCase());
+            const raw = entry?.raw || '';
             return raw ? getDisplayImageUrl(raw) : '';
         };
         return publishedMagazines
