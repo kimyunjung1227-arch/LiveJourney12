@@ -96,10 +96,15 @@ const EarnedBadgesScreen = () => {
       setLoading(true);
       try {
         const uid = String(targetUserId);
-        const localPosts = loadLocalPostsForUser(uid);
+        const passedBadges = location.state?.badges;
+        if (Array.isArray(passedBadges)) {
+          setBadges(passedBadges);
+        } else {
+          const localPosts = loadLocalPostsForUser(uid);
         if (cancelled) return;
-        const list = getEarnedBadgesForUser(uid, localPosts.length ? localPosts : null) || [];
-        setBadges(list);
+          const list = getEarnedBadgesForUser(uid, localPosts.length ? localPosts : null) || [];
+          setBadges(list);
+        }
 
         if (isSelf) {
           const saved = JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('user') || '{}' : '{}');
@@ -153,13 +158,7 @@ const EarnedBadgesScreen = () => {
                     <span className="text-sm font-bold text-text-primary-light dark:text-text-primary-dark truncate">
                       {profileName || '사용자'}
                     </span>
-                    <span className="text-sm font-semibold text-gray-500 dark:text-gray-400 flex-shrink-0">
-                      ({sortedBadges.length})
-                    </span>
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
-                    {screenTitle}
-                  </p>
                 </div>
               </div>
 
