@@ -210,20 +210,27 @@ const SearchScreen = () => {
     if (!diverseRegionCards || diverseRegionCards.length === 0) return;
 
     const fetchWeatherForCards = async () => {
-      const weatherPromises = diverseRegionCards.map(async (card) => {
+      const targets = diverseRegionCards
+        .map((c) => String(c?.name || '').trim())
+        .filter(Boolean)
+        // 이미 가져온 지역은 재요청하지 않음
+        .filter((name) => !weatherData?.[name]);
+      if (targets.length === 0) return;
+
+      const weatherPromises = targets.map(async (regionName) => {
         try {
-          const weatherResult = await getWeatherByRegion(card.name);
+          const weatherResult = await getWeatherByRegion(regionName);
           if (weatherResult?.success && weatherResult?.weather) {
-            return { regionName: card.name, weather: weatherResult.weather };
+            return { regionName, weather: weatherResult.weather };
           }
         } catch (error) {
-          logger.error(`날씨 정보 가져오기 실패 (${card.name}):`, error);
+          logger.error(`날씨 정보 가져오기 실패 (${regionName}):`, error);
         }
         return null;
       });
 
       const weatherResults = await Promise.all(weatherPromises);
-      const weatherMap = {};
+      const weatherMap = { ...(weatherData || {}) };
       weatherResults.forEach((result) => {
         if (result) {
           weatherMap[result.regionName] = result.weather;
@@ -233,7 +240,7 @@ const SearchScreen = () => {
     };
 
     fetchWeatherForCards();
-  }, [diverseRegionCards]);
+  }, [diverseRegionCards, weatherData]);
 
 
   // 최근 검색한 지역만 (#해시태그 제외)
