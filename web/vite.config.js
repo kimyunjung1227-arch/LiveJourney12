@@ -50,8 +50,11 @@ export default defineConfig({
     assetsDir: 'assets',
     sourcemap: false,
     reportCompressedSize: false,
-    // 프로덕션은 esbuild 압축 권장 (CI는 Node 20으로 빌드)
-    minify: 'esbuild',
+    // Windows/최신 Node(예: 24)에서 esbuild native가 크래시(3221226505)하는 경우가 있어
+    // 로컬 환경에서도 안정적으로 빌드되도록 terser로 전환
+    minify: 'terser',
+    // cssMinify도 기본적으로 esbuild를 사용하므로 로컬 크래시 회피를 위해 끔
+    cssMinify: false,
     target: 'es2020',
     chunkSizeWarningLimit: 900,
     rollupOptions: {
