@@ -5,6 +5,7 @@ import { getRecommendedRegions, getRecommendationTypesForUi } from '../utils/rec
 import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
 import './MainScreen.css';
+import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
 const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80';
 
@@ -16,8 +17,8 @@ const RecommendedPlaceScreen = () => {
   const [filterTypesUi, setFilterTypesUi] = useState(() => getRecommendationTypesForUi());
 
   const loadData = useCallback(() => {
-    const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-    const combined = getCombinedPosts(Array.isArray(localPosts) ? localPosts : []);
+    const localPosts = getUploadedPostsSafe();
+    const combined = getCombinedPosts(localPosts);
     setAllPosts(combined);
     const recs = getRecommendedRegions(combined, selectedTag);
     setRecommendedData(recs);

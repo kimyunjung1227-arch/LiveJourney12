@@ -15,6 +15,7 @@ import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { useAuth } from '../contexts/AuthContext';
 import { getLikeSnapshot, toggleLikeLocal } from '../utils/postLikesLocal';
+import { getUploadedPostsSafe } from '../utils/localStorageManager';
 import {
   feedGridCardBoxFlat,
   feedGridImageBoxFlat,
@@ -50,7 +51,7 @@ const RealtimeFeedScreen = () => {
 
   useEffect(() => {
     const loadData = async () => {
-      const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+      const localPosts = getUploadedPostsSafe();
       const supabasePosts = await fetchPostsSupabase();
       const allPosts = getCombinedPosts(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
       const posts = filterActivePosts48(allPosts);

@@ -16,6 +16,7 @@ import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCar
 import { buildPlaceStatsMap, selectPostsForPlaceStats, transformPostForHotFeed } from '../utils/hotFeedPostTransform';
 import { getWeatherByRegion } from '../api/weather';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
+import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
 const CrowdedPlaceScreen = () => {
     const navigate = useNavigate();
@@ -122,7 +123,7 @@ const CrowdedPlaceScreen = () => {
 
     useEffect(() => {
         const loadData = async () => {
-            const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+            const localPosts = getUploadedPostsSafe();
             const supabasePosts = await fetchPostsSupabase();
             const allPosts = getCombinedPosts(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
             // 메인 실시간 핫플과 동일한 장소 집계 → 좌상단 핫 태그(reasonTags·급상승 등) 일치
