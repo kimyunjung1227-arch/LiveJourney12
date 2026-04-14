@@ -30,6 +30,7 @@ const HotFeedCard = ({
         photoCategoryLabels,
         avatars,
     } = cardProps;
+    const likeCount = Number(post?.likes ?? post?.likeCount ?? 0) || 0;
 
     return (
         <div
@@ -89,6 +90,50 @@ const HotFeedCard = ({
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hotReasonLabel}</span>
                     </span>
                 </div>
+                {typeof onLikeClick === 'function' && (
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onLikeClick(e, post);
+                        }}
+                        aria-label={liked ? '좋아요 취소' : '좋아요'}
+                        aria-pressed={!!liked}
+                        style={{
+                            position: 'absolute',
+                            top: 8,
+                            right: 8,
+                            zIndex: 12,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '6px 10px',
+                            borderRadius: 9999,
+                            border: '1px solid rgba(255,255,255,0.55)',
+                            background: 'rgba(15, 23, 42, 0.45)',
+                            color: '#fff',
+                            backdropFilter: 'blur(10px)',
+                            WebkitBackdropFilter: 'blur(10px)',
+                            boxShadow: '0 2px 10px rgba(0,0,0,0.18)',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <span
+                            className="material-symbols-outlined"
+                            style={{
+                                fontSize: 18,
+                                fontVariationSettings: liked ? '"FILL" 1' : '"FILL" 0',
+                                color: liked ? '#fb7185' : '#ffffff',
+                            }}
+                        >
+                            favorite
+                        </span>
+                        <span style={{ fontSize: 12, fontWeight: 800, lineHeight: 1 }}>
+                            {likeCount}
+                        </span>
+                    </button>
+                )}
                 {(() => {
                     const still = getMapThumbnailUri(post);
                     const raw =

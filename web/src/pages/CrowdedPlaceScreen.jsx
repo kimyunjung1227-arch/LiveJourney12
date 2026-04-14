@@ -6,10 +6,10 @@ import './MainScreen.css';
 
 import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
-import { applyPostLikesCountFromServer, fetchPostsSupabase } from '../api/postsSupabase';
+import { fetchPostsSupabase } from '../api/postsSupabase';
 import { rankHotspotPosts } from '../utils/hotnessEngine';
-import { toggleLike, isPostLiked } from '../utils/socialInteractions';
-import { togglePostLikeSupabase } from '../api/socialSupabase';
+import { useAuth } from '../contexts/AuthContext';
+import { getLikeSnapshot, toggleLikeLocal } from '../utils/postLikesLocal';
 import { getMapThumbnailUri } from '../utils/postMedia';
 import HotFeedCard from '../components/HotFeedCard';
 import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCardModel';
@@ -19,6 +19,7 @@ import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 
 const CrowdedPlaceScreen = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [crowdedData, setCrowdedData] = useState([]);
     const [refreshKey, setRefreshKey] = useState(0);
     const [weatherByRegion, setWeatherByRegion] = useState({});
@@ -74,44 +75,19 @@ const CrowdedPlaceScreen = () => {
 
     const handleHotFeedLike = useCallback((e, post) => {
         e.stopPropagation();
-        const wasLiked = isPostLiked(post.id);
+        if (!user?.id) {
+            alert('로그인 후 좋아요를 누를 수 있어요.');
+            return;
+        }
         const baseLikes = typeof post.likes === 'number'
             ? post.likes
             : (typeof post.likeCount === 'number' ? post.likeCount : 0);
-        const isUuidPost = typeof post?.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(post.id.trim());
-        const rawUser = (() => {
-            try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
-        })();
-        const canUseSupabase = isUuidPost && !!rawUser?.id;
-
-        // Supabase 게시물 + 로그인: post_likes 기반으로 토글(서버 카운트가 최종)
-        if (canUseSupabase) {
-            const optimisticLiked = !wasLiked;
-            const optimisticCount = Math.max(0, Number(baseLikes) + (optimisticLiked ? 1 : -1));
-            setCrowdedData((prev) =>
-                prev.map((p) => (p && p.id === post.id ? { ...p, likes: optimisticCount, likeCount: optimisticCount } : p))
-            );
-            togglePostLikeSupabase(
-                String(rawUser.id),
-                String(post.id),
-                { username: rawUser.username, avatarUrl: rawUser.profileImage || null },
-                { likedBeforeClick: wasLiked, baseLikesCount: baseLikes }
-            ).then((sup) => {
-                const nextCount = typeof sup?.likesCount === 'number' ? sup.likesCount : optimisticCount;
-                applyPostLikesCountFromServer(post.id, nextCount);
-                setCrowdedData((prev) =>
-                    prev.map((p) => (p && p.id === post.id ? { ...p, likes: nextCount, likeCount: nextCount } : p))
-                );
-            });
-            return;
-        }
-
-        // 로컬 게시물/비로그인: 기존 localStorage 기반 좋아요 유지
-        const result = toggleLike(post.id, baseLikes);
+        const result = toggleLikeLocal(post.id, user.id, baseLikes);
+        if (!result) return;
         setCrowdedData((prev) =>
-            prev.map((p) => (p && p.id === post.id ? { ...p, likes: result.newCount, likeCount: result.newCount } : p))
+            prev.map((p) => (p && p.id === post.id ? { ...p, likes: result.count, likeCount: result.count } : p))
         );
-    }, []);
+    }, [user?.id]);
 
     useEffect(() => {
         const handler = () => setRefreshKey((k) => k + 1);
@@ -222,7 +198,7 @@ const CrowdedPlaceScreen = () => {
                                     const cardProps = buildHotFeedCardProps(post, weatherByRegion);
                                     if (!cardProps) return null;
                                     const socialText = getHotFeedSocialLine(cardProps, crowdedSocialIdx);
-                                    const liked = isPostLiked(post.id);
+                                    const liked = getLikeSnapshot(post.id, user?.id || null, Number(post.likes ?? post.likeCount ?? 0) || 0).liked;
                                     return (
                                         <HotFeedCard
                                             key={post.id}

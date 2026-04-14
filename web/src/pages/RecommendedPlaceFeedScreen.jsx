@@ -4,11 +4,10 @@ import { Swiper, SwiperSlide } from 'swiper/react';
 import { Pagination } from 'swiper/modules';
 import BottomNavigation from '../components/BottomNavigation';
 import { getDisplayImageUrl } from '../api/upload';
-import { applyPostLikesCountFromServer } from '../api/postsSupabase';
 import { getCategoryChipsFromPost } from '../utils/travelCategories';
 import { getTimeAgo } from '../utils/timeUtils';
-import { toggleLike, isPostLiked } from '../utils/socialInteractions';
-import { togglePostLikeSupabase } from '../api/socialSupabase';
+import { useAuth } from '../contexts/AuthContext';
+import { getLikeSnapshot, toggleLikeLocal } from '../utils/postLikesLocal';
 import 'swiper/css';
 import 'swiper/css/pagination';
 
@@ -78,6 +77,7 @@ function displayUserAvatarSrc(userOrAuthor) {
 export default function RecommendedPlaceFeedScreen() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const placeKey = location.state?.placeKey || '';
   const placeOneLine = location.state?.placeOneLine || '';
   const placeDescription = location.state?.placeDescription || '';
@@ -130,50 +130,19 @@ export default function RecommendedPlaceFeedScreen() {
   const handleFeedLike = useCallback((e, post) => {
     e.preventDefault();
     e.stopPropagation();
-    const wasLiked = isPostLiked(post.id);
-    const baseLikes = Number(post.likes ?? post.likeCount ?? 0) || 0;
-    const isUuidPost =
-      typeof post?.id === 'string' &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(post.id).trim());
-    const rawUser = (() => {
-      try {
-        return JSON.parse(localStorage.getItem('user') || '{}');
-      } catch {
-        return {};
-      }
-    })();
-    const canUseSupabase = isUuidPost && !!rawUser?.id;
-
-    if (canUseSupabase) {
-      const optimisticLiked = !wasLiked;
-      const optimisticCount = Math.max(0, baseLikes + (optimisticLiked ? 1 : -1));
-      setFeedPosts((prev) =>
-        prev.map((p) =>
-          p && p.id === post.id ? { ...p, likes: optimisticCount, likeCount: optimisticCount } : p
-        )
-      );
-      togglePostLikeSupabase(
-        String(rawUser.id),
-        String(post.id),
-        { username: rawUser.username, avatarUrl: rawUser.profileImage || null },
-        { likedBeforeClick: wasLiked, baseLikesCount: baseLikes }
-      ).then((sup) => {
-        const nextCount = typeof sup?.likesCount === 'number' ? sup.likesCount : optimisticCount;
-        applyPostLikesCountFromServer(post.id, nextCount);
-        setFeedPosts((prev) =>
-          prev.map((p) => (p && p.id === post.id ? { ...p, likes: nextCount, likeCount: nextCount } : p))
-        );
-      });
+    if (!user?.id) {
+      alert('로그인 후 좋아요를 누를 수 있어요.');
       return;
     }
-
-    const result = toggleLike(post.id, baseLikes);
+    const baseLikes = Number(post.likes ?? post.likeCount ?? 0) || 0;
+    const next = toggleLikeLocal(post.id, user.id, baseLikes);
+    if (!next) return;
     setFeedPosts((prev) =>
       prev.map((p) =>
-        p && p.id === post.id ? { ...p, likes: result.newCount, likeCount: result.newCount } : p
+        p && String(p.id) === String(post.id) ? { ...p, likes: next.count, likeCount: next.count } : p
       )
     );
-  }, []);
+  }, [user?.id]);
 
   const toggleExpand = (id) => {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -242,7 +211,7 @@ export default function RecommendedPlaceFeedScreen() {
             const avatarSrc = displayUserAvatarSrc(userRaw);
             const isOpen = !!expanded[post.id];
             const longBody = bodyText.length > 140 || bodyText.split('\n').length > 3;
-            const liked = isPostLiked(post.id);
+            const liked = getLikeSnapshot(post.id, user?.id || null, likes).liked;
 
             return (
               <article

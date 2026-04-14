@@ -12,7 +12,7 @@ import { getCombinedPosts } from '../utils/mockData';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getDisplayImageUrl } from '../api/upload';
 import { getMapThumbnailUri } from '../utils/postMedia';
-import { getPostAccuracyCount, toggleLike, isPostLiked, mergeLikedPostsFromServer } from '../utils/socialInteractions';
+import { getPostAccuracyCount, mergeLikedPostsFromServer } from '../utils/socialInteractions';
 import { rankHotspotPosts } from '../utils/hotnessEngine';
 import { applyPostLikesCountFromServer } from '../api/postsSupabase';
 import { getWeatherByRegion } from '../api/weather';
@@ -22,10 +22,10 @@ import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCar
 import { buildPlaceStatsMap, selectPostsForPlaceStats, transformPostForHotFeed } from '../utils/hotFeedPostTransform';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchLikedPostIdsSupabase } from '../api/socialSupabase';
-import { togglePostLikeSupabase } from '../api/socialSupabase';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
+import { getLikeSnapshot, toggleLikeLocal } from '../utils/postLikesLocal';
 const MainScreen = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -342,49 +342,20 @@ const MainScreen = () => {
         return () => clearInterval(id);
     }, [hotFeedPost?.id]);
 
-    const handleHotFeedLike = useCallback(async (e, post) => {
+    const handleHotFeedLike = useCallback((e, post) => {
         e.stopPropagation();
-        const wasLiked = isPostLiked(post.id);
         const raw = Number(post.likes ?? post.likeCount ?? 0);
         const baseLikes = Number.isFinite(raw) ? Math.max(0, raw) : 0;
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(post.id || '').trim());
-        const canUseSupabase = isUuid && !!user?.id;
-        const result = canUseSupabase ? { existsInStorage: false, newCount: Math.max(0, baseLikes + (wasLiked ? -1 : 1)) } : toggleLike(post.id, baseLikes);
-        if (result.existsInStorage) {
-            setCrowdedData((prev) =>
-                prev.map((p) => (p && p.id === post.id ? { ...p, likes: result.newCount, likeCount: result.newCount } : p))
-            );
-        } else {
-            // 멀티계정: post_likes 토글 → 트리거로 posts.likes_count 갱신
-            if (canUseSupabase) {
-                const sup = await togglePostLikeSupabase(
-                    String(user.id),
-                    String(post.id),
-                    {
-                        username: user.username,
-                        avatarUrl: user.profileImage || null,
-                    },
-                    { likedBeforeClick: wasLiked, baseLikesCount: baseLikes }
-                );
-                if (sup.success) {
-                    const delta = (sup.isLiked ? 1 : 0) - (wasLiked ? 1 : 0);
-                    const fallback = Math.max(0, baseLikes + delta);
-                    // 서버가 최종 likes_count를 함께 내려주면 그걸 신뢰, 없으면 fallback 사용
-                    const nextCount = typeof sup.likesCount === 'number' ? sup.likesCount : fallback;
-                    applyPostLikesCountFromServer(post.id, nextCount);
-                    window.dispatchEvent(new Event('postsUpdated'));
-                }
-            } else {
-                const nextCount = result.newCount;
-                setCrowdedData((prev) =>
-                    prev.map((p) =>
-                        (p && p.id === post.id ? { ...p, likes: nextCount, likeCount: nextCount } : p)
-                    )
-                );
-                window.dispatchEvent(new Event('postsUpdated'));
-            }
+        if (!user?.id) {
+            alert('로그인 후 좋아요를 누를 수 있어요.');
+            return;
         }
-    }, [user?.id, user?.username, user?.profileImage]);
+        const next = toggleLikeLocal(post.id, user.id, baseLikes);
+        if (!next) return;
+        setCrowdedData((prev) =>
+            prev.map((p) => (p && p.id === post.id ? { ...p, likes: next.count, likeCount: next.count } : p))
+        );
+    }, [user?.id]);
 
     useEffect(() => {
         fetchPosts();
@@ -852,7 +823,7 @@ const MainScreen = () => {
                                     const { post } = hotFeedCardProps;
                                     const slideIdx = crowdedData.length ? hotFeedSlideIndex % crowdedData.length : 0;
                                     const socialText = getHotFeedSocialLine(hotFeedCardProps, hotFeedSocialIdx);
-                                    const liked = isPostLiked(post.id);
+                                    const liked = getLikeSnapshot(post.id, user?.id || null, Number(post.likes ?? post.likeCount ?? 0) || 0).liked;
                                     return (
                                         <HotFeedCard
                                             key={`${post.id}-${slideIdx}`}
