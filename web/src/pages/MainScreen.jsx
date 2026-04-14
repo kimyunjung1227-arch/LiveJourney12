@@ -529,10 +529,11 @@ const MainScreen = () => {
     useEffect(() => {
         const regions = new Set();
         [...realtimeData, ...crowdedData].forEach((p) => {
-            if (p && !p.weather && !p.weatherSnapshot && (p.region || p.location)) {
-                const r = (p.region || p.location || '').trim().split(/\s+/)[0] || p.region || p.location;
-                if (r) regions.add(r);
-            }
+            if (!p || p.weather || p.weatherSnapshot) return;
+            const r = (p.region || p.location || '').trim().split(/\s+/)[0] || p.region || p.location;
+            if (!r) return;
+            if (weatherByRegion?.[r]) return;
+            regions.add(r);
         });
         if (regions.size === 0) return;
         let cancelled = false;
@@ -551,7 +552,7 @@ const MainScreen = () => {
             setWeatherByRegion((prev) => ({ ...prev, ...map }));
         });
         return () => { cancelled = true; };
-    }, [realtimeData, crowdedData]);
+    }, [realtimeData, crowdedData, weatherByRegion]);
 
     // 새 알림이 생기면 메인 화면에서도 배지 갱신
     useEffect(() => {
