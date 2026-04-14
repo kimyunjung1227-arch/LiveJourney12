@@ -6,6 +6,10 @@
   "engines": {
     "node": ">=20 <24"
   },
+  "volta": {
+    "node": "22.14.0",
+    "npm": "10.9.2"
+  },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
     "@capacitor/camera": "^7.0.3",
