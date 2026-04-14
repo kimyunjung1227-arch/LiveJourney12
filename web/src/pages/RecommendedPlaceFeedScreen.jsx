@@ -114,6 +114,39 @@ export default function RecommendedPlaceFeedScreen() {
     setFeedPosts(posts);
   }, [posts]);
 
+  const derivedById = useMemo(() => {
+    const map = new Map();
+    feedPosts.forEach((post) => {
+      if (!post?.id) return;
+      const chips = getCategoryChipsFromPost(post);
+      const categoryLabel = String(chips[0]?.name || '여행');
+      const mediaUrls = collectMediaUrls(post);
+      const titleLine = pickTitleLine(post);
+      const rawNote = post.note;
+      const rawContent = post.content;
+      const bodyText = (typeof rawNote === 'string' ? rawNote : typeof rawContent === 'string' ? rawContent : '').trim();
+      const placeName = String(post.placeName || post.detailedLocation || post.location || placeKey).trim();
+      const districtLine = pickDistrictLine(post);
+      const userRaw = post.user ?? post.author;
+      const userLabel = displayUserName(userRaw);
+      const avatarSrc = displayUserAvatarSrc(userRaw);
+      const longBody = bodyText.length > 140 || bodyText.split('\n').length > 3;
+
+      map.set(String(post.id), {
+        categoryLabel,
+        mediaUrls,
+        titleLine,
+        bodyText,
+        placeName,
+        districtLine,
+        userLabel,
+        avatarSrc,
+        longBody,
+      });
+    });
+    return map;
+  }, [feedPosts, placeKey]);
+
   useEffect(() => {
     const onLike = (e) => {
       const { postId, likesCount } = e.detail || {};
@@ -194,23 +227,19 @@ export default function RecommendedPlaceFeedScreen() {
           </div>
         ) : (
           feedPosts.map((post, index) => {
-            const chips = getCategoryChipsFromPost(post);
-            const categoryLabel = String(chips[0]?.name || '여행');
-            const mediaUrls = collectMediaUrls(post);
-            const titleLine = pickTitleLine(post);
-            const rawNote = post.note;
-            const rawContent = post.content;
-            const bodyText = (typeof rawNote === 'string' ? rawNote : typeof rawContent === 'string' ? rawContent : '')
-              .trim();
-            const placeName = String(post.placeName || post.detailedLocation || post.location || placeKey).trim();
-            const districtLine = pickDistrictLine(post);
+            const derived = derivedById.get(String(post.id)) || {};
+            const categoryLabel = derived.categoryLabel || '여행';
+            const mediaUrls = Array.isArray(derived.mediaUrls) ? derived.mediaUrls : [];
+            const titleLine = derived.titleLine || '';
+            const bodyText = derived.bodyText || '';
+            const placeName = derived.placeName || String(placeKey || '').trim();
+            const districtLine = derived.districtLine || '';
             const likes = Number(post.likes ?? post.likeCount ?? 0) || 0;
             const comments = Array.isArray(post.comments) ? post.comments.length : Number(post.commentCount ?? 0) || 0;
-            const userRaw = post.user ?? post.author;
-            const userLabel = displayUserName(userRaw);
-            const avatarSrc = displayUserAvatarSrc(userRaw);
+            const userLabel = derived.userLabel || displayUserName(post.user ?? post.author);
+            const avatarSrc = derived.avatarSrc || displayUserAvatarSrc(post.user ?? post.author);
             const isOpen = !!expanded[post.id];
-            const longBody = bodyText.length > 140 || bodyText.split('\n').length > 3;
+            const longBody = !!derived.longBody;
             const liked = getLikeSnapshot(post.id, user?.id || null, likes).liked;
 
             return (
