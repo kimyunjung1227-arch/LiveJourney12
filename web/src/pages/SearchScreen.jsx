@@ -16,6 +16,7 @@ import { normalizeRegionName } from '../utils/regionNames';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { getPostUserId, resolveUserDisplayFromPosts } from '../utils/userProfileHints';
 import { getCurrentUserId, getFollowingIds, toggleFollow, isFollowing } from '../utils/followSystem';
+import { getBadgeDisplayName } from '../utils/badgeSystem';
 
 // 해시태그 파싱: #동백꽃 #바다 #힐링 → ['동백꽃','바다','힐링']
 const parseHashtags = (q) => {
@@ -518,7 +519,12 @@ const SearchScreen = () => {
       if (!b || typeof b !== 'object') return null;
       const name = String(b.name || '').trim();
       if (!name) return null;
-      return { name, icon: b.icon || '🏆', region: b.region || null };
+      return {
+        name,
+        displayName: b.displayName || null,
+        icon: b.icon || '🏆',
+        region: b.region || null,
+      };
     } catch {
       return null;
     }
@@ -882,13 +888,13 @@ const SearchScreen = () => {
 
         {/* 검색창 - 스크롤해도 계속 보이게 (고정) */}
         <div className="flex-shrink-0 px-4 pb-2 bg-white dark:bg-gray-900 relative" ref={searchContainerRef}>
-          <div className="flex rounded-xl bg-gray-100 dark:bg-gray-800/90 p-0.5 mb-2" role="tablist" aria-label="검색 유형">
+          <div className="flex rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800/90 p-0.5 mb-2" role="tablist" aria-label="검색 유형">
             <button
               type="button"
               role="tab"
               aria-selected={searchMode === 'place'}
               onClick={() => switchSearchMode('place')}
-              className={`flex-1 py-2 rounded-[10px] text-sm font-semibold transition-colors ${
+              className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${
                 searchMode === 'place'
                   ? 'bg-white dark:bg-gray-700 text-primary shadow-sm dark:text-[#FFC599]'
                   : 'text-gray-500 dark:text-gray-400'
@@ -901,7 +907,7 @@ const SearchScreen = () => {
               role="tab"
               aria-selected={searchMode === 'person'}
               onClick={() => switchSearchMode('person')}
-              className={`flex-1 py-2 rounded-[10px] text-sm font-semibold transition-colors ${
+              className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors ${
                 searchMode === 'person'
                   ? 'bg-white dark:bg-gray-700 text-primary shadow-sm dark:text-[#FFC599]'
                   : 'text-gray-500 dark:text-gray-400'
@@ -1071,7 +1077,7 @@ const SearchScreen = () => {
                               {rep ? (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 dark:bg-primary/20 text-primary dark:text-[#FFC599] px-2 py-0.5 text-[11px] font-bold shrink-0">
                                   <span className="text-[12px] leading-none">{rep.icon || '🏆'}</span>
-                                  <span className="truncate max-w-[140px]">{rep.name}</span>
+                                  <span className="truncate max-w-[140px]">{getBadgeDisplayName(rep) || rep.name}</span>
                                 </span>
                               ) : null}
                             </div>
@@ -1128,7 +1134,7 @@ const SearchScreen = () => {
                             {rep ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 dark:bg-primary/20 text-primary dark:text-[#FFC599] px-2 py-0.5 text-[11px] font-bold shrink-0">
                                 <span className="text-[12px] leading-none">{rep.icon || '🏆'}</span>
-                                <span className="truncate max-w-[140px]">{rep.name}</span>
+                                <span className="truncate max-w-[140px]">{getBadgeDisplayName(rep) || rep.name}</span>
                               </span>
                             ) : null}
                           </div>

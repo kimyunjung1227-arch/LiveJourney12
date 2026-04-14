@@ -1278,9 +1278,11 @@ const UserProfileScreen = () => {
                                 {username}
                               </span>
                               {repBadge && (
-                                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 flex-shrink-0">
+                                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 flex-shrink-0 max-w-[160px]">
                                   <span className="text-sm">{repBadge.icon}</span>
-                                  <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate max-w-[100px]">{repBadge.name}</span>
+                                  <span className="text-xs font-semibold text-gray-800 dark:text-gray-200 truncate">
+                                    {getBadgeDisplayName(repBadge) || repBadge.name}
+                                  </span>
                                 </div>
                               )}
                             </div>
