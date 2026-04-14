@@ -1,11 +1,10 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useNavigate, useParams, useMatch } from 'react-router-dom';
+import { useNavigate, useParams, useMatch, useLocation } from 'react-router-dom';
 import BackButton from '../components/BackButton';
 import BottomNavigation from '../components/BottomNavigation';
 import { useAuth } from '../contexts/AuthContext';
 import { getEarnedBadgesForUser, getBadgeDisplayName } from '../utils/badgeSystem';
-import { getMergedMyPostsForStats, fetchPostsByUserIdSupabase } from '../api/postsSupabase';
-import api from '../api/axios';
+ 
 
 const getPostUserId = (post) => {
   let uid = post?.userId;
@@ -29,6 +28,7 @@ function sortBadges(badges) {
 
 const EarnedBadgesScreen = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { userId: paramUserId } = useParams();
   const selfMatch = useMatch({ path: '/profile/badges', end: true });
   const { user: authUser } = useAuth();
@@ -70,32 +70,19 @@ const EarnedBadgesScreen = () => {
 
   const sortedBadges = useMemo(() => sortBadges(badges), [badges]);
 
-  const loadMergedForUser = useCallback(async (uid) => {
-    const byId = new Map();
-    const uploaded = JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('uploadedPosts') || '[]' : '[]');
-    const localPosts = (uploaded || []).filter((p) => getPostUserId(p) === String(uid));
-    localPosts.forEach((p) => {
-      const id = p?.id || p?._id;
-      if (id) byId.set(id, p);
-    });
-
+  const loadLocalPostsForUser = useCallback((uid) => {
     try {
-      let remote = await fetchPostsByUserIdSupabase(uid);
-      if ((!remote || remote.length === 0) && /^[0-9a-f-]{36}$/i.test(String(uid).trim())) {
-        try {
-          remote = await getMergedMyPostsForStats(uid);
-        } catch {
-          remote = [];
-        }
-      }
-      (remote || []).forEach((p) => {
-        if (p?.id) byId.set(p.id, { ...byId.get(p.id), ...p });
+      const uploaded = JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('uploadedPosts') || '[]' : '[]');
+      const localPosts = (uploaded || []).filter((p) => getPostUserId(p) === String(uid));
+      const byId = new Map();
+      localPosts.forEach((p) => {
+        const id = p?.id || p?._id;
+        if (id) byId.set(String(id), p);
       });
+      return [...byId.values()].sort((a, b) => (b.timestamp || b.createdAt || 0) - (a.timestamp || a.createdAt || 0));
     } catch {
-      /* ignore */
+      return [];
     }
-
-    return [...byId.values()].sort((a, b) => (b.timestamp || b.createdAt || 0) - (a.timestamp || a.createdAt || 0));
   }, []);
 
   useEffect(() => {
@@ -108,9 +95,10 @@ const EarnedBadgesScreen = () => {
     (async () => {
       setLoading(true);
       try {
-        const merged = await loadMergedForUser(String(targetUserId));
+        const uid = String(targetUserId);
+        const localPosts = loadLocalPostsForUser(uid);
         if (cancelled) return;
-        const list = getEarnedBadgesForUser(String(targetUserId), merged.length ? merged : null) || [];
+        const list = getEarnedBadgesForUser(uid, localPosts.length ? localPosts : null) || [];
         setBadges(list);
 
         if (isSelf) {
@@ -120,24 +108,11 @@ const EarnedBadgesScreen = () => {
           setProfileName(name || '나');
           setProfileImage(saved?.profileImage || authUser?.profileImage || null);
         } else {
-          const isServerId = /^[a-fA-F0-9]{24}$/.test(String(targetUserId));
-          if (isServerId) {
-            try {
-              const res = await api.get(`/users/${targetUserId}`);
-              const u = res.data?.user;
-              if (!cancelled && u?.username) {
-                setScreenTitle(`${u.username}님의 라이브뱃지`);
-                setProfileName(u.username);
-                setProfileImage(u.profileImage || u.avatar || null);
-              }
-            } catch {
-              /* ignore */
-            }
-          } else {
-            setScreenTitle('획득한 라이브뱃지');
-            setProfileName('사용자');
-            setProfileImage(null);
-          }
+          const hint = location.state?.profileHint || null;
+          const name = hint?.username || '사용자';
+          setScreenTitle(`${name}님의 라이브뱃지`);
+          setProfileName(name);
+          setProfileImage(hint?.profileImage || null);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -147,7 +122,7 @@ const EarnedBadgesScreen = () => {
     return () => {
       cancelled = true;
     };
-  }, [selfMatch, targetUserId, isSelf, authUser?.username, navigate, loadMergedForUser]);
+  }, [selfMatch, targetUserId, isSelf, authUser?.username, authUser?.profileImage, navigate, loadLocalPostsForUser, location.state]);
 
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark">

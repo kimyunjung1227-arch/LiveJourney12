@@ -1526,8 +1526,8 @@ const ProfileScreen = () => {
           {/* 프로필 정보 */}
           <div className="bg-white dark:bg-gray-900 px-4 py-2.5">
             <div className="flex items-start gap-3 mb-2.5">
-              {/* 프로필 사진 */}
-              <div className="flex-shrink-0">
+              {/* 프로필 사진 + 카운트(사진 아래) */}
+              <div className="flex-shrink-0 flex flex-col items-start">
                 {currentUser?.profileImage && currentUser.profileImage !== 'default' ? (
                   <img
                     src={currentUser.profileImage}
@@ -1537,6 +1537,30 @@ const ProfileScreen = () => {
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700" />
                 )}
+
+                <div className="flex flex-col gap-1 mt-2 text-gray-600 dark:text-gray-400">
+                  <span className="text-xs font-medium">{myPosts.length} 게시물</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const uid = (authUser || user)?.id;
+                      if (uid) { setFollowListIds(getFollowerIds(uid)); setFollowListType('follower'); setShowFollowListModal(true); }
+                    }}
+                    className="text-xs font-medium hover:text-gray-800 dark:hover:text-gray-200 transition-colors text-left"
+                  >
+                    {followerCount} 팔로워
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const uid = (authUser || user)?.id;
+                      if (uid) { setFollowListIds(getFollowingIds(uid)); setFollowListType('following'); setShowFollowListModal(true); }
+                    }}
+                    className="text-xs font-medium hover:text-gray-800 dark:hover:text-gray-200 transition-colors text-left"
+                  >
+                    {followingCount} 팔로잉
+                  </button>
+                </div>
               </div>
 
               {/* 사용자 정보 */}
@@ -1597,30 +1621,6 @@ const ProfileScreen = () => {
                     {currentUser.bio}
                   </p>
                 )}
-                {/* 게시물·팔로워·팔로잉 - 이름 아래, 좌측 정렬 */}
-                <div className="flex items-center gap-4 mt-2 text-gray-600 dark:text-gray-400">
-                  <span className="text-xs font-medium">{myPosts.length} 게시물</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const uid = (authUser || user)?.id;
-                      if (uid) { setFollowListIds(getFollowerIds(uid)); setFollowListType('follower'); setShowFollowListModal(true); }
-                    }}
-                    className="text-xs font-medium hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
-                  >
-                    {followerCount} 팔로워
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const uid = (authUser || user)?.id;
-                      if (uid) { setFollowListIds(getFollowingIds(uid)); setFollowListType('following'); setShowFollowListModal(true); }
-                    }}
-                    className="text-xs font-medium hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
-                  >
-                    {followingCount} 팔로잉
-                  </button>
-                </div>
               </div>
             </div>
 
