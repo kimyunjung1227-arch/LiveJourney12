@@ -45,20 +45,46 @@ function coordsFromPostObject(post) {
 
 /** 사전 매칭 실패 시 카카오 키워드 검색으로 좌표 보강 (서울 기본값 사용 안 함) */
 async function enrichPostWithResolvedCoordinates(post) {
-  const existing = coordsFromPostObject(post);
-  if (existing) return { ...post, coordinates: existing };
+  // 동일 위치 문자열에 대한 중복 지오코딩을 피하기 위한 간단 캐시
+  // (MapScreen 내에서 loadPosts가 반복 호출될 수 있어 비용 절감 효과가 큼)
   const locStr = [post.detailedLocation, post.placeName, post.location, post.region]
     .map((s) => (s && String(s).trim()) || '')
     .find(Boolean);
+
+  const existing = coordsFromPostObject(post);
+  if (existing) return { ...post, coordinates: existing };
   if (!locStr) return post;
+
+  // module-scope cache (lazy init)
+  if (!globalThis.__livejourney_geo_cache_v1) {
+    globalThis.__livejourney_geo_cache_v1 = {
+      resolved: new Map(), // locStr -> { lat, lng }
+      inflight: new Map(), // locStr -> Promise<{lat,lng}|null>
+    };
+  }
+  const cache = globalThis.__livejourney_geo_cache_v1;
+  const cached = cache.resolved.get(locStr);
+  if (cached && cached.lat != null && cached.lng != null) {
+    return { ...post, coordinates: cached };
+  }
+
   let coords = getCoordsByRegion(locStr);
   if (!coords) {
-    const geo = await searchPlaceWithKakaoFirst(locStr);
-    if (geo && geo.lat != null && geo.lng != null && !Number.isNaN(Number(geo.lat)) && !Number.isNaN(Number(geo.lng))) {
-      coords = { lat: Number(geo.lat), lng: Number(geo.lng) };
-    }
+    const inflight = cache.inflight.get(locStr);
+    const promise = inflight || (async () => {
+      const geo = await searchPlaceWithKakaoFirst(locStr);
+      if (geo && geo.lat != null && geo.lng != null && !Number.isNaN(Number(geo.lat)) && !Number.isNaN(Number(geo.lng))) {
+        return { lat: Number(geo.lat), lng: Number(geo.lng) };
+      }
+      return null;
+    })();
+    if (!inflight) cache.inflight.set(locStr, promise);
+    const resolved = await promise;
+    if (!inflight) cache.inflight.delete(locStr);
+    if (resolved) coords = resolved;
   }
   if (!coords) return post;
+  cache.resolved.set(locStr, coords);
   return { ...post, coordinates: coords };
 }
 
@@ -163,6 +189,7 @@ const MapScreen = () => {
   const [recentSearches, setRecentSearches] = useState([]); // 최근 검색 지역
 
   const { handleDragStart: handlePinScrollDrag, hasMovedRef: pinHasMovedRef } = useHorizontalDragScroll();
+  const loadPostsSeqRef = useRef(0);
 
   // 추천 지역 데이터
   const recommendedRegions = useMemo(() => [
@@ -1031,6 +1058,7 @@ const MapScreen = () => {
 
 
   const loadPosts = async (kakaoMap, options) => {
+    const seq = ++loadPostsSeqRef.current;
     try {
       // 검색 중이면 검색 결과만 사용 (options.forceSearch로 한 번에 반영된 결과 전달 가능)
       const effectiveSearch = (options?.forceSearch?.results != null)
@@ -1055,6 +1083,7 @@ const MapScreen = () => {
         }
 
         const searchEnriched = await enrichPostsList(filteredResults);
+        if (seq !== loadPostsSeqRef.current) return;
         setPosts(searchEnriched);
         createMarkers(searchEnriched, kakaoMap, selectedRoutePins, selectedPinId);
         return;
@@ -1093,6 +1122,7 @@ const MapScreen = () => {
       }
 
       const mapEnriched = await enrichPostsList(validPosts);
+      if (seq !== loadPostsSeqRef.current) return;
       setPosts(mapEnriched);
       createMarkers(mapEnriched, kakaoMap, selectedRoutePins, selectedPinId);
     } catch (error) {
@@ -1619,12 +1649,19 @@ const MapScreen = () => {
     }
   };
 
-  // 필터 변경 또는 선택 핀 변경 시 게시물/마커 다시 로드 (선택 핀 강조 갱신)
+  // 필터/검색 결과가 바뀔 때만 실제 데이터 재로딩 (Supabase/좌표보강 비용 절감)
   useEffect(() => {
-    if (map) {
-      loadPosts(map);
-    }
-  }, [selectedFilters, map, isSearching, searchResults, selectedPinId]);
+    if (!map) return;
+    loadPosts(map);
+  }, [selectedFilters, map, isSearching, searchResults]);
+
+  // 선택 핀/경로 선택은 "강조 스타일"만 바뀌므로, 기존 posts로 마커만 갱신
+  useEffect(() => {
+    if (!map) return;
+    if (!Array.isArray(posts) || posts.length === 0) return;
+    createMarkers(posts, map, selectedRoutePins, selectedPinId);
+    scheduleUpdateVisiblePins(map);
+  }, [map, posts, selectedRoutePins, selectedPinId, scheduleUpdateVisiblePins]);
 
   const createMarkers = (posts, kakaoMap, routePins = [], highlightedPinId = null) => {
     // 기존 게시물 마커만 제거 (관광지 마커는 유지)
