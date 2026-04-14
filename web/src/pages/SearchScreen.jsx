@@ -17,6 +17,7 @@ import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { getPostUserId, resolveUserDisplayFromPosts } from '../utils/userProfileHints';
 import { getCurrentUserId, getFollowingIds, toggleFollow, isFollowing } from '../utils/followSystem';
 import { getBadgeDisplayName } from '../utils/badgeSystem';
+import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
 // 해시태그 파싱: #동백꽃 #바다 #힐링 → ['동백꽃','바다','힐링']
 const parseHashtags = (q) => {
@@ -811,7 +812,7 @@ const SearchScreen = () => {
   // 전체 게시물 (Supabase + 로컬), 최근 검색어, 검색 횟수 로드
   useEffect(() => {
     const loadAllPosts = async () => {
-      const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+      const localPosts = getUploadedPostsSafe();
       const supabasePosts = await fetchPostsSupabase();
       const combined = getCombinedPosts(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
       setAllPosts(filterActivePosts48(combined));

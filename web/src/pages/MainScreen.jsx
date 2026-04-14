@@ -26,6 +26,7 @@ import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { getLikeSnapshot, toggleLikeLocal } from '../utils/postLikesLocal';
+import { getUploadedPostsSafe } from '../utils/localStorageManager';
 const MainScreen = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -108,7 +109,7 @@ const MainScreen = () => {
     }, [realtimeData, crowdedData, recommendedData]);
 
     const loadMockData = useCallback(async () => {
-        const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+        const localPosts = getUploadedPostsSafe();
 
         // Supabase에서 실제 게시물 불러오기 (실패 시 빈 배열)
         const supabasePosts = await fetchPostsSupabase();

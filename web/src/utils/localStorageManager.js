@@ -4,6 +4,16 @@
 
 import { logger } from './logger';
 
+// uploadedPosts 안전 로드 (파싱 실패/형식 오류 방어)
+export const getUploadedPostsSafe = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
 // localStorage 사용 용량 확인 (bytes)
 export const getLocalStorageSize = () => {
   let total = 0;
