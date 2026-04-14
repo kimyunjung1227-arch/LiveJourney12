@@ -621,10 +621,10 @@ const UserProfileScreen = () => {
                   <img
                     src={user.profileImage}
                     alt="Profile"
-                    className="w-12 h-12 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+                    className="w-13 h-13 rounded-full object-cover border border-gray-200 dark:border-gray-700"
                   />
                 ) : (
-                  <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <div className="w-13 h-13 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
                     <span className="material-symbols-outlined text-gray-600 dark:text-gray-300 text-4xl">person</span>
                   </div>
                 )}
@@ -633,7 +633,7 @@ const UserProfileScreen = () => {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <h2 className="text-text-primary-light dark:text-text-primary-dark text-sm font-bold truncate max-w-[180px] sm:max-w-[240px]" title={user.username || '사용자'}>
+                    <h2 className="text-text-primary-light dark:text-text-primary-dark text-base font-bold truncate max-w-[180px] sm:max-w-[240px]" title={user.username || '사용자'}>
                       {user.username || '사용자'}
                     </h2>
                     {representativeBadge && (

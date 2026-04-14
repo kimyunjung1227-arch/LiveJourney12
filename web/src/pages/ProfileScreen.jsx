@@ -427,8 +427,9 @@ const ProfileScreen = () => {
       }
     }
 
-    // 저장된 대표 뱃지가 있지만, 현재 획득한 뱃지 목록에 없으면 무효 처리
-    if (repBadge && !badges.some(b => b.name === repBadge.name)) {
+    // 저장된 대표 뱃지가 있지만, "획득 목록을 실제로 불러온 뒤" 목록에 없으면 무효 처리
+    // (초기 로딩/동기화 타이밍에 badges가 비어 대표뱃지가 지워지는 문제 방지)
+    if (repBadge && badges.length > 0 && !badges.some(b => b.name === repBadge.name)) {
       repBadge = null;
     }
 
@@ -1531,10 +1532,10 @@ const ProfileScreen = () => {
                   <img
                     src={currentUser.profileImage}
                     alt="Profile"
-                    className="w-12 h-12 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+                    className="w-13 h-13 rounded-full object-cover border border-gray-200 dark:border-gray-700"
                   />
                 ) : (
-                  <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700" />
+                  <div className="w-13 h-13 rounded-full bg-gray-200 dark:bg-gray-700" />
                 )}
               </div>
 
@@ -1542,7 +1543,7 @@ const ProfileScreen = () => {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
-                    <h2 className="text-text-primary-light dark:text-text-primary-dark text-sm font-bold truncate max-w-[180px] sm:max-w-[240px]" title={currentUser?.username || '모사모'}>
+                    <h2 className="text-text-primary-light dark:text-text-primary-dark text-base font-bold truncate max-w-[180px] sm:max-w-[240px]" title={currentUser?.username || '모사모'}>
                       {currentUser?.username || '모사모'}
                     </h2>
                     {/* 대표 뱃지 - 클릭 가능 */}
