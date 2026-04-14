@@ -1523,7 +1523,7 @@ const ProfileScreen = () => {
         {/* 메인 컨텐츠 */}
         <div className="screen-body">
           {/* 프로필 정보 */}
-          <div className="bg-white dark:bg-gray-900 px-6 py-6">
+          <div className="bg-white dark:bg-gray-900 px-5 py-4">
             <div className="flex items-center gap-4 mb-4">
               {/* 프로필 사진 */}
               <div className="flex-shrink-0">
@@ -1531,10 +1531,10 @@ const ProfileScreen = () => {
                   <img
                     src={currentUser.profileImage}
                     alt="Profile"
-                    className="w-16 h-16 rounded-full object-cover border-2 border-gray-200 dark:border-gray-700"
+                    className="w-14 h-14 rounded-full object-cover border border-gray-200 dark:border-gray-700"
                   />
                 ) : (
-                  <div className="w-16 h-16 rounded-full bg-gray-200 dark:bg-gray-700" />
+                  <div className="w-14 h-14 rounded-full bg-gray-200 dark:bg-gray-700" />
                 )}
               </div>
 
@@ -1542,7 +1542,7 @@ const ProfileScreen = () => {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
-                    <h2 className="text-text-primary-light dark:text-text-primary-dark text-lg font-bold truncate max-w-[180px] sm:max-w-[240px]" title={currentUser?.username || '모사모'}>
+                    <h2 className="text-text-primary-light dark:text-text-primary-dark text-base font-bold truncate max-w-[180px] sm:max-w-[240px]" title={currentUser?.username || '모사모'}>
                       {currentUser?.username || '모사모'}
                     </h2>
                     {/* 대표 뱃지 - 클릭 가능 */}
@@ -1679,7 +1679,7 @@ const ProfileScreen = () => {
               <button
                 onClick={() => setActiveTab('my')}
                 className={`flex-1 py-3 px-2 rounded-xl font-semibold transition-all text-sm whitespace-nowrap ${activeTab === 'my'
-                    ? 'bg-primary text-white shadow-lg'
+                    ? 'bg-gray-900 text-white shadow-lg dark:bg-gray-100 dark:text-gray-900'
                     : 'bg-gray-100 dark:bg-gray-800 text-text-secondary-light dark:text-text-secondary-dark hover:bg-gray-200 dark:hover:bg-gray-700'
                   }`}
               >
@@ -1688,7 +1688,7 @@ const ProfileScreen = () => {
               <button
                 onClick={() => setActiveTab('map')}
                 className={`flex-1 py-3 px-2 rounded-xl font-semibold transition-all text-sm whitespace-nowrap ${activeTab === 'map'
-                    ? 'bg-primary text-white shadow-lg'
+                    ? 'bg-gray-900 text-white shadow-lg dark:bg-gray-100 dark:text-gray-900'
                     : 'bg-gray-100 dark:bg-gray-800 text-text-secondary-light dark:text-text-secondary-dark hover:bg-gray-200 dark:hover:bg-gray-700'
                   }`}
               >
@@ -1698,7 +1698,7 @@ const ProfileScreen = () => {
               <button
                 onClick={() => setActiveTab('savedRoutes')}
                 className={`flex-1 py-3 px-2 rounded-xl font-semibold transition-all text-sm whitespace-nowrap ${activeTab === 'savedRoutes'
-                    ? 'bg-primary text-white shadow-lg'
+                    ? 'bg-gray-900 text-white shadow-lg dark:bg-gray-100 dark:text-gray-900'
                     : 'bg-gray-100 dark:bg-gray-800 text-text-secondary-light dark:text-text-secondary-dark hover:bg-gray-200 dark:hover:bg-gray-700'
                   }`}
               >
@@ -1716,7 +1716,7 @@ const ProfileScreen = () => {
                     onClick={() => setPhotoViewMode('custom')}
                     className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
                       photoViewMode === 'custom'
-                        ? 'bg-primary text-white'
+                        ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                     }`}
                   >
@@ -1727,7 +1727,7 @@ const ProfileScreen = () => {
                     onClick={() => setPhotoViewMode('date')}
                     className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${
                       photoViewMode === 'date'
-                        ? 'bg-primary text-white'
+                        ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                     }`}
                   >
@@ -1739,7 +1739,7 @@ const ProfileScreen = () => {
                   onClick={toggleEditMode}
                   className={`text-[11px] font-medium px-2 py-1 rounded-full transition-colors ${
                     isEditMode
-                      ? 'text-primary bg-primary-5'
+                      ? 'text-gray-900 bg-gray-100 dark:text-gray-100 dark:bg-gray-800'
                       : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
                   }`}
                 >
@@ -1761,7 +1761,7 @@ const ProfileScreen = () => {
                 </p>
                 <button
                   onClick={() => navigate('/upload')}
-                  className="bg-primary text-white py-3 px-6 rounded-full font-semibold hover:bg-primary/90 transition-colors shadow-lg inline-flex items-center gap-2"
+                  className="bg-gray-900 text-white py-3 px-6 rounded-full font-semibold hover:bg-gray-800 transition-colors shadow-lg inline-flex items-center gap-2 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
                 >
                   첫 사진 올리기
                 </button>
@@ -2002,7 +2002,7 @@ const ProfileScreen = () => {
                     </p>
                     <button
                       onClick={() => navigate('/upload')}
-                      className="bg-primary text-white py-3 px-6 rounded-full font-semibold hover:bg-primary/90 transition-colors shadow-lg inline-flex items-center gap-2"
+                      className="bg-gray-900 text-white py-3 px-6 rounded-full font-semibold hover:bg-gray-800 transition-colors shadow-lg inline-flex items-center gap-2 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
                     >
                       첫 사진 올리기
                     </button>
@@ -2022,7 +2022,7 @@ const ProfileScreen = () => {
                             <button
                               onClick={() => setSelectedDate('')}
                               className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${!selectedDate
-                                  ? 'bg-primary text-white shadow-sm'
+                                  ? 'bg-gray-900 text-white shadow-sm dark:bg-gray-100 dark:text-gray-900'
                                   : 'bg-white/95 backdrop-blur-md text-gray-700 border border-gray-200 hover:bg-gray-50'
                                 }`}
                             >
@@ -2040,7 +2040,7 @@ const ProfileScreen = () => {
                                   key={date}
                                   onClick={() => setSelectedDate(isSelected ? '' : date)}
                                   className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${isSelected
-                                      ? 'bg-primary text-white shadow-sm'
+                                      ? 'bg-gray-900 text-white shadow-sm dark:bg-gray-100 dark:text-gray-900'
                                       : 'bg-white/95 backdrop-blur-md text-gray-700 border border-gray-200 hover:bg-gray-50'
                                     }`}
                                 >
