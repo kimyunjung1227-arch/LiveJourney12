@@ -169,6 +169,17 @@ const CrowdedPlaceScreen = () => {
 
     const filteredPosts = crowdedData;
 
+    // 소셜 문구는 주기적으로 바뀌지만, 카드 props 계산은 무거우므로 데이터가 바뀔 때만 캐시
+    const cardPropsById = useMemo(() => {
+        const map = new Map();
+        filteredPosts.forEach((post) => {
+            if (!post?.id) return;
+            const cp = buildHotFeedCardProps(post, weatherByRegion);
+            if (cp) map.set(String(post.id), cp);
+        });
+        return map;
+    }, [filteredPosts, weatherByRegion]);
+
     return (
         <div className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col">
             <header className="sticky top-0 z-20 flex shrink-0 items-center gap-2 border-b border-border-light bg-background-light px-3 py-3 dark:border-border-dark dark:bg-background-dark">
@@ -197,7 +208,7 @@ const CrowdedPlaceScreen = () => {
                         ) : (
                             <div className="flex flex-col gap-2">
                                 {filteredPosts.map((post) => {
-                                    const cardProps = buildHotFeedCardProps(post, weatherByRegion);
+                                    const cardProps = cardPropsById.get(String(post.id));
                                     if (!cardProps) return null;
                                     const socialText = getHotFeedSocialLine(cardProps, crowdedSocialIdx);
                                     const liked = getLikeSnapshot(post.id, user?.id || null, Number(post.likes ?? post.likeCount ?? 0) || 0).liked;
