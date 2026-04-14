@@ -535,3 +535,46 @@ img {
 .onboarding-swiper .swiper-wrapper {
   transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
+
+/* 지도: 내 위치 — 하늘색 원 + 파동 */
+.lj-map-user-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: #38bdf8;
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.22);
+  z-index: 2;
+}
+
+.lj-map-user-pulse {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border-radius: 50%;
+  background: rgba(56, 189, 248, 0.38);
+  z-index: 0;
+  animation: lj-map-user-pulse-anim 2.2s ease-out infinite;
+}
+
+.lj-map-user-pulse--b {
+  animation-delay: 1.1s;
+}
+
+@keyframes lj-map-user-pulse-anim {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}

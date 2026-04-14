@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, RefreshCw, Navigation, LocateFixed } from 'lucide-react';
+import { ArrowLeft, Search, RefreshCw, LocateFixed } from 'lucide-react';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getDisplayImageUrl } from '../api/upload';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
@@ -11,7 +11,19 @@ import { logger } from '../utils/logger';
 
 const DEFAULT_CENTER = { lat: 37.5665, lng: 126.9780 };
 
+/** Live Journey 메인 컬러 (tailwind `primary`와 동일) */
+const PRIMARY_HEX = '#26C6DA';
+
 const GEO_CACHE_KEY = '__lj_map_geo_cache_v3';
+
+const escapeHtmlAttr = (value) => {
+  if (value == null) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+};
 
 // NOTE: Non-ASCII UI strings are written as \u escapes to avoid encoding corruption in patches.
 const t = {
@@ -20,8 +32,8 @@ const t = {
   errSdkLoad: 'Kakao Maps SDK \uc2a4\ud06c\ub9bd\ud2b8 \ub85c\ub4dc\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.',
   errSdkInit: 'Kakao Maps SDK\uac00 \ucd08\uae30\ud654\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.',
   warnMapInit: '\uc9c0\ub3c4 \ucd08\uae30\ud654 \uc2e4\ud328',
-  warnMarkers: '\ub9c8\ucee4 \uac31\uc2e0 \uc2e4\ud328',
-  warnUserMarker: '\ub0b4 \uc704\uce58 \ud45c\uc2dc \uc2e4\ud328',
+  warnOverlays: '\uc624\ubc84\ub808\uc774 \uac31\uc2e0 \uc2e4\ud328',
+  warnUserOverlay: '\ub0b4 \uc704\uce58 \ud45c\uc2dc \uc2e4\ud328',
   warnSearch: '\uac80\uc0c9 \uc2e4\ud328',
   warnGeoUnsupported: '\uc774 \ube0c\ub77c\uc6b0\uc800\ub294 \uc704\uce58 \uc815\ubcf4\ub97c \uc9c0\uc6d0\ud558\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.',
   warnGeoFailed: '\ud604\uc7ac \uc704\uce58\ub97c \uac00\uc838\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.',
@@ -36,20 +48,16 @@ const t = {
   chipSituation: '\uc9c0\uae08 \uc0c1\ud669 \uc54c\uc544\ubcf4\uae30',
   chipBloom: '\U0001F338 \uac1c\ud654\uc815\ubcf4',
   chipFood: '\U0001F35C \ub9db\uc9d1\uc815\ubcf4',
-  chipSoon:
-    '\uc774 \ud544\ud130\ub294 \ud604\uc7ac UI\ub9cc \uc900\ube44\ub418\uc5b4 \uc788\uc5b4\uc694. \ub370\uc774\ud130 \uc18c\uc2a4\ub97c \uc5f0\uacb0\ud558\uba74 \ud544\ud130\ub9c1\uc744 \uc801\uc6a9\ud560 \uc218 \uc788\uc5b4\uc694.',
-  route: '\uacbd\ub85c \ub9cc\ub4e4\uae30',
+  chipPlaces: '\U0001F3AF \uac00\ubcfc\ub9cc\ud55c \uacf3',
   myLocation: '\ub0b4 \uc704\uce58',
   sheetToggle: '\ubc14\ud2f7\uc2dc\ud2b8 \ud655\uc7a5/\ucd95\uc18c',
-  nearbyTitle: '\uc8fc\ubcc0 \uc7a5\uc18c',
-  postsSummary: (all, mapped) =>
-    `\uac8c\uc2dc\ubb3c ${all.toLocaleString()} \xb7 \uc9c0\ub3c4\ud45c\uc2dc ${mapped.toLocaleString()}`,
+  nearbyTitle: '\uc8fc\ubcc0 \uc0ac\uc9c4',
+  postsSummary: (inView, total) =>
+    `\ubcf4\uc774\ub294 \uc9c0\uc5ed ${inView.toLocaleString()} \xb7 \uc88c\ud45c\uc788\ub294 \uac8c\uc2dc\ubb3c ${total.toLocaleString()}`,
   emptyLoading: '\uac8c\uc2dc\ubb3c\uc744 \ubd88\ub7ec\uc624\ub294 \uc911...',
-  emptyNone: '\ud45c\uc2dc\ud560 \uc7a5\uc18c\uac00 \uc5c6\uc2b5\ub2c8\ub2e4',
+  emptyNone: '\ud45c\uc2dc\ud560 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4',
   emptyHint:
-    '\uc5c5\ub85c\ub4dc \uac8c\uc2dc\ubb3c\uc5d0 \uc704\uce58/\uc7a5\uc18c\uba85\uc774 \uc788\uc73c\uba74 \uc790\ub3d9\uc73c\ub85c \ud540\uc744 \ud45c\uc2dc\ud569\ub2c8\ub2e4.',
-  noContent: '\ub0b4\uc6a9 \uc5c6\uc74c',
-  placeFallback: '\uc7a5\uc18c',
+    '\ud544\ud130\ub97c \ubc14\uafb8\uac70\ub098 \uc9c0\ub3c4\ub97c \uc62e\uaca8 \ubcf4\uc138\uc694. \uac1c\ud654/\ub9db\uc9d1/\uba85\uc18c\ub294 \uae0d\uc81c/\ub0b4\uc6a9\uc5d0 \uad00\ub828 \ud0a4\uc6cc\ub4dc\uac00 \uc788\uc73c\uba74 \uac80\uc0c9\ub429\ub2c8\ub2e4.',
 };
 
 const readGeoCache = () => {
@@ -166,9 +174,91 @@ const mergePostsUnique = (lists) => {
   return [...map.values()].sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0));
 };
 
+/** 필터: 게시물 본문·태그·카테고리·장소 문자열 기반 */
+function postTextBlob(post) {
+  const tags = Array.isArray(post.tags) ? post.tags.join(' ') : '';
+  return [
+    post.note,
+    post.content,
+    post.location,
+    post.placeName,
+    post.detailedLocation,
+    post.region,
+    post.category,
+    post.categoryName,
+    tags,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
+/**
+ * @param {'situation'|'bloom'|'food'|'places'} chip
+ */
+function matchesMapFilter(post, chip) {
+  if (chip === 'situation') return true;
+  const blob = postTextBlob(post);
+  if (chip === 'bloom') {
+    return [
+      '\uac1c\ud654',
+      '\ubc94\uaf43',
+      '\uaf43',
+      '\ubd04',
+      'flower',
+      'bloom',
+      'cherry',
+      'sakura',
+      '\uaf43\ub180\uc774',
+    ].some((k) => blob.includes(k.toLowerCase()));
+  }
+  if (chip === 'food') {
+    return [
+      '\ub9db\uc9d1',
+      '\uc74c\uc2dd',
+      '\uc2dd\ub2f9',
+      '\uce74\ud398',
+      '\ub808\uc2a4\ud1a0\ub791',
+      'food',
+      '\uba39',
+      '\ub514\uc800\ud2b8',
+      '\ube0c\ub7f0\uce58',
+      '\uce74\ud398',
+      'cafe',
+      'restaurant',
+    ].some((k) => blob.includes(k.toLowerCase()));
+  }
+  if (chip === 'places') {
+    return [
+      '\uac00\ubcfc\ub9cc',
+      '\uba85\uc18c',
+      '\uad00\uad11',
+      '\uc5ec\ud589',
+      '\ud56b\ud50c',
+      'spot',
+      'landmark',
+      'attraction',
+      '\uad6c\uacbd',
+      '\ucf54\uc2a4',
+      '\uc5ec\ud589\uc9c0',
+      '\ucd94\ucc9c',
+      '\uad00\ub9ac',
+      '\uc5b4\ud2b8',
+    ].some((k) => blob.includes(k.toLowerCase()));
+  }
+  return true;
+}
+
+function pointInBounds(lat, lng, bounds) {
+  if (!bounds) return true;
+  return (
+    lat >= bounds.sw.lat && lat <= bounds.ne.lat && lng >= bounds.sw.lng && lng <= bounds.ne.lng
+  );
+}
+
 const chipClass = (active) =>
   active
-    ? 'px-4 py-2 bg-white text-sky-500 font-semibold text-sm rounded-full shadow-sm border border-sky-100 whitespace-nowrap'
+    ? 'px-4 py-2 bg-white text-primary font-semibold text-sm rounded-full shadow-sm border border-primary whitespace-nowrap'
     : 'px-4 py-2 bg-white text-gray-600 text-sm rounded-full shadow-sm whitespace-nowrap';
 
 const MapScreen = () => {
@@ -176,8 +266,9 @@ const MapScreen = () => {
 
   const mapRef = useRef(null);
   const kakaoMapRef = useRef(null);
-  const markersRef = useRef([]);
-  const userMarkerRef = useRef(null);
+  const postOverlaysRef = useRef([]);
+  const userOverlayRef = useRef(null);
+  const idleListenerRef = useRef(null);
 
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [sdkStatus, setSdkStatus] = useState({ ok: false, message: '' });
@@ -185,12 +276,14 @@ const MapScreen = () => {
 
   const [userPos, setUserPos] = useState(null);
   const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
+  const [mapBounds, setMapBounds] = useState(null);
+  const [viewCenter, setViewCenter] = useState(DEFAULT_CENTER);
 
   const [posts, setPosts] = useState([]);
   const [postsWithCoords, setPostsWithCoords] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
 
-  const [activeChip, setActiveChip] = useState('situation'); // situation | bloom | food
+  const [activeChip, setActiveChip] = useState('situation');
   const geoCache = useMemo(() => readGeoCache(), []);
 
   const resolveCoordsForPost = useCallback(
@@ -228,7 +321,7 @@ const MapScreen = () => {
       const remote = await fetchPostsSupabase();
       const merged = mergePostsUnique([getCombinedPosts(local), remote]);
 
-      const MAX_ENRICH = 80;
+      const MAX_ENRICH = 200;
       const slice = merged.slice(0, MAX_ENRICH);
 
       const enriched = [];
@@ -248,6 +341,23 @@ const MapScreen = () => {
       setLoadingPosts(false);
     }
   }, [resolveCoordsForPost]);
+
+  const postsFiltered = useMemo(
+    () => postsWithCoords.filter((p) => matchesMapFilter(p, activeChip)),
+    [postsWithCoords, activeChip],
+  );
+
+  const postsInViewport = useMemo(() => {
+    return postsFiltered.filter((p) => pointInBounds(p.__coords.lat, p.__coords.lng, mapBounds));
+  }, [postsFiltered, mapBounds]);
+
+  const sheetPhotoPosts = useMemo(() => {
+    const center = viewCenter;
+    return [...postsInViewport]
+      .map((p) => ({ p, km: haversineKm(center, p.__coords) }))
+      .sort((a, b) => a.km - b.km)
+      .map((x) => x.p);
+  }, [postsInViewport, viewCenter]);
 
   useEffect(() => {
     let cancelled = false;
@@ -286,6 +396,25 @@ const MapScreen = () => {
           level: 5,
         });
         kakaoMapRef.current = map;
+
+        const onIdle = () => {
+          try {
+            const b = map.getBounds();
+            const sw = b.getSouthWest();
+            const ne = b.getNorthEast();
+            setMapBounds({
+              sw: { lat: sw.getLat(), lng: sw.getLng() },
+              ne: { lat: ne.getLat(), lng: ne.getLng() },
+            });
+            const c = map.getCenter();
+            setViewCenter({ lat: c.getLat(), lng: c.getLng() });
+          } catch {
+            /* ignore */
+          }
+        };
+        kakao.maps.event.addListener(map, 'idle', onIdle);
+        idleListenerRef.current = { map, onIdle };
+        onIdle();
       } catch (e) {
         logger.warn(t.warnMapInit, e?.message || e);
       }
@@ -293,6 +422,15 @@ const MapScreen = () => {
 
     return () => {
       cancelled = true;
+      const il = idleListenerRef.current;
+      if (il?.map && il?.onIdle && window.kakao?.maps?.event) {
+        try {
+          window.kakao.maps.event.removeListener(il.map, 'idle', il.onIdle);
+        } catch {
+          /* ignore */
+        }
+      }
+      idleListenerRef.current = null;
       kakaoMapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -314,50 +452,82 @@ const MapScreen = () => {
     if (!map || !window.kakao?.maps) return;
 
     try {
-      markersRef.current.forEach((m) => m.setMap(null));
-      markersRef.current = [];
+      postOverlaysRef.current.forEach((ov) => ov.setMap(null));
+      postOverlaysRef.current = [];
 
       const kakao = window.kakao;
 
-      postsWithCoords.forEach((p) => {
+      postsInViewport.forEach((p) => {
         const pos = p?.__coords;
         if (!pos) return;
 
-        const marker = new kakao.maps.Marker({
-          position: new kakao.maps.LatLng(pos.lat, pos.lng),
-          map,
-        });
+        const thumbRaw = p.thumbnail || (Array.isArray(p.images) ? p.images[0] : '');
+        const thumb = escapeHtmlAttr(getDisplayImageUrl(thumbRaw));
 
-        kakao.maps.event.addListener(marker, 'click', () => {
+        const wrap = document.createElement('div');
+        wrap.innerHTML = `
+          <div class="lj-map-post-pin" style="width:52px;height:52px;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.18);cursor:pointer;border:2px solid ${PRIMARY_HEX};background:#f3f4f6;">
+            ${
+              thumb
+                ? `<img src="${thumb}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;"/>`
+                : `<div style="width:100%;height:100%;background:linear-gradient(135deg,#e0f7fa,#b2ebf2);"></div>`
+            }
+          </div>`;
+        const el = wrap.firstElementChild;
+        if (!el) return;
+
+        el.addEventListener('click', () => {
           navigate(`/post/${encodeURIComponent(String(p.id))}`, { state: { post: p } });
         });
 
-        markersRef.current.push(marker);
+        const overlay = new kakao.maps.CustomOverlay({
+          position: new kakao.maps.LatLng(pos.lat, pos.lng),
+          content: el,
+          yAnchor: 0.5,
+          xAnchor: 0.5,
+          zIndex: 3,
+        });
+        overlay.setMap(map);
+        postOverlaysRef.current.push(overlay);
       });
     } catch (e) {
-      logger.warn(t.warnMarkers, e?.message || e);
+      logger.warn(t.warnOverlays, e?.message || e);
     }
-  }, [navigate, postsWithCoords]);
+  }, [navigate, postsInViewport]);
 
   useEffect(() => {
     const map = kakaoMapRef.current;
     if (!map || !window.kakao?.maps) return;
 
     try {
-      if (userMarkerRef.current) {
-        userMarkerRef.current.setMap(null);
-        userMarkerRef.current = null;
+      if (userOverlayRef.current) {
+        userOverlayRef.current.setMap(null);
+        userOverlayRef.current = null;
       }
       if (!userPos) return;
 
       const kakao = window.kakao;
-      const marker = new kakao.maps.Marker({
+      const wrap = document.createElement('div');
+      wrap.innerHTML = `
+        <div class="lj-map-user-wrap" style="position:relative;width:56px;height:56px;pointer-events:none;">
+          <div class="lj-map-user-pulse lj-map-user-pulse--a"></div>
+          <div class="lj-map-user-pulse lj-map-user-pulse--b"></div>
+          <div class="lj-map-user-dot"></div>
+        </div>`;
+      const el = wrap.firstElementChild;
+      if (!el) return;
+
+      const overlay = new kakao.maps.CustomOverlay({
         position: new kakao.maps.LatLng(userPos.lat, userPos.lng),
-        map,
+        content: el,
+        yAnchor: 0.5,
+        xAnchor: 0.5,
+        zIndex: 5,
       });
-      userMarkerRef.current = marker;
+      overlay.setMap(map);
+      userOverlayRef.current = overlay;
     } catch (e) {
-      logger.warn(t.warnUserMarker, e?.message || e);
+      logger.warn(t.warnUserOverlay, e?.message || e);
     }
   }, [userPos]);
 
@@ -402,18 +572,6 @@ const MapScreen = () => {
     );
   }, []);
 
-  const nearbyPosts = useMemo(() => {
-    const center = userPos || mapCenter;
-    const withDist = postsWithCoords
-      .map((p) => ({
-        post: p,
-        km: haversineKm(center, p.__coords),
-      }))
-      .filter((x) => Number.isFinite(x.km))
-      .sort((a, b) => a.km - b.km);
-    return withDist.slice(0, 30).map((x) => x.post);
-  }, [mapCenter, postsWithCoords, userPos]);
-
   return (
     <div className="relative w-full h-[100dvh] bg-gray-100 overflow-hidden font-sans">
       <div ref={mapRef} className="absolute inset-0 z-0" />
@@ -446,7 +604,7 @@ const MapScreen = () => {
               onChange={(ev) => setQuery(ev.target.value)}
               type="text"
               placeholder={t.searchPlaceholder}
-              className="w-full rounded-full bg-white py-3 pl-11 pr-4 text-sm shadow-sm transition focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="w-full rounded-full bg-white py-3 pl-11 pr-4 text-sm shadow-sm transition focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </form>
 
@@ -470,30 +628,20 @@ const MapScreen = () => {
           <button type="button" className={chipClass(activeChip === 'food')} onClick={() => setActiveChip('food')}>
             {t.chipFood}
           </button>
+          <button type="button" className={chipClass(activeChip === 'places')} onClick={() => setActiveChip('places')}>
+            {t.chipPlaces}
+          </button>
         </div>
       </div>
 
       <div
-        className={`absolute z-10 flex w-full items-end justify-between px-4 transition-all duration-300 ease-in-out ${
+        className={`absolute right-4 z-10 flex justify-end transition-all duration-300 ease-in-out ${
           isSheetExpanded ? 'bottom-[65%]' : 'bottom-[25%]'
         }`}
       >
         <button
           type="button"
-          className="flex items-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-semibold text-gray-800 shadow-md transition hover:bg-gray-50"
-          onClick={() => {
-            const target = userPos || mapCenter;
-            const url = `https://map.kakao.com/link/map/${target.lat},${target.lng}`;
-            window.open(url, '_blank', 'noopener,noreferrer');
-          }}
-        >
-          <Navigation className="h-4 w-4" />
-          {t.route}
-        </button>
-
-        <button
-          type="button"
-          className="rounded-full bg-white p-3.5 text-sky-500 shadow-md transition hover:bg-gray-50"
+          className="rounded-full bg-white p-3.5 text-primary shadow-md ring-1 ring-primary/20 transition hover:bg-primary-soft"
           onClick={onMyLocation}
           aria-label={t.myLocation}
         >
@@ -515,42 +663,35 @@ const MapScreen = () => {
           <span className="h-1.5 w-12 rounded-full bg-gray-300" />
         </button>
 
-        <div className="flex flex-1 flex-col overflow-hidden px-6 py-2">
-          <div className="mb-3 flex items-end justify-between gap-3">
-            <h2 className="text-xl font-bold text-gray-900">{t.nearbyTitle}</h2>
-            <div className="text-[11px] text-gray-400">{t.postsSummary(posts.length, postsWithCoords.length)}</div>
+        <div className="flex flex-1 flex-col overflow-hidden px-3 py-2 sm:px-6">
+          <div className="mb-2 flex items-end justify-between gap-3 px-1">
+            <h2 className="text-lg font-bold text-gray-900">{t.nearbyTitle}</h2>
+            <div className="text-[11px] text-gray-400">{t.postsSummary(sheetPhotoPosts.length, postsFiltered.length)}</div>
           </div>
 
-          <div className="flex-1 overflow-y-auto pb-6">
-            {activeChip !== 'situation' && (
-              <div className="mb-4 rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm text-gray-600">{t.chipSoon}</div>
-            )}
-
-            {nearbyPosts.length === 0 ? (
+          <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+            {sheetPhotoPosts.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center pb-10 text-gray-400">
                 <p className="text-sm font-medium">{loadingPosts ? t.emptyLoading : t.emptyNone}</p>
-                <p className="mt-2 max-w-sm text-center text-xs text-gray-400">{t.emptyHint}</p>
+                <p className="mt-2 max-w-sm px-2 text-center text-xs text-gray-400">{t.emptyHint}</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {nearbyPosts.map((p) => {
-                  const title = String(p.placeName || p.location || p.region || t.placeFallback).trim();
-                  const body = String(p.note || p.content || '').trim();
+              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+                {sheetPhotoPosts.map((p) => {
                   const thumb = getDisplayImageUrl(p.thumbnail || (Array.isArray(p.images) ? p.images[0] : ''));
                   return (
                     <button
                       key={p.id}
                       type="button"
                       onClick={() => navigate(`/post/${encodeURIComponent(String(p.id))}`, { state: { post: p } })}
-                      className="flex w-full gap-3 rounded-2xl border border-gray-100 bg-white p-3 text-left shadow-sm transition hover:bg-gray-50"
+                      className="aspect-square overflow-hidden rounded-[3px] bg-gray-100 ring-1 ring-gray-200/80"
+                      style={{ borderRadius: 3 }}
                     >
-                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-gray-100">
-                        {thumb ? <img src={thumb} alt="" className="h-full w-full object-cover" /> : null}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-bold text-gray-900">{title}</div>
-                        <div className="mt-1 line-clamp-2 text-xs text-gray-600">{body || t.noContent}</div>
-                      </div>
+                      {thumb ? (
+                        <img src={thumb} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-primary-10 text-[10px] text-primary">·</div>
+                      )}
                     </button>
                   );
                 })}
