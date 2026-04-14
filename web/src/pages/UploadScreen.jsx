@@ -5,7 +5,7 @@ import { createPost } from '../api/posts';
 import { uploadImage, uploadVideo, getDisplayImageUrl } from '../api/upload';
 import { useAuth } from '../contexts/AuthContext';
 import { notifyBadge } from '../utils/notifications';
-import { safeSetItem, logLocalStorageStatus } from '../utils/localStorageManager';
+import { safeSetItem, logLocalStorageStatus, getUploadedPostsSafe } from '../utils/localStorageManager';
 import { checkNewBadges, awardBadge, calculateUserStats } from '../utils/badgeSystem';
 import { analyzeImageForTags } from '../utils/aiImageAnalyzer';
 import { getWeatherByRegion } from '../api/weather';
@@ -313,7 +313,7 @@ const UploadScreen = () => {
       }
       if (!post) {
         try {
-          const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+          const localPosts = getUploadedPostsSafe();
           post = localPosts.find(
             (p) =>
               p &&
@@ -1322,7 +1322,7 @@ const UploadScreen = () => {
           window.dispatchEvent(new Event('postsUpdated'));
           navigate(`/post/${postIdStr}`, { replace: true, state: fresh ? { post: fresh } : undefined });
         } else {
-          const uploaded = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+          const uploaded = getUploadedPostsSafe();
           const idx = uploaded.findIndex((p) => p.id === editingPostId);
           if (idx === -1) {
             alert('게시물을 찾을 수 없습니다.');
@@ -1608,7 +1608,7 @@ const UploadScreen = () => {
             썸네일: sanitizedPost.thumbnail ? '있음' : '없음'
           });
 
-          const existingPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+          const existingPosts = getUploadedPostsSafe();
           const updatedPosts = [sanitizedPost, ...existingPosts];
 
           // JSON 문자열 크기 확인
@@ -1652,7 +1652,7 @@ const UploadScreen = () => {
               // localStorage에 저장된 게시물 id를 Supabase id로 갱신 (삭제 시 Supabase에서도 삭제하기 위함)
               if (supabasePostId) {
                 try {
-                  const current = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+                  const current = getUploadedPostsSafe();
                   const idx = current.findIndex((p) => p.id === sanitizedPost.id);
                   if (idx !== -1) {
                     current[idx].id = supabasePostId;
@@ -1708,7 +1708,7 @@ const UploadScreen = () => {
             logger.debug('Badge check timer running');
 
             // localStorage 저장 확인
-            const verifyPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+            const verifyPosts = getUploadedPostsSafe();
             const verifyPost = verifyPosts.find(p => p.id === uploadedPost.id);
             logger.debug('🔍 저장 확인 (백엔드):', {
               저장된게시물수: verifyPosts.length,

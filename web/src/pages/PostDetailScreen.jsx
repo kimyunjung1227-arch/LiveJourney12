@@ -28,6 +28,7 @@ import { buildMediaItemsFromPost } from '../utils/postMedia';
 import { tagTranslations } from '../utils/tagTranslations';
 import { getCategoryChipsFromPost } from '../utils/travelCategories';
 import { getLikeSnapshot, toggleLikeLocal } from '../utils/postLikesLocal';
+import { getUploadedPostsSafe } from '../utils/localStorageManager';
 import {
   addCommentSupabase,
   deleteCommentSupabase,
@@ -233,7 +234,7 @@ const PostDetailScreen = () => {
       }
 
       // localStorage에서 찾기 (로컬 전용 게시물)
-      const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+      const localPosts = getUploadedPostsSafe();
       const localPost = localPosts.find(p =>
         p.id === postId ||
         p.id === `uploaded-${postId}` ||
@@ -480,7 +481,7 @@ const PostDetailScreen = () => {
         }
       }
     } else {
-      const uploadedPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+      const uploadedPosts = getUploadedPostsSafe();
       const existsInStorage = uploadedPosts.some((p) => p.id === post.id);
       if (existsInStorage) {
         const newComments = addComment(post.id, text, username, userId);
@@ -614,7 +615,7 @@ const PostDetailScreen = () => {
       }
     }
     try {
-      const uploaded = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+      const uploaded = getUploadedPostsSafe();
       const filtered = uploaded.filter((p) => p && String(p.id) !== idStr);
       localStorage.setItem('uploadedPosts', JSON.stringify(filtered));
     } catch (_) {}

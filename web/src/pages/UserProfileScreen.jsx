@@ -28,6 +28,7 @@ import {
   getCachedFollowProfile,
   setCachedFollowProfile,
 } from '../utils/userProfileHints';
+import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
 const UserProfileScreen = () => {
   const navigate = useNavigate();
@@ -102,7 +103,7 @@ const UserProfileScreen = () => {
     setTrustRawScore(0);
 
     // 해당 사용자의 정보 찾기 (게시물에서)
-    const uploadedPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+    const uploadedPosts = getUploadedPostsSafe();
     const profileHint = location.state?.profileHint;
 
     // userId 매칭 (일관된 로직 - PostDetailScreen과 동일)
@@ -306,7 +307,7 @@ const UserProfileScreen = () => {
 
   useEffect(() => {
     if (!showFollowListModal || !userId) return;
-    const local = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+    const local = getUploadedPostsSafe();
     setFollowListPostPool(local);
     let cancelled = false;
     const ids = Array.isArray(followListIds) ? followListIds : [];
@@ -1219,7 +1220,7 @@ const UserProfileScreen = () => {
                   </p>
                 ) : (
                   (() => {
-                    const posts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+                    const posts = getUploadedPostsSafe();
                     const currentUserData = currentUser;
                     const myId = currentUserData?.id;
                     const pool = followListPostPool.length > 0 ? followListPostPool : posts;

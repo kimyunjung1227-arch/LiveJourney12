@@ -14,7 +14,7 @@ import { follow, unfollow, isFollowing, getFollowerCount, getFollowingCount, get
 import { logger } from '../utils/logger';
 import { getDisplayImageUrl } from '../api/upload';
 import api from '../api/axios';
-import { cleanLegacyUploadedPosts } from '../utils/localStorageManager';
+import { cleanLegacyUploadedPosts, getUploadedPostsSafe } from '../utils/localStorageManager';
 import { deletePostSupabase, fetchPostsByUserIdSupabase, fetchPostsSupabase } from '../api/postsSupabase';
 import {
   resolveUserDisplayFromPosts,
@@ -361,7 +361,7 @@ const ProfileScreen = () => {
   // 팔로워/팔로잉 모달: 전체·개별 Supabase 게시물로 이름·프로필 추론 보강
   useEffect(() => {
     if (!showFollowListModal) return;
-    const local = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+    const local = getUploadedPostsSafe();
     setFollowListPostPool(local);
     let cancelled = false;
     const ids = Array.isArray(followListIds) ? followListIds : [];
@@ -441,7 +441,7 @@ const ProfileScreen = () => {
 
     // 목업/테스트 게시물 흔적 제거 후 내 게시물 로드 (Supabase + localStorage 병합 → 로그아웃 후 재로그인해도 기록 유지)
     cleanLegacyUploadedPosts();
-    const uploadedPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+    const uploadedPosts = getUploadedPostsSafe();
     const localUserPosts = uploadedPosts.filter(post => post.userId === userId);
 
     const loadMergedMyPosts = async () => {
@@ -485,7 +485,7 @@ const ProfileScreen = () => {
       logger.log('🔄 프로필 화면 - 게시물 업데이트 이벤트 수신');
       const previousPostsCount = myPosts.length;
       setTimeout(async () => {
-        const updatedPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+        const updatedPosts = getUploadedPostsSafe();
         const updatedLocalUserPosts = updatedPosts.filter(post => {
           const postUserId = post.userId ||
             (typeof post.user === 'string' ? post.user : post.user?.id) ||
@@ -1141,7 +1141,7 @@ const ProfileScreen = () => {
     }
 
     // localStorage에서 선택된 사진 삭제
-    const allPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+    const allPosts = getUploadedPostsSafe();
     const filteredPosts = allPosts.filter(post => !selectedPhotos.includes(post.id));
     localStorage.setItem('uploadedPosts', JSON.stringify(filteredPosts));
 
@@ -2404,7 +2404,7 @@ const ProfileScreen = () => {
                   </p>
                 ) : (
                   (() => {
-                    const posts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+                    const posts = getUploadedPostsSafe();
                     const currentUserData = authUser || user;
                     const myId = currentUserData?.id;
 
