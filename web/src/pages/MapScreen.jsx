@@ -190,6 +190,22 @@ const MapScreen = () => {
 
   const { handleDragStart: handlePinScrollDrag, hasMovedRef: pinHasMovedRef } = useHorizontalDragScroll();
   const loadPostsSeqRef = useRef(0);
+  const lastMarkersKeyRef = useRef('');
+
+  const hashPostIds = useCallback((arr) => {
+    // 빠른 32-bit 해시(마커 재생성 스킵 판단용)
+    let h = 2166136261;
+    for (let i = 0; i < arr.length; i += 1) {
+      const id = String(arr[i]?.id ?? '');
+      for (let j = 0; j < id.length; j += 1) {
+        h ^= id.charCodeAt(j);
+        h = Math.imul(h, 16777619);
+      }
+      h ^= 1247;
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(16);
+  }, []);
 
   // 추천 지역 데이터
   const recommendedRegions = useMemo(() => [
@@ -1664,8 +1680,51 @@ const MapScreen = () => {
   }, [map, posts, selectedRoutePins, selectedPinId, scheduleUpdateVisiblePins]);
 
   const createMarkers = (posts, kakaoMap, routePins = [], highlightedPinId = null) => {
+    const applyMarkerDecorations = (markerData, routePinsArg, highlightedPinIdArg) => {
+      const btn = markerData?.buttonEl;
+      if (!btn) return;
+      const postId = markerData?.post?.id;
+      const isSelected = routePinsArg.some((p) => p?.post?.id === postId);
+      const isHighlighted = highlightedPinIdArg && postId === highlightedPinIdArg;
+      const useHighlight = isSelected || isHighlighted;
+
+      // 강조 스타일만 업데이트 (오버레이 재생성 방지)
+      btn.style.borderColor = useHighlight ? '#26C6DA' : 'white';
+      btn.style.borderWidth = useHighlight ? '3px' : '2px';
+      btn.style.boxShadow = useHighlight
+        ? '0 2px 8px rgba(0, 188, 212, 0.35)'
+        : '0 2px 8px rgba(0,0,0,0.25)';
+
+      const badge = markerData?.badgeEl;
+      if (badge) {
+        if (isSelected) {
+          const order = routePinsArg.findIndex((p) => p?.post?.id === postId) + 1;
+          badge.textContent = String(order);
+          badge.style.display = 'flex';
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+    };
+
     // 기존 게시물 마커만 제거 (관광지 마커는 유지)
-    markersRef.current = markersRef.current.filter(markerData => {
+    const ordered = Array.isArray(posts) ? posts : [];
+    const postsKey = `${ordered.length}:${hashPostIds(ordered)}`;
+    const canReuse =
+      postsKey === lastMarkersKeyRef.current &&
+      markersRef.current.some((m) => m && !m.touristPlace && m.overlay && m.overlay.getMap && m.overlay.getMap());
+
+    if (canReuse) {
+      markersRef.current.forEach((m) => {
+        if (!m || m.touristPlace) return;
+        applyMarkerDecorations(m, routePins, highlightedPinId);
+      });
+      return;
+    }
+
+    lastMarkersKeyRef.current = postsKey;
+
+    markersRef.current = markersRef.current.filter((markerData) => {
       if (markerData.overlay && !markerData.touristPlace) {
         markerData.overlay.setMap(null);
         return false;
@@ -1677,7 +1736,7 @@ const MapScreen = () => {
     let hasValidMarker = false;
 
     // 시트에서 선택한 핀은 반드시 첫 청크에 포함되도록 정렬 (이동 후 해당 위치에 핀이 바로 보이게)
-    let orderedPosts = posts;
+    let orderedPosts = ordered;
     if (highlightedPinId && posts.length > 1) {
       const highlighted = posts.find(p => p.id === highlightedPinId);
       if (highlighted) {
@@ -1717,7 +1776,7 @@ const MapScreen = () => {
         const videoDisplayUrl = rawVideoUri ? getDisplayImageUrl(rawVideoUri) : '';
 
         // 선택된 핀(경로) 또는 현재 강조할 핀(지도/시트 선택)인지 확인
-        const isSelected = routePins.some(p => p.post.id === post.id);
+        const isSelected = routePins.some((p) => p.post.id === post.id);
         const isHighlighted = highlightedPinId && post.id === highlightedPinId;
         const useHighlight = isSelected || isHighlighted;
         const ageVisual = getMapAgeVisual(post);
@@ -1784,8 +1843,9 @@ const MapScreen = () => {
           data-post-id="${post.id}"
         >
           ${mediaInner}
-          ${isSelected ? `
-            <div style="
+          <div
+            class="route-badge"
+            style="
               position: absolute;
               top: -6px;
               right: -6px;
@@ -1794,17 +1854,15 @@ const MapScreen = () => {
               background: #26C6DA;
               border-radius: 50%;
               border: 2px solid white;
-              display: flex;
+              display: ${isSelected ? 'flex' : 'none'};
               align-items: center;
               justify-content: center;
               font-size: 12px;
               font-weight: bold;
               color: white;
               box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-            ">
-              ${routePins.findIndex(p => p.post.id === post.id) + 1}
-            </div>
-          ` : ''}
+            "
+          >${isSelected ? routePins.findIndex((p) => p.post.id === post.id) + 1 : ''}</div>
         </button>
       `;
 
@@ -1839,6 +1897,7 @@ const MapScreen = () => {
         }
 
         const button = el.querySelector('button');
+        const badge = el.querySelector('.route-badge');
         if (button) {
           button.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1864,10 +1923,11 @@ const MapScreen = () => {
         }
 
         // 핀 미디어 프리로드
-        if (imageUrl) {
+        const shouldPreload = useHighlight || globalIndex < 8;
+        if (shouldPreload && imageUrl) {
           const preload = new Image();
           preload.src = imageUrl;
-        } else if (videoDisplayUrl) {
+        } else if (shouldPreload && videoDisplayUrl) {
           const pre = document.createElement('video');
           pre.preload = 'metadata';
           pre.src = videoDisplayUrl;
@@ -1883,7 +1943,8 @@ const MapScreen = () => {
 
         overlay.setMap(kakaoMap);
 
-        markersRef.current.push({ overlay, post, position });
+        const markerData = { overlay, post, position, buttonEl: button || null, badgeEl: badge || null };
+        markersRef.current.push(markerData);
         hasValidMarker = true;
       });
     };
