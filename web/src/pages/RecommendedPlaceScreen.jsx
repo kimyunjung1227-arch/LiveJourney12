@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { getRecommendedRegions, getRecommendationTypesForUi } from '../utils/recommendationEngine';
@@ -41,6 +41,35 @@ const RecommendedPlaceScreen = () => {
       setSelectedTag(enabled[0].id);
     }
   }, [filterTypesUi, selectedTag]);
+
+  // 카드 렌더마다 allPosts.filter를 반복하지 않도록, 추천 지역 목록 기준으로 1회 인덱싱
+  const mediaByRegion = useMemo(() => {
+    const items = Array.isArray(recommendedData) ? recommendedData : [];
+    const posts = Array.isArray(allPosts) ? allPosts : [];
+    const keys = items.map((it) => String(it?.regionName || '').trim()).filter(Boolean);
+    const unique = Array.from(new Set(keys));
+    const byKey = new Map(unique.map((k) => [k, []]));
+    if (unique.length === 0 || posts.length === 0) return byKey;
+
+    const lowerKeys = unique.map((k) => k.toLowerCase());
+    const keyByLower = new Map(lowerKeys.map((kl, i) => [kl, unique[i]]));
+
+    posts.forEach((p) => {
+      const loc = String(p?.location || '');
+      const place = String(p?.placeName || '');
+      const detailed = String(p?.detailedLocation || '');
+      const hay = `${loc}\n${place}\n${detailed}`.toLowerCase();
+      for (const kl of lowerKeys) {
+        const k = keyByLower.get(kl);
+        if (!k) continue;
+        if (hay.includes(kl)) {
+          const bucket = byKey.get(k);
+          if (bucket) bucket.push(p);
+        }
+      }
+    });
+    return byKey;
+  }, [recommendedData, allPosts]);
 
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col">
@@ -105,11 +134,7 @@ const RecommendedPlaceScreen = () => {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
             {recommendedData.map((item, idx) => {
-              const regionPosts = allPosts.filter(p =>
-                (typeof p.location === 'string' && p.location.includes(item.regionName)) ||
-                (p.detailedLocation && String(p.detailedLocation).includes(item.regionName)) ||
-                (p.placeName && String(p.placeName).includes(item.regionName))
-              );
+              const regionPosts = mediaByRegion.get(String(item.regionName || '').trim()) || [];
               const rawImages = [
                 item.liveImage || item.image,
                 ...regionPosts.flatMap(p => (p.images && p.images.length ? p.images : [p.thumbnail || p.image].filter(Boolean)))
