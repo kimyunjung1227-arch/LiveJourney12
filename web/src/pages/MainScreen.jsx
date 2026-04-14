@@ -257,6 +257,69 @@ const MainScreen = () => {
         return crowdedData[i];
     }, [crowdedData, hotFeedSlideIndex]);
 
+    // 추천 여행지(가로 카드): 카드마다 allPostsForRecommend.filter/sort를 반복하지 않도록 한번만 인덱싱
+    const recommendedPlaceBundle = useMemo(() => {
+        const items = Array.isArray(recommendedData) ? recommendedData : [];
+        const posts = Array.isArray(allPostsForRecommend) ? allPostsForRecommend : [];
+        const keys = items
+            .map((it) => String(it?.placeName || it?.title || it?.regionName || '').trim())
+            .filter(Boolean);
+        const uniqueKeys = Array.from(new Set(keys));
+
+        const byKey = new Map();
+        uniqueKeys.forEach((k) => byKey.set(k, { placePosts: [], feedPosts: [], mainSrc: '', topImages: [] }));
+
+        if (uniqueKeys.length === 0) return byKey;
+
+        // posts를 1회만 순회: post마다 문자열 조합 1회 생성 후 key들과 매칭
+        const keyLower = uniqueKeys.map((k) => k.toLowerCase());
+        const keyByLower = new Map(keyLower.map((kl, i) => [kl, uniqueKeys[i]]));
+
+        if (posts.length > 0) {
+            posts.forEach((p) => {
+                const loc = String(p?.location || '');
+                const place = String(p?.placeName || '');
+                const detailed = String(p?.detailedLocation || '');
+                const hayLower = `${loc}\n${place}\n${detailed}`.toLowerCase();
+
+                for (const kl of keyLower) {
+                    const k = keyByLower.get(kl);
+                    if (!k) continue;
+                    if (loc === k || place === k || detailed === k || hayLower.includes(kl)) {
+                        const bucket = byKey.get(k);
+                        if (bucket) bucket.placePosts.push(p);
+                    }
+                }
+            });
+        }
+
+        // key별 feedPosts 정렬 1회
+        for (const [, bucket] of byKey.entries()) {
+            bucket.feedPosts = [...bucket.placePosts].sort((a, b) => {
+                const ta = new Date(a.timestamp || a.createdAt || a.photoDate || 0).getTime();
+                const tb = new Date(b.timestamp || b.createdAt || b.photoDate || 0).getTime();
+                return tb - ta;
+            });
+        }
+
+        // 대표 이미지 1회 계산 (기존 우선순위 유지)
+        items.forEach((it) => {
+            const placeKey = String(it?.placeName || it?.title || it?.regionName || '').trim();
+            if (!placeKey) return;
+            const bucket = byKey.get(placeKey);
+            if (!bucket) return;
+            const rawImages = [
+                it?.liveImage || it?.image,
+                ...bucket.placePosts.flatMap((p) => (p.images && p.images.length ? p.images : [p.thumbnail || p.image].filter(Boolean))),
+            ].filter(Boolean).slice(0, 5);
+            const displayImages = rawImages.map((u) => getDisplayImageUrl(u)).filter(Boolean);
+            bucket.topImages = displayImages;
+            bucket.mainSrc = displayImages[0] || 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80';
+        });
+
+        return byKey;
+    }, [recommendedData, allPostsForRecommend]);
+
     useEffect(() => {
         let cancelled = false;
         const post = hotFeedPost;
@@ -908,30 +971,12 @@ const MainScreen = () => {
                             >
                                 {recommendedData.map((item, idx) => {
                                     const placeKey = item.placeName || item.title || item.regionName;
-                                    const placePosts = allPostsForRecommend.filter((p) => {
-                                        const key = String(placeKey || '').trim();
-                                        if (!key) return false;
-                                        const loc = String(p?.location || '');
-                                        const place = String(p?.placeName || '');
-                                        const detailed = String(p?.detailedLocation || '');
-                                        if (loc === key || place === key || detailed === key) return true;
-                                        return loc.includes(key) || place.includes(key) || detailed.includes(key);
-                                    });
-                                    const rawImages = [
-                                        item.liveImage || item.image,
-                                        ...placePosts.flatMap(p => (p.images && p.images.length ? p.images : [p.thumbnail || p.image].filter(Boolean)))
-                                    ].filter(Boolean).slice(0, 5);
-                                    const displayImages = rawImages.map(url => getDisplayImageUrl(url)).filter(Boolean);
-                                    const mainSrc = displayImages[0] || 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80';
+                                    const bundle = recommendedPlaceBundle.get(String(placeKey || '').trim()) || null;
+                                    const mainSrc = bundle?.mainSrc || 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80';
                                     const placeDescription = (item.description || '').trim();
                                     const placeOneLine = String(item.placeOneLine || '').trim();
                                     const topTags = Array.isArray(item.topTags) ? item.topTags.filter(Boolean).slice(0, 5) : [];
-
-                                    const feedPosts = [...placePosts].sort((a, b) => {
-                                        const ta = new Date(a.timestamp || a.createdAt || a.photoDate || 0).getTime();
-                                        const tb = new Date(b.timestamp || b.createdAt || b.photoDate || 0).getTime();
-                                        return tb - ta;
-                                    });
+                                    const feedPosts = bundle?.feedPosts || [];
 
                                     return (
                                         <div
