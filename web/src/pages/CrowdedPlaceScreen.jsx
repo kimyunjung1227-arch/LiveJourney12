@@ -11,7 +11,6 @@ import { rankHotspotPosts } from '../utils/hotnessEngine';
 import { useAuth } from '../contexts/AuthContext';
 import { getLikeSnapshot, toggleLikeLocal } from '../utils/postLikesLocal';
 import { getMapThumbnailUri } from '../utils/postMedia';
-import HotFeedCard from '../components/HotFeedCard';
 import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCardModel';
 import { buildPlaceStatsMap, selectPostsForPlaceStats, transformPostForHotFeed } from '../utils/hotFeedPostTransform';
 import { getWeatherByRegion } from '../api/weather';
@@ -376,75 +375,82 @@ const CrowdedPlaceScreen = () => {
 
                                     const cardProps = cardPropsById.get(String(post.id));
                                     const socialText = cardProps ? getHotFeedSocialLine(cardProps, crowdedSocialIdx) : '';
-                                    const liveTag = place.liveTags?.[0] ? String(place.liveTags[0]).replace(/#/g, '').trim() : '';
-                                    const liveTagLine = liveTag ? `#${liveTag}` : '';
+                                    const hotTagChips = (Array.isArray(place.liveTags) ? place.liveTags : [])
+                                        .map((t) => {
+                                            const raw = String(t || '')
+                                                .replace(/#/g, '')
+                                                .trim();
+                                            if (!raw) return '';
+                                            return raw.startsWith('#') ? raw : `#${raw}`;
+                                        })
+                                        .filter(Boolean)
+                                        .slice(0, 3);
 
                                     return (
                                         <button
                                             key={place.key}
                                             type="button"
                                             onClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } })}
-                                            className="group relative overflow-hidden rounded-2xl border border-zinc-100 bg-white shadow-sm transition hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
+                                            className="group w-full overflow-hidden rounded-2xl border border-zinc-100 bg-white text-left shadow-sm transition hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
                                         >
-                                            <div className="relative aspect-[16/10] w-full bg-zinc-100 dark:bg-zinc-800">
+                                            <div className="relative aspect-[16/10] w-full overflow-hidden bg-zinc-100 dark:bg-zinc-800">
                                                 {img ? (
-                                                    <img src={img} alt="" className="h-full w-full object-cover" />
+                                                    <img src={img} alt="" className="h-full w-full object-cover" decoding="async" />
                                                 ) : (
                                                     <div className="flex h-full w-full items-center justify-center text-xs text-zinc-400">
                                                         사진 없음
                                                     </div>
                                                 )}
-                                                <div className="absolute left-3 top-3 flex items-center gap-2">
-                                                    <div
-                                                        className="flex h-9 min-w-9 items-center justify-center rounded-full bg-black/45 px-3 text-[13px] font-extrabold text-white backdrop-blur"
-                                                        aria-label={`랭킹 ${place.rank}위`}
-                                                    >
-                                                        {place.rank}
-                                                    </div>
-                                                    {liveTagLine ? (
-                                                        <div className="rounded-full bg-white/85 px-3 py-1 text-[11px] font-bold text-zinc-900 backdrop-blur">
-                                                            {liveTagLine}
-                                                        </div>
-                                                    ) : null}
-                                                </div>
-
-                                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent p-3">
-                                                    <div className="flex items-end justify-between gap-3">
-                                                        <div className="min-w-0">
-                                                            <div className="truncate text-[14px] font-extrabold text-white">
-                                                                {String(place.key).trim()}
-                                                            </div>
-                                                            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-white/85">
-                                                                <span className="rounded-full bg-white/15 px-2 py-0.5">
-                                                                    라이브 인증 {place.trustPercent}%
-                                                                </span>
-                                                                <span className="rounded-full bg-white/15 px-2 py-0.5">
-                                                                    {formatAgo(place.latestMs)}
-                                                                </span>
-                                                                {distText ? (
-                                                                    <span className="rounded-full bg-white/15 px-2 py-0.5">
-                                                                        {distText}
+                                            </div>
+                                            <div className="px-2 pb-3 pt-2">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="min-w-0 flex-1">
+                                                        <h4 className="truncate text-[16px] font-bold leading-snug text-zinc-900 dark:text-zinc-50">
+                                                            {String(place.key).trim()}
+                                                        </h4>
+                                                        {hotTagChips.length > 0 ? (
+                                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                {hotTagChips.map((tag) => (
+                                                                    <span
+                                                                        key={`${place.key}-${tag}`}
+                                                                        className="max-w-full truncate rounded-full border px-2 py-0.5 text-[11px] font-extrabold text-slate-900 dark:text-slate-100"
+                                                                        style={{
+                                                                            background: 'rgba(38, 198, 218, 0.14)',
+                                                                            borderColor: 'rgba(38, 198, 218, 0.30)',
+                                                                        }}
+                                                                        title={tag}
+                                                                    >
+                                                                        {tag}
                                                                     </span>
-                                                                ) : null}
+                                                                ))}
                                                             </div>
-                                                        </div>
-                                                        <div className="shrink-0">
-                                                            <div
-                                                                className="flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-zinc-900 shadow-sm"
-                                                                style={{ border: `1px solid rgba(38,198,218,0.28)` }}
-                                                                aria-hidden
-                                                            >
-                                                                <span className="material-symbols-outlined text-[18px]" style={{ color: PRIMARY_HEX }}>
-                                                                    chevron_right
-                                                                </span>
-                                                            </div>
-                                                        </div>
+                                                        ) : null}
+                                                        <p className="mt-2 text-[12px] font-medium leading-relaxed text-zinc-600 dark:text-zinc-400">
+                                                            <span>라이브 인증 {place.trustPercent}%</span>
+                                                            <span className="mx-1.5 text-zinc-300 dark:text-zinc-600">·</span>
+                                                            <span>{formatAgo(place.latestMs)}</span>
+                                                            {distText ? (
+                                                                <>
+                                                                    <span className="mx-1.5 text-zinc-300 dark:text-zinc-600">·</span>
+                                                                    <span>{distText}</span>
+                                                                </>
+                                                            ) : null}
+                                                        </p>
+                                                        {socialText ? (
+                                                            <p className="mt-1 line-clamp-1 text-[11px] font-medium text-zinc-500 dark:text-zinc-500">
+                                                                {socialText}
+                                                            </p>
+                                                        ) : null}
                                                     </div>
-                                                    {socialText ? (
-                                                        <div className="mt-2 line-clamp-1 text-[11px] font-semibold text-white/80">
-                                                            {socialText}
-                                                        </div>
-                                                    ) : null}
+                                                    <div
+                                                        className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
+                                                        style={{ border: `1px solid rgba(38,198,218,0.28)` }}
+                                                        aria-hidden
+                                                    >
+                                                        <span className="material-symbols-outlined text-[18px]" style={{ color: PRIMARY_HEX }}>
+                                                            chevron_right
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </button>
