@@ -13,6 +13,7 @@ import {
 import { follow, unfollow, isFollowing, getFollowingIds } from '../utils/followSystem';
 import { getDisplayImageUrl } from '../api/upload';
 import { fetchPostsSupabase } from '../api/postsSupabase';
+import { getBadgeDisplayNameFromName } from '../utils/badgeSystem';
 
 const FRIEND_NEWS_READ_KEY = 'friendNewsRead_v1';
 const FRIEND_NEWS_LAST_SEEN_KEY = 'friendNewsLastSeen_v1';
@@ -293,6 +294,11 @@ const NotificationsScreen = () => {
   };
 
   const mainText = (n) => {
+    if (n.type === 'badge') {
+      const raw = n.badge || '';
+      const display = n.badgeDisplayName || (raw ? getBadgeDisplayNameFromName(raw) : '');
+      if (display) return `"${display}" 뱃지를 획득했습니다!`;
+    }
     if (n.message) return n.message;
     return n.title || '알림';
   };

@@ -1,5 +1,6 @@
 // 알림 관리 유틸리티
 import { logger } from './logger';
+import { getBadgeDisplayNameFromName } from './badgeSystem';
 import {
   fetchNotificationsSupabase,
   insertNotificationSupabase,
@@ -301,11 +302,13 @@ const getTimeAgo = (date) => {
 
 // 뱃지 획득 알림
 export const notifyBadge = (badgeName, difficulty = '중') => {
+  const display = getBadgeDisplayNameFromName(badgeName);
   addNotification({
     type: 'badge',
     title: '',
-    message: `"${badgeName}" 뱃지를 획득했습니다!`,
+    message: `"${display}" 뱃지를 획득했습니다!`,
     badge: badgeName,
+    badgeDisplayName: display,
     difficulty,
     icon: 'military_tech',
     iconBg: 'bg-amber-50 dark:bg-amber-900/20',

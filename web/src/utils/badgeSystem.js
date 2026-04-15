@@ -82,7 +82,7 @@ const decodeDynamicName = (name) => {
   return null;
 };
 
-const hydrateBadgeFromName = (name) => {
+export const hydrateBadgeFromName = (name) => {
   const decoded = decodeDynamicName(name);
   if (!decoded) return null;
   const tone = toneForDynamic(name);
@@ -96,6 +96,12 @@ const hydrateBadgeFromName = (name) => {
     tone,
     gradientCss: gradient,
   };
+};
+
+/** name(문자열)만 있을 때도 표시명 반환 */
+export const getBadgeDisplayNameFromName = (name) => {
+  const hydrated = hydrateBadgeFromName(name);
+  return getBadgeDisplayName(hydrated || { name: String(name || '') });
 };
 
 const getPostText = (p) => String(p?.note ?? p?.content ?? p?.description ?? p?.caption ?? '').trim();

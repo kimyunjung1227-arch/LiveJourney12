@@ -7,28 +7,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
  * - 연속 획득 시 중복 네비게이션 최소화
  */
 export default function BadgeEarnedNavigator() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const lastKeyRef = useRef('');
-
   useEffect(() => {
-    const handler = (e) => {
-      const badge = e?.detail;
-      if (!badge || !badge.name) return;
-
-      // 축하 화면 자체에서 다시 이벤트가 오면 루프 방지
-      if (location?.pathname?.startsWith('/badge')) return;
-
-      const key = `${badge.name}::${badge.earnedAt || ''}`;
-      if (lastKeyRef.current === key) return;
-      lastKeyRef.current = key;
-
-      navigate('/badge/achievement', { state: { badge }, replace: false });
-    };
-
-    window.addEventListener('badgeEarned', handler);
-    return () => window.removeEventListener('badgeEarned', handler);
-  }, [navigate, location?.pathname]);
+    // 사용 요청: 라이브 뱃지 획득 축하 화면(자동 이동) 비활성화
+    return undefined;
+  }, []);
 
   return null;
 }
