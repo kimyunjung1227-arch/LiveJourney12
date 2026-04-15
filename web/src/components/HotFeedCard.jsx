@@ -44,12 +44,13 @@ const HotFeedCard = ({
     })();
 
     const tagChipStyle = {
-        fontSize: 10,
-        fontWeight: 600,
-        color: '#4b5563',
-        background: '#f3f4f6',
-        padding: '2px 6px',
-        borderRadius: 6,
+        fontSize: 11,
+        fontWeight: 800,
+        color: '#0f172a',
+        background: 'rgba(38, 198, 218, 0.14)',
+        border: '1px solid rgba(38, 198, 218, 0.30)',
+        padding: '2px 8px',
+        borderRadius: 999,
         maxWidth: '100%',
         overflow: 'hidden',
         textOverflow: 'ellipsis',

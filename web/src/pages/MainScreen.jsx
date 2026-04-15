@@ -829,12 +829,13 @@ const MainScreen = () => {
                                                             <span
                                                                 key={String(tag)}
                                                                 style={{
-                                                                    fontSize: '10px',
-                                                                    fontWeight: 600,
-                                                                    color: '#4b5563',
-                                                                    background: '#f3f4f6',
-                                                                    padding: '2px 6px',
-                                                                    borderRadius: '6px',
+                                                                    fontSize: '11px',
+                                                                    fontWeight: 800,
+                                                                    color: '#0f172a',
+                                                                    background: 'rgba(38, 198, 218, 0.14)',
+                                                                    border: '1px solid rgba(38, 198, 218, 0.30)',
+                                                                    padding: '2px 8px',
+                                                                    borderRadius: '999px',
                                                                     maxWidth: '100%',
                                                                     overflow: 'hidden',
                                                                     textOverflow: 'ellipsis',
@@ -849,12 +850,13 @@ const MainScreen = () => {
                                                                 <span
                                                                     key={String(tag)}
                                                                     style={{
-                                                                        fontSize: '10px',
-                                                                        fontWeight: 600,
-                                                                        color: '#4b5563',
-                                                                        background: '#f3f4f6',
-                                                                        padding: '2px 6px',
-                                                                        borderRadius: '6px',
+                                                                        fontSize: '11px',
+                                                                        fontWeight: 800,
+                                                                        color: '#0f172a',
+                                                                        background: 'rgba(38, 198, 218, 0.14)',
+                                                                        border: '1px solid rgba(38, 198, 218, 0.30)',
+                                                                        padding: '2px 8px',
+                                                                        borderRadius: '999px',
                                                                     }}
                                                                 >
                                                                     {formatHotTag(tag)}
