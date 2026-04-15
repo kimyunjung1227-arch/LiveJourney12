@@ -18,7 +18,6 @@ import { applyPostLikesCountFromServer } from '../api/postsSupabase';
 import { getWeatherByRegion } from '../api/weather';
 import { listPublishedMagazines } from '../utils/magazinesStore';
 import HotFeedCard from '../components/HotFeedCard';
-import HotFeedTagsWeatherRow from '../components/HotFeedTagsWeatherRow';
 import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCardModel';
 import { buildPlaceStatsMap, selectPostsForPlaceStats, transformPostForHotFeed } from '../utils/hotFeedPostTransform';
 import { useAuth } from '../contexts/AuthContext';
@@ -817,13 +816,68 @@ const MainScreen = () => {
                                                 {post.content || post.note}
                                             </div>
                                         )}
-                                        <HotFeedTagsWeatherRow
-                                            post={post}
-                                            weather={weather}
-                                            hasWeather={hasWeather}
-                                            marginTop={6}
-                                            idPrefix={`realtime-${post.id}`}
-                                        />
+                                        {(hasWeather || (Array.isArray(post.reasonTags) && post.reasonTags.length > 0) || (!post.reasonTags?.length && Array.isArray(post.aiHotTags) && post.aiHotTags.length > 0)) && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', flex: 1, minWidth: 0 }}>
+                                                    {Array.isArray(post.reasonTags) && post.reasonTags.length > 0
+                                                        ? post.reasonTags.slice(0, 3).map((tag) => (
+                                                            <span
+                                                                key={String(tag)}
+                                                                style={{
+                                                                    fontSize: '10px',
+                                                                    fontWeight: 600,
+                                                                    color: '#4b5563',
+                                                                    background: '#f3f4f6',
+                                                                    padding: '2px 6px',
+                                                                    borderRadius: '6px',
+                                                                    maxWidth: '100%',
+                                                                    overflow: 'hidden',
+                                                                    textOverflow: 'ellipsis',
+                                                                    whiteSpace: 'nowrap',
+                                                                }}
+                                                            >
+                                                                {String(tag).replace(/^#/, '')}
+                                                            </span>
+                                                        ))
+                                                        : (!post.reasonTags?.length && Array.isArray(post.aiHotTags) && post.aiHotTags.length > 0
+                                                            ? post.aiHotTags.slice(0, 2).map((tag) => (
+                                                                <span
+                                                                    key={String(tag)}
+                                                                    style={{
+                                                                        fontSize: '10px',
+                                                                        fontWeight: 600,
+                                                                        color: '#4b5563',
+                                                                        background: '#f3f4f6',
+                                                                        padding: '2px 6px',
+                                                                        borderRadius: '6px',
+                                                                    }}
+                                                                >
+                                                                    {String(tag).replace(/^#/, '')}
+                                                                </span>
+                                                            ))
+                                                            : null)}
+                                                </div>
+                                                {hasWeather && (
+                                                    <div
+                                                        style={{
+                                                            flexShrink: 0,
+                                                            background: 'rgba(15,23,42,0.08)',
+                                                            padding: '3px 8px',
+                                                            borderRadius: '999px',
+                                                            fontSize: '11px',
+                                                            fontWeight: 600,
+                                                            color: '#374151',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px',
+                                                        }}
+                                                    >
+                                                        {weather.icon && <span>{weather.icon}</span>}
+                                                        {weather.temperature && <span>{weather.temperature}</span>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             );
