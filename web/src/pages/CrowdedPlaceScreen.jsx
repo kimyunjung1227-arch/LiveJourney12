@@ -66,6 +66,7 @@ const CrowdedPlaceScreen = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const [crowdedData, setCrowdedData] = useState([]);
+    const [allHotPosts, setAllHotPosts] = useState([]);
     const [refreshKey, setRefreshKey] = useState(0);
     const [weatherByRegion, setWeatherByRegion] = useState({});
     const [crowdedSocialIdx, setCrowdedSocialIdx] = useState(0);
@@ -219,6 +220,7 @@ const CrowdedPlaceScreen = () => {
             };
 
             const transformed = posts.map(transformPost);
+            setAllHotPosts(transformed);
             const preFiltered = transformed.filter((p) => {
                 const hasLikes = (p.likes || 0) > 0;
                 const isRecent = p.time && (p.time.includes('방금') || p.time.includes('분 전') || p.time.includes('시간 전'));
@@ -243,7 +245,7 @@ const CrowdedPlaceScreen = () => {
     const filteredPosts = crowdedData;
 
     const placeRankings = useMemo(() => {
-        const ranked = rankHotspotPlaces(filteredPosts, { verifyFirst: false, maxItems: 30 });
+        const ranked = rankHotspotPlaces(allHotPosts, { verifyFirst: true, maxItems: 30 });
         return ranked.map((x) => {
             const representative = x.representative;
             const coords = representative ? getPostCoords(representative) : null;
@@ -267,7 +269,7 @@ const CrowdedPlaceScreen = () => {
                 warning: x.warning,
             };
         });
-    }, [filteredPosts, userPos]);
+    }, [allHotPosts, userPos]);
 
     const lastUpdatedMs = useMemo(() => {
         const ms = Math.max(0, ...placeRankings.map((p) => Number(p.latestMs || 0)));
@@ -456,15 +458,26 @@ const CrowdedPlaceScreen = () => {
                                                             </p>
                                                         ) : null}
                                                     </div>
-                                                    <div
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            navigate(`/hotplace/${encodeURIComponent(String(place.key || '').trim())}`, {
+                                                                state: {
+                                                                    placeKey: String(place.key || '').trim(),
+                                                                    allPosts: allHotPosts,
+                                                                },
+                                                            });
+                                                        }}
+                                                        aria-label="장소 모아보기"
                                                         className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
                                                         style={{ border: `1px solid rgba(38,198,218,0.28)` }}
-                                                        aria-hidden
                                                     >
                                                         <span className="material-symbols-outlined text-[18px]" style={{ color: PRIMARY_HEX }}>
                                                             chevron_right
                                                         </span>
-                                                    </div>
+                                                    </button>
                                                 </div>
                                             </div>
                                         </button>

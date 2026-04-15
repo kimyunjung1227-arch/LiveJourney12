@@ -59,6 +59,7 @@ const UploadGuideScreen = lazy(() => import('./pages/UploadGuideScreen'))
 const NotificationsScreen = lazy(() => import('./pages/NotificationsScreen'))
 const RealtimeFeedScreen = lazy(() => import('./pages/RealtimeFeedScreen'))
 const CrowdedPlaceScreen = lazy(() => import('./pages/CrowdedPlaceScreen'))
+const HotplaceLiveFeedScreen = lazy(() => import('./pages/HotplaceLiveFeedScreen'))
 const RecommendedPlaceFeedScreen = lazy(() => import('./pages/RecommendedPlaceFeedScreen'))
 const ChatScreen = lazy(() => import('./pages/ChatScreen'))
 const ChatWriteScreen = lazy(() => import('./pages/ChatWriteScreen'))
@@ -125,6 +126,7 @@ function App() {
                 <Route path="/magazine/:id" element={<MagazineDetailScreen />} />
                 <Route path="/realtime-feed" element={<RealtimeFeedScreen />} />
                 <Route path="/crowded-place" element={<CrowdedPlaceScreen />} />
+                <Route path="/hotplace/:placeKey" element={<HotplaceLiveFeedScreen />} />
                 <Route path="/recommended-place-feed" element={<RecommendedPlaceFeedScreen />} />
                 <Route path="/chat" element={<ChatScreen />} />
                 <Route path="/chat/write" element={<ChatWriteScreen />} />
