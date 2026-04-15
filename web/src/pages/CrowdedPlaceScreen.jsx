@@ -7,7 +7,7 @@ import './MainScreen.css';
 import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
 import { fetchPostsSupabase } from '../api/postsSupabase';
-import { rankHotspotPosts } from '../utils/hotnessEngine';
+import { rankHotspotPlaces } from '../utils/hotnessEngine';
 import { useAuth } from '../contexts/AuthContext';
 import { getLikeSnapshot, toggleLikeLocal } from '../utils/postLikesLocal';
 import { getMapThumbnailUri } from '../utils/postMedia';
@@ -225,13 +225,17 @@ const CrowdedPlaceScreen = () => {
                 return hasLikes || isRecent;
             });
             const toRank = preFiltered.length > 0 ? preFiltered : transformed;
-            const ranked = rankHotspotPosts(toRank, { verifyFirst: true, maxItems: 100 });
-            const crowdedWithRank = ranked.map((r) => ({
-                ...r.post,
-                _rank: r.rank,
-                _impactLabel: r.impactLabel,
-            }));
-            setCrowdedData(crowdedWithRank.length > 0 ? crowdedWithRank : transformed.slice(0, 50));
+            const rankedPlaces = rankHotspotPlaces(toRank, { verifyFirst: true, maxItems: 50 });
+            const repPosts = rankedPlaces
+                .filter((p) => p?.representative?.id)
+                .map((p) => ({
+                    ...p.representative,
+                    _rank: p.rank,
+                    _impactLabel: p.warning || `컴퍼스 ${p.compassCount}명 동시 중계 중`,
+                    _compassCount: p.compassCount,
+                    _placeKey: p.key,
+                }));
+            setCrowdedData(repPosts.length > 0 ? repPosts : transformed.slice(0, 50));
         };
         loadData();
     }, [refreshKey]);
@@ -239,43 +243,9 @@ const CrowdedPlaceScreen = () => {
     const filteredPosts = crowdedData;
 
     const placeRankings = useMemo(() => {
-        const now = Date.now();
-        const windowMs = 30 * 60 * 1000;
-        const groups = new Map();
-
-        (filteredPosts || []).forEach((p) => {
-            if (!p) return;
-            const key = String(p.location || p.placeName || p.detailedLocation || p.region || '').trim();
-            if (!key) return;
-            const ts = getPostTimeMs(p) || now;
-            const g = groups.get(key) || {
-                key,
-                posts: [],
-                latestMs: 0,
-                recent30m: 0,
-                trustSum: 0,
-                trustN: 0,
-            };
-            g.posts.push(p);
-            if (ts > g.latestMs) g.latestMs = ts;
-            if (now - ts <= windowMs) g.recent30m += 1;
-            const v = p._verification?.score;
-            if (typeof v === 'number' && Number.isFinite(v)) {
-                g.trustSum += v;
-                g.trustN += 1;
-            }
-            groups.set(key, g);
-        });
-
-        const items = [...groups.values()].map((g) => {
-            const ageMin = Math.max(0, (now - (g.latestMs || now)) / 60000);
-            const freshness = Math.exp(-ageMin / 22); // 0~1, 최근성 강하게
-            const density = Math.min(1.6, (g.recent30m || 0) / 3);
-            const trustAvg = g.trustN > 0 ? g.trustSum / g.trustN : 0.6;
-            const trustPercent = Math.max(70, Math.min(99, Math.round(trustAvg * 100)));
-            const score = freshness * 2.2 + density * 1.2 + trustAvg * 0.6;
-
-            const representative = [...g.posts].sort((a, b) => getPostTimeMs(b) - getPostTimeMs(a))[0] || null;
+        const ranked = rankHotspotPlaces(filteredPosts, { verifyFirst: false, maxItems: 30 });
+        return ranked.map((x) => {
+            const representative = x.representative;
             const coords = representative ? getPostCoords(representative) : null;
             const distKm = userPos && coords ? haversineKm(userPos, coords) : null;
             const tags = Array.isArray(representative?.reasonTags) ? representative.reasonTags : [];
@@ -283,22 +253,20 @@ const CrowdedPlaceScreen = () => {
                 .map((t) => String(t || '').replace(/_/g, ' ').trim())
                 .filter(Boolean)
                 .slice(0, 3);
-
             return {
-                key: g.key,
-                score,
-                latestMs: g.latestMs,
-                recent30m: g.recent30m,
-                trustPercent,
+                key: x.key,
+                score: x.score,
+                latestMs: x.latestMs,
+                trustPercent: x.trustPercent,
                 representative,
                 coords,
                 distKm,
                 liveTags,
+                rank: x.rank,
+                compassCount: x.compassCount,
+                warning: x.warning,
             };
         });
-
-        items.sort((a, b) => b.score - a.score);
-        return items.slice(0, 30).map((x, idx) => ({ ...x, rank: idx + 1 }));
     }, [filteredPosts, userPos]);
 
     const lastUpdatedMs = useMemo(() => {
@@ -459,6 +427,8 @@ const CrowdedPlaceScreen = () => {
                                                             </div>
                                                         ) : null}
                                                         <p className="mt-2 text-[12px] font-medium leading-relaxed text-zinc-600 dark:text-zinc-400">
+                                                            <span>컴퍼스 {place.compassCount || 0}명 중계 중</span>
+                                                            <span className="mx-1.5 text-zinc-300 dark:text-zinc-600">·</span>
                                                             <span>라이브 인증 {place.trustPercent}%</span>
                                                             {tempText ? (
                                                                 <>
@@ -475,6 +445,11 @@ const CrowdedPlaceScreen = () => {
                                                                 </>
                                                             ) : null}
                                                         </p>
+                                                        {place.warning ? (
+                                                            <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+                                                                {place.warning}
+                                                            </p>
+                                                        ) : null}
                                                         {socialText ? (
                                                             <p className="mt-1 line-clamp-1 text-[11px] font-medium text-zinc-500 dark:text-zinc-500">
                                                                 {socialText}

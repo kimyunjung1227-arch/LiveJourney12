@@ -13,7 +13,7 @@ import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getDisplayImageUrl } from '../api/upload';
 import { getMapThumbnailUri } from '../utils/postMedia';
 import { getPostAccuracyCount, mergeLikedPostsFromServer } from '../utils/socialInteractions';
-import { rankHotspotPosts } from '../utils/hotnessEngine';
+import { rankHotspotPlaces } from '../utils/hotnessEngine';
 import { applyPostLikesCountFromServer } from '../api/postsSupabase';
 import { getWeatherByRegion } from '../api/weather';
 import { listPublishedMagazines } from '../utils/magazinesStore';
@@ -164,13 +164,17 @@ const MainScreen = () => {
             return hasLikes || isRecent;
         });
         const toRank = preFiltered.length > 0 ? preFiltered : transformed48;
-        const ranked = rankHotspotPosts(toRank, { verifyFirst: true, maxItems: 100 });
-        const crowdedRanked = ranked.map((r) => ({
-            ...r.post,
-            _rank: r.rank,
-            _impactLabel: r.impactLabel,
-            accuracyCount: getPostAccuracyCount(r.post.id),
-        }));
+        const rankedPlaces = rankHotspotPlaces(toRank, { verifyFirst: true, maxItems: 50 });
+        const crowdedRanked = rankedPlaces
+            .filter((p) => p?.representative?.id)
+            .map((p) => ({
+                ...p.representative,
+                _rank: p.rank,
+                _impactLabel: p.warning || `컴퍼스 ${p.compassCount}명 동시 중계 중`,
+                _compassCount: p.compassCount,
+                _placeKey: p.key,
+                accuracyCount: getPostAccuracyCount(p.representative.id),
+            }));
         const crowdedFallback = transformed48.slice(0, 50).map((p) => ({
             ...p,
             accuracyCount: getPostAccuracyCount(p.id),
