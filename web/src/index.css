@@ -541,9 +541,9 @@ img {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 13px;
-  height: 13px;
-  margin: -6.5px 0 0 -6.5px;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
   border-radius: 50%;
   background: #7dd3fc;
   border: 2px solid #ffffff;
@@ -555,9 +555,9 @@ img {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 26px;
-  height: 26px;
-  margin: -13px 0 0 -13px;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
   border-radius: 50%;
   background: rgba(125, 211, 252, 0.22);
   z-index: 0;

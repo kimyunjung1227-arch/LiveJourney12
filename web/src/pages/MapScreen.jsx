@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, RefreshCw, LocateFixed, Flower2, UtensilsCrossed, MapPin } from 'lucide-react';
+import { ArrowLeft, Search, RefreshCw, LocateFixed, Flower2, UtensilsCrossed, MapPin, HelpCircle, X } from 'lucide-react';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getDisplayImageUrl } from '../api/upload';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
@@ -51,12 +51,13 @@ const t = {
   situationCta: '\uc9c0\uae08 \uc0c1\ud669 \uc54c\uc544\ubcf4\uae30',
   chipBloom: '\uac1c\ud654\uc815\ubcf4',
   chipFood: '\ub9db\uc9d1\uc815\ubcf4',
-  chipPlaces: '\uac00\ubcfc\ub9cc\ud55c \uacf3',
+  chipPlaces: '\uac00\ubcfc\ub9cc\ud55c\uacf3',
   myLocation: '\ub0b4 \uc704\uce58',
   sheetToggle: '\ubc14\ud2f7\uc2dc\ud2b8 \ud655\uc7a5/\ucd95\uc18c',
   nearbyTitle: '\uc8fc\ubcc0 \uc0ac\uc9c4',
   morePhotos: '\ub354\ubcf4\uae30',
   showPhotosAgain: '\uc0ac\uc9c4 \ub2e4\uc2dc \ubcf4\uae30',
+  close: '\ub2eb\uae30',
   postsSummary: (inView, total) =>
     `\ubcf4\uc774\ub294 \uc9c0\uc5ed ${inView.toLocaleString()} \xb7 \uc120\ud0dd\ud544\ud130 ${total.toLocaleString()}`,
   emptyLoading: '\uac8c\uc2dc\ubb3c\uc744 \ubd88\ub7ec\uc624\ub294 \uc911...',
@@ -272,6 +273,7 @@ const MapScreen = () => {
   const userOverlayRef = useRef(null);
   const idleListenerRef = useRef(null);
   const sheetDragRef = useRef(null);
+  const rafSyncRef = useRef(0);
 
   /** expanded: 큰 시트 | peek: 미리보기 | hidden: 내려감 */
   const [sheetMode, setSheetMode] = useState('peek');
@@ -369,15 +371,53 @@ const MapScreen = () => {
   const sheetStripPosts = useMemo(() => sheetPhotoPosts.slice(0, 10), [sheetPhotoPosts]);
 
   const openMorePhotos = useCallback(() => {
-    const pins = sheetPhotoPosts.map((p) => ({
-      id: p.id,
-      lat: p.__coords.lat,
-      lng: p.__coords.lng,
-      title: String(p.placeName || p.location || p.region || '\uc7a5\uc18c'),
-      image: getDisplayImageUrl(p.thumbnail || (Array.isArray(p.images) ? p.images[0] : '')),
-    }));
-    navigate('/map/photos', { state: { visiblePins: pins } });
-  }, [navigate, sheetPhotoPosts]);
+    setSheetMode('expanded');
+  }, []);
+
+  const syncViewportFromMap = useCallback(() => {
+    const map = kakaoMapRef.current;
+    if (!map) return;
+    try {
+      const b = map.getBounds();
+      const sw = b.getSouthWest();
+      const ne = b.getNorthEast();
+      setMapBounds({
+        sw: { lat: sw.getLat(), lng: sw.getLng() },
+        ne: { lat: ne.getLat(), lng: ne.getLng() },
+      });
+      const c = map.getCenter();
+      setViewCenter({ lat: c.getLat(), lng: c.getLng() });
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const scheduleViewportSync = useCallback(() => {
+    if (rafSyncRef.current) cancelAnimationFrame(rafSyncRef.current);
+    rafSyncRef.current = requestAnimationFrame(() => {
+      syncViewportFromMap();
+      rafSyncRef.current = requestAnimationFrame(() => {
+        syncViewportFromMap();
+        rafSyncRef.current = 0;
+      });
+    });
+  }, [syncViewportFromMap]);
+
+  const panToPost = useCallback(
+    (post) => {
+      const map = kakaoMapRef.current;
+      const pos = post?.__coords;
+      if (!map || !pos || !window.kakao?.maps) return;
+      try {
+        map.panTo(new window.kakao.maps.LatLng(pos.lat, pos.lng));
+        setViewCenter({ lat: pos.lat, lng: pos.lng });
+        scheduleViewportSync();
+      } catch {
+        /* ignore */
+      }
+    },
+    [scheduleViewportSync],
+  );
 
   const onSheetPointerDown = (e) => {
     sheetDragRef.current = { startY: e.clientY, pointerId: e.pointerId };
@@ -453,19 +493,7 @@ const MapScreen = () => {
         kakaoMapRef.current = map;
 
         const onIdle = () => {
-          try {
-            const b = map.getBounds();
-            const sw = b.getSouthWest();
-            const ne = b.getNorthEast();
-            setMapBounds({
-              sw: { lat: sw.getLat(), lng: sw.getLng() },
-              ne: { lat: ne.getLat(), lng: ne.getLng() },
-            });
-            const c = map.getCenter();
-            setViewCenter({ lat: c.getLat(), lng: c.getLng() });
-          } catch {
-            /* ignore */
-          }
+          syncViewportFromMap();
         };
         kakao.maps.event.addListener(map, 'idle', onIdle);
         idleListenerRef.current = { map, onIdle };
@@ -521,7 +549,7 @@ const MapScreen = () => {
 
         const wrap = document.createElement('div');
         wrap.innerHTML = `
-          <div class="lj-map-post-pin" style="width:52px;height:52px;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.18);cursor:pointer;border:2px solid ${PRIMARY_HEX};background:#f3f4f6;">
+          <div class="lj-map-post-pin" style="width:52px;height:52px;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.18);cursor:pointer;border:1px solid rgba(255,255,255,.95);background:#f3f4f6;">
             ${
               thumb
                 ? `<img src="${thumb}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;"/>`
@@ -532,7 +560,7 @@ const MapScreen = () => {
         if (!el) return;
 
         el.addEventListener('click', () => {
-          navigate(`/post/${encodeURIComponent(String(p.id))}`, { state: { post: p } });
+          panToPost(p);
         });
 
         const overlay = new kakao.maps.CustomOverlay({
@@ -548,7 +576,7 @@ const MapScreen = () => {
     } catch (e) {
       logger.warn(t.warnOverlays, e?.message || e);
     }
-  }, [navigate, postsInViewport]);
+  }, [panToPost, postsInViewport]);
 
   useEffect(() => {
     const map = kakaoMapRef.current;
@@ -564,7 +592,7 @@ const MapScreen = () => {
       const kakao = window.kakao;
       const wrap = document.createElement('div');
       wrap.innerHTML = `
-        <div class="lj-map-user-wrap" style="position:relative;width:52px;height:52px;pointer-events:none;">
+        <div class="lj-map-user-wrap" style="position:relative;width:68px;height:68px;pointer-events:none;">
           <div class="lj-map-user-pulse"></div>
           <div class="lj-map-user-dot"></div>
         </div>`;
@@ -633,7 +661,8 @@ const MapScreen = () => {
         ? 'bottom-[62%]'
         : 'bottom-[26%]';
 
-  const sheetHeightClass = sheetMode === 'expanded' ? 'h-[58vh]' : 'h-[22vh]';
+  // peek(기본)에서 사진이 바로 보이도록 조금 더 크게
+  const sheetHeightClass = sheetMode === 'expanded' ? 'h-[92vh]' : 'h-[30vh]';
 
   return (
     <div className="relative w-full h-[100dvh] bg-gray-100 overflow-hidden font-sans">
@@ -649,7 +678,8 @@ const MapScreen = () => {
         </div>
       )}
 
-      <div className="absolute top-0 z-10 w-full bg-gradient-to-b from-white/90 to-transparent p-4 pt-12">
+      {/* 상단은 뿌연(그라데이션/블러) 효과 없이 투명 처리 */}
+      <div className="absolute top-0 z-10 w-full p-4 pt-12">
         <div className="mb-3 flex items-center gap-3">
           <button
             type="button"
@@ -681,20 +711,18 @@ const MapScreen = () => {
           </button>
         </div>
 
-        <div className="mb-2">
-          <button
-            type="button"
-            onClick={() => navigate('/map/ask-situation')}
-            className="w-full rounded-2xl bg-primary py-3 text-center text-sm font-semibold text-white shadow-md shadow-primary/25 transition active:scale-[0.99] hover:bg-primary-dark"
-          >
-            {t.situationCta}
-          </button>
-        </div>
-
         <div
           onMouseDown={filterScroll.handleDragStart}
           className="flex cursor-grab gap-2 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch] scrollbar-hide active:cursor-grabbing snap-x snap-mandatory"
         >
+          <button
+            type="button"
+            onClick={() => navigate('/map/ask-situation')}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-sm font-semibold text-white shadow-sm whitespace-nowrap"
+          >
+            <HelpCircle className={ICON_CLASS} strokeWidth={1.5} />
+            <span>{t.situationCta}</span>
+          </button>
           <button type="button" className={chipClass(activeChip === 'bloom')} onClick={() => setActiveChip('bloom')}>
             <Flower2 className={ICON_CLASS} strokeWidth={1.5} />
             <span>{t.chipBloom}</span>
@@ -766,38 +794,81 @@ const MapScreen = () => {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-hidden">
-            {sheetStripPosts.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center py-6 text-gray-400">
-                <p className="text-sm font-medium">{loadingPosts ? t.emptyLoading : t.emptyNone}</p>
-                <p className="mt-2 max-w-sm px-2 text-center text-xs text-gray-400">{t.emptyHint}</p>
+          {sheetMode === 'expanded' ? (
+            <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-xs text-gray-500">{t.postsSummary(sheetPhotoPosts.length, postsFiltered.length)}</div>
+                <button
+                  type="button"
+                  onClick={() => setSheetMode('peek')}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700"
+                >
+                  <X className="h-4 w-4" />
+                  <span>{t.close}</span>
+                </button>
               </div>
-            ) : (
-              <div
-                onMouseDown={photoScroll.handleDragStart}
-                className="flex cursor-grab gap-1.5 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] scrollbar-hide active:cursor-grabbing snap-x"
-              >
-                {sheetStripPosts.map((p) => {
-                  const thumb = getDisplayImageUrl(p.thumbnail || (Array.isArray(p.images) ? p.images[0] : ''));
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => navigate(`/post/${encodeURIComponent(String(p.id))}`, { state: { post: p } })}
-                      className="h-[88px] w-[88px] shrink-0 snap-start overflow-hidden bg-gray-100 ring-1 ring-gray-200/80"
-                      style={{ borderRadius: 3 }}
-                    >
-                      {thumb ? (
-                        <img src={thumb} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-primary-10 text-primary">·</div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+              {sheetPhotoPosts.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center py-10 text-gray-400">
+                  <p className="text-sm font-medium">{loadingPosts ? t.emptyLoading : t.emptyNone}</p>
+                  <p className="mt-2 max-w-sm px-2 text-center text-xs text-gray-400">{t.emptyHint}</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+                  {sheetPhotoPosts.map((p) => {
+                    const thumb = getDisplayImageUrl(p.thumbnail || (Array.isArray(p.images) ? p.images[0] : ''));
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => panToPost(p)}
+                        className="aspect-square overflow-hidden bg-gray-100 ring-1 ring-gray-200/80"
+                        style={{ borderRadius: 3 }}
+                      >
+                        {thumb ? (
+                          <img src={thumb} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-primary-10 text-primary">·</div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-hidden">
+              {sheetStripPosts.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center py-6 text-gray-400">
+                  <p className="text-sm font-medium">{loadingPosts ? t.emptyLoading : t.emptyNone}</p>
+                  <p className="mt-2 max-w-sm px-2 text-center text-xs text-gray-400">{t.emptyHint}</p>
+                </div>
+              ) : (
+                <div
+                  onMouseDown={photoScroll.handleDragStart}
+                  className="flex cursor-grab gap-1.5 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] scrollbar-hide active:cursor-grabbing snap-x"
+                >
+                  {sheetStripPosts.map((p) => {
+                    const thumb = getDisplayImageUrl(p.thumbnail || (Array.isArray(p.images) ? p.images[0] : ''));
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => panToPost(p)}
+                        className="h-[104px] w-[104px] shrink-0 snap-start overflow-hidden bg-gray-100 ring-1 ring-gray-200/80"
+                        style={{ borderRadius: 3 }}
+                      >
+                        {thumb ? (
+                          <img src={thumb} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-primary-10 text-primary">·</div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
