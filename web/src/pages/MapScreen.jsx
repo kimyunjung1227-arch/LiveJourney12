@@ -601,7 +601,8 @@ const MapScreen = () => {
         const overlay = new kakao.maps.CustomOverlay({
           position: new kakao.maps.LatLng(pos.lat, pos.lng),
           content: el,
-          yAnchor: 0.5,
+          // 좌표에 더 정확히 맞게: 하단 중앙을 기준으로 앵커링
+          yAnchor: 1,
           xAnchor: 0.5,
           zIndex: 3,
         });
@@ -766,8 +767,16 @@ const MapScreen = () => {
         </div>
       </div>
 
-      {/* 컨트롤 버튼: 시트 밖(우측 상단) */}
-      <div className="absolute right-4 top-[148px] z-20">
+      {/* 컨트롤 버튼: 하단시트 바깥(우측 상단) */}
+      <div
+        className={`absolute right-4 z-20 ${
+          sheetMode === 'peek'
+            ? 'bottom-[calc(32vh+12px)]'
+            : sheetMode === 'hidden'
+              ? 'bottom-24'
+              : 'top-[148px]'
+        }`}
+      >
         <button
           type="button"
           className="rounded-full bg-white p-3 text-primary shadow-md ring-1 ring-primary/20 transition hover:bg-primary-soft"
@@ -873,7 +882,7 @@ const MapScreen = () => {
                   <p className="mt-2 max-w-sm px-2 text-center text-xs text-gray-400">{t.emptyHint}</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                <div className="grid grid-cols-3 gap-2">
                   {sheetPhotoPosts.map((p) => {
                     const thumb = getDisplayImageUrl(p.thumbnail || (Array.isArray(p.images) ? p.images[0] : ''));
                     const label = String(p.placeName || p.location || p.region || '').trim();
@@ -891,7 +900,7 @@ const MapScreen = () => {
                             <div className="flex h-full w-full items-center justify-center bg-primary-10 text-primary">·</div>
                           )}
                         </div>
-                        <div className="truncate text-[11px] font-medium text-gray-500">{label}</div>
+                        <div className="truncate text-[11px] font-medium leading-tight text-gray-500">{label}</div>
                       </button>
                     );
                   })}
