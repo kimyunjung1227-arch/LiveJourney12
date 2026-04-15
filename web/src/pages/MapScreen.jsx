@@ -767,16 +767,8 @@ const MapScreen = () => {
         </div>
       </div>
 
-      {/* 컨트롤 버튼: 하단시트 바깥(우측 상단) */}
-      <div
-        className={`absolute right-4 z-20 ${
-          sheetMode === 'peek'
-            ? 'bottom-[calc(32vh+12px)]'
-            : sheetMode === 'hidden'
-              ? 'bottom-24'
-              : 'top-[148px]'
-        }`}
-      >
+      {/* 컨트롤 버튼: 사진처럼 우측 중단(시트 위) */}
+      <div className="absolute right-4 top-[214px] z-20">
         <button
           type="button"
           className="rounded-full bg-white p-3 text-primary shadow-md ring-1 ring-primary/20 transition hover:bg-primary-soft"
@@ -803,7 +795,7 @@ const MapScreen = () => {
       {selectedPostCard && (
         <div className="absolute bottom-3 left-0 right-0 z-[30] px-4">
           <div className="mx-auto flex w-full max-w-[414px] items-center gap-3 rounded-2xl border border-gray-100 bg-white p-3 shadow-lg">
-            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-gray-100 ring-1 ring-gray-200/80">
+            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[4px] bg-gray-100 ring-1 ring-gray-200/80">
               {(() => {
                 const thumb = getDisplayImageUrl(
                   selectedPostCard.thumbnail || (Array.isArray(selectedPostCard.images) ? selectedPostCard.images[0] : ''),
@@ -819,20 +811,21 @@ const MapScreen = () => {
                 {String(selectedPostCard.note || selectedPostCard.content || '').trim()}
               </div>
             </div>
-            <div className="flex shrink-0 flex-col gap-2">
+            <div className="flex shrink-0 flex-col items-end gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedPostCard(null)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200"
+                aria-label="닫기"
+              >
+                <X className="h-4 w-4" />
+              </button>
               <button
                 type="button"
                 onClick={() => goPostDetail(selectedPostCard)}
                 className="rounded-full bg-primary px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary-dark"
               >
                 상세보기
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedPostCard(null)}
-                className="rounded-full bg-gray-100 px-3.5 py-2 text-xs font-semibold text-gray-700"
-              >
-                닫기
               </button>
             </div>
           </div>
