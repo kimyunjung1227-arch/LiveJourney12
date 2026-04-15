@@ -28,6 +28,7 @@ const PostDetailScreen = lazy(() => import('./pages/PostDetailScreen'))
 const RegionDetailScreen = lazy(() => import('./pages/RegionDetailScreen'))
 const UploadScreen = lazy(() => import('./pages/UploadScreen'))
 const MapScreen = lazy(() => import('./pages/MapScreen'))
+const MapAskSituationScreen = lazy(() => import('./pages/MapAskSituationScreen'))
 const MapPhotoGridScreen = lazy(() => import('./pages/MapPhotoGridScreen'))
 const ProfileScreen = lazy(() => import('./pages/ProfileScreen'))
 const EarnedBadgesScreen = lazy(() => import('./pages/EarnedBadgesScreen'))
@@ -136,6 +137,7 @@ function App() {
                 <Route path="/upload" element={<UploadScreen />} />
                 <Route path="/upload/guide" element={<UploadGuideScreen />} />
                 <Route path="/map" element={<MapScreen />} />
+                <Route path="/map/ask-situation" element={<MapAskSituationScreen />} />
                 <Route path="/map/photos" element={<MapPhotoGridScreen />} />
                 <Route path="/profile" element={<ProfileScreen />} />
                 <Route

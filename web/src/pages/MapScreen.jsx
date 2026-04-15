@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, RefreshCw, LocateFixed } from 'lucide-react';
+import { ArrowLeft, Search, RefreshCw, LocateFixed, Flower2, UtensilsCrossed, MapPin } from 'lucide-react';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getDisplayImageUrl } from '../api/upload';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
@@ -8,6 +8,7 @@ import { getCombinedPosts } from '../utils/mockData';
 import { getCoordinatesByLocation } from '../utils/locationCoordinates';
 import { searchPlaceWithKakaoFirst } from '../utils/kakaoPlacesGeocode';
 import { logger } from '../utils/logger';
+import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 
 const DEFAULT_CENTER = { lat: 37.5665, lng: 126.9780 };
 
@@ -15,6 +16,8 @@ const DEFAULT_CENTER = { lat: 37.5665, lng: 126.9780 };
 const PRIMARY_HEX = '#26C6DA';
 
 const GEO_CACHE_KEY = '__lj_map_geo_cache_v3';
+
+const ICON_CLASS = 'h-[15px] w-[15px] shrink-0 opacity-[0.72]';
 
 const escapeHtmlAttr = (value) => {
   if (value == null) return '';
@@ -45,15 +48,17 @@ const t = {
   back: '\ub4a4\ub85c\uac00\uae30',
   searchPlaceholder: '\uc9c0\uc5ed \uac80\uc0c9',
   refresh: '\uc0c8\ub85c\uace0\uce68',
-  chipSituation: '\uc9c0\uae08 \uc0c1\ud669 \uc54c\uc544\ubcf4\uae30',
-  chipBloom: '\U0001F338 \uac1c\ud654\uc815\ubcf4',
-  chipFood: '\U0001F35C \ub9db\uc9d1\uc815\ubcf4',
-  chipPlaces: '\U0001F3AF \uac00\ubcfc\ub9cc\ud55c \uacf3',
+  situationCta: '\uc9c0\uae08 \uc0c1\ud669 \uc54c\uc544\ubcf4\uae30',
+  chipBloom: '\uac1c\ud654\uc815\ubcf4',
+  chipFood: '\ub9db\uc9d1\uc815\ubcf4',
+  chipPlaces: '\uac00\ubcfc\ub9cc\ud55c \uacf3',
   myLocation: '\ub0b4 \uc704\uce58',
   sheetToggle: '\ubc14\ud2f7\uc2dc\ud2b8 \ud655\uc7a5/\ucd95\uc18c',
   nearbyTitle: '\uc8fc\ubcc0 \uc0ac\uc9c4',
+  morePhotos: '\ub354\ubcf4\uae30',
+  showPhotosAgain: '\uc0ac\uc9c4 \ub2e4\uc2dc \ubcf4\uae30',
   postsSummary: (inView, total) =>
-    `\ubcf4\uc774\ub294 \uc9c0\uc5ed ${inView.toLocaleString()} \xb7 \uc88c\ud45c\uc788\ub294 \uac8c\uc2dc\ubb3c ${total.toLocaleString()}`,
+    `\ubcf4\uc774\ub294 \uc9c0\uc5ed ${inView.toLocaleString()} \xb7 \uc120\ud0dd\ud544\ud130 ${total.toLocaleString()}`,
   emptyLoading: '\uac8c\uc2dc\ubb3c\uc744 \ubd88\ub7ec\uc624\ub294 \uc911...',
   emptyNone: '\ud45c\uc2dc\ud560 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4',
   emptyHint:
@@ -174,7 +179,6 @@ const mergePostsUnique = (lists) => {
   return [...map.values()].sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0));
 };
 
-/** 필터: 게시물 본문·태그·카테고리·장소 문자열 기반 */
 function postTextBlob(post) {
   const tags = Array.isArray(post.tags) ? post.tags.join(' ') : '';
   return [
@@ -194,10 +198,9 @@ function postTextBlob(post) {
 }
 
 /**
- * @param {'situation'|'bloom'|'food'|'places'} chip
+ * @param {'bloom'|'food'|'places'} chip
  */
 function matchesMapFilter(post, chip) {
-  if (chip === 'situation') return true;
   const blob = postTextBlob(post);
   if (chip === 'bloom') {
     return [
@@ -223,7 +226,6 @@ function matchesMapFilter(post, chip) {
       '\uba39',
       '\ub514\uc800\ud2b8',
       '\ube0c\ub7f0\uce58',
-      '\uce74\ud398',
       'cafe',
       'restaurant',
     ].some((k) => blob.includes(k.toLowerCase()));
@@ -258,8 +260,8 @@ function pointInBounds(lat, lng, bounds) {
 
 const chipClass = (active) =>
   active
-    ? 'px-4 py-2 bg-white text-primary font-semibold text-sm rounded-full shadow-sm border border-primary whitespace-nowrap'
-    : 'px-4 py-2 bg-white text-gray-600 text-sm rounded-full shadow-sm whitespace-nowrap';
+    ? 'inline-flex shrink-0 items-center gap-1.5 rounded-full border border-primary bg-white px-3.5 py-2 text-sm font-semibold text-primary shadow-sm whitespace-nowrap'
+    : 'inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-white px-3.5 py-2 text-sm font-medium text-gray-600 shadow-sm whitespace-nowrap';
 
 const MapScreen = () => {
   const navigate = useNavigate();
@@ -269,8 +271,10 @@ const MapScreen = () => {
   const postOverlaysRef = useRef([]);
   const userOverlayRef = useRef(null);
   const idleListenerRef = useRef(null);
+  const sheetDragRef = useRef(null);
 
-  const [isSheetExpanded, setIsSheetExpanded] = useState(false);
+  /** expanded: 큰 시트 | peek: 미리보기 | hidden: 내려감 */
+  const [sheetMode, setSheetMode] = useState('peek');
   const [sdkStatus, setSdkStatus] = useState({ ok: false, message: '' });
   const [query, setQuery] = useState('');
 
@@ -283,8 +287,11 @@ const MapScreen = () => {
   const [postsWithCoords, setPostsWithCoords] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
 
-  const [activeChip, setActiveChip] = useState('situation');
+  const [activeChip, setActiveChip] = useState('bloom');
   const geoCache = useMemo(() => readGeoCache(), []);
+
+  const filterScroll = useHorizontalDragScroll();
+  const photoScroll = useHorizontalDragScroll();
 
   const resolveCoordsForPost = useCallback(
     async (post) => {
@@ -358,6 +365,54 @@ const MapScreen = () => {
       .sort((a, b) => a.km - b.km)
       .map((x) => x.p);
   }, [postsInViewport, viewCenter]);
+
+  const sheetStripPosts = useMemo(() => sheetPhotoPosts.slice(0, 10), [sheetPhotoPosts]);
+
+  const openMorePhotos = useCallback(() => {
+    const pins = sheetPhotoPosts.map((p) => ({
+      id: p.id,
+      lat: p.__coords.lat,
+      lng: p.__coords.lng,
+      title: String(p.placeName || p.location || p.region || '\uc7a5\uc18c'),
+      image: getDisplayImageUrl(p.thumbnail || (Array.isArray(p.images) ? p.images[0] : '')),
+    }));
+    navigate('/map/photos', { state: { visiblePins: pins } });
+  }, [navigate, sheetPhotoPosts]);
+
+  const onSheetPointerDown = (e) => {
+    sheetDragRef.current = { startY: e.clientY, pointerId: e.pointerId };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const onSheetPointerUp = (e) => {
+    const start = sheetDragRef.current;
+    sheetDragRef.current = null;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    if (start == null) return;
+    const dy = e.clientY - start.startY;
+
+    if (Math.abs(dy) < 14) {
+      setSheetMode((m) => {
+        if (m === 'hidden') return 'peek';
+        if (m === 'expanded') return 'peek';
+        return 'expanded';
+      });
+      return;
+    }
+    if (dy > 36) {
+      setSheetMode((m) => (m === 'expanded' ? 'peek' : 'hidden'));
+    } else if (dy < -36) {
+      setSheetMode((m) => (m === 'hidden' ? 'peek' : 'expanded'));
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -509,9 +564,8 @@ const MapScreen = () => {
       const kakao = window.kakao;
       const wrap = document.createElement('div');
       wrap.innerHTML = `
-        <div class="lj-map-user-wrap" style="position:relative;width:56px;height:56px;pointer-events:none;">
-          <div class="lj-map-user-pulse lj-map-user-pulse--a"></div>
-          <div class="lj-map-user-pulse lj-map-user-pulse--b"></div>
+        <div class="lj-map-user-wrap" style="position:relative;width:52px;height:52px;pointer-events:none;">
+          <div class="lj-map-user-pulse"></div>
           <div class="lj-map-user-dot"></div>
         </div>`;
       const el = wrap.firstElementChild;
@@ -572,6 +626,15 @@ const MapScreen = () => {
     );
   }, []);
 
+  const locateBtnBottom =
+    sheetMode === 'hidden'
+      ? 'bottom-24'
+      : sheetMode === 'expanded'
+        ? 'bottom-[62%]'
+        : 'bottom-[26%]';
+
+  const sheetHeightClass = sheetMode === 'expanded' ? 'h-[58vh]' : 'h-[22vh]';
+
   return (
     <div className="relative w-full h-[100dvh] bg-gray-100 overflow-hidden font-sans">
       <div ref={mapRef} className="absolute inset-0 z-0" />
@@ -587,7 +650,7 @@ const MapScreen = () => {
       )}
 
       <div className="absolute top-0 z-10 w-full bg-gradient-to-b from-white/90 to-transparent p-4 pt-12">
-        <div className="mb-4 flex items-center gap-3">
+        <div className="mb-3 flex items-center gap-3">
           <button
             type="button"
             className="rounded-full bg-white p-2.5 shadow-sm transition hover:bg-gray-50"
@@ -618,27 +681,36 @@ const MapScreen = () => {
           </button>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          <button type="button" className={chipClass(activeChip === 'situation')} onClick={() => setActiveChip('situation')}>
-            {t.chipSituation}
+        <div className="mb-2">
+          <button
+            type="button"
+            onClick={() => navigate('/map/ask-situation')}
+            className="w-full rounded-2xl bg-primary py-3 text-center text-sm font-semibold text-white shadow-md shadow-primary/25 transition active:scale-[0.99] hover:bg-primary-dark"
+          >
+            {t.situationCta}
           </button>
+        </div>
+
+        <div
+          onMouseDown={filterScroll.handleDragStart}
+          className="flex cursor-grab gap-2 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch] scrollbar-hide active:cursor-grabbing snap-x snap-mandatory"
+        >
           <button type="button" className={chipClass(activeChip === 'bloom')} onClick={() => setActiveChip('bloom')}>
-            {t.chipBloom}
+            <Flower2 className={ICON_CLASS} strokeWidth={1.5} />
+            <span>{t.chipBloom}</span>
           </button>
           <button type="button" className={chipClass(activeChip === 'food')} onClick={() => setActiveChip('food')}>
-            {t.chipFood}
+            <UtensilsCrossed className={ICON_CLASS} strokeWidth={1.5} />
+            <span>{t.chipFood}</span>
           </button>
           <button type="button" className={chipClass(activeChip === 'places')} onClick={() => setActiveChip('places')}>
-            {t.chipPlaces}
+            <MapPin className={ICON_CLASS} strokeWidth={1.5} />
+            <span>{t.chipPlaces}</span>
           </button>
         </div>
       </div>
 
-      <div
-        className={`absolute right-4 z-10 flex justify-end transition-all duration-300 ease-in-out ${
-          isSheetExpanded ? 'bottom-[65%]' : 'bottom-[25%]'
-        }`}
-      >
+      <div className={`absolute right-4 z-10 flex justify-end transition-all duration-300 ease-in-out ${locateBtnBottom}`}>
         <button
           type="button"
           className="rounded-full bg-white p-3.5 text-primary shadow-md ring-1 ring-primary/20 transition hover:bg-primary-soft"
@@ -649,48 +721,76 @@ const MapScreen = () => {
         </button>
       </div>
 
+      {sheetMode === 'hidden' && (
+        <div className="absolute bottom-3 left-0 right-0 z-[25] flex justify-center px-4">
+          <button
+            type="button"
+            onClick={() => setSheetMode('peek')}
+            className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/30"
+          >
+            {t.showPhotosAgain}
+          </button>
+        </div>
+      )}
+
       <div
-        className={`absolute bottom-0 z-20 flex w-full flex-col rounded-t-3xl bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)] transition-all duration-300 ease-in-out ${
-          isSheetExpanded ? 'h-[60%]' : 'h-[22%]'
-        }`}
+        className={`absolute bottom-0 left-0 right-0 z-20 flex max-w-[414px] flex-col rounded-t-3xl bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)] transition-transform duration-300 ease-out ${
+          sheetMode === 'hidden' ? 'pointer-events-none translate-y-full' : 'translate-y-0'
+        } ${sheetHeightClass}`}
       >
         <button
           type="button"
-          className="flex w-full cursor-pointer justify-center pt-4 pb-3"
-          onClick={() => setIsSheetExpanded((v) => !v)}
+          className="flex w-full shrink-0 cursor-grab touch-none justify-center pt-3 pb-2 active:cursor-grabbing"
           aria-label={t.sheetToggle}
+          onPointerDown={onSheetPointerDown}
+          onPointerUp={onSheetPointerUp}
+          onPointerCancel={onSheetPointerUp}
         >
           <span className="h-1.5 w-12 rounded-full bg-gray-300" />
         </button>
 
-        <div className="flex flex-1 flex-col overflow-hidden px-3 py-2 sm:px-6">
-          <div className="mb-2 flex items-end justify-between gap-3 px-1">
-            <h2 className="text-lg font-bold text-gray-900">{t.nearbyTitle}</h2>
-            <div className="text-[11px] text-gray-400">{t.postsSummary(sheetPhotoPosts.length, postsFiltered.length)}</div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pb-3 sm:px-4">
+          <div className="mb-2 flex shrink-0 items-center justify-between gap-2 px-0.5">
+            <h2 className="text-base font-bold text-gray-900">{t.nearbyTitle}</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-gray-400">{t.postsSummary(sheetStripPosts.length, postsFiltered.length)}</span>
+              {sheetPhotoPosts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={openMorePhotos}
+                  className="shrink-0 rounded-full border border-primary/30 bg-primary-5 px-3 py-1 text-xs font-semibold text-primary"
+                >
+                  {t.morePhotos}
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto pb-6">
-            {sheetPhotoPosts.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center pb-10 text-gray-400">
+          <div className="min-h-0 flex-1 overflow-hidden">
+            {sheetStripPosts.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center py-6 text-gray-400">
                 <p className="text-sm font-medium">{loadingPosts ? t.emptyLoading : t.emptyNone}</p>
                 <p className="mt-2 max-w-sm px-2 text-center text-xs text-gray-400">{t.emptyHint}</p>
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
-                {sheetPhotoPosts.map((p) => {
+              <div
+                onMouseDown={photoScroll.handleDragStart}
+                className="flex cursor-grab gap-1.5 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] scrollbar-hide active:cursor-grabbing snap-x"
+              >
+                {sheetStripPosts.map((p) => {
                   const thumb = getDisplayImageUrl(p.thumbnail || (Array.isArray(p.images) ? p.images[0] : ''));
                   return (
                     <button
                       key={p.id}
                       type="button"
                       onClick={() => navigate(`/post/${encodeURIComponent(String(p.id))}`, { state: { post: p } })}
-                      className="aspect-square overflow-hidden rounded-[3px] bg-gray-100 ring-1 ring-gray-200/80"
+                      className="h-[88px] w-[88px] shrink-0 snap-start overflow-hidden bg-gray-100 ring-1 ring-gray-200/80"
                       style={{ borderRadius: 3 }}
                     >
                       {thumb ? (
                         <img src={thumb} alt="" className="h-full w-full object-cover" />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-primary-10 text-[10px] text-primary">·</div>
+                        <div className="flex h-full w-full items-center justify-center bg-primary-10 text-primary">·</div>
                       )}
                     </button>
                   );
