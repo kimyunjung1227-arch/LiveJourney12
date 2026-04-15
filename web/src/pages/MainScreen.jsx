@@ -823,7 +823,16 @@ const MainScreen = () => {
                                         )}
                                         {(hasWeather || (Array.isArray(post.reasonTags) && post.reasonTags.length > 0) || (!post.reasonTags?.length && Array.isArray(post.aiHotTags) && post.aiHotTags.length > 0)) && (
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
-                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', flex: 1, minWidth: 0 }}>
+                                                <div
+                                                    style={{
+                                                        display: 'flex',
+                                                        flexWrap: 'nowrap',
+                                                        gap: '6px',
+                                                        flex: 1,
+                                                        minWidth: 0,
+                                                        overflow: 'hidden',
+                                                    }}
+                                                >
                                                     {Array.isArray(post.reasonTags) && post.reasonTags.length > 0
                                                         ? post.reasonTags.slice(0, 3).map((tag) => (
                                                             <span
@@ -836,7 +845,8 @@ const MainScreen = () => {
                                                                     border: '1px solid rgba(38, 198, 218, 0.30)',
                                                                     padding: '2px 8px',
                                                                     borderRadius: '999px',
-                                                                    maxWidth: '100%',
+                                                                    flexShrink: 0,
+                                                                    maxWidth: 'calc(100% - 4px)',
                                                                     overflow: 'hidden',
                                                                     textOverflow: 'ellipsis',
                                                                     whiteSpace: 'nowrap',
@@ -857,6 +867,11 @@ const MainScreen = () => {
                                                                         border: '1px solid rgba(38, 198, 218, 0.30)',
                                                                         padding: '2px 8px',
                                                                         borderRadius: '999px',
+                                                                        flexShrink: 0,
+                                                                        maxWidth: 'calc(100% - 4px)',
+                                                                        overflow: 'hidden',
+                                                                        textOverflow: 'ellipsis',
+                                                                        whiteSpace: 'nowrap',
                                                                     }}
                                                                 >
                                                                     {formatHotTag(tag)}
