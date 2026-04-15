@@ -262,11 +262,23 @@ function pointInBounds(lat, lng, bounds) {
 
 const chipClass = (active) =>
   active
-    ? 'inline-flex shrink-0 items-center gap-1.5 rounded-full border border-primary bg-white px-3.5 py-2 text-sm font-semibold text-primary shadow-sm whitespace-nowrap'
-    : 'inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-white px-3.5 py-2 text-sm font-medium text-gray-600 shadow-sm whitespace-nowrap';
+    ? 'inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-white px-3.5 py-2 text-sm font-semibold shadow-sm whitespace-nowrap'
+    : 'inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-white px-3.5 py-2 text-sm font-semibold shadow-sm whitespace-nowrap';
 
-const msIcon = (name) => (
-  <span className="material-symbols-outlined text-[18px] leading-none" style={{ fontVariationSettings: "'wght' 300" }}>
+const chipStyle = (active) => ({
+  borderColor: active ? 'rgba(38,198,218,0.38)' : 'rgba(226,232,240,1)',
+  color: active ? '#0891b2' : '#334155',
+});
+
+const msIcon = (name, active = false) => (
+  <span
+    className="material-symbols-outlined text-[18px] leading-none"
+    style={{
+      fontVariationSettings: "'wght' 300",
+      color: active ? '#0891b2' : '#64748b',
+    }}
+    aria-hidden
+  >
     {name}
   </span>
 );
@@ -757,21 +769,37 @@ const MapScreen = () => {
           <button
             type="button"
             onClick={() => navigate('/map/ask-situation')}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm font-semibold text-gray-900 shadow-sm whitespace-nowrap"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-white px-3.5 py-2 text-sm font-semibold shadow-sm whitespace-nowrap"
+            style={{ borderColor: 'rgba(38,198,218,0.30)', color: '#0891b2' }}
           >
-            {msIcon('help')}
+            {msIcon('help', true)}
             <span>{t.situationCta}</span>
           </button>
-          <button type="button" className={chipClass(selectedFilters.includes('bloom'))} onClick={() => toggleFilter('bloom')}>
-            {msIcon('local_florist')}
+          <button
+            type="button"
+            className={chipClass(selectedFilters.includes('bloom'))}
+            style={chipStyle(selectedFilters.includes('bloom'))}
+            onClick={() => toggleFilter('bloom')}
+          >
+            {msIcon('local_florist', selectedFilters.includes('bloom'))}
             <span>{t.chipBloom}</span>
           </button>
-          <button type="button" className={chipClass(selectedFilters.includes('food'))} onClick={() => toggleFilter('food')}>
-            {msIcon('restaurant')}
+          <button
+            type="button"
+            className={chipClass(selectedFilters.includes('food'))}
+            style={chipStyle(selectedFilters.includes('food'))}
+            onClick={() => toggleFilter('food')}
+          >
+            {msIcon('restaurant', selectedFilters.includes('food'))}
             <span>{t.chipFood}</span>
           </button>
-          <button type="button" className={chipClass(selectedFilters.includes('places'))} onClick={() => toggleFilter('places')}>
-            {msIcon('place')}
+          <button
+            type="button"
+            className={chipClass(selectedFilters.includes('places'))}
+            style={chipStyle(selectedFilters.includes('places'))}
+            onClick={() => toggleFilter('places')}
+          >
+            {msIcon('place', selectedFilters.includes('places'))}
             <span>{t.chipPlaces}</span>
           </button>
         </div>
