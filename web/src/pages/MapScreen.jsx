@@ -297,7 +297,8 @@ const MapScreen = () => {
   const [postsWithCoords, setPostsWithCoords] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
 
-  const [selectedFilters, setSelectedFilters] = useState(['bloom']);
+  // 처음 진입 시 필터는 기본으로 "미선택"(전체 표시)
+  const [selectedFilters, setSelectedFilters] = useState([]);
   const geoCache = useMemo(() => readGeoCache(), []);
 
   const filterScroll = useHorizontalDragScroll();
