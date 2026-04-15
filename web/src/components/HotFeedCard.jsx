@@ -15,6 +15,7 @@ const HotFeedCard = ({
     onCardClick,
     onLikeClick,
     videoPosterUrl = null,
+    showLike = true,
 }) => {
     if (!cardProps) return null;
     const {
@@ -31,6 +32,8 @@ const HotFeedCard = ({
         avatars,
     } = cardProps;
     const likeCount = Number(post?.likes ?? post?.likeCount ?? 0) || 0;
+    const rank = Number(post?._rank);
+    const hasRank = Number.isFinite(rank) && rank > 0;
 
     return (
         <div
@@ -70,27 +73,58 @@ const HotFeedCard = ({
                         maxWidth: 'calc(100% - 100px)',
                     }}
                 >
-                    <span
-                        title="이 게시물이 핫플에 오른 이유"
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            background: HOT_INDICATOR_BG,
-                            color: '#fff',
-                            padding: '4px 9px',
-                            borderRadius: 9999,
-                            fontSize: 10,
-                            fontWeight: 800,
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                            maxWidth: '100%',
-                        }}
-                    >
-                        <span className="material-symbols-outlined shrink-0" style={{ fontSize: 14, fontVariationSettings: '"FILL" 1' }}>{hotReasonIcon}</span>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hotReasonLabel}</span>
-                    </span>
+                    {hasRank ? (
+                        <div
+                            aria-label={`랭킹 ${rank}위`}
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                minWidth: 34,
+                                height: 34,
+                                padding: '0 10px',
+                                borderRadius: 9999,
+                                background: 'rgba(15, 23, 42, 0.45)',
+                                color: '#fff',
+                                fontSize: 13,
+                                fontWeight: 900,
+                                letterSpacing: -0.2,
+                                backdropFilter: 'blur(10px)',
+                                WebkitBackdropFilter: 'blur(10px)',
+                                boxShadow: '0 2px 10px rgba(0,0,0,0.18)',
+                                border: '1px solid rgba(255,255,255,0.35)',
+                            }}
+                        >
+                            {rank}
+                        </div>
+                    ) : (
+                        <span
+                            title="이 게시물이 핫플에 오른 이유"
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                background: HOT_INDICATOR_BG,
+                                color: '#fff',
+                                padding: '4px 9px',
+                                borderRadius: 9999,
+                                fontSize: 10,
+                                fontWeight: 800,
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                                maxWidth: '100%',
+                            }}
+                        >
+                            <span
+                                className="material-symbols-outlined shrink-0"
+                                style={{ fontSize: 14, fontVariationSettings: '"FILL" 1' }}
+                            >
+                                {hotReasonIcon}
+                            </span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hotReasonLabel}</span>
+                        </span>
+                    )}
                 </div>
-                {typeof onLikeClick === 'function' && (
+                {showLike !== false && typeof onLikeClick === 'function' && (
                     <button
                         type="button"
                         onClick={(e) => {

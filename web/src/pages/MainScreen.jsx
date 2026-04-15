@@ -910,15 +910,13 @@ const MainScreen = () => {
                                     const { post } = hotFeedCardProps;
                                     const slideIdx = crowdedData.length ? hotFeedSlideIndex % crowdedData.length : 0;
                                     const socialText = getHotFeedSocialLine(hotFeedCardProps, hotFeedSocialIdx);
-                                    const liked = getLikeSnapshot(post.id, user?.id || null, Number(post.likes ?? post.likeCount ?? 0) || 0).liked;
                                     return (
                                         <HotFeedCard
                                             key={`${post.id}-${slideIdx}`}
                                             cardProps={hotFeedCardProps}
                                             socialText={socialText}
-                                            liked={liked}
                                             onCardClick={withDragCheck(() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } }))}
-                                            onLikeClick={handleHotFeedLike}
+                                            showLike={false}
                                             videoPosterUrl={hotFeedVideoPoster}
                                         />
                                     );
