@@ -375,6 +375,13 @@ const CrowdedPlaceScreen = () => {
 
                                     const cardProps = cardPropsById.get(String(post.id));
                                     const socialText = cardProps ? getHotFeedSocialLine(cardProps, crowdedSocialIdx) : '';
+                                    const tempText = (() => {
+                                        const w = cardProps?.weather;
+                                        const raw = w?.temperature ?? w?.temp ?? '';
+                                        const s = String(raw || '').trim();
+                                        if (!s || s === '-') return '';
+                                        return s.includes('°') ? s : `${s}°C`;
+                                    })();
                                     const hotTagChips = (Array.isArray(place.liveTags) ? place.liveTags : [])
                                         .map((t) => {
                                             const raw = String(t || '')
@@ -401,6 +408,32 @@ const CrowdedPlaceScreen = () => {
                                                         사진 없음
                                                     </div>
                                                 )}
+                                                <div
+                                                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none"
+                                                    aria-label={`랭킹 ${place.rank}위`}
+                                                    style={{
+                                                        padding: '6px 12px',
+                                                        borderRadius: 9999,
+                                                        background: 'rgba(15, 23, 42, 0.55)',
+                                                        backdropFilter: 'blur(10px)',
+                                                        WebkitBackdropFilter: 'blur(10px)',
+                                                        border: '1px solid rgba(250, 204, 21, 0.35)',
+                                                        boxShadow: '0 10px 28px rgba(15, 23, 42, 0.28)',
+                                                    }}
+                                                >
+                                                    <span
+                                                        style={{
+                                                            display: 'inline-block',
+                                                            fontSize: 22,
+                                                            fontWeight: 950,
+                                                            letterSpacing: -0.6,
+                                                            color: '#ffffff',
+                                                            textShadow: '0 2px 12px rgba(0,0,0,0.45)',
+                                                        }}
+                                                    >
+                                                        {place.rank}
+                                                    </span>
+                                                </div>
                                             </div>
                                             <div className="px-2 pb-3 pt-2">
                                                 <div className="flex items-start justify-between gap-2">
@@ -427,6 +460,12 @@ const CrowdedPlaceScreen = () => {
                                                         ) : null}
                                                         <p className="mt-2 text-[12px] font-medium leading-relaxed text-zinc-600 dark:text-zinc-400">
                                                             <span>라이브 인증 {place.trustPercent}%</span>
+                                                            {tempText ? (
+                                                                <>
+                                                                    <span className="mx-1.5 text-zinc-300 dark:text-zinc-600">·</span>
+                                                                    <span>기온 {tempText}</span>
+                                                                </>
+                                                            ) : null}
                                                             <span className="mx-1.5 text-zinc-300 dark:text-zinc-600">·</span>
                                                             <span>{formatAgo(place.latestMs)}</span>
                                                             {distText ? (
