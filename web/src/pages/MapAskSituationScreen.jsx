@@ -67,7 +67,8 @@ export default function MapAskSituationScreen() {
 
   const pickedLabel = useMemo(() => {
     if (!picked) return '';
-    return String(picked.name || `${picked.lat.toFixed(5)}, ${picked.lng.toFixed(5)}`);
+    if (picked.name && String(picked.name).trim()) return String(picked.name).trim();
+    return `${picked.lat.toFixed(5)}, ${picked.lng.toFixed(5)}`;
   }, [picked]);
 
   const submit = () => {
@@ -117,19 +118,34 @@ export default function MapAskSituationScreen() {
     map.panTo(pos);
   }, []);
 
-  const reverseGeocode = useCallback(async (lat, lng) => {
+  const findNearestPlaceName = useCallback(async (lat, lng) => {
     if (!window.kakao?.maps?.services) return null;
     return await new Promise((resolve) => {
       try {
-        const geocoder = new window.kakao.maps.services.Geocoder();
-        geocoder.coord2Address(lng, lat, (res, status) => {
-          if (status === window.kakao.maps.services.Status.OK && Array.isArray(res) && res[0]) {
-            const a = res[0].address?.address_name || res[0].road_address?.address_name || null;
-            resolve(a);
-          } else {
+        const kakao = window.kakao;
+        const places = new kakao.maps.services.Places();
+        const loc = new kakao.maps.LatLng(lat, lng);
+        const categories = ['AT4', 'FD6', 'CE7', 'CT1', 'AD5']; // 관광/음식/카페/문화/숙박 순
+        let i = 0;
+        const tryNext = () => {
+          const code = categories[i++];
+          if (!code) {
             resolve(null);
+            return;
           }
-        });
+          places.categorySearch(
+            code,
+            (data, status) => {
+              if (status === kakao.maps.services.Status.OK && Array.isArray(data) && data[0]?.place_name) {
+                resolve(String(data[0].place_name));
+                return;
+              }
+              tryNext();
+            },
+            { location: loc, radius: 120, sort: kakao.maps.services.SortBy.DISTANCE },
+          );
+        };
+        tryNext();
       } catch {
         resolve(null);
       }
@@ -203,8 +219,10 @@ export default function MapAskSituationScreen() {
         const lat = latlng.getLat();
         const lng = latlng.getLng();
         setPickOverlayAt(lat, lng);
-        const name = await reverseGeocode(lat, lng);
-        setPicked({ lat, lng, name });
+        // 즉시 표시(좌표) 후, 비동기로 장소명 보강
+        setPicked({ lat, lng, name: null });
+        const placeName = await findNearestPlaceName(lat, lng);
+        setPicked({ lat, lng, name: placeName });
       } catch {
         /* ignore */
       }
@@ -220,7 +238,7 @@ export default function MapAskSituationScreen() {
       }
       clickListenerRef.current = null;
     };
-  }, [picking, reverseGeocode, setPickOverlayAt]);
+  }, [findNearestPlaceName, picking, setPickOverlayAt]);
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-white">
