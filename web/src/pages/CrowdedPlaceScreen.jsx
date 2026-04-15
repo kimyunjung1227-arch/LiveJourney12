@@ -330,7 +330,7 @@ const CrowdedPlaceScreen = () => {
                     <span className="material-symbols-outlined text-2xl">arrow_back</span>
                 </button>
                 <h1 className="min-w-0 flex-1 pr-2 text-center text-[17px] font-bold leading-snug text-text-primary-light dark:text-text-primary-dark">
-                    컴퍼스가 증명한, 지금 가장 핫한 곳
+                    실시간 급상승 핫플
                 </h1>
                 <div className="size-10 shrink-0" aria-hidden />
             </header>
