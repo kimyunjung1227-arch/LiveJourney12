@@ -767,8 +767,16 @@ const MapScreen = () => {
         </div>
       </div>
 
-      {/* 컨트롤 버튼: 사진처럼 우측 중단(시트 위) */}
-      <div className="absolute right-4 top-[214px] z-20">
+      {/* 컨트롤 버튼: 하단 시트 바로 우측 위 */}
+      <div
+        className={`absolute right-4 z-20 ${
+          sheetMode === 'hidden'
+            ? 'bottom-24'
+            : sheetMode === 'expanded'
+              ? 'top-[148px]'
+              : 'bottom-[calc(32vh+12px)]'
+        }`}
+      >
         <button
           type="button"
           className="rounded-full bg-white p-3 text-primary shadow-md ring-1 ring-primary/20 transition hover:bg-primary-soft"

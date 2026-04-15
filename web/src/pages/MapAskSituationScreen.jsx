@@ -56,7 +56,7 @@ export default function MapAskSituationScreen() {
   const navigate = useNavigate();
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
-  const markerRef = useRef(null);
+  const pickOverlayRef = useRef(null);
   const clickListenerRef = useRef(null);
 
   const [sdkError, setSdkError] = useState('');
@@ -89,16 +89,30 @@ export default function MapAskSituationScreen() {
     navigate(-1);
   };
 
-  const setMarkerAt = useCallback((lat, lng) => {
+  const setPickOverlayAt = useCallback((lat, lng) => {
     const map = mapRef.current;
     if (!map || !window.kakao?.maps) return;
     const kakao = window.kakao;
     const pos = new kakao.maps.LatLng(lat, lng);
-    if (!markerRef.current) {
-      markerRef.current = new kakao.maps.Marker({ position: pos });
-      markerRef.current.setMap(map);
+    if (!pickOverlayRef.current) {
+      const wrap = document.createElement('div');
+      wrap.innerHTML = `
+        <div class="lj-map-user-wrap" style="position:relative;width:68px;height:68px;pointer-events:none;">
+          <div class="lj-map-user-pulse"></div>
+          <div class="lj-map-user-dot"></div>
+        </div>`;
+      const el = wrap.firstElementChild;
+      const overlay = new kakao.maps.CustomOverlay({
+        position: pos,
+        content: el,
+        yAnchor: 0.5,
+        xAnchor: 0.5,
+        zIndex: 10,
+      });
+      overlay.setMap(map);
+      pickOverlayRef.current = overlay;
     } else {
-      markerRef.current.setPosition(pos);
+      pickOverlayRef.current.setPosition(pos);
     }
     map.panTo(pos);
   }, []);
@@ -135,14 +149,14 @@ export default function MapAskSituationScreen() {
           const lat = Number(first.y);
           const lng = Number(first.x);
           if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-          setMarkerAt(lat, lng);
+          setPickOverlayAt(lat, lng);
           setPicked({ lat, lng, name: first.place_name || first.address_name || query });
         }
       });
     } catch {
       /* ignore */
     }
-  }, [setMarkerAt]);
+  }, [setPickOverlayAt]);
 
   useEffect(() => {
     let cancelled = false;
@@ -188,10 +202,9 @@ export default function MapAskSituationScreen() {
         const latlng = mouseEvent.latLng;
         const lat = latlng.getLat();
         const lng = latlng.getLng();
-        setMarkerAt(lat, lng);
+        setPickOverlayAt(lat, lng);
         const name = await reverseGeocode(lat, lng);
         setPicked({ lat, lng, name });
-        setPicking(false);
       } catch {
         /* ignore */
       }
@@ -207,7 +220,7 @@ export default function MapAskSituationScreen() {
       }
       clickListenerRef.current = null;
     };
-  }, [picking, reverseGeocode, setMarkerAt]);
+  }, [picking, reverseGeocode, setPickOverlayAt]);
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-white">
