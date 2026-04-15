@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import BottomNavigation from '../components/BottomNavigation';
@@ -10,8 +10,29 @@ import {
   markNotificationAsRead,
   deleteNotification,
 } from '../utils/notifications';
-import { follow, unfollow, isFollowing } from '../utils/followSystem';
+import { follow, unfollow, isFollowing, getFollowingIds } from '../utils/followSystem';
 import { getDisplayImageUrl } from '../api/upload';
+import { fetchPostsSupabase } from '../api/postsSupabase';
+
+const FRIEND_NEWS_READ_KEY = 'friendNewsRead_v1';
+const FRIEND_NEWS_LAST_SEEN_KEY = 'friendNewsLastSeen_v1';
+
+const readJson = (key, fallback) => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const writeJson = (key, value) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* ignore */
+  }
+};
 
 const typeMeta = {
   badge: { icon: 'military_tech', bg: 'bg-zinc-100 dark:bg-zinc-800' },
@@ -41,6 +62,8 @@ const NotificationsScreen = () => {
   const { user } = useAuth();
   const [showMarkAllReadModal, setShowMarkAllReadModal] = useState(false);
   const [allNotifications, setAllNotifications] = useState([]);
+  const [tab, setTab] = useState('all'); // all | friends
+  const [friendNews, setFriendNews] = useState([]);
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -60,14 +83,76 @@ const NotificationsScreen = () => {
     setAllNotifications(getNotificationsForCurrentUser());
   };
 
-  const filteredNotifications = useMemo(() => {
-    return [...allNotifications].sort((a, b) => notificationTimeMs(b) - notificationTimeMs(a));
-  }, [allNotifications]);
+  const loadFriendNews = useCallback(async () => {
+    try {
+      const uid = String(user?.id || getNotificationStoredUserId() || '').trim();
+      if (!uid) {
+        setFriendNews([]);
+        return;
+      }
+      const followingIds = getFollowingIds(uid);
+      if (!Array.isArray(followingIds) || followingIds.length === 0) {
+        setFriendNews([]);
+        return;
+      }
+      const rows = await fetchPostsSupabase();
+      const lastSeen = Number(readJson(FRIEND_NEWS_LAST_SEEN_KEY, {})?.[uid] || 0);
+      const readMap = readJson(FRIEND_NEWS_READ_KEY, {});
+      const followingSet = new Set(followingIds.map(String));
+
+      const items = (rows || [])
+        .filter((p) => followingSet.has(String(p.userId || p.user?.id || '')))
+        .map((p) => {
+          const pid = String(p.id);
+          const ts = Number(p.timestamp || 0) || (p.createdAt ? new Date(p.createdAt).getTime() : 0) || Date.now();
+          const author = p.user && typeof p.user === 'object' ? (p.user.username || '') : '';
+          const who = String(author || p.author_username || '여행자');
+          const thumb = getDisplayImageUrl(p.thumbnail || (Array.isArray(p.images) ? p.images[0] : ''));
+          const id = `friendpost:${pid}`;
+          const isRead = !!(readMap && readMap[id]);
+          return {
+            id,
+            type: 'post',
+            read: isRead,
+            time: '',
+            timestamp: new Date(ts).toISOString(),
+            message: `${who}님이 새 게시물을 올렸습니다.`,
+            subMessage: String(p.placeName || p.location || p.region || '').trim() || null,
+            actorUsername: who,
+            actorAvatar: p.user && typeof p.user === 'object' ? (p.user.profileImage || null) : null,
+            actorUserId: String(p.userId || p.user?.id || ''),
+            thumbnailUrl: thumb || null,
+            postId: pid,
+            link: `/post/${pid}`,
+            __ts: ts,
+            __new: ts > lastSeen,
+          };
+        })
+        .sort((a, b) => (b.__ts || 0) - (a.__ts || 0))
+        .slice(0, 100);
+
+      setFriendNews(items);
+    } catch {
+      setFriendNews([]);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadFriendNews();
+    const onFollows = () => void loadFriendNews();
+    window.addEventListener('followsUpdated', onFollows);
+    return () => window.removeEventListener('followsUpdated', onFollows);
+  }, [loadFriendNews]);
+
+  const list = useMemo(() => {
+    const base = tab === 'friends' ? friendNews : allNotifications;
+    return [...base].sort((a, b) => notificationTimeMs(b) - notificationTimeMs(a));
+  }, [allNotifications, friendNews, tab]);
 
   const grouped = useMemo(() => {
     const now = Date.now();
     const groups = { '최근 7일': [], '최근 30일': [], 이전: [] };
-    filteredNotifications.forEach((n) => {
+    list.forEach((n) => {
       const ms = notificationTimeMs(n);
       const days = (now - ms) / 86400000;
       const key = bucketLabel(days);
@@ -75,10 +160,22 @@ const NotificationsScreen = () => {
       else groups.이전.push(n);
     });
     return groups;
-  }, [filteredNotifications]);
+  }, [list]);
 
   const handleOpen = (notification) => {
-    if (!notification.read) {
+    if (tab === 'friends') {
+      const uid = String(user?.id || getNotificationStoredUserId() || '').trim();
+      const readMap = readJson(FRIEND_NEWS_READ_KEY, {});
+      readMap[String(notification.id)] = true;
+      writeJson(FRIEND_NEWS_READ_KEY, readMap);
+      if (uid) {
+        const last = readJson(FRIEND_NEWS_LAST_SEEN_KEY, {});
+        last[uid] = Date.now();
+        writeJson(FRIEND_NEWS_LAST_SEEN_KEY, last);
+      }
+      setFriendNews((prev) => prev.map((x) => (x.id === notification.id ? { ...x, read: true } : x)));
+    }
+    if (tab !== 'friends' && !notification.read) {
       markNotificationAsRead(notification.id);
       loadNotifications();
     }
@@ -90,8 +187,23 @@ const NotificationsScreen = () => {
   };
 
   const handleMarkAllRead = () => {
-    markAllNotificationsAsRead();
-    loadNotifications();
+    if (tab === 'friends') {
+      const uid = String(user?.id || getNotificationStoredUserId() || '').trim();
+      const readMap = readJson(FRIEND_NEWS_READ_KEY, {});
+      friendNews.forEach((n) => {
+        readMap[String(n.id)] = true;
+      });
+      writeJson(FRIEND_NEWS_READ_KEY, readMap);
+      if (uid) {
+        const last = readJson(FRIEND_NEWS_LAST_SEEN_KEY, {});
+        last[uid] = Date.now();
+        writeJson(FRIEND_NEWS_LAST_SEEN_KEY, last);
+      }
+      setFriendNews((prev) => prev.map((x) => ({ ...x, read: true })));
+    } else {
+      markAllNotificationsAsRead();
+      loadNotifications();
+    }
     setShowMarkAllReadModal(false);
     window.dispatchEvent(new Event('notificationCountChanged'));
   };
@@ -204,16 +316,39 @@ const NotificationsScreen = () => {
           <button
             type="button"
             onClick={() => setShowMarkAllReadModal(true)}
-            disabled={allNotifications.filter((x) => !x.read).length === 0}
+            disabled={(tab === 'friends' ? friendNews : allNotifications).filter((x) => !x.read).length === 0}
             className="flex size-11 shrink-0 items-center justify-end rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-400 dark:hover:bg-zinc-800"
           >
-            <span className="material-symbols-outlined text-[22px]">done_all</span>
+            <span className="material-symbols-outlined text-[22px]">done</span>
           </button>
         </header>
 
+        <div className="bg-white px-3 pt-2 dark:bg-gray-900">
+          <div className="flex rounded-xl bg-zinc-100 p-1 dark:bg-zinc-800">
+            <button
+              type="button"
+              onClick={() => setTab('all')}
+              className={`flex-1 rounded-lg py-2 text-xs font-bold transition ${
+                tab === 'all' ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-300'
+              }`}
+            >
+              전체
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('friends')}
+              className={`flex-1 rounded-lg py-2 text-xs font-bold transition ${
+                tab === 'friends' ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-300'
+              }`}
+            >
+              친구소식
+            </button>
+          </div>
+        </div>
+
         <div className="screen-body">
           <div className="pb-24 pt-1">
-            {filteredNotifications.length === 0 ? (
+            {list.length === 0 ? (
               <div className="flex flex-col items-center justify-center px-6 py-20">
                 <span className="material-symbols-outlined mb-3 text-5xl text-zinc-300 dark:text-zinc-600">
                   notifications_off
@@ -296,7 +431,8 @@ const NotificationsScreen = () => {
                 모든 알림을 읽음 처리할까요?
               </h3>
               <p className="mt-2 text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                읽지 않은 알림 {allNotifications.filter((n) => !n.read).length}개가 읽음 처리됩니다.
+                읽지 않은 알림 {(tab === 'friends' ? friendNews : allNotifications).filter((n) => !n.read).length}개가 읽음
+                처리됩니다.
               </p>
             </div>
             <div className="flex gap-2 px-5 pb-5">
