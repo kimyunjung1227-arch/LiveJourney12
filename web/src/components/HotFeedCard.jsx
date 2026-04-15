@@ -34,6 +34,8 @@ const HotFeedCard = ({
     const likeCount = Number(post?.likes ?? post?.likeCount ?? 0) || 0;
     const rank = Number(post?._rank);
     const hasRank = Number.isFinite(rank) && rank > 0;
+    const safeHotReasonLabel = String(hotReasonLabel || '').trim() || '실시간';
+    const safeHotReasonIcon = String(hotReasonIcon || '').trim() || 'bolt';
 
     return (
         <div
@@ -118,9 +120,9 @@ const HotFeedCard = ({
                             className="material-symbols-outlined shrink-0"
                             style={{ fontSize: 14, fontVariationSettings: '"FILL" 1' }}
                         >
-                            {hotReasonIcon}
+                            {safeHotReasonIcon}
                         </span>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hotReasonLabel}</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{safeHotReasonLabel}</span>
                     </span>
                 </div>
                 {showLike !== false && typeof onLikeClick === 'function' && (
