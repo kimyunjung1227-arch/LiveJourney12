@@ -4,6 +4,7 @@ import { getMapThumbnailUri, toMediaStr } from '../utils/postMedia';
 
 /** 핫플 사유 뱃지 — EXIF와 구분해 중립 톤으로 통일 */
 const HOT_INDICATOR_BG = 'rgba(15, 23, 42, 0.88)';
+const LIVE_PRIMARY = '#26C6DA';
 
 /**
  * 메인 실시간 핫플 / 더보기 화면 — 동일 카드 UI (마크업·스타일 통일)
@@ -36,6 +37,9 @@ const HotFeedCard = ({
     const hasRank = Number.isFinite(rank) && rank > 0;
     const safeHotReasonLabel = String(hotReasonLabel || '').trim() || '실시간';
     const safeHotReasonIcon = String(hotReasonIcon || '').trim() || 'bolt';
+    const viewingCount = Number(cardProps?.viewingCount ?? 0) || 0;
+    const viewingLabel = viewingCount >= 1000 ? `${Math.floor(viewingCount / 100) * 100}+` : `${Math.max(0, viewingCount)}`;
+    const isTopRank = rank === 1;
 
     return (
         <div
@@ -50,6 +54,9 @@ const HotFeedCard = ({
             }}
             role="presentation"
         >
+            <style>
+                {`@keyframes ljLiveBlink { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }`}
+            </style>
             <div
                 className="main-hot-feed-media"
                 style={{
@@ -61,17 +68,18 @@ const HotFeedCard = ({
                     overflow: 'hidden',
                     borderRadius: 14,
                     boxShadow: '0 2px 14px rgba(15, 23, 42, 0.07)',
+                    outline: isTopRank ? `1.5px solid rgba(38, 198, 218, 0.55)` : undefined,
                 }}
             >
                 <div
                     style={{
                         position: 'absolute',
-                        top: 8,
-                        left: 8,
+                        top: 10,
+                        left: 12,
                         zIndex: 10,
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: 4,
+                        gap: 8,
                         maxWidth: 'calc(100% - 100px)',
                     }}
                 >
@@ -82,50 +90,115 @@ const HotFeedCard = ({
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                minWidth: 40,
-                                height: 40,
-                                padding: '0 12px',
-                                borderRadius: 9999,
-                                background: 'rgba(38, 198, 218, 0.92)',
-                                color: '#fff',
-                                fontSize: 15,
+                                padding: 0,
+                                borderRadius: 10,
+                                background: 'transparent',
+                                color: LIVE_PRIMARY,
+                                fontSize: isTopRank ? 34 : 30,
                                 fontWeight: 950,
-                                letterSpacing: -0.4,
-                                backdropFilter: 'blur(10px)',
-                                WebkitBackdropFilter: 'blur(10px)',
-                                boxShadow: '0 8px 20px rgba(15, 23, 42, 0.24)',
-                                border: '1px solid rgba(255,255,255,0.55)',
-                                textShadow: '0 1px 10px rgba(0,0,0,0.22)',
+                                letterSpacing: -1.2,
+                                lineHeight: 1,
+                                textShadow: '0 6px 18px rgba(0,0,0,0.30)',
                             }}
                         >
                             {rank}
                         </div>
                     ) : null}
+                </div>
+
+                {/* Live badge (visual separation from rank) */}
+                <div
+                    style={{
+                        position: 'absolute',
+                        bottom: 10,
+                        right: 10,
+                        zIndex: 11,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 7,
+                        padding: '7px 10px',
+                        borderRadius: 9999,
+                        background: 'rgba(15, 23, 42, 0.55)',
+                        color: '#fff',
+                        border: '1px solid rgba(255,255,255,0.22)',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        boxShadow: '0 8px 20px rgba(15,23,42,0.22)',
+                        maxWidth: 'calc(100% - 20px)',
+                    }}
+                    aria-label="실시간"
+                >
                     <span
-                        title="이 게시물이 핫플에 오른 이유"
                         style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            background: 'rgba(15, 23, 42, 0.92)',
-                            color: '#fff',
-                            padding: '6px 11px',
+                            width: 8,
+                            height: 8,
                             borderRadius: 9999,
-                            fontSize: 11,
-                            fontWeight: 850,
-                            letterSpacing: -0.2,
-                            boxShadow: '0 6px 16px rgba(0,0,0,0.22)',
-                            maxWidth: hasRank ? 'calc(100% - 54px)' : '100%',
-                            border: '1px solid rgba(255,255,255,0.22)',
+                            background: LIVE_PRIMARY,
+                            boxShadow: '0 0 0 3px rgba(38,198,218,0.18)',
+                            animation: 'ljLiveBlink 1.1s ease-in-out infinite',
+                            flexShrink: 0,
                         }}
-                    >
-                        <span
-                            className="material-symbols-outlined shrink-0"
-                            style={{ fontSize: 16, fontVariationSettings: '"FILL" 1' }}
-                        >
-                            {safeHotReasonIcon}
-                        </span>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{safeHotReasonLabel}</span>
+                    />
+                    <span className="material-symbols-outlined" style={{ fontSize: 16, fontVariationSettings: '"FILL" 1', color: '#ffffff' }}>
+                        bolt
+                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: -0.2, whiteSpace: 'nowrap' }}>LIVE</span>
+                </div>
+
+                {/* Why-rank proof badge (front of card) */}
+                <div
+                    title="실시간 반응"
+                    style={{
+                        position: 'absolute',
+                        top: 12,
+                        right: 12,
+                        zIndex: 11,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '7px 10px',
+                        borderRadius: 9999,
+                        background: 'rgba(15, 23, 42, 0.72)',
+                        color: '#fff',
+                        border: '1px solid rgba(255,255,255,0.22)',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        boxShadow: '0 10px 22px rgba(0,0,0,0.20)',
+                    }}
+                >
+                    <span style={{ fontSize: 13, lineHeight: 1 }}>🔥</span>
+                    <span style={{ fontSize: 11, fontWeight: 950, letterSpacing: -0.2, whiteSpace: 'nowrap' }}>
+                        실시간 조회수 {viewingLabel}
+                    </span>
+                </div>
+
+                {/* Hot reason tag (clear label, separated from rank) */}
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: 56,
+                        left: 12,
+                        zIndex: 11,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '7px 10px',
+                        borderRadius: 9999,
+                        background: 'rgba(15, 23, 42, 0.88)',
+                        color: '#fff',
+                        border: '1px solid rgba(255,255,255,0.22)',
+                        backdropFilter: 'blur(10px)',
+                        WebkitBackdropFilter: 'blur(10px)',
+                        boxShadow: '0 10px 22px rgba(0,0,0,0.18)',
+                        maxWidth: 'calc(100% - 24px)',
+                    }}
+                    aria-label="핫플 사유 태그"
+                >
+                    <span className="material-symbols-outlined shrink-0" style={{ fontSize: 18, fontVariationSettings: '"FILL" 1' }}>
+                        {safeHotReasonIcon}
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 950, letterSpacing: -0.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {safeHotReasonLabel}
                     </span>
                 </div>
                 {showLike !== false && typeof onLikeClick === 'function' && (

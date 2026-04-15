@@ -891,7 +891,9 @@ const MainScreen = () => {
                         {/* 실시간 핫플 — 이미지 4:3 세로 비중 + 섹션 여백 */}
                         <div style={{ marginBottom: '22px', paddingTop: 0, paddingBottom: '20px', background: '#ffffff' }}>
                             <div style={{ padding: '0 0 5px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff' }}>
-                                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#111827' }}>실시간 핫플</h3>
+                                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#111827' }}>
+                                    컴퍼스가 증명한, 지금 가장 핫한 곳
+                                </h3>
                                 <button
                                     type="button"
                                     onClick={() => navigate('/crowded-place')}
