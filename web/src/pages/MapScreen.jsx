@@ -286,6 +286,7 @@ const MapScreen = () => {
   const [sheetMode, setSheetMode] = useState('peek');
   const [sdkStatus, setSdkStatus] = useState({ ok: false, message: '' });
   const [query, setQuery] = useState('');
+  const [selectedPostCard, setSelectedPostCard] = useState(null);
 
   const [userPos, setUserPos] = useState(null);
   const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
@@ -433,6 +434,26 @@ const MapScreen = () => {
     [scheduleViewportSync],
   );
 
+  const openPostCard = useCallback(
+    (post) => {
+      if (!post) return;
+      setSelectedPostCard(post);
+      setSheetMode('hidden');
+      panToPost(post);
+    },
+    [panToPost],
+  );
+
+  const goPostDetail = useCallback(
+    (post) => {
+      if (!post?.id) return;
+      setSelectedPostCard(null);
+      setSheetMode('peek');
+      navigate(`/post/${encodeURIComponent(String(post.id))}`, { state: { post } });
+    },
+    [navigate],
+  );
+
   const onSheetPointerDown = (e) => {
     sheetDragRef.current = { startY: e.clientY, pointerId: e.pointerId };
     try {
@@ -574,7 +595,7 @@ const MapScreen = () => {
         if (!el) return;
 
         el.addEventListener('click', () => {
-          panToPost(p);
+          openPostCard(p);
         });
 
         const overlay = new kakao.maps.CustomOverlay({
@@ -590,7 +611,7 @@ const MapScreen = () => {
     } catch (e) {
       logger.warn(t.warnOverlays, e?.message || e);
     }
-  }, [panToPost, postsInViewport]);
+  }, [openPostCard, postsInViewport]);
 
   useEffect(() => {
     const map = kakaoMapRef.current;
@@ -725,7 +746,7 @@ const MapScreen = () => {
           <button
             type="button"
             onClick={() => navigate('/map/ask-situation')}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-primary/20 bg-primary-10 px-3.5 py-2 text-sm font-semibold text-primary shadow-sm whitespace-nowrap"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm font-semibold text-gray-900 shadow-sm whitespace-nowrap"
           >
             {msIcon('help')}
             <span>{t.situationCta}</span>
@@ -745,6 +766,18 @@ const MapScreen = () => {
         </div>
       </div>
 
+      {/* 컨트롤 버튼: 시트 밖(우측 상단) */}
+      <div className="absolute right-4 top-[148px] z-20">
+        <button
+          type="button"
+          className="rounded-full bg-white p-3 text-primary shadow-md ring-1 ring-primary/20 transition hover:bg-primary-soft"
+          onClick={onMyLocation}
+          aria-label={t.myLocation}
+        >
+          <LocateFixed className="h-6 w-6" />
+        </button>
+      </div>
+
       {sheetMode === 'hidden' && (
         <div className="absolute bottom-3 left-0 right-0 z-[25] flex justify-center px-4">
           <button
@@ -754,6 +787,46 @@ const MapScreen = () => {
           >
             {t.showPhotosAgain}
           </button>
+        </div>
+      )}
+
+      {/* 핀 클릭 시 간략 정보 카드 */}
+      {selectedPostCard && (
+        <div className="absolute bottom-3 left-0 right-0 z-[30] px-4">
+          <div className="mx-auto flex w-full max-w-[414px] items-center gap-3 rounded-2xl border border-gray-100 bg-white p-3 shadow-lg">
+            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-gray-100 ring-1 ring-gray-200/80">
+              {(() => {
+                const thumb = getDisplayImageUrl(
+                  selectedPostCard.thumbnail || (Array.isArray(selectedPostCard.images) ? selectedPostCard.images[0] : ''),
+                );
+                return thumb ? <img src={thumb} alt="" className="h-full w-full object-cover" /> : null;
+              })()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-bold text-gray-900">
+                {String(selectedPostCard.placeName || selectedPostCard.location || selectedPostCard.region || '장소').trim()}
+              </div>
+              <div className="mt-1 line-clamp-2 text-xs text-gray-600">
+                {String(selectedPostCard.note || selectedPostCard.content || '').trim()}
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => goPostDetail(selectedPostCard)}
+                className="rounded-full bg-primary px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary-dark"
+              >
+                상세보기
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedPostCard(null)}
+                className="rounded-full bg-gray-100 px-3.5 py-2 text-xs font-semibold text-gray-700"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -778,14 +851,6 @@ const MapScreen = () => {
             <h2 className="text-base font-bold text-gray-900">{t.nearbyTitle}</h2>
             <div className="flex items-center gap-2">
               <span className="text-[11px] text-gray-400">{t.postsSummary(sheetStripPosts.length, postsFiltered.length)}</span>
-              <button
-                type="button"
-                className="rounded-full bg-white p-2 text-primary shadow-sm ring-1 ring-primary/20"
-                onClick={onMyLocation}
-                aria-label={t.myLocation}
-              >
-                <LocateFixed className="h-5 w-5" />
-              </button>
             </div>
           </div>
 
