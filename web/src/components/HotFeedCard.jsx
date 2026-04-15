@@ -59,6 +59,25 @@ const HotFeedCard = ({
         whiteSpace: 'nowrap',
     };
 
+    /** 해시태그 칩과 구분되는 기온 전용 스타일 */
+    const weatherChipStyle = {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        fontSize: 11,
+        fontWeight: 750,
+        letterSpacing: -0.2,
+        color: '#0c4a6e',
+        background: 'linear-gradient(180deg, rgba(224, 242, 254, 0.92) 0%, rgba(186, 230, 253, 0.45) 100%)',
+        border: '1px solid rgba(14, 165, 233, 0.42)',
+        padding: '4px 10px',
+        borderRadius: 10,
+        lineHeight: 1.2,
+        maxWidth: '100%',
+        boxShadow: '0 1px 4px rgba(14, 116, 144, 0.12)',
+        whiteSpace: 'nowrap',
+    };
+
     return (
         <div
             className="hot-feed-card-enter"
@@ -193,25 +212,26 @@ const HotFeedCard = ({
                 <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{title}</h4>
                 <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', background: 'transparent', boxShadow: 'none' }}>{captionForCard}</p>
                 {(hotTags.length > 0 || hasWeather) && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, alignItems: 'center' }}>
-                        {hotTags.map((t) => (
-                            <span
-                                key={`${post?.id || 'post'}-hot-tag-${t}`}
-                                style={tagChipStyle}
-                                title={t}
-                            >
-                                {t}
-                            </span>
-                        ))}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, alignItems: 'center' }}>
+                        {hotTags.length > 0 ? (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', flex: '1 1 auto', minWidth: 0 }}>
+                                {hotTags.map((t) => (
+                                    <span
+                                        key={`${post?.id || 'post'}-hot-tag-${t}`}
+                                        style={tagChipStyle}
+                                        title={t}
+                                    >
+                                        {t}
+                                    </span>
+                                ))}
+                            </div>
+                        ) : null}
                         {hasWeather ? (
                             <span
                                 key={`${post?.id || 'post'}-weather`}
                                 style={{
-                                    ...tagChipStyle,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 4,
-                                    whiteSpace: 'nowrap',
+                                    ...weatherChipStyle,
+                                    flexShrink: 0,
                                 }}
                                 title={
                                     weather.condition && weather.condition !== '-'
@@ -219,10 +239,20 @@ const HotFeedCard = ({
                                         : String(weather.temperature || '')
                                 }
                             >
-                                {weather.icon ? <span style={{ fontSize: 12, flexShrink: 0 }}>{weather.icon}</span> : null}
+                                {weather.icon ? (
+                                    <span style={{ fontSize: 13, flexShrink: 0, lineHeight: 1 }} aria-hidden>{weather.icon}</span>
+                                ) : (
+                                    <span
+                                        className="material-symbols-outlined shrink-0"
+                                        style={{ fontSize: 15, fontVariationSettings: '"FILL" 0', color: '#0369a1' }}
+                                        aria-hidden
+                                    >
+                                        thermostat
+                                    </span>
+                                )}
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     {weather.temperature}
-                                    {weather.condition && weather.condition !== '-' ? ` ${weather.condition}` : ''}
+                                    {weather.condition && weather.condition !== '-' ? ` · ${weather.condition}` : ''}
                                 </span>
                             </span>
                         ) : null}
