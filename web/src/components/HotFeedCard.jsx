@@ -28,12 +28,17 @@ const HotFeedCard = ({
     const likeCount = Number(post?.likes ?? post?.likeCount ?? 0) || 0;
     const safeHotReasonLabel = String(hotReasonLabel || '').trim() || '실시간';
     const safeHotReasonIcon = String(hotReasonIcon || '').trim() || 'bolt';
+    const formatHotTag = (t) => {
+        const raw = String(t || '').replace(/#/g, '').replace(/_/g, ' ').trim();
+        if (!raw) return '';
+        return raw.startsWith('#') ? raw : `#${raw}`;
+    };
     const displayTags = (() => {
         if (Array.isArray(post?.reasonTags) && post.reasonTags.length > 0) {
-            return post.reasonTags.slice(0, 3).map((t) => String(t));
+            return post.reasonTags.slice(0, 3).map(formatHotTag).filter(Boolean);
         }
         if (!post?.reasonTags?.length && Array.isArray(post?.aiHotTags) && post.aiHotTags.length > 0) {
-            return post.aiHotTags.slice(0, 2).map((t) => String(t));
+            return post.aiHotTags.slice(0, 2).map(formatHotTag).filter(Boolean);
         }
         return [];
     })();
@@ -203,7 +208,7 @@ const HotFeedCard = ({
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, flex: 1, minWidth: 0 }}>
                             {displayTags.map((tag) => (
                                 <span key={`${post?.id || 'post'}-tag-${String(tag)}`} style={tagChipStyle}>
-                                    {String(tag).replace(/^#/, '')}
+                                    {String(tag)}
                                 </span>
                             ))}
                         </div>

@@ -755,6 +755,11 @@ const MainScreen = () => {
                             const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
                             const commentCount = Array.isArray(post.comments) ? post.comments.length : 0;
                             const status = getPhotoStatusFromPost(post);
+                            const formatHotTag = (t) => {
+                                const raw = String(t || '').replace(/#/g, '').replace(/_/g, ' ').trim();
+                                if (!raw) return '';
+                                return raw.startsWith('#') ? raw : `#${raw}`;
+                            };
                             return (
                                 <div
                                     key={post.id}
@@ -836,7 +841,7 @@ const MainScreen = () => {
                                                                     whiteSpace: 'nowrap',
                                                                 }}
                                                             >
-                                                                {String(tag).replace(/^#/, '')}
+                                                                {formatHotTag(tag)}
                                                             </span>
                                                         ))
                                                         : (!post.reasonTags?.length && Array.isArray(post.aiHotTags) && post.aiHotTags.length > 0
@@ -852,7 +857,7 @@ const MainScreen = () => {
                                                                         borderRadius: '6px',
                                                                     }}
                                                                 >
-                                                                    {String(tag).replace(/^#/, '')}
+                                                                    {formatHotTag(tag)}
                                                                 </span>
                                                             ))
                                                             : null)}
