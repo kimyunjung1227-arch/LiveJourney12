@@ -14,7 +14,6 @@ import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { useAuth } from '../contexts/AuthContext';
-import { getLikeSnapshot, toggleLikeLocal } from '../utils/postLikesLocal';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
 import {
   feedGridCardBoxFlat,
@@ -33,21 +32,6 @@ const RealtimeFeedScreen = () => {
   const contentRef = useRef(null);
   const [visibleCount, setVisibleCount] = useState(8);
   const [refreshKey, setRefreshKey] = useState(0);
-
-  const handleGridLike = useCallback((e, post) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!user?.id) {
-      alert('로그인 후 좋아요를 누를 수 있어요.');
-      return;
-    }
-    const baseLikes = Number(post.likes ?? post.likeCount ?? 0) || 0;
-    const next = toggleLikeLocal(post.id, user.id, baseLikes);
-    if (!next) return;
-    setRealtimeData((prev) =>
-      prev.map((p) => (p && String(p.id) === String(post.id) ? { ...p, likes: next.count, likeCount: next.count } : p))
-    );
-  }, [user?.id]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -223,8 +207,6 @@ const RealtimeFeedScreen = () => {
               const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
               const weather = post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
               const hasWeather = weather && (weather.icon || weather.temperature);
-              const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
-              const liked = getLikeSnapshot(post.id, user?.id || null, likeCount).liked;
               const status = getPhotoStatusFromPost(post);
               return (
                 <div
@@ -262,41 +244,6 @@ const RealtimeFeedScreen = () => {
                         <StatusBadge status={status} />
                       </div>
                     )}
-                    <button
-                      type="button"
-                      onClick={(e) => handleGridLike(e, post)}
-                      aria-label={liked ? '좋아요 취소' : '좋아요'}
-                      aria-pressed={liked}
-                      style={{
-                        position: 'absolute',
-                        top: 8,
-                        right: 8,
-                        zIndex: 4,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        padding: '4px 8px',
-                        borderRadius: 9999,
-                        border: '1px solid rgba(255,255,255,0.5)',
-                        background: 'rgba(15, 23, 42, 0.35)',
-                        color: '#fff',
-                        backdropFilter: 'blur(10px)',
-                        WebkitBackdropFilter: 'blur(10px)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <span
-                        className="material-symbols-outlined"
-                        style={{
-                          fontSize: 16,
-                          fontVariationSettings: liked ? "'FILL' 1" : "'FILL' 0",
-                          color: liked ? '#fb7185' : '#ffffff',
-                        }}
-                      >
-                        favorite
-                      </span>
-                      <span style={{ fontSize: 11, fontWeight: 800 }}>{likeCount}</span>
-                    </button>
                   </div>
 
                   <div style={feedGridInfoBox}>
