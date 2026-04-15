@@ -82,19 +82,20 @@ const HotFeedCard = ({
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                minWidth: 34,
-                                height: 34,
-                                padding: '0 10px',
+                                minWidth: 40,
+                                height: 40,
+                                padding: '0 12px',
                                 borderRadius: 9999,
-                                background: 'rgba(15, 23, 42, 0.45)',
+                                background: 'rgba(38, 198, 218, 0.92)',
                                 color: '#fff',
-                                fontSize: 13,
-                                fontWeight: 900,
-                                letterSpacing: -0.2,
+                                fontSize: 15,
+                                fontWeight: 950,
+                                letterSpacing: -0.4,
                                 backdropFilter: 'blur(10px)',
                                 WebkitBackdropFilter: 'blur(10px)',
-                                boxShadow: '0 2px 10px rgba(0,0,0,0.18)',
-                                border: '1px solid rgba(255,255,255,0.35)',
+                                boxShadow: '0 8px 20px rgba(15, 23, 42, 0.24)',
+                                border: '1px solid rgba(255,255,255,0.55)',
+                                textShadow: '0 1px 10px rgba(0,0,0,0.22)',
                             }}
                         >
                             {rank}
@@ -106,19 +107,21 @@ const HotFeedCard = ({
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: 4,
-                            background: HOT_INDICATOR_BG,
+                            background: 'rgba(15, 23, 42, 0.92)',
                             color: '#fff',
-                            padding: '4px 9px',
+                            padding: '6px 11px',
                             borderRadius: 9999,
-                            fontSize: 10,
-                            fontWeight: 800,
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                            maxWidth: hasRank ? 'calc(100% - 44px)' : '100%',
+                            fontSize: 11,
+                            fontWeight: 850,
+                            letterSpacing: -0.2,
+                            boxShadow: '0 6px 16px rgba(0,0,0,0.22)',
+                            maxWidth: hasRank ? 'calc(100% - 54px)' : '100%',
+                            border: '1px solid rgba(255,255,255,0.22)',
                         }}
                     >
                         <span
                             className="material-symbols-outlined shrink-0"
-                            style={{ fontSize: 14, fontVariationSettings: '"FILL" 1' }}
+                            style={{ fontSize: 16, fontVariationSettings: '"FILL" 1' }}
                         >
                             {safeHotReasonIcon}
                         </span>
