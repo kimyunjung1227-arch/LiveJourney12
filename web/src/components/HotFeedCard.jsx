@@ -97,32 +97,31 @@ const HotFeedCard = ({
                         >
                             {rank}
                         </div>
-                    ) : (
+                    ) : null}
+                    <span
+                        title="이 게시물이 핫플에 오른 이유"
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            background: HOT_INDICATOR_BG,
+                            color: '#fff',
+                            padding: '4px 9px',
+                            borderRadius: 9999,
+                            fontSize: 10,
+                            fontWeight: 800,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                            maxWidth: hasRank ? 'calc(100% - 44px)' : '100%',
+                        }}
+                    >
                         <span
-                            title="이 게시물이 핫플에 오른 이유"
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                background: HOT_INDICATOR_BG,
-                                color: '#fff',
-                                padding: '4px 9px',
-                                borderRadius: 9999,
-                                fontSize: 10,
-                                fontWeight: 800,
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                                maxWidth: '100%',
-                            }}
+                            className="material-symbols-outlined shrink-0"
+                            style={{ fontSize: 14, fontVariationSettings: '"FILL" 1' }}
                         >
-                            <span
-                                className="material-symbols-outlined shrink-0"
-                                style={{ fontSize: 14, fontVariationSettings: '"FILL" 1' }}
-                            >
-                                {hotReasonIcon}
-                            </span>
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hotReasonLabel}</span>
+                            {hotReasonIcon}
                         </span>
-                    )}
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hotReasonLabel}</span>
+                    </span>
                 </div>
                 {showLike !== false && typeof onLikeClick === 'function' && (
                     <button
