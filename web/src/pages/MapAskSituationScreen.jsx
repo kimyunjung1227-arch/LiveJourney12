@@ -19,7 +19,7 @@ const loadKakaoSdkOnce = (appKey) =>
       return;
     }
 
-    const existing = document.querySelector('script[data-kakao-maps-sdk=\"1\"]');
+    const existing = document.querySelector('script[data-kakao-maps-sdk="1"]');
     if (existing) {
       existing.addEventListener('load', () => resolve(), { once: true });
       existing.addEventListener('error', () => reject(new Error('Kakao Maps SDK 로드 실패')), { once: true });
@@ -246,7 +246,12 @@ export default function MapAskSituationScreen() {
             aria-label="지도에서 고르기"
             title="지도에서 고르기"
           >
-            <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: \"'wght' 300\" }}>map</span>
+            <span
+              className="material-symbols-outlined text-[20px]"
+              style={{ fontVariationSettings: "'wght' 300" }}
+            >
+              map
+            </span>
           </button>
         </div>
 
