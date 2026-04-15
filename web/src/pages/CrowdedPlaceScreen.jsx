@@ -18,6 +18,51 @@ import { getWeatherByRegion } from '../api/weather';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
+const PRIMARY_HEX = '#26C6DA';
+
+const getPostTimeMs = (post) => {
+    const raw = post?.timestamp || post?.createdAt || post?.time;
+    const t = raw ? new Date(raw).getTime() : NaN;
+    return Number.isNaN(t) ? 0 : t;
+};
+
+const getPostCoords = (post) => {
+    const c = post?.coordinates;
+    if (c && (c.lat != null || c.latitude != null) && (c.lng != null || c.longitude != null)) {
+        return { lat: Number(c.lat ?? c.latitude), lng: Number(c.lng ?? c.longitude) };
+    }
+    if (post?.location && typeof post.location === 'object') {
+        const lat = post.location.lat ?? post.location.latitude;
+        const lng = post.location.lng ?? post.location.lon ?? post.location.longitude;
+        if (lat != null && lng != null) return { lat: Number(lat), lng: Number(lng) };
+    }
+    return null;
+};
+
+const haversineKm = (a, b) => {
+    if (!a || !b) return null;
+    const R = 6371;
+    const toRad = (v) => (v * Math.PI) / 180;
+    const dLat = toRad(b.lat - a.lat);
+    const dLng = toRad(b.lng - a.lng);
+    const lat1 = toRad(a.lat);
+    const lat2 = toRad(b.lat);
+    const s =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(lat1) * Math.cos(lat2);
+    const c = 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+    return R * c;
+};
+
+const formatAgo = (ms) => {
+    if (!ms) return '';
+    const diffMin = Math.max(0, Math.floor((Date.now() - ms) / 60000));
+    if (diffMin <= 0) return '방금';
+    if (diffMin < 60) return `${diffMin}분 전`;
+    const h = Math.floor(diffMin / 60);
+    return `${h}시간 전`;
+};
+
 const CrowdedPlaceScreen = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
@@ -26,10 +71,35 @@ const CrowdedPlaceScreen = () => {
     const [weatherByRegion, setWeatherByRegion] = useState({});
     const [crowdedSocialIdx, setCrowdedSocialIdx] = useState(0);
     const contentRef = useRef(null);
+    const [userPos, setUserPos] = useState(null);
+    const [, setNowTick] = useState(0);
 
     useEffect(() => {
         const id = setInterval(() => setCrowdedSocialIdx((i) => (i + 1) % 3), 2800);
         return () => clearInterval(id);
+    }, []);
+
+    useEffect(() => {
+        const id = setInterval(() => setNowTick((x) => x + 1), 30000);
+        return () => clearInterval(id);
+    }, []);
+
+    useEffect(() => {
+        if (!navigator?.geolocation) return undefined;
+        let cancelled = false;
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                if (cancelled) return;
+                setUserPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+            },
+            () => {
+                /* ignore */
+            },
+            { enableHighAccuracy: true, maximumAge: 120000, timeout: 6000 }
+        );
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     useEffect(() => {
@@ -169,6 +239,74 @@ const CrowdedPlaceScreen = () => {
 
     const filteredPosts = crowdedData;
 
+    const placeRankings = useMemo(() => {
+        const now = Date.now();
+        const windowMs = 30 * 60 * 1000;
+        const groups = new Map();
+
+        (filteredPosts || []).forEach((p) => {
+            if (!p) return;
+            const key = String(p.location || p.placeName || p.detailedLocation || p.region || '').trim();
+            if (!key) return;
+            const ts = getPostTimeMs(p) || now;
+            const g = groups.get(key) || {
+                key,
+                posts: [],
+                latestMs: 0,
+                recent30m: 0,
+                trustSum: 0,
+                trustN: 0,
+            };
+            g.posts.push(p);
+            if (ts > g.latestMs) g.latestMs = ts;
+            if (now - ts <= windowMs) g.recent30m += 1;
+            const v = p._verification?.score;
+            if (typeof v === 'number' && Number.isFinite(v)) {
+                g.trustSum += v;
+                g.trustN += 1;
+            }
+            groups.set(key, g);
+        });
+
+        const items = [...groups.values()].map((g) => {
+            const ageMin = Math.max(0, (now - (g.latestMs || now)) / 60000);
+            const freshness = Math.exp(-ageMin / 22); // 0~1, 최근성 강하게
+            const density = Math.min(1.6, (g.recent30m || 0) / 3);
+            const trustAvg = g.trustN > 0 ? g.trustSum / g.trustN : 0.6;
+            const trustPercent = Math.max(70, Math.min(99, Math.round(trustAvg * 100)));
+            const score = freshness * 2.2 + density * 1.2 + trustAvg * 0.6;
+
+            const representative = [...g.posts].sort((a, b) => getPostTimeMs(b) - getPostTimeMs(a))[0] || null;
+            const coords = representative ? getPostCoords(representative) : null;
+            const distKm = userPos && coords ? haversineKm(userPos, coords) : null;
+            const tags = Array.isArray(representative?.reasonTags) ? representative.reasonTags : [];
+            const liveTags = tags
+                .map((t) => String(t || '').replace(/_/g, ' ').trim())
+                .filter(Boolean)
+                .slice(0, 3);
+
+            return {
+                key: g.key,
+                score,
+                latestMs: g.latestMs,
+                recent30m: g.recent30m,
+                trustPercent,
+                representative,
+                coords,
+                distKm,
+                liveTags,
+            };
+        });
+
+        items.sort((a, b) => b.score - a.score);
+        return items.slice(0, 30).map((x, idx) => ({ ...x, rank: idx + 1 }));
+    }, [filteredPosts, userPos]);
+
+    const lastUpdatedMs = useMemo(() => {
+        const ms = Math.max(0, ...placeRankings.map((p) => Number(p.latestMs || 0)));
+        return ms || 0;
+    }, [placeRankings]);
+
     // 소셜 문구는 주기적으로 바뀌지만, 카드 props 계산은 무거우므로 데이터가 바뀔 때만 캐시
     const cardPropsById = useMemo(() => {
         const map = new Map();
@@ -200,27 +338,116 @@ const CrowdedPlaceScreen = () => {
             <div ref={contentRef} className="screen-content flex-1 overflow-y-auto bg-background-light dark:bg-background-dark">
                 <div className="min-h-full px-4 pb-16 pt-2">
                     <div className="pb-6">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                                <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                                    {lastUpdatedMs ? `업데이트 ${formatAgo(lastUpdatedMs)}` : '업데이트 정보를 불러오는 중...'}
+                                </div>
+                                <div className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">
+                                    방금 올라온 사진이 있는 곳 위주로 순위가 바뀝니다
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setRefreshKey((k) => k + 1)}
+                                className="shrink-0 rounded-full border border-zinc-200 bg-white px-3 py-2 text-xs font-bold text-zinc-700 shadow-sm hover:border-primary/30 hover:text-primary-dark dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+                                style={{ borderColor: 'rgba(38,198,218,0.25)' }}
+                            >
+                                새로고침
+                            </button>
+                        </div>
 
-                        {filteredPosts.length === 0 ? (
+                        {placeRankings.length === 0 ? (
                             <div className="py-10 text-center text-sm text-text-secondary-light dark:text-text-secondary-dark">
                                 아직 실시간 핫플 게시물이 없어요.
                             </div>
                         ) : (
                             <div className="flex flex-col gap-2">
-                                {filteredPosts.map((post) => {
+                                {placeRankings.map((place) => {
+                                    const post = place.representative;
+                                    if (!post?.id) return null;
+                                    const img = post.image || getDisplayImageUrl(post.images?.[0] || post.thumbnail || '');
+                                    const distText =
+                                        typeof place.distKm === 'number'
+                                            ? place.distKm < 1
+                                                ? `${Math.round(place.distKm * 1000)}m`
+                                                : `${place.distKm.toFixed(1)}km`
+                                            : null;
+
                                     const cardProps = cardPropsById.get(String(post.id));
-                                    if (!cardProps) return null;
-                                    const socialText = getHotFeedSocialLine(cardProps, crowdedSocialIdx);
-                                    const liked = getLikeSnapshot(post.id, user?.id || null, Number(post.likes ?? post.likeCount ?? 0) || 0).liked;
+                                    const socialText = cardProps ? getHotFeedSocialLine(cardProps, crowdedSocialIdx) : '';
+                                    const liveTag = place.liveTags?.[0] ? String(place.liveTags[0]).replace(/#/g, '').trim() : '';
+                                    const liveTagLine = liveTag ? `#${liveTag}` : '';
+
                                     return (
-                                        <HotFeedCard
-                                            key={post.id}
-                                            cardProps={cardProps}
-                                            socialText={socialText}
-                                            liked={liked}
-                                            onCardClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } })}
-                                            onLikeClick={handleHotFeedLike}
-                                        />
+                                        <button
+                                            key={place.key}
+                                            type="button"
+                                            onClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } })}
+                                            className="group relative overflow-hidden rounded-2xl border border-zinc-100 bg-white shadow-sm transition hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
+                                        >
+                                            <div className="relative aspect-[16/10] w-full bg-zinc-100 dark:bg-zinc-800">
+                                                {img ? (
+                                                    <img src={img} alt="" className="h-full w-full object-cover" />
+                                                ) : (
+                                                    <div className="flex h-full w-full items-center justify-center text-xs text-zinc-400">
+                                                        사진 없음
+                                                    </div>
+                                                )}
+                                                <div className="absolute left-3 top-3 flex items-center gap-2">
+                                                    <div
+                                                        className="flex h-9 min-w-9 items-center justify-center rounded-full bg-black/45 px-3 text-[13px] font-extrabold text-white backdrop-blur"
+                                                        aria-label={`랭킹 ${place.rank}위`}
+                                                    >
+                                                        {place.rank}
+                                                    </div>
+                                                    {liveTagLine ? (
+                                                        <div className="rounded-full bg-white/85 px-3 py-1 text-[11px] font-bold text-zinc-900 backdrop-blur">
+                                                            {liveTagLine}
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+
+                                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent p-3">
+                                                    <div className="flex items-end justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <div className="truncate text-[14px] font-extrabold text-white">
+                                                                {String(place.key).trim()}
+                                                            </div>
+                                                            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-white/85">
+                                                                <span className="rounded-full bg-white/15 px-2 py-0.5">
+                                                                    라이브 인증 {place.trustPercent}%
+                                                                </span>
+                                                                <span className="rounded-full bg-white/15 px-2 py-0.5">
+                                                                    {formatAgo(place.latestMs)}
+                                                                </span>
+                                                                {distText ? (
+                                                                    <span className="rounded-full bg-white/15 px-2 py-0.5">
+                                                                        {distText}
+                                                                    </span>
+                                                                ) : null}
+                                                            </div>
+                                                        </div>
+                                                        <div className="shrink-0">
+                                                            <div
+                                                                className="flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-zinc-900 shadow-sm"
+                                                                style={{ border: `1px solid rgba(38,198,218,0.28)` }}
+                                                                aria-hidden
+                                                            >
+                                                                <span className="material-symbols-outlined text-[18px]" style={{ color: PRIMARY_HEX }}>
+                                                                    chevron_right
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {socialText ? (
+                                                        <div className="mt-2 line-clamp-1 text-[11px] font-semibold text-white/80">
+                                                            {socialText}
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            </div>
+                                        </button>
                                     );
                                 })}
                             </div>
