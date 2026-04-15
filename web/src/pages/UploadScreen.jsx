@@ -34,11 +34,13 @@ function combineLocationParts(region, place) {
 
 /** 기존 한 줄 주소·장소명 → 입력 폼용 분리 (첫 토큰 = 지역) */
 function splitLocationForForm(full) {
-  const s = String(full || '').trim();
-  if (!s) return { region: '', place: '' };
-  const parts = s.split(/\s+/).filter(Boolean);
-  if (parts.length === 1) return { region: parts[0], place: '' };
-  return { region: parts[0], place: parts.slice(1).join(' ') };
+  const s = String(full || '');
+  const trimmed = s.trim();
+  if (!trimmed) return { region: '', place: '' };
+  const leadTrim = s.replace(/^\s+/, '');
+  const m = leadTrim.match(/^(\S+)(?:\s+(.*))?$/);
+  if (!m) return { region: trimmed, place: '' };
+  return { region: m[1] || '', place: m[2] || '' };
 }
 
 const UploadScreen = () => {
@@ -64,6 +66,8 @@ const UploadScreen = () => {
     imageFiles: [],
     videos: [],
     videoFiles: [],
+    /** 위치 입력(원문) — 공백 포함해 입력 UX 유지 */
+    locationLine: '',
     locationRegion: '',
     locationPlace: '',
     tags: [],
@@ -85,6 +89,19 @@ const UploadScreen = () => {
     () => combineLocationParts(formData.locationRegion, formData.locationPlace),
     [formData.locationRegion, formData.locationPlace]
   );
+
+  // EXIF 자동 입력/편집 모드 등으로 region/place가 바뀌면 입력 원문도 동기화
+  useEffect(() => {
+    const next = combinedLocation;
+    setFormData((prev) => {
+      const cur = String(prev.locationLine || '');
+      // 사용자가 이미 직접 입력 중이면(원문이 있고, 합친 값이 포함) 덮어쓰지 않음
+      if (cur && cur.replace(/\s+/g, ' ').trim() && cur.replace(/\s+/g, ' ').trim() !== next) return prev;
+      if (cur === next) return prev;
+      return { ...prev, locationLine: next };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [combinedLocation]);
 
   /** 라이브저니 웹 카메라로 찍은 파일명(capture-타임스탬프.jpg) — 첫 장만 배지에 사용 */
   const isInAppCamera = useMemo(() => {
@@ -2194,12 +2211,13 @@ const UploadScreen = () => {
                   <input
                     className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl border border-primary-soft bg-white focus:border-primary focus:ring-2 focus:ring-primary-soft min-h-[40px] h-10 px-3 text-sm font-normal placeholder:text-gray-400"
                     placeholder="예: 대구 송해공원"
-                    value={combinedLocation}
+                    value={formData.locationLine ?? combinedLocation}
                     onChange={(e) => {
-                      const line = e.target.value;
+                      const line = e.target.value; // 공백/끝 공백 포함 원문 유지
                       const { region, place } = splitLocationForForm(line);
                       setFormData((prev) => ({
                         ...prev,
+                        locationLine: line,
                         locationRegion: region,
                         locationPlace: place,
                       }));

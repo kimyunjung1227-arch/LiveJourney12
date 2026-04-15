@@ -2,9 +2,6 @@ import React from 'react';
 import { getDisplayImageUrl } from '../api/upload';
 import { getMapThumbnailUri, toMediaStr } from '../utils/postMedia';
 
-/** 핫플 사유 뱃지 — EXIF와 구분해 중립 톤으로 통일 */
-const HOT_INDICATOR_BG = 'rgba(15, 23, 42, 0.88)';
-
 /**
  * 메인 실시간 핫플 / 더보기 화면 — 동일 카드 UI (마크업·스타일 통일)
  */
@@ -23,12 +20,9 @@ const HotFeedCard = ({
         title,
         weather,
         hasWeather,
-        regionShort,
         hotReasonLabel,
         hotReasonIcon,
-        cityDongLine,
         captionForCard,
-        photoCategoryLabels,
         avatars,
     } = cardProps;
     const likeCount = Number(post?.likes ?? post?.likeCount ?? 0) || 0;
@@ -49,6 +43,21 @@ const HotFeedCard = ({
             const withHash = t.startsWith('#') ? t : `#${t}`;
             return withHash.replace(/_+/g, ' ');
         });
+
+    const tagChipStyle = {
+        fontSize: 11,
+        fontWeight: 800,
+        color: '#0f172a',
+        background: 'rgba(38, 198, 218, 0.14)',
+        border: '1px solid rgba(38, 198, 218, 0.30)',
+        padding: '3px 8px',
+        borderRadius: 999,
+        lineHeight: 1.2,
+        maxWidth: '100%',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+    };
 
     return (
         <div
@@ -183,80 +192,40 @@ const HotFeedCard = ({
             <div style={{ padding: '8px 2px 2px', background: 'transparent', border: 'none', boxShadow: 'none' }}>
                 <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{title}</h4>
                 <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', background: 'transparent', boxShadow: 'none' }}>{captionForCard}</p>
-                {hotTags.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {(hotTags.length > 0 || hasWeather) && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, alignItems: 'center' }}>
                         {hotTags.map((t) => (
                             <span
                                 key={`${post?.id || 'post'}-hot-tag-${t}`}
-                                style={{
-                                    fontSize: 11,
-                                    fontWeight: 800,
-                                    color: '#0f172a',
-                                    background: 'rgba(38, 198, 218, 0.14)',
-                                    border: '1px solid rgba(38, 198, 218, 0.30)',
-                                    padding: '3px 8px',
-                                    borderRadius: 999,
-                                    lineHeight: 1.2,
-                                    maxWidth: '100%',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                }}
+                                style={tagChipStyle}
                                 title={t}
                             >
                                 {t}
                             </span>
                         ))}
-                    </div>
-                )}
-                {(photoCategoryLabels?.length > 0 || cityDongLine || regionShort || hasWeather) && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, flex: 1, minWidth: 0, alignItems: 'center' }}>
-                            {cityDongLine ? (
-                                <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {cityDongLine}
+                        {hasWeather ? (
+                            <span
+                                key={`${post?.id || 'post'}-weather`}
+                                style={{
+                                    ...tagChipStyle,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    whiteSpace: 'nowrap',
+                                }}
+                                title={
+                                    weather.condition && weather.condition !== '-'
+                                        ? `${weather.temperature} ${weather.condition}`
+                                        : String(weather.temperature || '')
+                                }
+                            >
+                                {weather.icon ? <span style={{ fontSize: 12, flexShrink: 0 }}>{weather.icon}</span> : null}
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {weather.temperature}
+                                    {weather.condition && weather.condition !== '-' ? ` ${weather.condition}` : ''}
                                 </span>
-                            ) : (photoCategoryLabels?.length > 0
-                                ? photoCategoryLabels.map((label, i) => (
-                                    <span
-                                        key={`${post.id}-cat-${i}`}
-                                        style={{
-                                            fontSize: 10,
-                                            fontWeight: 600,
-                                            color: '#4b5563',
-                                            background: '#f3f4f6',
-                                            padding: '2px 6px',
-                                            borderRadius: 6,
-                                        }}
-                                    >
-                                        {label}
-                                    </span>
-                                ))
-                                : null)}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                            {hasWeather ? (
-                                <div
-                                    style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: 4,
-                                        background: 'rgba(15,23,42,0.08)',
-                                        padding: '3px 8px',
-                                        borderRadius: 999,
-                                        fontSize: 11,
-                                        fontWeight: 600,
-                                        color: '#374151',
-                                    }}
-                                >
-                                    {weather.icon && <span style={{ fontSize: 12 }}>{weather.icon}</span>}
-                                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}>
-                                        {weather.temperature}
-                                        {weather.condition && weather.condition !== '-' ? ` ${weather.condition}` : ''}
-                                    </span>
-                                </div>
-                            ) : null}
-                        </div>
+                            </span>
+                        ) : null}
                     </div>
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, gap: 8 }}>

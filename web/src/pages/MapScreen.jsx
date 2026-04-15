@@ -671,7 +671,7 @@ const MapScreen = () => {
     [query],
   );
 
-  const onMyLocation = useCallback(() => {
+  const requestMyLocationAndCenter = useCallback(() => {
     if (!navigator?.geolocation) {
       logger.warn(t.warnGeoUnsupported);
       return;
@@ -690,6 +690,15 @@ const MapScreen = () => {
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 },
     );
   }, []);
+
+  /** 첫 진입 시 서울 기본 중심 대신 사용자 위치로 맞춤 */
+  useEffect(() => {
+    requestMyLocationAndCenter();
+  }, [requestMyLocationAndCenter]);
+
+  const onMyLocation = useCallback(() => {
+    requestMyLocationAndCenter();
+  }, [requestMyLocationAndCenter]);
 
   // peek(기본)에서 사진이 바로 보이도록 조금 더 크게
   const sheetHeightClass = sheetMode === 'expanded' ? 'h-[100dvh]' : 'h-[32vh]';
