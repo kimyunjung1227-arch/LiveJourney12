@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, RefreshCw, LocateFixed, Flower2, UtensilsCrossed, MapPin, HelpCircle, X } from 'lucide-react';
+import { ArrowLeft, Search, RefreshCw, LocateFixed, X } from 'lucide-react';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getDisplayImageUrl } from '../api/upload';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
@@ -16,8 +16,6 @@ const DEFAULT_CENTER = { lat: 37.5665, lng: 126.9780 };
 const PRIMARY_HEX = '#26C6DA';
 
 const GEO_CACHE_KEY = '__lj_map_geo_cache_v3';
-
-const ICON_CLASS = 'h-[15px] w-[15px] shrink-0 opacity-[0.72]';
 
 const escapeHtmlAttr = (value) => {
   if (value == null) return '';
@@ -55,7 +53,6 @@ const t = {
   myLocation: '\ub0b4 \uc704\uce58',
   sheetToggle: '\ubc14\ud2f7\uc2dc\ud2b8 \ud655\uc7a5/\ucd95\uc18c',
   nearbyTitle: '\uc8fc\ubcc0 \uc0ac\uc9c4',
-  morePhotos: '\ub354\ubcf4\uae30',
   showPhotosAgain: '\uc0ac\uc9c4 \ub2e4\uc2dc \ubcf4\uae30',
   close: '\ub2eb\uae30',
   postsSummary: (inView, total) =>
@@ -201,10 +198,11 @@ function postTextBlob(post) {
 /**
  * @param {'bloom'|'food'|'places'} chip
  */
-function matchesMapFilter(post, chip) {
+function matchesMapFilter(post, selectedFilters) {
+  if (!Array.isArray(selectedFilters) || selectedFilters.length === 0) return true;
   const blob = postTextBlob(post);
-  if (chip === 'bloom') {
-    return [
+  const matchBloom = () =>
+    [
       '\uac1c\ud654',
       '\ubc94\uaf43',
       '\uaf43',
@@ -215,9 +213,8 @@ function matchesMapFilter(post, chip) {
       'sakura',
       '\uaf43\ub180\uc774',
     ].some((k) => blob.includes(k.toLowerCase()));
-  }
-  if (chip === 'food') {
-    return [
+  const matchFood = () =>
+    [
       '\ub9db\uc9d1',
       '\uc74c\uc2dd',
       '\uc2dd\ub2f9',
@@ -230,9 +227,8 @@ function matchesMapFilter(post, chip) {
       'cafe',
       'restaurant',
     ].some((k) => blob.includes(k.toLowerCase()));
-  }
-  if (chip === 'places') {
-    return [
+  const matchPlaces = () =>
+    [
       '\uac00\ubcfc\ub9cc',
       '\uba85\uc18c',
       '\uad00\uad11',
@@ -248,8 +244,13 @@ function matchesMapFilter(post, chip) {
       '\uad00\ub9ac',
       '\uc5b4\ud2b8',
     ].some((k) => blob.includes(k.toLowerCase()));
-  }
-  return true;
+
+  return selectedFilters.some((f) => {
+    if (f === 'bloom') return matchBloom();
+    if (f === 'food') return matchFood();
+    if (f === 'places') return matchPlaces();
+    return true;
+  });
 }
 
 function pointInBounds(lat, lng, bounds) {
@@ -263,6 +264,12 @@ const chipClass = (active) =>
   active
     ? 'inline-flex shrink-0 items-center gap-1.5 rounded-full border border-primary bg-white px-3.5 py-2 text-sm font-semibold text-primary shadow-sm whitespace-nowrap'
     : 'inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-white px-3.5 py-2 text-sm font-medium text-gray-600 shadow-sm whitespace-nowrap';
+
+const msIcon = (name) => (
+  <span className="material-symbols-outlined text-[18px] leading-none" style={{ fontVariationSettings: "'wght' 300" }}>
+    {name}
+  </span>
+);
 
 const MapScreen = () => {
   const navigate = useNavigate();
@@ -289,7 +296,7 @@ const MapScreen = () => {
   const [postsWithCoords, setPostsWithCoords] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
 
-  const [activeChip, setActiveChip] = useState('bloom');
+  const [selectedFilters, setSelectedFilters] = useState(['bloom']);
   const geoCache = useMemo(() => readGeoCache(), []);
 
   const filterScroll = useHorizontalDragScroll();
@@ -352,9 +359,16 @@ const MapScreen = () => {
   }, [resolveCoordsForPost]);
 
   const postsFiltered = useMemo(
-    () => postsWithCoords.filter((p) => matchesMapFilter(p, activeChip)),
-    [postsWithCoords, activeChip],
+    () => postsWithCoords.filter((p) => matchesMapFilter(p, selectedFilters)),
+    [postsWithCoords, selectedFilters],
   );
+
+  const toggleFilter = useCallback((key) => {
+    setSelectedFilters((prev) => {
+      const arr = Array.isArray(prev) ? prev : [];
+      return arr.includes(key) ? arr.filter((x) => x !== key) : [...arr, key];
+    });
+  }, []);
 
   const postsInViewport = useMemo(() => {
     return postsFiltered.filter((p) => pointInBounds(p.__coords.lat, p.__coords.lng, mapBounds));
@@ -654,15 +668,8 @@ const MapScreen = () => {
     );
   }, []);
 
-  const locateBtnBottom =
-    sheetMode === 'hidden'
-      ? 'bottom-24'
-      : sheetMode === 'expanded'
-        ? 'bottom-[62%]'
-        : 'bottom-[26%]';
-
   // peek(기본)에서 사진이 바로 보이도록 조금 더 크게
-  const sheetHeightClass = sheetMode === 'expanded' ? 'h-[92vh]' : 'h-[30vh]';
+  const sheetHeightClass = sheetMode === 'expanded' ? 'h-[100dvh]' : 'h-[32vh]';
 
   return (
     <div className="relative w-full h-[100dvh] bg-gray-100 overflow-hidden font-sans">
@@ -718,35 +725,24 @@ const MapScreen = () => {
           <button
             type="button"
             onClick={() => navigate('/map/ask-situation')}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-sm font-semibold text-white shadow-sm whitespace-nowrap"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-primary/20 bg-primary-10 px-3.5 py-2 text-sm font-semibold text-primary shadow-sm whitespace-nowrap"
           >
-            <HelpCircle className={ICON_CLASS} strokeWidth={1.5} />
+            {msIcon('help')}
             <span>{t.situationCta}</span>
           </button>
-          <button type="button" className={chipClass(activeChip === 'bloom')} onClick={() => setActiveChip('bloom')}>
-            <Flower2 className={ICON_CLASS} strokeWidth={1.5} />
+          <button type="button" className={chipClass(selectedFilters.includes('bloom'))} onClick={() => toggleFilter('bloom')}>
+            {msIcon('local_florist')}
             <span>{t.chipBloom}</span>
           </button>
-          <button type="button" className={chipClass(activeChip === 'food')} onClick={() => setActiveChip('food')}>
-            <UtensilsCrossed className={ICON_CLASS} strokeWidth={1.5} />
+          <button type="button" className={chipClass(selectedFilters.includes('food'))} onClick={() => toggleFilter('food')}>
+            {msIcon('restaurant')}
             <span>{t.chipFood}</span>
           </button>
-          <button type="button" className={chipClass(activeChip === 'places')} onClick={() => setActiveChip('places')}>
-            <MapPin className={ICON_CLASS} strokeWidth={1.5} />
+          <button type="button" className={chipClass(selectedFilters.includes('places'))} onClick={() => toggleFilter('places')}>
+            {msIcon('place')}
             <span>{t.chipPlaces}</span>
           </button>
         </div>
-      </div>
-
-      <div className={`absolute right-4 z-10 flex justify-end transition-all duration-300 ease-in-out ${locateBtnBottom}`}>
-        <button
-          type="button"
-          className="rounded-full bg-white p-3.5 text-primary shadow-md ring-1 ring-primary/20 transition hover:bg-primary-soft"
-          onClick={onMyLocation}
-          aria-label={t.myLocation}
-        >
-          <LocateFixed className="h-6 w-6" />
-        </button>
       </div>
 
       {sheetMode === 'hidden' && (
@@ -782,15 +778,14 @@ const MapScreen = () => {
             <h2 className="text-base font-bold text-gray-900">{t.nearbyTitle}</h2>
             <div className="flex items-center gap-2">
               <span className="text-[11px] text-gray-400">{t.postsSummary(sheetStripPosts.length, postsFiltered.length)}</span>
-              {sheetPhotoPosts.length > 0 && (
-                <button
-                  type="button"
-                  onClick={openMorePhotos}
-                  className="shrink-0 rounded-full border border-primary/30 bg-primary-5 px-3 py-1 text-xs font-semibold text-primary"
-                >
-                  {t.morePhotos}
-                </button>
-              )}
+              <button
+                type="button"
+                className="rounded-full bg-white p-2 text-primary shadow-sm ring-1 ring-primary/20"
+                onClick={onMyLocation}
+                aria-label={t.myLocation}
+              >
+                <LocateFixed className="h-5 w-5" />
+              </button>
             </div>
           </div>
 
@@ -813,22 +808,25 @@ const MapScreen = () => {
                   <p className="mt-2 max-w-sm px-2 text-center text-xs text-gray-400">{t.emptyHint}</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                   {sheetPhotoPosts.map((p) => {
                     const thumb = getDisplayImageUrl(p.thumbnail || (Array.isArray(p.images) ? p.images[0] : ''));
+                    const label = String(p.placeName || p.location || p.region || '').trim();
                     return (
                       <button
                         key={p.id}
                         type="button"
                         onClick={() => panToPost(p)}
-                        className="aspect-square overflow-hidden bg-gray-100 ring-1 ring-gray-200/80"
-                        style={{ borderRadius: 3 }}
+                        className="flex w-[104px] shrink-0 flex-col gap-1"
                       >
-                        {thumb ? (
-                          <img src={thumb} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center bg-primary-10 text-primary">·</div>
-                        )}
+                        <div className="aspect-square overflow-hidden bg-gray-100 ring-1 ring-gray-200/80" style={{ borderRadius: 3 }}>
+                          {thumb ? (
+                            <img src={thumb} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-primary-10 text-primary">·</div>
+                          )}
+                        </div>
+                        <div className="truncate text-[11px] font-medium text-gray-500">{label}</div>
                       </button>
                     );
                   })}
@@ -849,19 +847,22 @@ const MapScreen = () => {
                 >
                   {sheetStripPosts.map((p) => {
                     const thumb = getDisplayImageUrl(p.thumbnail || (Array.isArray(p.images) ? p.images[0] : ''));
+                    const label = String(p.placeName || p.location || p.region || '').trim();
                     return (
                       <button
                         key={p.id}
                         type="button"
                         onClick={() => panToPost(p)}
-                        className="h-[104px] w-[104px] shrink-0 snap-start overflow-hidden bg-gray-100 ring-1 ring-gray-200/80"
-                        style={{ borderRadius: 3 }}
+                        className="flex w-[104px] shrink-0 snap-start flex-col gap-1"
                       >
-                        {thumb ? (
-                          <img src={thumb} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center bg-primary-10 text-primary">·</div>
-                        )}
+                        <div className="h-[104px] w-[104px] overflow-hidden bg-gray-100 ring-1 ring-gray-200/80" style={{ borderRadius: 3 }}>
+                          {thumb ? (
+                            <img src={thumb} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-primary-10 text-primary">·</div>
+                          )}
+                        </div>
+                        <div className="truncate text-[11px] font-medium text-gray-500">{label}</div>
                       </button>
                     );
                   })}
