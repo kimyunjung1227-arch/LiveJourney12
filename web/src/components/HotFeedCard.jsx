@@ -235,28 +235,6 @@ const HotFeedCard = ({
                                 : null)}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                            {regionShort ? (
-                                <div
-                                    style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: 4,
-                                        background: 'rgba(15,23,42,0.08)',
-                                        padding: '3px 8px',
-                                        borderRadius: 999,
-                                        fontSize: 11,
-                                        fontWeight: 600,
-                                        color: '#374151',
-                                        maxWidth: 132,
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap',
-                                    }}
-                                >
-                                    <span className="material-symbols-outlined" style={{ fontSize: 14, flexShrink: 0 }}>location_on</span>
-                                    <span>{regionShort}</span>
-                                </div>
-                            ) : null}
                             {hasWeather ? (
                                 <div
                                     style={{
