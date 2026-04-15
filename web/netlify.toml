@@ -1,0 +1,53 @@
+# Netlify 배포 설정
+[build]
+  publish = "dist"
+  command = "npm install && npm run build"
+
+# 환경 변수
+[build.environment]
+  NODE_VERSION = "18"
+
+# SPA 라우팅 설정 (모든 경로를 index.html로)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# 헤더 설정
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# 정적 파일 캐싱
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# 이미지 최적화
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

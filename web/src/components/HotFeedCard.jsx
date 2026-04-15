@@ -32,10 +32,23 @@ const HotFeedCard = ({
         avatars,
     } = cardProps;
     const likeCount = Number(post?.likes ?? post?.likeCount ?? 0) || 0;
-    const rank = Number(post?._rank);
-    const hasRank = Number.isFinite(rank) && rank > 0;
     const safeHotReasonLabel = String(hotReasonLabel || '').trim() || '실시간';
     const safeHotReasonIcon = String(hotReasonIcon || '').trim() || 'bolt';
+    const hotTagsRaw =
+        (Array.isArray(post?.reasonTags) && post.reasonTags.length > 0
+            ? post.reasonTags
+            : (Array.isArray(post?.aiHotTags) && post.aiHotTags.length > 0
+                ? post.aiHotTags
+                : (Array.isArray(post?.tags) ? post.tags : []))) || [];
+    const hotTags = hotTagsRaw
+        .map((t) => String(typeof t === 'string' ? t : (t?.name || t?.label || '')))
+        .map((t) => t.trim())
+        .filter(Boolean)
+        .slice(0, 3)
+        .map((t) => {
+            const withHash = t.startsWith('#') ? t : `#${t}`;
+            return withHash.replace(/_+/g, ' ');
+        });
 
     return (
         <div
@@ -75,32 +88,6 @@ const HotFeedCard = ({
                         maxWidth: 'calc(100% - 100px)',
                     }}
                 >
-                    {hasRank ? (
-                        <div
-                            aria-label={`랭킹 ${rank}위`}
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                minWidth: 40,
-                                height: 40,
-                                padding: '0 12px',
-                                borderRadius: 9999,
-                                background: 'rgba(38, 198, 218, 0.92)',
-                                color: '#fff',
-                                fontSize: 15,
-                                fontWeight: 950,
-                                letterSpacing: -0.4,
-                                backdropFilter: 'blur(10px)',
-                                WebkitBackdropFilter: 'blur(10px)',
-                                boxShadow: '0 8px 20px rgba(15, 23, 42, 0.24)',
-                                border: '1px solid rgba(255,255,255,0.55)',
-                                textShadow: '0 1px 10px rgba(0,0,0,0.22)',
-                            }}
-                        >
-                            {rank}
-                        </div>
-                    ) : null}
                     <span
                         title="이 게시물이 핫플에 오른 이유"
                         style={{
@@ -115,7 +102,7 @@ const HotFeedCard = ({
                             fontWeight: 850,
                             letterSpacing: -0.2,
                             boxShadow: '0 6px 16px rgba(0,0,0,0.22)',
-                            maxWidth: hasRank ? 'calc(100% - 54px)' : '100%',
+                            maxWidth: '100%',
                             border: '1px solid rgba(255,255,255,0.22)',
                         }}
                     >
@@ -196,6 +183,32 @@ const HotFeedCard = ({
             <div style={{ padding: '8px 2px 2px', background: 'transparent', border: 'none', boxShadow: 'none' }}>
                 <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{title}</h4>
                 <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', background: 'transparent', boxShadow: 'none' }}>{captionForCard}</p>
+                {hotTags.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                        {hotTags.map((t) => (
+                            <span
+                                key={`${post?.id || 'post'}-hot-tag-${t}`}
+                                style={{
+                                    fontSize: 11,
+                                    fontWeight: 800,
+                                    color: '#0f172a',
+                                    background: 'rgba(38, 198, 218, 0.14)',
+                                    border: '1px solid rgba(38, 198, 218, 0.30)',
+                                    padding: '3px 8px',
+                                    borderRadius: 999,
+                                    lineHeight: 1.2,
+                                    maxWidth: '100%',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                }}
+                                title={t}
+                            >
+                                {t}
+                            </span>
+                        ))}
+                    </div>
+                )}
                 {(photoCategoryLabels?.length > 0 || cityDongLine || regionShort || hasWeather) && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, flex: 1, minWidth: 0, alignItems: 'center' }}>
