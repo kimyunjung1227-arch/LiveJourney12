@@ -6,7 +6,6 @@ import React, { memo } from 'react';
  */
 const MagazineFieldVoices = memo(function MagazineFieldVoices({ voices = [], className = '', title = '실시간 여행팁' }) {
   const list = Array.isArray(voices) ? voices.filter((v) => v && String(v.text || '').trim()) : [];
-  if (list.length === 0) return null;
 
   return (
     <div className={className || undefined}>
@@ -22,6 +21,11 @@ const MagazineFieldVoices = memo(function MagazineFieldVoices({ voices = [], cla
           {title}
         </h4>
       </div>
+      {list.length === 0 ? (
+        <div className="rounded-lg border border-zinc-200/70 bg-zinc-50/70 px-3 py-2 text-[12px] font-medium text-gray-500 dark:border-zinc-700/70 dark:bg-zinc-900/40 dark:text-gray-400">
+          아직 공유된 실시간 팁이 없어요. 첫 번째 한마디를 남겨보세요!
+        </div>
+      ) : null}
       <div
         className="-mx-0.5 flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden mt-1"
         role="list"
