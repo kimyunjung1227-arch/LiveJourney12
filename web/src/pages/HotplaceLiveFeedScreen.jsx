@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { getDisplayImageUrl } from '../api/upload';
 import { getGridCoverDisplay } from '../utils/postMedia';
+import { formatExifDate } from '../utils/exifExtractor';
 import {
   feedGridCardBoxFlat,
   feedGridImageBoxFlat,
@@ -33,6 +34,34 @@ const hasExifForPost = (post) => {
     post?.photoDate ||
     (ex && typeof ex === 'object' && (ex.photoDate || ex.gpsCoordinates || ex.cameraMake || ex.cameraModel))
   );
+};
+
+const getExifTagForPost = (post) => {
+  const photoDate = post?.photoDate || post?.exifData?.photoDate || null;
+  const ex = post?.exifData && typeof post.exifData === 'object' ? post.exifData : null;
+  const cameraMake = ex?.cameraMake ? String(ex.cameraMake).trim() : '';
+  const cameraModel = ex?.cameraModel ? String(ex.cameraModel).trim() : '';
+  const cameraText = `${cameraMake} ${cameraModel}`.trim();
+
+  let timeText = '';
+  let fullTimeText = '';
+  if (photoDate) {
+    const d = new Date(photoDate);
+    if (!Number.isNaN(d.getTime())) {
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      timeText = `${hh}:${mm}`;
+      fullTimeText = d.toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+  }
+
+  const dayText = photoDate ? (formatExifDate(photoDate) || '') : '';
+  const parts = [dayText, timeText].filter(Boolean);
+  const when = parts.join(' ');
+  const text = [when, cameraText].filter(Boolean).join(' · ');
+  const title = [fullTimeText ? `촬영: ${fullTimeText}` : '', cameraText ? `기기: ${cameraText}` : ''].filter(Boolean).join('\n');
+
+  return text ? { text, title } : null;
 };
 
 const getPlaceKeyForPost = (post) =>
@@ -211,7 +240,7 @@ export default function HotplaceLiveFeedScreen() {
                   className="rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-extrabold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
                   title="촬영 정보(EXIF) 기반"
                 >
-                  EXIF
+                  EXIF 태그
                 </span>
               ) : null}
             </div>
@@ -229,6 +258,7 @@ export default function HotplaceLiveFeedScreen() {
               >
                 {postsForPlace.map((post) => {
                   const cover = getGridCoverDisplay(post, getDisplayImageUrl);
+                  const exifTag = getExifTagForPost(post);
                   return (
                     <div
                       key={String(post.id)}
@@ -252,13 +282,13 @@ export default function HotplaceLiveFeedScreen() {
                             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                           />
                         ) : null}
-                        {hasExifForPost(post) ? (
+                        {hasExifForPost(post) && exifTag ? (
                           <div
-                            className="absolute left-2 top-2 z-[2] rounded-full border px-2 py-1 text-[10px] font-extrabold"
+                            className="absolute left-2 top-2 z-[2] max-w-[92%] rounded-full border px-2 py-1 text-[10px] font-extrabold truncate"
                             style={{ borderColor: 'rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.14)', color: '#064e3b' }}
-                            title="촬영 정보(EXIF) 확인됨"
+                            title={exifTag.title || exifTag.text}
                           >
-                            EXIF
+                            {exifTag.text}
                           </div>
                         ) : null}
                       </div>
