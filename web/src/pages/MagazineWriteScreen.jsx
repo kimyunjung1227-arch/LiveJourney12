@@ -360,7 +360,6 @@ const MagazineWriteScreen = () => {
                     variant="detail"
                     slides={previewSlides}
                     postsPerSlide={previewPostsPerSlide}
-                    hideMedia
                   />
                 </div>
               ) : (
@@ -411,11 +410,7 @@ const MagazineWriteScreen = () => {
                       type="button"
                       onClick={() => {
                         const ok = applyPaste(pasteText);
-                        if (!ok) {
-                          alert(
-                            '형식을 인식하지 못했어요. (1., 2., 3. 섹션/장소 이름/위치정보/장소 설명 문구가 있는지 확인해 주세요)'
-                          );
-                        }
+                        if (!ok) return;
                       }}
                       className="rounded-full bg-gray-900 text-white px-4 py-2 text-[12px] font-semibold"
                     >

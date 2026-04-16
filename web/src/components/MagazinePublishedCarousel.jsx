@@ -108,7 +108,7 @@ function AroundRecommendGrid({ items }) {
         {items.map((ar) => (
           <div
             key={ar.id}
-            className="min-w-0 overflow-hidden rounded-lg border border-zinc-100 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900/40"
+            className="min-w-0 overflow-hidden rounded-md border border-zinc-100 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900/40"
           >
             <div className="relative h-[52px] w-full bg-zinc-100 dark:bg-zinc-800">
               {ar.image ? (
