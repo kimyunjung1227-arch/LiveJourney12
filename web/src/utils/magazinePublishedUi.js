@@ -168,6 +168,17 @@ export const buildSlidesForMagazine = (mag, allPosts, gridPosts) => {
       const editorDescription = String(sec?.description || '').trim();
       const aroundDisplay = buildAiAroundSuggestions(locKey, idx, pickFirstMediaForKeyword);
       const locationInfoLine = String(sec?.locationInfo || '').trim();
+      const moodTitle = String(sec?.moodTitle || '').trim();
+      const aroundNames = Array.isArray(sec?.around) ? sec.around : [];
+      const aroundFromEditor = aroundNames
+        .map((name, ai) => {
+          const nm = String(name || '').trim();
+          if (!nm) return null;
+          const image = pickFirstMediaForKeyword(nm);
+          return { id: `around-editor-${idx}-${ai}`, name: nm, desc: '', image };
+        })
+        .filter(Boolean)
+        .slice(0, 6);
 
       return {
         kind: 'magazine',
@@ -175,8 +186,8 @@ export const buildSlidesForMagazine = (mag, allPosts, gridPosts) => {
         magTitle,
         sectionIndex: idx,
         sectionLabel: `장소 ${idx + 1}`,
-        placeTitle: locKey || `장소 ${idx + 1}`,
-        locationInfoLine,
+        placeTitle: moodTitle || locKey || `장소 ${idx + 1}`,
+        locationInfoLine: [locKey, locationInfoLine].filter(Boolean).join(' · '),
         description:
           editorDescription ||
           '장소 설명은 관리자 매거진 발행 화면에서 입력한 내용이 여기에 표시됩니다.',
@@ -189,7 +200,7 @@ export const buildSlidesForMagazine = (mag, allPosts, gridPosts) => {
         fieldVoices: buildFieldVoicesFromPosts(matchedPosts),
         locKey,
         matchedPosts,
-        aroundDisplay,
+        aroundDisplay: aroundFromEditor.length > 0 ? aroundFromEditor : aroundDisplay,
       };
     });
   }

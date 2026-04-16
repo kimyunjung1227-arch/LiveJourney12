@@ -303,6 +303,7 @@ const MagazineDetailScreen = () => {
           sliderMedia,
           hasMoreMedia,
           author: { username: publishedMagazine.author || 'LiveJourney', avatar: null, timeLabel: '' },
+          moodTitle: String(s?.moodTitle || '').trim(),
           description: String(s?.description || '').trim(),
           around,
           mediaCount: uniqMedia.length,
@@ -552,6 +553,7 @@ const MagazineDetailScreen = () => {
                       })
                       .filter((x) => x && x.name);
                     const mainImage = media[0] || heroImage;
+                    const moodTitle = String(sec?.moodTitle || '').trim();
 
                     return (
                       <article key={sec.locKey || index} className="px-4">
@@ -560,8 +562,13 @@ const MagazineDetailScreen = () => {
                           <div className="mb-5 border-t border-zinc-200/70 dark:border-zinc-800" />
                         ) : null}
                         <h3 className="m-0 text-left text-[18px] font-extrabold text-gray-900 dark:text-gray-50 leading-snug">
-                          {sec.locKey}
+                          {moodTitle || sec.locKey}
                         </h3>
+                        {moodTitle ? (
+                          <div className="mt-1 text-[13px] font-semibold text-gray-700 dark:text-gray-200">
+                            {sec.locKey}
+                          </div>
+                        ) : null}
 
                         {/* 섹션 대표 이미지 */}
                         {mainImage && (
@@ -590,7 +597,7 @@ const MagazineDetailScreen = () => {
                         {aroundSpots.length > 0 && (
                           <div className="mt-3 pt-1">
                             <div className="mb-2 text-[13px] font-extrabold text-gray-900 dark:text-gray-50">
-                              📍 {sec.locKey} 추천 명소
+                              주변 맛집 · 명소 추천
                             </div>
                             <div
                               className="flex cursor-grab touch-pan-x select-none gap-3 overflow-x-auto snap-x snap-mandatory [-webkit-overflow-scrolling:touch] scrollbar-hide pb-2 active:cursor-grabbing"
