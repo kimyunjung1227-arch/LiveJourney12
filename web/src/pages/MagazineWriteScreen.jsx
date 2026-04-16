@@ -356,12 +356,7 @@ const MagazineWriteScreen = () => {
               {/* MagazineDetailScreen(발행 매거진)과 동일: 상단 미리보기 = 캐러셀만 */}
               {previewSlides.length > 0 ? (
                 <div className="w-full shrink-0">
-                  <MagazinePublishedCarousel
-                    variant="detail"
-                    slides={previewSlides}
-                    postsPerSlide={previewPostsPerSlide}
-                    hideMedia
-                  />
+                  <MagazinePublishedCarousel variant="detail" slides={previewSlides} postsPerSlide={previewPostsPerSlide} />
                 </div>
               ) : (
                 <div className="w-full shrink-0 flex flex-col items-center justify-center px-2 py-10 text-center">
