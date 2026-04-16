@@ -314,7 +314,7 @@ const MagazineWriteScreen = () => {
             </button>
           </div>
           <h1 className="text-[17px] font-extrabold text-text-primary-light dark:text-text-primary-dark m-0 truncate text-center max-w-[min(280px,70vw)]">
-            {previewSlides.length > 0 ? '라이브매거진' : '라이브매거진 발행'}
+            {previewSlides.length > 0 ? '여행 매거진' : '매거진 발행'}
           </h1>
           <div className="flex shrink-0 items-center justify-end gap-2 min-w-0">
             <button

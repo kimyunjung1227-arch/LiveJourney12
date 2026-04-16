@@ -164,7 +164,7 @@ export const buildSlidesForMagazine = (mag, allPosts, gridPosts) => {
   };
 
   if (mag && Array.isArray(mag.sections) && mag.sections.length > 0) {
-    const magTitle = String(mag.title || '').trim() || '라이브매거진';
+    const magTitle = String(mag.title || '').trim() || '여행 매거진';
     const pickFirstMediaForKeyword = (keyword) => {
       const k = String(keyword || '').trim().toLowerCase();
       if (!k) return '';
@@ -233,6 +233,33 @@ export const buildMagazineListSlides = (published, allPosts, gridPosts) => {
   const mag = published[0];
   const slides = buildSlidesForMagazine(mag, allPosts, gridPosts);
   if (slides.length > 0) return slides;
+
+  const p0 = gridPosts[0];
+  if (p0) {
+    const loc =
+      normalizeSpace(p0.detailedLocation || p0.placeName || p0.location || '').split(' ').slice(0, 4).join(' ') ||
+      '지금 여행지';
+    return [
+      {
+        kind: 'feed',
+        mag: null,
+        magTitle: '지금 꼭 볼 실시간 여행지',
+        sectionIndex: 0,
+        placeTitle: loc,
+        description:
+          String(p0.note || p0.content || '').trim().slice(0, 200) ||
+          '라이브저니에 올라온 최근 사진을 모았어요.',
+        image: getMapThumbnailUri(p0),
+        timeLabel: getTimeAgo(p0.timestamp || p0.createdAt),
+        askQuery: loc,
+        postId: p0.id,
+        regionSummary: buildRegionSummary([p0]),
+        fieldVoices: buildFieldVoicesFromPosts([p0], { max: 2 }),
+        locKey: loc.toLowerCase(),
+        matchedPosts: [p0],
+      },
+    ];
+  }
   return [];
 };
 

@@ -94,8 +94,10 @@ const BottomNavigation = React.memo(() => {
 
   // 현재 활성화된 탭 확인 (useCallback)
   const isActive = useCallback((path) => {
-    if (path === '/magazine') {
-      return location.pathname.startsWith('/magazine') ||
+    if (path === '/main') {
+      return location.pathname === '/main' ||
+        location.pathname === '/' ||
+        location.pathname.startsWith('/magazine') ||
         location.pathname.startsWith('/magazines');
     }
     // 검색 탭: /search 이하 경로
@@ -145,12 +147,12 @@ const BottomNavigation = React.memo(() => {
       }}
     >
       <button
-      onClick={() => navigate('/magazine')}
-      className={`flex flex-col items-center justify-center gap-1 py-1.5 ${isActive('/magazine') ? 'text-primary' : 'text-text-subtle-light dark:text-text-subtle-dark hover:text-text-primary-light dark:hover:text-text-primary-dark transition-colors'
+      onClick={() => navigate('/main')}
+      className={`flex flex-col items-center justify-center gap-1 py-1.5 ${isActive('/main') ? 'text-primary' : 'text-text-subtle-light dark:text-text-subtle-dark hover:text-text-primary-light dark:hover:text-text-primary-dark transition-colors'
           }`}
       >
-        <span className="material-symbols-outlined" style={{ fontSize: 26 }}>book_5</span>
-        <span className="text-sm font-bold">라이브매거진</span>
+        <span className="material-symbols-outlined" style={{ fontSize: 26 }}>home</span>
+        <span className="text-sm font-bold">홈</span>
       </button>
       {/* 검색 탭 */}
       <button
