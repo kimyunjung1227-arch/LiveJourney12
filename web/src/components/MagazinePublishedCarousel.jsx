@@ -193,9 +193,11 @@ function MagazinePlaceCardInner({ slide, sectionHeading, heroUrls, heroResetKey,
           </section>
         ) : null}
 
-        <section className={SECTION_DIV}>
-          <MagazineFieldVoices voices={slide.fieldVoices} />
-        </section>
+        {Array.isArray(slide.fieldVoices) && slide.fieldVoices.length > 0 ? (
+          <section className={SECTION_DIV}>
+            <MagazineFieldVoices voices={slide.fieldVoices} />
+          </section>
+        ) : null}
 
         <section className={SECTION_DIV}>
           <AroundRecommendGrid items={slide.aroundDisplay} />

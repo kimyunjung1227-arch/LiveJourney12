@@ -47,24 +47,6 @@ const truncateVoiceText = (s, maxChars) => {
   return `${t.slice(0, Math.max(0, maxChars - 1))}…`;
 };
 
-const summarizeTipText = (raw, maxChars) => {
-  const t = normalizeSpace(String(raw || '').replace(/["“”]/g, '').trim());
-  if (!t) return '';
-
-  // 문장 단위로 1~2개만 뽑아서 한눈에 보이게 요약
-  const parts = t
-    .split(/(?<=[.!?。！？])\s+|\n+/g)
-    .map((s) => normalizeSpace(s))
-    .filter(Boolean);
-
-  const picked = (parts.length ? parts : [t]).slice(0, 2).map((s) => {
-    const hasEnd = /[.!?。！？]$/.test(s);
-    return hasEnd ? s : `${s}.`;
-  });
-
-  return truncateVoiceText(picked.join(' '), maxChars);
-};
-
 /**
  * 장소에 맞는 게시물에서 짧은 글(note/content)만 뽑아 '현장의 목소리'용 데이터 생성
  */
@@ -84,7 +66,7 @@ export const buildFieldVoicesFromPosts = (posts, options = {}) => {
     .slice(0, max)
     .map((p) => ({
       id: String(p.id ?? `voice-${p.timestamp || p.createdAt || Math.random()}`),
-      text: summarizeTipText(String(p.note || p.content || '').trim(), maxChars),
+      text: truncateVoiceText(String(p.note || p.content || '').trim(), maxChars),
       author: getVoiceAuthor(p),
       timeLabel: getTimeAgo(p.timestamp || p.createdAt),
       thumbUrl: mediaUrlsFromPost(p)[0] || '',
