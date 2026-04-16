@@ -26,7 +26,7 @@ const collectHeroUrls = (slide, regionPosts) => {
   return [...set].filter(Boolean).slice(0, 5);
 };
 
-function HeroRotator({ urls, resetKey, timeLabel }) {
+function HeroRotator({ urls, resetKey, timeLabel, hideMedia = false }) {
   const safe = useMemo(() => (Array.isArray(urls) ? urls.filter(Boolean).slice(0, 5) : []), [urls]);
   const swiperRef = useRef(null);
   const [idx, setIdx] = useState(0);
@@ -52,7 +52,7 @@ function HeroRotator({ urls, resetKey, timeLabel }) {
           resistanceRatio={SWIPER_RESISTANCE}
           className="h-full w-full"
         >
-          {safe.length > 0 ? (
+          {!hideMedia && safe.length > 0 ? (
             safe.map((src, i) => (
               <SwiperSlide key={`${resetKey}-hero-${i}`} className="!flex h-full">
                 <div className="relative h-full min-h-0 w-full min-w-0 flex-1 bg-zinc-100 dark:bg-zinc-800">
@@ -69,7 +69,10 @@ function HeroRotator({ urls, resetKey, timeLabel }) {
           ) : (
             <SwiperSlide className="!flex h-full">
               <div className="flex h-full min-h-0 w-full flex-1 items-center justify-center bg-zinc-100 dark:bg-zinc-800">
-                <span className="material-symbols-outlined text-5xl text-zinc-400">photo</span>
+                <div className="flex flex-col items-center gap-1 text-zinc-400">
+                  <span className="material-symbols-outlined text-5xl">hide_image</span>
+                  <span className="text-[11px] font-semibold">미리보기에서는 사진을 숨깁니다</span>
+                </div>
               </div>
             </SwiperSlide>
           )}
@@ -79,7 +82,7 @@ function HeroRotator({ urls, resetKey, timeLabel }) {
             {timeLabel}
           </span>
         </div>
-        {safe.length > 1 ? (
+        {!hideMedia && safe.length > 1 ? (
           <div className="pointer-events-none absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5">
             {safe.map((_, i) => (
               <span
@@ -141,24 +144,45 @@ function AskPlaceButton({ onClick }) {
 }
 
 /** 장소 카드 공통: 제목·사진·본문·요약·현장·주변·질문 (detail / list 동일) */
-function MagazinePlaceCardInner({ slide, sectionHeading, heroUrls, heroResetKey, onAskClick }) {
+function MagazinePlaceCardInner({ slide, sectionHeading, heroUrls, heroResetKey, onAskClick, hideMedia = false }) {
   return (
     <>
       <div className="px-4 pt-4 pb-2">
         <p className="mb-1 m-0 text-[11px] font-extrabold uppercase tracking-wide text-primary">{sectionHeading}</p>
-        <h3 className="m-0 text-lg font-extrabold leading-snug text-gray-900 dark:text-gray-50">{slide.placeTitle}</h3>
-        <div className="mt-1.5 min-h-[2.75rem] text-[12px] font-medium leading-snug text-gray-500 dark:text-gray-400">
-          {slide.locationInfoLine ? <p className="m-0 line-clamp-2">{slide.locationInfoLine}</p> : null}
+        <h3 className="m-0 text-lg font-extrabold leading-snug text-gray-900 dark:text-gray-50">
+          {slide.placeTitle}
+        </h3>
+
+        <div className="mt-2 space-y-2">
+          {slide.locationTitle ? (
+            <div>
+              <p className="m-0 text-[11px] font-bold text-gray-400 dark:text-gray-500">위치이름</p>
+              <p className="m-0 text-[13px] font-semibold leading-snug text-gray-800 dark:text-gray-100">
+                {slide.locationTitle}
+              </p>
+            </div>
+          ) : null}
+          {slide.locationInfoLine ? (
+            <div>
+              <p className="m-0 text-[11px] font-bold text-gray-400 dark:text-gray-500">위치정보</p>
+              <p className="m-0 text-[12px] font-medium leading-snug text-gray-600 dark:text-gray-300">
+                {slide.locationInfoLine}
+              </p>
+            </div>
+          ) : null}
         </div>
       </div>
 
       <div className={SECTION_DIV}>
-        <HeroRotator urls={heroUrls} resetKey={heroResetKey} timeLabel={slide.timeLabel} />
+        <HeroRotator urls={heroUrls} resetKey={heroResetKey} timeLabel={slide.timeLabel} hideMedia={hideMedia} />
       </div>
 
       <div className="px-4 pb-4">
         <section className={SECTION_DIV}>
-          <p className="m-0 text-[14px] leading-relaxed text-gray-700 dark:text-gray-200">{slide.description}</p>
+          <h4 className="m-0 mb-2 text-[12px] font-bold text-gray-900 dark:text-gray-50">장소설명</h4>
+          <p className="m-0 whitespace-pre-wrap text-[14px] leading-relaxed text-gray-700 dark:text-gray-200">
+            {slide.description}
+          </p>
         </section>
 
         {slide.regionSummary ? (
@@ -175,7 +199,9 @@ function MagazinePlaceCardInner({ slide, sectionHeading, heroUrls, heroResetKey,
           </section>
         ) : null}
 
-        <AroundRecommendGrid items={slide.aroundDisplay} />
+        <section className={SECTION_DIV}>
+          <AroundRecommendGrid items={slide.aroundDisplay} />
+        </section>
 
         <div className={SECTION_DIV}>
           <AskPlaceButton onClick={onAskClick} />
@@ -185,7 +211,8 @@ function MagazinePlaceCardInner({ slide, sectionHeading, heroUrls, heroResetKey,
   );
 }
 
-function RealtimePostGrid({ posts, onOpenPost, onOpenMain }) {
+function RealtimePostGrid({ posts, onOpenPost, onOpenMain, hideMedia = false }) {
+  if (hideMedia) return null;
   return (
     <div className="mt-4 border-t border-zinc-100 pt-4 dark:border-zinc-800">
       <div className="mb-2 flex items-center justify-between">
@@ -240,7 +267,7 @@ function RealtimePostGrid({ posts, onOpenPost, onOpenMain }) {
   );
 }
 
-const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list' }) => {
+const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list', hideMedia = false }) => {
   const navigate = useNavigate();
   const placesSwiperRef = useRef(null);
   const [placeSlideIdx, setPlaceSlideIdx] = useState(0);
@@ -337,6 +364,7 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
                       heroUrls={heroUrls}
                       heroResetKey={heroResetKey}
                       onAskClick={(e) => handleAskLight(e, slide)}
+                      hideMedia={hideMedia}
                     />
                   </div>
                 ) : (
@@ -348,6 +376,7 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
                         heroUrls={heroUrls}
                         heroResetKey={heroResetKey}
                         onAskClick={(e) => handleAskLight(e, slide)}
+                        hideMedia={hideMedia}
                       />
                     </div>
                     <button
@@ -360,7 +389,7 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
                   </>
                 )}
 
-                <RealtimePostGrid posts={regionPosts} onOpenPost={openPost} onOpenMain={goMain} />
+                <RealtimePostGrid posts={regionPosts} onOpenPost={openPost} onOpenMain={goMain} hideMedia={hideMedia} />
               </article>
             </SwiperSlide>
           );

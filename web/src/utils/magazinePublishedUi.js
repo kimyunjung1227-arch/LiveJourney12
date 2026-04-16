@@ -187,7 +187,8 @@ export const buildSlidesForMagazine = (mag, allPosts, gridPosts) => {
         sectionIndex: idx,
         sectionLabel: `장소 ${idx + 1}`,
         placeTitle: moodTitle || locKey || `장소 ${idx + 1}`,
-        locationInfoLine: [locKey, locationInfoLine].filter(Boolean).join(' · '),
+        locationTitle: locKey,
+        locationInfoLine,
         description:
           editorDescription ||
           '장소 설명은 관리자 매거진 발행 화면에서 입력한 내용이 여기에 표시됩니다.',
