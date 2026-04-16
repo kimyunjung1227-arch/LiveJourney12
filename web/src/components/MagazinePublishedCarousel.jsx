@@ -309,13 +309,11 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
     e?.stopPropagation?.();
     const placeTitle = String(slide?.placeTitle || '').trim() || '이 장소';
     const askQuery = String(slide?.askQuery || slide?.placeTitle || '').trim() || placeTitle;
-    const locationInfoLine = String(slide?.locationInfoLine || '').trim();
     navigate('/chat', {
       state: {
         magazineAsk: {
           placeTitle,
           askQuery,
-          locationInfoLine,
           suggestedQuestions: [
             '주차장 여유 있나요?',
             '지금 꽃 많이 피었나요?',

@@ -55,9 +55,7 @@ const ChatScreen = () => {
                 <h1 className="m-0 truncate text-lg font-bold tracking-tight text-gray-900 dark:text-white">
                   상황 물어보기
                 </h1>
-                <p className="m-0 truncate text-xs font-medium text-primary">
-                  {ask.locationInfoLine || ask.placeTitle || ask.askQuery}
-                </p>
+                <p className="m-0 truncate text-xs font-medium text-primary">{ask.placeTitle || ask.askQuery}</p>
               </div>
             </div>
           </header>
@@ -90,7 +88,7 @@ const ChatScreen = () => {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={6}
-              className="w-full resize-y rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 text-[14px] text-gray-900 outline-none ring-primary/20 focus:ring-2 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+              className="w-full resize-y rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-[14px] text-gray-900 outline-none ring-primary/20 focus:ring-2 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
               placeholder="예: 웨이팅·주차·혼잡도를 알려 주세요."
             />
             <button
