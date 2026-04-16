@@ -13,13 +13,9 @@ const ChatScreen = () => {
     if (ask?.presetMessage) {
       setMessage(String(ask.presetMessage));
     } else if (ask?.placeTitle) {
-      setMessage('');
+      setMessage(`${ask.placeTitle} 지금 상황이 궁금해요.`);
     }
   }, [ask?.placeTitle, ask?.presetMessage]);
-
-  const suggested = Array.isArray(ask?.suggestedQuestions) && ask.suggestedQuestions.length > 0
-    ? ask.suggestedQuestions
-    : ['주차장 여유 있나요?', '지금 꽃 많이 피었나요?', '웨이팅/혼잡도 어떤가요?'];
 
   const handleSend = () => {
     const text = message.trim();
@@ -64,25 +60,6 @@ const ChatScreen = () => {
             <p className="mb-3 text-[13px] leading-relaxed text-gray-600 dark:text-gray-300">
               아래 내용을 수정해서 보내 주세요. 라이브저니 동행·현장 정보로 연결될 예정이에요.
             </p>
-
-            <div className="mb-4">
-              <p className="mb-2 text-[12px] font-bold text-gray-700 dark:text-gray-200">
-                가장 많이 묻는 실시간 질문
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {suggested.map((q) => (
-                  <button
-                    key={q}
-                    type="button"
-                    onClick={() => setMessage(String(q))}
-                    className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-gray-700 shadow-sm hover:bg-gray-50 active:scale-[0.99] dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <label className="mb-1 block text-[12px] font-semibold text-gray-700 dark:text-gray-200">메시지</label>
             <textarea
               value={message}
