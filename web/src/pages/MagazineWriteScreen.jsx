@@ -270,7 +270,7 @@ const MagazineWriteScreen = () => {
             </button>
           </div>
           <h1 className="text-[17px] font-extrabold text-text-primary-light dark:text-text-primary-dark m-0 truncate text-center max-w-[min(280px,70vw)]">
-            {previewSlides.length > 0 ? '여행 매거진' : '매거진 발행'}
+            {previewSlides.length > 0 ? '라이브매거진' : '라이브매거진 발행'}
           </h1>
           <div className="flex shrink-0 items-center justify-end gap-2 min-w-0">
             <button
@@ -298,7 +298,7 @@ const MagazineWriteScreen = () => {
             <div className="py-12 text-center text-[13px] text-gray-500">권한 확인 중...</div>
           ) : !isAdmin ? (
             <div className="py-12 text-center text-[13px] text-gray-500 dark:text-gray-400">
-              <p className="mb-2 font-semibold text-gray-800 dark:text-gray-100">매거진 발행은 관리자 승인 계정만 가능합니다.</p>
+              <p className="mb-2 font-semibold text-gray-800 dark:text-gray-100">라이브매거진 발행은 관리자 승인 계정만 가능합니다.</p>
               <button
                 type="button"
                 onClick={() => navigate(-1)}
@@ -321,7 +321,7 @@ const MagazineWriteScreen = () => {
                     미리보기를 불러올 수 있어요
                   </p>
                   <p className="m-0 text-[13px] text-gray-500 dark:text-gray-400 max-w-[280px] leading-relaxed">
-                    아래에서 제목과 장소·설명을 입력하면 매거진 상세 화면과 같은 구조로 여기에 표시돼요.
+                    아래에서 제목과 장소·설명을 입력하면 라이브매거진 상세 화면과 같은 구조로 여기에 표시돼요.
                   </p>
                 </div>
               )}
@@ -334,7 +334,7 @@ const MagazineWriteScreen = () => {
                 <div className="rounded-xl border border-zinc-100 bg-white px-3 py-3 shadow-sm dark:border-zinc-800 dark:bg-gray-900/40">
                   <p className="m-0 mb-3 text-[13px] font-bold text-gray-900 dark:text-gray-50">발행 내용 편집</p>
                   <div>
-                    <label className="block mb-2 text-[12px] font-semibold text-gray-700 dark:text-gray-300">매거진 제목</label>
+                    <label className="block mb-2 text-[12px] font-semibold text-gray-700 dark:text-gray-300">라이브매거진 제목</label>
                     <input
                       className="w-full border-b border-zinc-200 dark:border-zinc-700 bg-transparent px-0 py-2.5 text-[16px] font-semibold text-gray-900 dark:text-gray-50 focus:outline-none"
                       placeholder="제목"

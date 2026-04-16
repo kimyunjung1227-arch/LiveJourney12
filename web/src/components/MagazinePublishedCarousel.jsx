@@ -355,7 +355,7 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
                       onClick={() => handleFeaturedClick(slide)}
                       className="mt-2 w-full rounded-xl py-2 text-[13px] font-semibold text-primary hover:bg-primary/5"
                     >
-                      이 매거진 상세 보기
+                      이 라이브매거진 상세 보기
                     </button>
                   </>
                 )}

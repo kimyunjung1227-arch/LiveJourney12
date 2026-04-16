@@ -80,7 +80,7 @@ const MagazineListScreen = () => {
       <div className="screen-content flex flex-col h-full">
         <header className="screen-header flex-shrink-0 z-[60] flex items-center justify-center px-4 py-3 bg-white/95 dark:bg-gray-900/95 border-b border-zinc-100 dark:border-zinc-800 backdrop-blur-sm">
           <h1 className="text-[17px] font-extrabold text-text-primary-light dark:text-text-primary-dark m-0 tracking-tight">
-            매거진
+            라이브매거진
           </h1>
         </header>
 
@@ -98,17 +98,17 @@ const MagazineListScreen = () => {
               {slides.length === 0 && (
                 <div className="mb-8 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-700 bg-zinc-50/80 dark:bg-zinc-900/50 p-6 text-center">
                   <p className="text-[14px] font-medium text-gray-700 dark:text-gray-200 m-0 mb-1">
-                    아직 표시할 매거진이 없어요
+                    아직 표시할 라이브매거진이 없어요
                   </p>
                   <p className="text-[12px] text-gray-500 dark:text-gray-400 m-0">
-                    관리자에서 매거진을 발행하면 장소별로 슬라이드가 생겨요.
+                    관리자에서 라이브매거진을 발행하면 장소별로 슬라이드가 생겨요.
                   </p>
                 </div>
               )}
 
               {published.length > 1 && (
                 <section className="mb-6">
-                  <h3 className="text-[15px] font-bold text-gray-900 dark:text-gray-50 m-0 mb-2">다른 매거진</h3>
+                  <h3 className="text-[15px] font-bold text-gray-900 dark:text-gray-50 m-0 mb-2">다른 라이브매거진</h3>
                   <div className="flex flex-col gap-2">
                     {published.slice(1, 6).map((mag) => (
                       <button

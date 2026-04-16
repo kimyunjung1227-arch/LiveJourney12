@@ -340,7 +340,7 @@ const MagazineDetailScreen = () => {
               <span className="material-symbols-outlined text-[22px]">arrow_back</span>
             </button>
             <h1 className="text-[18px] font-bold text-text-primary-light dark:text-text-primary-dark m-0">
-              여행 매거진
+              라이브매거진
             </h1>
             <div className="w-10" />
           </div>
@@ -349,7 +349,7 @@ const MagazineDetailScreen = () => {
               book_5
             </span>
             <p className="text-[15px] font-medium text-gray-800 dark:text-gray-100 mb-1">
-              매거진 정보를 불러올 수 없어요
+              라이브매거진 정보를 불러올 수 없어요
             </p>
             <p className="text-[13px] text-gray-500 dark:text-gray-400 text-center">
               메인 화면에서 다시 선택해 주세요.
@@ -377,7 +377,7 @@ const MagazineDetailScreen = () => {
                 <span className="material-symbols-outlined text-[22px]">arrow_back</span>
               </button>
               <h1 className="text-[17px] font-extrabold text-text-primary-light dark:text-text-primary-dark m-0">
-                여행 매거진
+                라이브매거진
               </h1>
               <div className="w-10" />
             </header>
@@ -403,13 +403,13 @@ const MagazineDetailScreen = () => {
                 <span className="material-symbols-outlined text-[22px]">arrow_back</span>
               </button>
               <h1 className="text-[17px] font-extrabold text-text-primary-light dark:text-text-primary-dark m-0">
-                여행 매거진
+                라이브매거진
               </h1>
               <div className="w-10" />
             </header>
             <main className="flex-1 flex flex-col items-center justify-center px-4">
               <p className="text-[14px] text-gray-600 dark:text-gray-300 text-center m-0">
-                표시할 장소 섹션이 없어요. 발행 매거진에 위치를 추가해 주세요.
+                표시할 장소 섹션이 없어요. 라이브매거진에 위치를 추가해 주세요.
               </p>
             </main>
           </div>
@@ -430,7 +430,7 @@ const MagazineDetailScreen = () => {
               <span className="material-symbols-outlined text-[22px]">arrow_back</span>
             </button>
             <h1 className="text-[17px] font-extrabold text-text-primary-light dark:text-text-primary-dark m-0">
-              여행 매거진
+              라이브매거진
             </h1>
             <div className="w-10" />
           </header>
@@ -491,10 +491,10 @@ const MagazineDetailScreen = () => {
           {/* 제목/개요 (사진 바깥) */}
           <section className="px-4 pt-4 pb-3 bg-white dark:bg-gray-900 border-b border-zinc-100 dark:border-zinc-800">
             <h2 className="m-0 text-[20px] font-extrabold leading-snug text-gray-900 dark:text-gray-50">
-              {publishedMagazine?.title || topic?.title || '여행 매거진'}
+              {publishedMagazine?.title || topic?.title || '라이브매거진'}
             </h2>
             <p className="mt-2 mb-0 text-[13px] font-medium leading-relaxed text-gray-700 dark:text-gray-200">
-              {(publishedMagazine?.subtitle || topic?.description) || '지금 올라오는 현장 사진으로만 구성된 매거진이에요.'}
+              {(publishedMagazine?.subtitle || topic?.description) || '지금 올라오는 현장 사진으로만 구성된 라이브매거진이에요.'}
             </p>
             <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400">
               <span>{publishedMagazine ? (publishedMagazine.author || 'LiveJourney') : 'LiveJourney'}</span>

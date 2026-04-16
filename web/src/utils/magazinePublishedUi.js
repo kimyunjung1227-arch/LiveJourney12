@@ -146,7 +146,7 @@ export const buildSlidesForMagazine = (mag, allPosts, gridPosts) => {
   };
 
   if (mag && Array.isArray(mag.sections) && mag.sections.length > 0) {
-    const magTitle = String(mag.title || '').trim() || '여행 매거진';
+    const magTitle = String(mag.title || '').trim() || '라이브매거진';
     const pickFirstMediaForKeyword = (keyword) => {
       const k = String(keyword || '').trim().toLowerCase();
       if (!k) return '';

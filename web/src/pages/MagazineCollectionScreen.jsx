@@ -95,7 +95,7 @@ const MagazineCollectionScreen = () => {
             <span className="material-symbols-outlined text-[22px]">arrow_back</span>
           </button>
           <h1 className="text-[17px] font-extrabold text-text-primary-light dark:text-text-primary-dark m-0">
-            여행 매거진
+            라이브매거진
           </h1>
           <div className="w-10" />
         </header>
@@ -106,7 +106,7 @@ const MagazineCollectionScreen = () => {
           ) : rows.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-700 bg-zinc-50/80 dark:bg-zinc-900/50 p-6 text-center mt-2">
               <p className="text-[14px] font-medium text-gray-700 dark:text-gray-200 m-0 mb-1">
-                아직 발행된 매거진이 없어요
+                아직 발행된 라이브매거진이 없어요
               </p>
               <p className="text-[12px] text-gray-500 dark:text-gray-400 m-0">발행되면 이곳에 모아 보여드릴게요.</p>
             </div>
@@ -137,7 +137,7 @@ const MagazineCollectionScreen = () => {
                       )}
                     </div>
                     <div className="flex-1 px-3 py-3 flex flex-col justify-center min-w-0">
-                      <p className="text-[11px] font-semibold text-primary m-0 mb-0.5">발행 매거진</p>
+                      <p className="text-[11px] font-semibold text-primary m-0 mb-0.5">라이브매거진</p>
                       <h2 className="text-[15px] font-bold text-gray-900 dark:text-gray-50 leading-snug line-clamp-2 m-0">
                         {mag.title}
                       </h2>
