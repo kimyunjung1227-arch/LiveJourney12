@@ -95,7 +95,7 @@ const MagazineCollectionScreen = () => {
             <span className="material-symbols-outlined text-[22px]">arrow_back</span>
           </button>
           <h1 className="text-[17px] font-extrabold text-text-primary-light dark:text-text-primary-dark m-0">
-            여행 매거진
+            라이브매거진
           </h1>
           <div className="w-10" />
         </header>

@@ -29,6 +29,11 @@ import { getLikeSnapshot, toggleLikeLocal } from '../utils/postLikesLocal';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
 const MainScreen = () => {
     const navigate = useNavigate();
+  // 라이브매거진을 메인 경험으로: 기존 메인(/main)은 매거진으로 유도
+  // (기존 "지금 이 순간 꼭 가야할 곳" 성격의 정보는 매거진으로 통합)
+  useEffect(() => {
+    navigate('/magazine', { replace: true });
+  }, [navigate]);
     const location = useLocation();
     const { user } = useAuth();
     const [selectedTag, setSelectedTag] = useState(null);
@@ -1123,10 +1128,10 @@ const MainScreen = () => {
                                 })}
                             </div>
                         </div>
-                        {/* 여행 매거진 (발행 매거진 모아보기) */}
+                        {/* 라이브매거진 (발행 매거진 모아보기) */}
                         <div style={{ marginBottom: '16px', background: '#ffffff' }}>
                             <div style={{ padding: '0 0 6px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#374151' }}>여행 매거진</h3>
+                                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#374151' }}>라이브매거진</h3>
                                 <button
                                     type="button"
                                     onClick={() => navigate('/magazines')}
@@ -1162,7 +1167,7 @@ const MainScreen = () => {
                                         </div>
                                         <div style={{ flex: 1, minWidth: 0, paddingLeft: 10, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                                             <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#4f46e5' }}>
-                                                발행 매거진
+                                                라이브매거진
                                             </p>
                                             <p style={{ margin: '2px 0 0 0', fontSize: 14, fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                 {magazine.title}

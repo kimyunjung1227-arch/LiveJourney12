@@ -80,7 +80,7 @@ const MagazineListScreen = () => {
       <div className="screen-content flex flex-col h-full">
         <header className="screen-header flex-shrink-0 z-[60] flex items-center justify-center px-4 py-3 bg-white/95 dark:bg-gray-900/95 border-b border-zinc-100 dark:border-zinc-800 backdrop-blur-sm">
           <h1 className="text-[17px] font-extrabold text-text-primary-light dark:text-text-primary-dark m-0 tracking-tight">
-            매거진
+            라이브매거진
           </h1>
         </header>
 
