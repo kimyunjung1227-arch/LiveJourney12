@@ -138,7 +138,10 @@ function AskPlaceButton({ onClick }) {
       >
         chat_bubble
       </span>
-      지금 여기 장소에 대해 물어보기
+      <span className="flex flex-col items-center leading-tight">
+        <span className="text-[13px] font-semibold">가장 많이 묻는 실시간 질문</span>
+        <span className="text-[12px] font-bold">바로 물어보기</span>
+      </span>
     </button>
   );
 }
@@ -311,7 +314,12 @@ const MagazinePublishedCarousel = ({ slides, postsPerSlide = [], variant = 'list
         magazineAsk: {
           placeTitle,
           askQuery,
-          presetMessage: `${placeTitle} 지금 붐비나요? 웨이팅·주차 알려주세요.`,
+          suggestedQuestions: [
+            '주차장 여유 있나요?',
+            '지금 꽃 많이 피었나요?',
+            '웨이팅/혼잡도 어떤가요?',
+            '바람/체감온도 어때요? 겉옷 필요할까요?',
+          ],
         },
       },
     });
