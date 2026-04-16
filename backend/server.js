@@ -1,9 +1,13 @@
 require('dotenv').config();
+const { assertProductionSecrets, getSessionSecret } = require('./config/secrets');
+assertProductionSecrets();
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
 const session = require('express-session');
@@ -43,6 +47,19 @@ app.use(cors({
   credentials: true
 }));
 
+// API 레이트 리밋 (브루트포스·과도한 트래픽 완화)
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.API_RATE_LIMIT_MAX || (process.env.NODE_ENV === 'production' ? 400 : 5000)),
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    const p = req.path || '';
+    return p === '/health' || p === '/api/health';
+  },
+});
+app.use('/api', apiLimiter);
+
 // gzip (텍스트/JSON 응답 크기 축소)
 app.use(
   compression({
@@ -60,17 +77,22 @@ if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
 }
 
-// Body 파서 (파일 크기 제한 증가)
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Body 파서 (프로덕션에서는 과도한 본문으로 인한 메모리 압박 완화)
+const jsonBodyLimit = process.env.JSON_BODY_LIMIT || (process.env.NODE_ENV === 'production' ? '2mb' : '10mb');
+const urlBodyLimit = process.env.URLENCODED_BODY_LIMIT || (process.env.NODE_ENV === 'production' ? '2mb' : '10mb');
+app.use(express.json({ limit: jsonBodyLimit }));
+app.use(express.urlencoded({ extended: true, limit: urlBodyLimit }));
 
 // 세션 설정 (소셜 로그인용)
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'livejourney-secret-key',
+  name: 'lj.sid',
+  secret: getSessionSecret(),
   resave: false,
   saveUninitialized: false,
   cookie: {
     secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    sameSite: 'lax',
     maxAge: 24 * 60 * 60 * 1000 // 24시간
   }
 }));

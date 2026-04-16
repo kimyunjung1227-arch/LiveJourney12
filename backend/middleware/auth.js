@@ -1,9 +1,10 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { getJwtSecret } = require('../config/secrets');
 
 // JWT 토큰 생성
 const generateToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET || 'your-secret-key', {
+  return jwt.sign({ id: userId }, getJwtSecret(), {
     expiresIn: '30d'
   });
 };
@@ -18,7 +19,7 @@ const protect = async (req, res, next) => {
       token = req.headers.authorization.split(' ')[1];
 
       // 토큰 검증
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+      const decoded = jwt.verify(token, getJwtSecret());
 
       // 사용자 정보 조회 (비밀번호 제외)
       req.user = await User.findById(decoded.id).select('-password');

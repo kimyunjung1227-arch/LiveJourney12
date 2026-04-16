@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const passport = require('../middleware/passport');
 const jwt = require('jsonwebtoken');
+const { getJwtSecret } = require('../config/secrets');
+
+const jwtSecret = getJwtSecret();
 
 // ============================================
 // 소셜 로그인 시작 (OAuth 인증 페이지로 리다이렉트)
@@ -24,7 +27,7 @@ router.get('/kakao', (req, res, next) => {
     
     const token = jwt.sign(
       { userId: mockUser.id, email: mockUser.email },
-      process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
+      jwtSecret,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
     
@@ -74,7 +77,7 @@ router.get('/google', (req, res, next) => {
     
     const token = jwt.sign(
       { userId: mockUser.id, email: mockUser.email },
-      process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
+      jwtSecret,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
     
@@ -99,7 +102,7 @@ router.get('/kakao/callback',
       // JWT 토큰 생성
       const token = jwt.sign(
         { userId: user._id, email: user.email },
-        process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
+        jwtSecret,
         { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
       );
 
@@ -149,7 +152,7 @@ router.get('/naver/callback', (req, res, next) => {
     try {
       const token = jwt.sign(
         { userId: user._id, email: user.email },
-        process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
+        jwtSecret,
         { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
       );
 
@@ -191,7 +194,7 @@ router.get('/google/callback',
       // JWT 토큰 생성
       const token = jwt.sign(
         { userId: user._id, email: user.email },
-        process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
+        jwtSecret,
         { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
       );
 
@@ -257,7 +260,7 @@ router.post('/login', async (req, res) => {
     // JWT 토큰 생성
     const token = jwt.sign(
       { userId: user._id, email: user.email },
-      process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
+      jwtSecret,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
@@ -317,7 +320,7 @@ router.post('/signup', async (req, res) => {
     // JWT 토큰 생성
     const token = jwt.sign(
       { userId: user._id, email: user.email },
-      process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
+      jwtSecret,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
@@ -354,10 +357,7 @@ router.get('/me', async (req, res) => {
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production'
-    );
+    const decoded = jwt.verify(token, jwtSecret);
 
     const User = require('../models/User');
     const Post = require('../models/Post');

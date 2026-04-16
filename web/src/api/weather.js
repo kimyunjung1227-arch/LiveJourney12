@@ -81,7 +81,9 @@ export const getWeatherByRegion = async (regionName, forceRefresh = false) => {
   const KMA_API_KEY = import.meta.env.VITE_KMA_API_KEY;
 
   logger.log('🌦️ 날씨 API 호출 시작:', regionName);
-  logger.log('🔑 API 키:', KMA_API_KEY ? '있음 ✅' : '없음 ❌');
+  if (import.meta.env.DEV) {
+    logger.log('🔑 기상청 API 키 설정 여부:', KMA_API_KEY ? '설정됨' : '미설정');
+  }
 
   // 캐시 확인 - 있으면 즉시 반환! (강제 새로고침이 아닐 때만)
   if (!forceRefresh) {

@@ -3,8 +3,9 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Post = require('../models/Post');
+const { getJwtSecret } = require('../config/secrets');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production';
+const JWT_SECRET = getJwtSecret();
 
 // JWT에서 현재 사용자 ID 가져오기 (auth 라우트와 동일한 payload: userId)
 const getCurrentUserId = (req) => {

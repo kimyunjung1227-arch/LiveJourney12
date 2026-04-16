@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const Post = require('../models/Post');
 const User = require('../models/User');
 const { generateSmartTags, CATEGORY_SLUGS, CATEGORY_DISPLAY } = require('../services/aiTagService');
+const { getJwtSecret } = require('../config/secrets');
 
 const normalizeCategory = (c) => {
   const v = String(c || '').trim().toLowerCase();
@@ -27,10 +28,7 @@ const getUserIdFromReq = (req) => {
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
   try {
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production'
-    );
+    const decoded = jwt.verify(token, getJwtSecret());
     return decoded.userId || decoded.id || null;
   } catch {
     return null;

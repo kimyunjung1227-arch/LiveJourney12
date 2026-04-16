@@ -11,6 +11,17 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 // API 키가 있으면 자동으로 활성화 (별도 설정이 'false'가 아닌 경우)
 const USE_AI = process.env.USE_AI_TAG_GENERATION !== 'false' && !!GEMINI_API_KEY;
 
+const isProd = process.env.NODE_ENV === 'production';
+const devLog = (...args) => {
+  if (!isProd) {
+    // eslint-disable-next-line no-console -- dev-only diagnostics
+    console.log(...args);
+  }
+};
+const devWarn = (...args) => {
+  if (!isProd) console.warn(...args);
+};
+
 /** 서비스 공통 카테고리 (한글 표기 통일: 추천장소·개화정보·웨이팅·맛집정보) */
 const CATEGORY_SLUGS = ['bloom', 'scenic', 'food', 'waiting', 'landmark', 'general'];
 const CATEGORY_DISPLAY = {
@@ -70,11 +81,7 @@ const inferTravelCategoryFromText = (caption, location = '', tagList = []) => {
   return arr[0] || { category: 'scenic', categoryName: CATEGORY_DISPLAY.scenic.name, categoryIcon: CATEGORY_DISPLAY.scenic.icon };
 };
 
-// 디버깅: 환경 변수 확인
-console.log('🔍 AI 태그 생성 설정 확인:');
-console.log('  USE_AI:', USE_AI);
-console.log('  GEMINI_API_KEY 존재:', !!GEMINI_API_KEY);
-console.log('  GEMINI_API_KEY 길이:', GEMINI_API_KEY ? GEMINI_API_KEY.length : 0);
+devLog('🔍 AI 태그 생성 설정:', { USE_AI });
 
 /**
  * 이미지를 Base64로 변환 (크기 제한 체크 포함)
@@ -87,7 +94,7 @@ const imageToBase64 = async (imagePathOrUrl, mimeTypeHint = 'image/jpeg') => {
 
     // Cloudinary/외부 URL 지원
     if (typeof imagePathOrUrl === 'string' && /^https?:\/\//i.test(imagePathOrUrl)) {
-      console.log('🌐 이미지 URL 다운로드:', imagePathOrUrl.substring(0, 120) + (imagePathOrUrl.length > 120 ? '...' : ''));
+      devLog('🌐 이미지 URL 다운로드:', imagePathOrUrl.substring(0, 120) + (imagePathOrUrl.length > 120 ? '...' : ''));
       const resp = await axios.get(imagePathOrUrl, {
         responseType: 'arraybuffer',
         timeout: 20000
@@ -101,9 +108,9 @@ const imageToBase64 = async (imagePathOrUrl, mimeTypeHint = 'image/jpeg') => {
 
     const fileSizeMB = imageBuffer.length / (1024 * 1024);
 
-    console.log('📏 이미지 크기 확인:');
-    console.log('  원본 크기:', fileSizeMB.toFixed(2), 'MB');
-    console.log('  Base64 변환 후 예상 크기:', (fileSizeMB * 1.33).toFixed(2), 'MB');
+    devLog('📏 이미지 크기 확인:');
+    devLog('  원본 크기:', fileSizeMB.toFixed(2), 'MB');
+    devLog('  Base64 변환 후 예상 크기:', (fileSizeMB * 1.33).toFixed(2), 'MB');
 
     // Gemini API 제한: 원본 이미지 7MB (Base64 변환 전)
     // 너무 작은 안전 마진 때문에 5MB 초과 이미지는 모두 막히고 있었음
@@ -111,15 +118,15 @@ const imageToBase64 = async (imagePathOrUrl, mimeTypeHint = 'image/jpeg') => {
     const MAX_IMAGE_SIZE_MB = 7;
 
     if (fileSizeMB > MAX_IMAGE_SIZE_MB) {
-      console.warn(`⚠️ 이미지 크기가 너무 큼 (${fileSizeMB.toFixed(2)}MB > ${MAX_IMAGE_SIZE_MB}MB)`);
-      console.warn('  Gemini API 제한: 최대 7MB (원본 기준)');
-      console.warn('  이미지 리사이즈 또는 압축이 필요합니다.');
+      devWarn(`⚠️ 이미지 크기가 너무 큼 (${fileSizeMB.toFixed(2)}MB > ${MAX_IMAGE_SIZE_MB}MB)`);
+      devWarn('  Gemini API 제한: 최대 7MB (원본 기준)');
+      devWarn('  이미지 리사이즈 또는 압축이 필요합니다.');
       return null;
     }
 
     const base64 = imageBuffer.toString('base64');
     const base64SizeMB = (base64.length * 3) / 4 / (1024 * 1024);
-    console.log('  Base64 실제 크기:', base64SizeMB.toFixed(2), 'MB');
+    devLog('  Base64 실제 크기:', base64SizeMB.toFixed(2), 'MB');
 
     return { base64, mimeType };
   } catch (error) {
@@ -132,19 +139,19 @@ const imageToBase64 = async (imagePathOrUrl, mimeTypeHint = 'image/jpeg') => {
  * 1단계: 이미지 분석 및 상황 묘사 (Image Captioning) - Gemini 사용
  */
 const generateImageCaption = async (imageBase64, mimeType = 'image/jpeg', location = '', exifData = null) => {
-  console.log('🔍 generateImageCaption 호출됨');
-  console.log('  USE_AI:', USE_AI);
-  console.log('  GEMINI_API_KEY 존재:', !!GEMINI_API_KEY);
-  console.log('  이미지 Base64 길이:', imageBase64 ? imageBase64.length : 0);
-  console.log('  mime_type:', mimeType);
+  devLog('🔍 generateImageCaption 호출됨');
+  devLog('  USE_AI:', USE_AI);
+  devLog('  GEMINI_API_KEY 존재:', !!GEMINI_API_KEY);
+  devLog('  이미지 Base64 길이:', imageBase64 ? imageBase64.length : 0);
+  devLog('  mime_type:', mimeType);
 
   if (!USE_AI || !GEMINI_API_KEY) {
-    console.log('⚠️ generateImageCaption: 조건 불만족으로 종료');
+    devLog('⚠️ generateImageCaption: 조건 불만족으로 종료');
     return null;
   }
 
   try {
-    console.log('📡 Gemini API 호출 시작...');
+    devLog('📡 Gemini API 호출 시작...');
     // EXIF 정보를 컨텍스트로 추가
     let contextInfo = '';
     if (exifData) {
@@ -207,9 +214,9 @@ const generateImageCaption = async (imageBase64, mimeType = 'image/jpeg', locati
       }
     );
 
-    console.log('📥 Gemini API 응답 받음');
-    console.log('  응답 상태:', response.status);
-    console.log('  응답 구조:', JSON.stringify(response.data, null, 2).substring(0, 1000));
+    devLog('📥 Gemini API 응답 받음');
+    devLog('  응답 상태:', response.status);
+    devLog('  응답 구조:', JSON.stringify(response.data, null, 2).substring(0, 1000));
 
     if (!response.data) {
       console.error('❌ 응답 데이터가 없음');
@@ -230,9 +237,9 @@ const generateImageCaption = async (imageBase64, mimeType = 'image/jpeg', locati
     }
 
     const caption = response.data.candidates[0].content.parts[0].text;
-    console.log('✅ Gemini 이미지 캡션 생성 성공');
-    console.log('  캡션 길이:', caption.length);
-    console.log('  캡션 미리보기:', caption.substring(0, 100));
+    devLog('✅ Gemini 이미지 캡션 생성 성공');
+    devLog('  캡션 길이:', caption.length);
+    devLog('  캡션 미리보기:', caption.substring(0, 100));
     return caption;
   } catch (error) {
     console.error('❌ 이미지 캡션 생성 실패:');
@@ -248,18 +255,18 @@ const generateImageCaption = async (imageBase64, mimeType = 'image/jpeg', locati
  * 2단계: 묘사를 바탕으로 태그 생성 (Tag Generation with Prompt Engineering) - Gemini 사용
  */
 const generateTagsFromCaption = async (caption, location = '', exifData = null) => {
-  console.log('🔍 generateTagsFromCaption 호출됨');
-  console.log('  캡션 존재:', !!caption);
-  console.log('  캡션 길이:', caption?.length || 0);
-  console.log('  GEMINI_API_KEY 존재:', !!GEMINI_API_KEY);
+  devLog('🔍 generateTagsFromCaption 호출됨');
+  devLog('  캡션 존재:', !!caption);
+  devLog('  캡션 길이:', caption?.length || 0);
+  devLog('  GEMINI_API_KEY 존재:', !!GEMINI_API_KEY);
 
   if (!caption || !GEMINI_API_KEY) {
-    console.log('⚠️ generateTagsFromCaption: 조건 불만족으로 종료');
+    devLog('⚠️ generateTagsFromCaption: 조건 불만족으로 종료');
     return null;
   }
 
   try {
-    console.log('📡 Gemini API 호출 시작 (태그 생성)...');
+    devLog('📡 Gemini API 호출 시작 (태그 생성)...');
     // EXIF 정보를 컨텍스트로 추가
     let contextInfo = '';
     if (exifData?.gpsCoordinates) {
@@ -333,10 +340,10 @@ ${caption}${contextInfo}
       .filter(tag => /^[가-힣\s]+$/.test(tag)) // 한국어만
       .slice(0, 20);
 
-    console.log('📥 Gemini API 응답 받음 (태그)');
-    console.log('  원본 태그 텍스트:', tagsText.substring(0, 200));
-    console.log('✅ Gemini 태그 생성 성공:', tags.length + '개');
-    console.log('  생성된 태그:', tags);
+    devLog('📥 Gemini API 응답 받음 (태그)');
+    devLog('  원본 태그 텍스트:', tagsText.substring(0, 200));
+    devLog('✅ Gemini 태그 생성 성공:', tags.length + '개');
+    devLog('  생성된 태그:', tags);
     return tags;
   } catch (error) {
     console.error('❌ 태그 생성 실패:');
@@ -413,14 +420,14 @@ const filterAndRefineTags = (tags, location = '', exifData = null) => {
 const generateSmartTags = async (imagePathOrUrl, location = '', exifData = null, mimeTypeHint = 'image/jpeg') => {
   try {
     // AI 사용 가능 여부 확인
-    console.log('🔍 generateSmartTags 호출됨');
-    console.log('  USE_AI:', USE_AI);
-    console.log('  GEMINI_API_KEY 존재:', !!GEMINI_API_KEY);
+    devLog('🔍 generateSmartTags 호출됨');
+    devLog('  USE_AI:', USE_AI);
+    devLog('  GEMINI_API_KEY 존재:', !!GEMINI_API_KEY);
 
     if (!USE_AI || !GEMINI_API_KEY) {
-      console.log('⚠️ AI 태그 생성 비활성화 또는 API 키 없음 - 기본 방식 사용');
-      console.log('  USE_AI:', USE_AI);
-      console.log('  GEMINI_API_KEY:', GEMINI_API_KEY ? '존재함' : '없음');
+      devLog('⚠️ AI 태그 생성 비활성화 또는 API 키 없음 - 기본 방식 사용');
+      devLog('  USE_AI:', USE_AI);
+      devLog('  GEMINI_API_KEY:', GEMINI_API_KEY ? '존재함' : '없음');
       return {
         success: false,
         tags: [],
@@ -443,11 +450,11 @@ const generateSmartTags = async (imagePathOrUrl, location = '', exifData = null,
     }
 
     // 1단계: 이미지 분석 및 상황 묘사
-    console.log('📸 1단계: 이미지 분석 및 상황 묘사 중...');
+    devLog('📸 1단계: 이미지 분석 및 상황 묘사 중...');
     const caption = await generateImageCaption(imageData.base64, imageData.mimeType, location, exifData);
 
     if (!caption) {
-      console.log('⚠️ 이미지 캡션 생성 실패 - 기본 방식 사용');
+      devLog('⚠️ 이미지 캡션 생성 실패 - 기본 방식 사용');
       return {
         success: false,
         tags: [],
@@ -457,12 +464,12 @@ const generateSmartTags = async (imagePathOrUrl, location = '', exifData = null,
       };
     }
 
-    console.log('✅ 이미지 묘사 완료:', caption.substring(0, 100) + '...');
+    devLog('✅ 이미지 묘사 완료:', caption.substring(0, 100) + '...');
 
     let catsFromCaption = inferTravelCategoriesFromText(caption, location, []);
 
     // 2단계: 묘사를 바탕으로 태그 생성
-    console.log('🏷️ 2단계: 태그 생성 중...');
+    devLog('🏷️ 2단계: 태그 생성 중...');
     const tags = await generateTagsFromCaption(caption, location, exifData);
 
     if (tags && tags.length > 0) {
@@ -473,7 +480,7 @@ const generateSmartTags = async (imagePathOrUrl, location = '', exifData = null,
     const categoryNamesJoined = catsFromCaption.map((c) => c.categoryName).join(', ');
 
     if (!tags || tags.length === 0) {
-      console.log('⚠️ 태그 생성 실패 — 캡션 기반 카테고리만 반환');
+      devLog('⚠️ 태그 생성 실패 — 캡션 기반 카테고리만 반환');
       return {
         success: true,
         tags: [],
@@ -487,12 +494,12 @@ const generateSmartTags = async (imagePathOrUrl, location = '', exifData = null,
       };
     }
 
-    console.log('✅ 태그 생성 완료:', tags.length + '개');
+    devLog('✅ 태그 생성 완료:', tags.length + '개');
 
     // 3-4단계: 외부 데이터 주입 및 필터링
     const finalTags = filterAndRefineTags(tags, location, exifData);
 
-    console.log('✅ 최종 태그:', finalTags);
+    devLog('✅ 최종 태그:', finalTags);
 
     return {
       success: true,
