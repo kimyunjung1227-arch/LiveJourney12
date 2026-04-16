@@ -27,6 +27,14 @@ const getUserNameForPost = (post) => {
   return String(who || '여행자');
 };
 
+const hasExifForPost = (post) => {
+  const ex = post?.exifData;
+  return !!(
+    post?.photoDate ||
+    (ex && typeof ex === 'object' && (ex.photoDate || ex.gpsCoordinates || ex.cameraMake || ex.cameraModel))
+  );
+};
+
 const getPlaceKeyForPost = (post) =>
   String(post?.location || post?.placeName || post?.detailedLocation || post?.region || '').trim();
 
@@ -198,9 +206,14 @@ export default function HotplaceLiveFeedScreen() {
           <div className="mt-5">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-[13px] font-extrabold text-zinc-900 dark:text-zinc-50">개별 피드</p>
-              <span className="rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-extrabold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-                무보정 원본
-              </span>
+              {postsForPlace.some(hasExifForPost) ? (
+                <span
+                  className="rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-extrabold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                  title="촬영 정보(EXIF) 기반"
+                >
+                  EXIF
+                </span>
+              ) : null}
             </div>
 
             {postsForPlace.length === 0 ? (
@@ -239,12 +252,15 @@ export default function HotplaceLiveFeedScreen() {
                             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                           />
                         ) : null}
-                        <div
-                          className="absolute left-2 top-2 z-[2] rounded-full border px-2 py-1 text-[10px] font-extrabold"
-                          style={{ borderColor: 'rgba(38,198,218,0.30)', background: 'rgba(38,198,218,0.12)', color: '#0f172a' }}
-                        >
-                          무보정 원본
-                        </div>
+                        {hasExifForPost(post) ? (
+                          <div
+                            className="absolute left-2 top-2 z-[2] rounded-full border px-2 py-1 text-[10px] font-extrabold"
+                            style={{ borderColor: 'rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.14)', color: '#064e3b' }}
+                            title="촬영 정보(EXIF) 확인됨"
+                          >
+                            EXIF
+                          </div>
+                        ) : null}
                       </div>
 
                       <div style={feedGridInfoBox}>
