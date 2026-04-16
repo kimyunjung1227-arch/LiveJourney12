@@ -35,6 +35,89 @@ const parsePreviewName = (rawLine) => {
   return normalizeSpace(line.split('(')[0]).replace(/[:：]\s*$/, '').trim();
 };
 
+const pickMagazineTitleFromLines = (lines) => {
+  const arr = Array.isArray(lines) ? lines.map((l) => String(l || '').trim()).filter(Boolean) : [];
+  if (arr.length === 0) return '';
+  const bracket = arr.find((l) => /^\[[^\]]+\]/.test(l));
+  if (bracket) return bracket;
+  return arr[0];
+};
+
+const splitCommaList = (s) =>
+  String(s || '')
+    .split(/,|·|•|ㆍ/)
+    .map((x) => normalizeSpace(x))
+    .filter(Boolean);
+
+const extractLabelBlock = (body, startLabelRe, endLabelRes = []) => {
+  const start = String(body || '').search(startLabelRe);
+  if (start < 0) return '';
+  const after = String(body || '').slice(start).replace(startLabelRe, '');
+  if (!Array.isArray(endLabelRes) || endLabelRes.length === 0) return after.trim();
+  const nextIdx = endLabelRes.reduce((min, re) => {
+    const idx = after.search(re);
+    return idx >= 0 ? Math.min(min, idx) : min;
+  }, Infinity);
+  return (nextIdx === Infinity ? after : after.slice(0, nextIdx)).trim();
+};
+
+const parseMagazinePasteFreeform = (raw) => {
+  const text = String(raw || '').replace(/\r\n/g, '\n').trim();
+  if (!text) return null;
+
+  const lines = text.split('\n').map((l) => l.trim());
+  const title = pickMagazineTitleFromLines(lines);
+
+  // "장소 제목:" 단위로 블록을 분리
+  const blocks = [];
+  const re = /(^|\n)([^\n]*?)\n?\s*장소\s*제목\s*:\s*([^\n]+)\n([\s\S]*?)(?=\n[^\n]*?\n?\s*장소\s*제목\s*:|\n\s*장소\s*제목\s*:|$)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const maybeMood = normalizeSpace(m[2] || '');
+    const locationTitle = normalizeSpace(m[3] || '');
+    const body = String(m[4] || '');
+
+    const locationInfo =
+      pickLabelLine(body, /장소\s*위치\s*:\s*([^\n]+)/i) || pickLabelLine(body, /장소\s*주소\s*:\s*([^\n]+)/i) || '';
+
+    const description = extractLabelBlock(body, /장소\s*설명\s*:\s*/i, [
+      /\n\s*실시간\s*팁\s*:/i,
+      /\n\s*주변\s*장소\s*:/i,
+      /\n\s*장소\s*제목\s*:/i,
+    ]);
+    const realtimeTip = extractLabelBlock(body, /실시간\s*팁\s*:\s*/i, [/\n\s*주변\s*장소\s*:/i, /\n\s*장소\s*제목\s*:/i]);
+    const aroundRaw = pickLabelLine(body, /주변\s*장소\s*:\s*([^\n]+)/i);
+    const around = splitCommaList(aroundRaw);
+
+    const mergedDescription = [
+      description,
+      realtimeTip ? `실시간 팁: ${realtimeTip.replace(/^["“]|["”]$/g, '').trim()}` : '',
+    ]
+      .filter((v) => String(v || '').trim())
+      .join('\n\n');
+
+    blocks.push({
+      moodTitle: maybeMood,
+      locationTitle,
+      locationInfo,
+      description: mergedDescription,
+      around,
+    });
+  }
+
+  // moodTitle이 비어있으면 "장소 제목:" 직전의 마지막 문장(레이블 제외)을 보충
+  if (blocks.length > 0) {
+    // 이미 정규식이 mood를 잡아주지만, 빈 경우를 대비
+    blocks.forEach((b) => {
+      if (String(b.moodTitle || '').trim()) return;
+      b.moodTitle = '';
+    });
+  }
+
+  if (!blocks.length) return null;
+  return { title, sections: blocks };
+};
+
 const parseMagazinePaste = (raw) => {
   const text = String(raw || '').replace(/\r\n/g, '\n').trim();
   if (!text) return null;
@@ -401,15 +484,38 @@ const MagazineWriteScreen = () => {
                     placeholder="전체 문구를 붙여넣으면 장소·설명·주변이 채워져요."
                     value={pasteText}
                     onChange={(e) => setPasteText(e.target.value)}
+                    onPaste={(e) => {
+                      const clip = e?.clipboardData?.getData?.('text/plain');
+                      if (!clip) return;
+                      e.preventDefault();
+                      setPasteText(clip);
+                      const parsed = parseMagazinePaste(clip) || parseMagazinePasteFreeform(clip);
+                      if (!parsed) return;
+                      if (parsed.title) setTitle(parsed.title);
+                      setSections(parsed.sections.map((s) => createEmptySection(s)));
+                      setPasteText('');
+                    }}
                     onBlur={() => {
-                      applyPaste(pasteText);
+                      if (applyPaste(pasteText)) return;
+                      const parsed = parseMagazinePasteFreeform(pasteText);
+                      if (!parsed) return;
+                      if (parsed.title) setTitle(parsed.title);
+                      setSections(parsed.sections.map((s) => createEmptySection(s)));
+                      setPasteText('');
                     }}
                   />
                   <div className="mt-2 flex justify-end">
                     <button
                       type="button"
                       onClick={() => {
-                        const ok = applyPaste(pasteText);
+                        const ok = applyPaste(pasteText) || (() => {
+                          const parsed = parseMagazinePasteFreeform(pasteText);
+                          if (!parsed) return false;
+                          if (parsed.title) setTitle(parsed.title);
+                          setSections(parsed.sections.map((s) => createEmptySection(s)));
+                          setPasteText('');
+                          return true;
+                        })();
                         if (!ok) return;
                       }}
                       className="rounded-full bg-gray-900 text-white px-4 py-2 text-[12px] font-semibold"
