@@ -21,20 +21,6 @@ const extractBetween = (text, startRe, endRe) => {
   return (e < 0 ? after : after.slice(0, e)).trim();
 };
 
-const normalizeSpace = (s) => String(s || '').replace(/\s+/g, ' ').trim();
-
-const pickLabelLine = (body, labelRe) => {
-  const mm = String(body || '').match(labelRe);
-  return mm ? String(mm[1] || '').trim() : '';
-};
-
-const parsePreviewName = (rawLine) => {
-  const line = String(rawLine || '').trim();
-  if (!line) return '';
-  // "불국사 토함산 식당 (피드 언급 1위: ...)" -> "불국사 토함산 식당"
-  return normalizeSpace(line.split('(')[0]).replace(/[:：]\s*$/, '').trim();
-};
-
 const parseMagazinePaste = (raw) => {
   const text = String(raw || '').replace(/\r\n/g, '\n').trim();
   if (!text) return null;
@@ -45,35 +31,17 @@ const parseMagazinePaste = (raw) => {
   const re = /(^|\n)(\d+)\.\s*([^\n]+)\n([\s\S]*?)(?=\n\d+\.\s|$)/g;
   let m;
   while ((m = re.exec(text)) !== null) {
-    const moodTitle = String(m[3] || '').trim();
+    const name = String(m[3] || '').trim();
     const body = String(m[4] || '');
-    const locationTitle = pickLabelLine(body, /장소\s*이름\s*:\s*([^\n]+)/i) || moodTitle;
-    const locationInfo = pickLabelLine(body, /위치정보\s*:\s*([^\n]+)/i);
-    const description = extractBetween(body, /장소\s*설명\s*:\s*/i, /\n\s*\[LiveJourney Preview\]|\n\s*💡|$/i);
-
-    const previewFoodRaw = pickLabelLine(body, /🍴\s*맛집\s*:\s*([^\n]+)/i);
-    const previewSpotRaw = pickLabelLine(body, /🚩\s*명소\s*:\s*([^\n]+)/i);
-    const previewFood = parsePreviewName(previewFoodRaw);
-    const previewSpot = parsePreviewName(previewSpotRaw);
-    const around = [previewFood, previewSpot].filter(Boolean);
-    const realtimeFeed = pickLabelLine(body, /📸\s*실시간\s*피드\s*:\s*([^\n]+)/i);
-
-    const extraLines = [];
-    if (around.length > 0 || realtimeFeed) {
-      extraLines.push('[LiveJourney Preview]');
-      if (previewFoodRaw) extraLines.push(`🍴 맛집: ${previewFoodRaw}`);
-      if (previewSpotRaw) extraLines.push(`🚩 명소: ${previewSpotRaw}`);
-      if (realtimeFeed) extraLines.push(`📸 실시간 피드: ${realtimeFeed}`);
-    }
-
-    const mergedDescription = [description, extraLines.join('\n')].filter((v) => String(v || '').trim()).join('\n\n');
-
+    const locationInfo = (() => {
+      const mm = body.match(/위치정보\s*:\s*([^\n]+)/);
+      return mm ? String(mm[1]).trim() : '';
+    })();
+    const description = extractBetween(body, /위치 설명\s*:\s*/i, /\n\s*위치 주변|\n\s*사진\s*:|$/i);
     blocks.push({
-      moodTitle: moodTitle.replace(/^['"]|['"]$/g, '').trim(),
-      locationTitle: locationTitle.replace(/^['"]|['"]$/g, '').trim(),
+      locationTitle: name.replace(/^['"]|['"]$/g, '').trim(),
       locationInfo,
-      description: mergedDescription,
-      around,
+      description,
     });
   }
 
@@ -83,11 +51,9 @@ const parseMagazinePaste = (raw) => {
 
 const createEmptySection = (seed = {}) => ({
   id: `sec-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-  moodTitle: seed.moodTitle || '',
   locationTitle: seed.locationTitle || '',
   locationInfo: seed.locationInfo || '',
   description: seed.description || '',
-  around: Array.isArray(seed.around) ? seed.around : [],
 });
 
 const MagazineWriteScreen = () => {
@@ -146,11 +112,9 @@ const MagazineWriteScreen = () => {
         setSections(
           d.sections.map((s) =>
             createEmptySection({
-              moodTitle: s?.moodTitle,
               locationTitle: s?.locationTitle,
               locationInfo: s?.locationInfo,
               description: s?.description,
-              around: s?.around,
             })
           )
         );
@@ -179,11 +143,9 @@ const MagazineWriteScreen = () => {
     if (!title.trim()) return null;
     const normalizedSections = (Array.isArray(sections) ? sections : [])
       .map((s) => ({
-        moodTitle: String(s?.moodTitle || '').trim(),
         locationTitle: String(s?.locationTitle || '').trim(),
         locationInfo: String(s?.locationInfo || '').trim(),
         description: String(s?.description || '').trim(),
-        around: Array.isArray(s?.around) ? s.around.filter((x) => String(x || '').trim()) : [],
       }))
       .filter((s) => s.locationTitle || s.locationInfo || s.description);
     if (normalizedSections.length === 0) return null;
@@ -196,10 +158,8 @@ const MagazineWriteScreen = () => {
       createdAt: new Date().toISOString(),
       sections: normalizedSections.map((s) => ({
         location: s.locationTitle || s.locationInfo || title.trim(),
-        moodTitle: s.moodTitle,
         locationInfo: s.locationInfo,
         description: s.description,
-        around: s.around,
       })),
     };
   }, [title, sections, user?.email, user?.username]);
@@ -254,11 +214,9 @@ const MagazineWriteScreen = () => {
       }
       const normalizedSections = (Array.isArray(sections) ? sections : [])
         .map((s) => ({
-          moodTitle: String(s?.moodTitle || '').trim(),
           locationTitle: String(s?.locationTitle || '').trim(),
           locationInfo: String(s?.locationInfo || '').trim(),
           description: String(s?.description || '').trim(),
-          around: Array.isArray(s?.around) ? s.around.filter((x) => String(x || '').trim()) : [],
         }))
         .filter((s) => s.locationTitle || s.locationInfo || s.description);
       if (normalizedSections.length === 0) {
@@ -276,10 +234,8 @@ const MagazineWriteScreen = () => {
         subtitle: '',
         sections: normalizedSections.map((s) => ({
           location: s.locationTitle || s.locationInfo || title.trim(),
-          moodTitle: s.moodTitle,
           locationInfo: s.locationInfo,
           description: s.description,
-          around: s.around,
         })),
       });
       setSaving(false);
@@ -408,7 +364,7 @@ const MagazineWriteScreen = () => {
                         const ok = applyPaste(pasteText);
                         if (!ok) {
                           alert(
-                            '형식을 인식하지 못했어요. (1., 2., 3. 섹션/장소 이름/위치정보/장소 설명 문구가 있는지 확인해 주세요)'
+                            '형식을 인식하지 못했어요. (1., 2., 3. 섹션/위치정보/위치 설명/위치 주변 문구가 있는지 확인해 주세요)'
                           );
                         }
                       }}
@@ -432,15 +388,6 @@ const MagazineWriteScreen = () => {
                       </button>
                     </div>
                     <div className="space-y-4">
-                      <div>
-                        <label className="block mb-1.5 text-[12px] font-semibold text-gray-800 dark:text-gray-100">분위기 제목</label>
-                        <input
-                          className="w-full border-b border-zinc-200 dark:border-zinc-700 bg-transparent px-0 py-2.5 text-[15px] font-semibold text-gray-900 dark:text-gray-50 focus:outline-none"
-                          placeholder="예: 핑크빛 솜사탕의 실시간 현황"
-                          value={sec.moodTitle}
-                          onChange={(e) => handleChangeSection(sec.id, 'moodTitle', e.target.value)}
-                        />
-                      </div>
                       <div>
                         <label className="block mb-1.5 text-[12px] font-semibold text-gray-800 dark:text-gray-100">장소 이름</label>
                         <input
