@@ -1,5 +1,5 @@
-// 날씨: 브라우저 → 동일 출처 `/api/proxy/kma/*`(Node, 기상청 키는 서버만) 우선.
-// Supabase Edge는 폴백만(VITE_WEATHER_USE_SUPABASE=false 이면 제외). Edge를 먼저 호출하면 CORS·프리플라이트 이슈가 난다.
+// 날씨: Supabase Edge `kma-ultra-ncst` 우선(배포가 Supabase만 쓸 때). Edge 시크릿에 KMA_API_KEY.
+// 로컬 또는 VITE_API_URL 로 Express를 쓰는 경우에만 Node `/api/proxy/kma/*` 후보에 포함.
 import { getCoordinatesByRegion } from '../utils/regionCoordinates';
 import { logger } from '../utils/logger';
 import { getFetchApiUrl } from '../utils/apiBase';
@@ -95,19 +95,28 @@ const fetchWithRetry = async (url, signal, retries = MAX_RETRIES, fetchInit = {}
 };
 
 /**
- * 항상 Node(또는 VITE_API_URL 백엔드) 프록시를 1순위 — livejourney.co.kr 등은 동일 출처라 CORS 없음.
- * Supabase는 2순위 폴백만. 예전처럼 Edge를 1순위로 두면 브라우저가 cross-origin + OPTIONS 프리플라이트에서 막힌다.
+ * Supabase URL이 있으면 Edge를 1순위(서버 없이 기상청 키는 Edge 시크릿만).
+ * Node 프록시는 로컬(dev) 또는 VITE_API_URL 로 별도 백엔드를 둔 경우에만 후보에 넣음.
  */
 function buildKmaProxyUrlList(searchParams) {
   const q = searchParams.toString();
-  const nodeUrl = getFetchApiUrl(`/api/proxy/kma/ultra-srt-ncst?${q}`);
-  const list = [nodeUrl];
-
-  const useSupabaseFallback =
-    String(import.meta.env.VITE_WEATHER_USE_SUPABASE || 'true').trim() !== 'false';
   const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim().replace(/\/+$/, '');
-  if (useSupabaseFallback && supabaseUrl) {
-    list.push(`${supabaseUrl}/functions/v1/kma-ultra-ncst?${q}`);
+  const edgeUrl = supabaseUrl ? `${supabaseUrl}/functions/v1/kma-ultra-ncst?${q}` : null;
+
+  const nodeUrl = getFetchApiUrl(`/api/proxy/kma/ultra-srt-ncst?${q}`);
+  const hasExplicitNodeApi = String(import.meta.env.VITE_API_URL || '').trim() !== '';
+
+  const list = [];
+  const useEdge =
+    edgeUrl && String(import.meta.env.VITE_WEATHER_USE_SUPABASE || 'true').trim() !== 'false';
+  if (useEdge) {
+    list.push(edgeUrl);
+  }
+  if (import.meta.env.DEV || hasExplicitNodeApi) {
+    if (!list.includes(nodeUrl)) list.push(nodeUrl);
+  }
+  if (list.length === 0) {
+    list.push(nodeUrl);
   }
   return list;
 }

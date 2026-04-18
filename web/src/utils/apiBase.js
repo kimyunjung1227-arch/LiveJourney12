@@ -1,15 +1,10 @@
 /**
- * axios용 API 베이스 (게시물·업로드 등 Node 백엔드)
- * 날씨는 `weather.js`에서 백엔드 `/api/proxy/kma/*` → Render 등 실제 API 호스트.
+ * axios / fetch API 베이스
  *
- * - 프론트만 올린 도메인(livejourney.co.kr 등)에는 `/api` 라우트가 없음. VITE_API_URL 미설정 시
- *   기본으로 Render 백엔드를 쓴다(백엔드 CORS에 livejourney.co.kr 허용됨).
- * - 정말 같은 도메인에 리버스 프록시로 `/api`를 붙였다면 빌드 시
- *   VITE_API_URL=https://livejourney.co.kr/api 처럼 명시한다.
- * - GitHub Pages: VITE_API_URL = https://백엔드주소/api
+ * - 이 레포의 `backend/`(Express)는 선택 사항이다. 배포는 Supabase만 써도 된다.
+ * - 별도 Node 서버를 쓸 때만 빌드에 `VITE_API_URL=https://그서버/api` 를 넣는다. 없으면 상대 경로 `/api`(같은 도메인) — 프록시를 직접 붙인 경우에만 동작.
+ * - 날씨(기상청)는 `weather.js`에서 Supabase Edge `kma-ultra-ncst` 우선(아래 파일 참고). Render 등은 필수 아님.
  */
-
-const DEFAULT_PROD_API_ORIGIN = 'https://livejourney-backend.onrender.com';
 
 /** fetch용 origin (끝에 /api 없음). 빈 문자열이면 `getFetchApiUrl` 이 현재 사이트 기준으로 조합 */
 export function getBackendOrigin() {
@@ -19,8 +14,7 @@ export function getBackendOrigin() {
     if (noTrail.endsWith('/api')) return noTrail.slice(0, -4);
     return noTrail;
   }
-  if (import.meta.env.DEV) return '';
-  return DEFAULT_PROD_API_ORIGIN;
+  return '';
 }
 
 /**
@@ -47,13 +41,12 @@ export function getFetchApiUrl(pathAndQuery) {
   }
 }
 
-/** axios baseURL (항상 /api 로 끝남) */
+/** axios baseURL (항상 /api 로 끝남). VITE_API_URL 없으면 같은 출처 `/api` — Node 프록시 없으면 404일 수 있음 */
 export function getApiBasePath() {
   const raw = String(import.meta.env.VITE_API_URL || '').trim();
   if (raw) {
     const t = raw.replace(/\/+$/, '');
     return t.endsWith('/api') ? t : `${t}/api`;
   }
-  if (import.meta.env.DEV) return '/api';
-  return `${DEFAULT_PROD_API_ORIGIN}/api`;
+  return '/api';
 }
