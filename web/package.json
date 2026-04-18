@@ -36,6 +36,9 @@
     "swiper": "^12.1.1",
     "typescript": "^6.0.2"
   },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "4.60.1"
+  },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.0",
     "autoprefixer": "^10.4.16",
