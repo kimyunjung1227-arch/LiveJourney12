@@ -38,27 +38,39 @@ export const regionCoordinates = {
   '진주': { lat: 35.1800, lng: 128.1076, nx: 90, ny: 75 },
   '여수': { lat: 34.7604, lng: 127.6622, nx: 73, ny: 66 },
   '순천': { lat: 34.9507, lng: 127.4872, nx: 70, ny: 70 },
-  '목포': { lat: 34.8118, lng: 126.3922, nx: 50, ny: 67 }
+  '목포': { lat: 34.8118, lng: 126.3922, nx: 50, ny: 67 },
+  // 경북권 (기상청 격자)
+  '구미': { lat: 36.1195, lng: 128.3446, nx: 81, ny: 96 },
+  '칠곡': { lat: 35.992, lng: 128.401, nx: 86, ny: 99 },
 };
+
+/** 도 단위 이름 — 시·군과 겹칠 때는 시·군을 우선 */
+const PROVINCE_KEYS = new Set(['경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주']);
 
 // 지역명으로 좌표 가져오기
 export const getCoordinates = (regionName) => {
-  // 정확한 지역명으로 먼저 찾기
-  if (regionCoordinates[regionName]) {
-    return regionCoordinates[regionName];
+  const fallback = { lat: 37.5665, lng: 126.9780, nx: 60, ny: 127 };
+  if (!regionName || typeof regionName !== 'string') {
+    return fallback;
   }
-  
-  // 부분 일치로 찾기
-  const matchedKey = Object.keys(regionCoordinates).find(key => 
-    regionName.includes(key) || key.includes(regionName)
-  );
-  
-  if (matchedKey) {
-    return regionCoordinates[matchedKey];
+  const r = regionName.trim();
+  if (regionCoordinates[r]) {
+    return regionCoordinates[r];
   }
-  
-  // 기본값: 서울
-  return { lat: 37.5665, lng: 126.9780, nx: 60, ny: 127 };
+
+  const matches = Object.keys(regionCoordinates).filter((key) => r.includes(key) || key.includes(r));
+  if (matches.length === 0) {
+    return fallback;
+  }
+
+  matches.sort((a, b) => {
+    const ap = PROVINCE_KEYS.has(a) ? 1 : 0;
+    const bp = PROVINCE_KEYS.has(b) ? 1 : 0;
+    if (ap !== bp) return ap - bp;
+    return b.length - a.length;
+  });
+
+  return regionCoordinates[matches[0]];
 };
 
 // 별칭 (weather.js에서 사용)

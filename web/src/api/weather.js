@@ -71,6 +71,51 @@ const fetchWithRetry = async (url, signal, retries = MAX_RETRIES) => {
   throw new Error('모든 재시도 실패');
 };
 
+const pad2 = (n) => String(n).padStart(2, '0');
+
+/** KST 기준 초단기실황 요청 시각 (40분 이전이면 이전 정시, hoursBack만큼 더 과거) */
+function getKstNcstBaseDateTime(hoursBack = 0) {
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false,
+  }).formatToParts(new Date());
+  const g = (t) => parseInt(parts.find((p) => p.type === t)?.value ?? '0', 10);
+  let Y = g('year');
+  let M = g('month');
+  let D = g('day');
+  let H = g('hour');
+  const Min = g('minute');
+
+  if (Min < 40) {
+    H -= 1;
+  }
+  H -= hoursBack;
+
+  while (H < 0) {
+    H += 24;
+    const dt = new Date(Date.UTC(Y, M - 1, D));
+    dt.setUTCDate(dt.getUTCDate() - 1);
+    Y = dt.getUTCFullYear();
+    M = dt.getUTCMonth() + 1;
+    D = dt.getUTCDate();
+  }
+
+  return {
+    baseDate: `${Y}${pad2(M)}${pad2(D)}`,
+    baseTime: `${pad2(H)}00`,
+  };
+}
+
+function normalizeKmaItems(raw) {
+  if (raw == null) return [];
+  return Array.isArray(raw) ? raw : [raw];
+}
+
 /**
  * 지역별 날씨 정보 가져오기 (캐시 + 재시도 + 타임아웃 적용)
  * @param {string} regionName - 지역명 (예: '서울', '부산')
@@ -101,90 +146,81 @@ export const getWeatherByRegion = async (regionName, forceRefresh = false) => {
       throw new Error(`지역 좌표 없음: ${regionName}`);
     }
 
-    // 현재 날짜와 시간
-    const now = new Date();
-
-    // 기상청은 매시각 30분에 데이터 생성, 40분에 발표
-    // 현재 시각이 40분 이전이면 이전 시간 데이터 사용
-    let hours = now.getHours();
-    const minutes = now.getMinutes();
-
-    // 날짜 처리를 위해 복사본 생성
-    const requestDate = new Date(now);
-
-    if (minutes < 40) {
-      hours = hours - 1;
-      if (hours < 0) {
-        hours = 23;
-        // 하루 전으로 날짜 변경
-        requestDate.setDate(requestDate.getDate() - 1);
-      }
-    }
-
-    // 기상청 API는 YYYYMMDD 형식을 요구합니다.
-    // .toISOString()은 UTC 기준이므로 한국 시간 계산 시 날짜가 하루 밀릴 수 있습니다.
-    // 따라서 로컬 시간을 기준으로 직접 포맷팅합니다.
-    const year = requestDate.getFullYear();
-    const month = String(requestDate.getMonth() + 1).padStart(2, '0');
-    const day = String(requestDate.getDate()).padStart(2, '0');
-    const baseDate = `${year}${month}${day}`;
-
-    // const baseDate = requestDate.toISOString().slice(0, 10).replace(/-/g, ''); // REMOVED due to UTC issue
-    const baseTime = hours.toString().padStart(2, '0') + '00';
-
     logger.log(`🔍 기상청(프록시) API 호출: ${regionName} (nx:${coords.nx}, ny:${coords.ny})`);
-    logger.log(`📅 기준시각: ${baseDate} ${baseTime}`);
 
     const origin = getBackendOrigin();
-    const params = new URLSearchParams({
-      base_date: baseDate,
-      base_time: baseTime,
-      nx: String(coords.nx),
-      ny: String(coords.ny),
-    });
-    const fullUrl = `${origin}/api/proxy/kma/ultra-srt-ncst?${params.toString()}`;
-    if (import.meta.env.DEV) {
-      logger.log('🌐 날씨 프록시 URL:', fullUrl);
-    }
+    let lastError = 'API 응답 실패';
 
-    // 재시도 로직이 포함된 fetch 호출
-    const response = await fetchWithRetry(fullUrl, null, MAX_RETRIES);
+    for (let hoursBack = 0; hoursBack < 4; hoursBack += 1) {
+      const { baseDate, baseTime } = getKstNcstBaseDateTime(hoursBack);
+      logger.log(`📅 기준시각(KST) 시도 ${hoursBack}: ${baseDate} ${baseTime}`);
 
-    logger.log('📡 API 응답 상태:', response.status);
-
-    if (!response.ok) {
-      let detail = response.statusText;
-      try {
-        const errBody = await response.clone().json();
-        if (errBody?.error) detail = String(errBody.error);
-      } catch (_) {}
-      if (response.status === 503) {
-        throw new Error(
-          '날씨 프록시가 설정되지 않았습니다. 백엔드에 KMA_API_KEY(또는 DATA_GO_KR_SERVICE_KEY)를 설정해 주세요.'
-        );
+      const params = new URLSearchParams({
+        base_date: baseDate,
+        base_time: baseTime,
+        nx: String(coords.nx),
+        ny: String(coords.ny),
+      });
+      const fullUrl = `${origin}/api/proxy/kma/ultra-srt-ncst?${params.toString()}`;
+      if (import.meta.env.DEV) {
+        logger.log('🌐 날씨 프록시 URL:', fullUrl);
       }
-      throw new Error(`HTTP ${response.status}: ${detail}`);
-    }
 
-    const data = await response.json();
-    logger.log('📦 API 응답 데이터:', data);
+      const response = await fetchWithRetry(fullUrl, null, MAX_RETRIES);
+      logger.log('📡 API 응답 상태:', response.status);
 
-    // API 응답 확인
-    if (data.response?.header?.resultCode === '00' && data.response?.body?.items?.item) {
-      const items = data.response.body.items.item;
+      if (!response.ok) {
+        let detail = response.statusText;
+        try {
+          const errBody = await response.clone().json();
+          if (errBody?.error) detail = String(errBody.error);
+        } catch (_) {}
+        if (response.status === 503) {
+          throw new Error(
+            '날씨 프록시가 설정되지 않았습니다. 백엔드에 KMA_API_KEY(또는 DATA_GO_KR_SERVICE_KEY)를 설정해 주세요.'
+          );
+        }
+        throw new Error(`HTTP ${response.status}: ${detail}`);
+      }
 
-      // 기온(T1H)과 하늘상태(PTY, SKY) 찾기
+      const data = await response.json();
+      logger.log('📦 API 응답 데이터:', data);
+
+      const header = data?.response?.header;
+      const code = header?.resultCode;
+      const rawItems = data?.response?.body?.items?.item;
+
+      if (code === '03' || code === '02' || !rawItems) {
+        lastError = header?.resultMsg || `NO_DATA (${code || 'empty'})`;
+        logger.warn(`⚠️ 기상청 데이터 없음, 이전 시각 재시도: ${lastError}`);
+        continue;
+      }
+
+      if (code !== '00') {
+        lastError = header?.resultMsg || 'API 응답 실패';
+        logger.error('❌ API 응답 오류:', header);
+        throw new Error(lastError);
+      }
+
+      const items = normalizeKmaItems(rawItems);
+      if (items.length === 0) {
+        lastError = '관측 항목 없음';
+        logger.warn('⚠️ items 비어 있음, 이전 시각 재시도');
+        continue;
+      }
+
       let temperature = '23';
       let sky = '맑음';
       let icon = '☀️';
+      let humidity = '60%';
+      let wind = '5m/s';
 
-      items.forEach(item => {
-        if (item.category === 'T1H') {
-          temperature = Math.round(item.obsrValue);
+      items.forEach((item) => {
+        if (item.category === 'T1H' && item.obsrValue != null && item.obsrValue !== '') {
+          temperature = Math.round(Number(item.obsrValue));
         }
         if (item.category === 'PTY') {
-          // 0: 없음, 1: 비, 2: 비/눈, 3: 눈, 4: 소나기
-          const ptyValue = parseInt(item.obsrValue);
+          const ptyValue = parseInt(item.obsrValue, 10);
           if (ptyValue === 1 || ptyValue === 4) {
             sky = '비';
             icon = '🌧️';
@@ -197,8 +233,7 @@ export const getWeatherByRegion = async (regionName, forceRefresh = false) => {
           }
         }
         if (item.category === 'SKY' && sky === '맑음') {
-          // 1: 맑음, 3: 구름많음, 4: 흐림
-          const skyValue = parseInt(item.obsrValue);
+          const skyValue = parseInt(item.obsrValue, 10);
           if (skyValue === 3) {
             sky = '구름많음';
             icon = '🌤️';
@@ -206,6 +241,12 @@ export const getWeatherByRegion = async (regionName, forceRefresh = false) => {
             sky = '흐림';
             icon = '☁️';
           }
+        }
+        if (item.category === 'REH' && item.obsrValue != null && item.obsrValue !== '') {
+          humidity = `${Math.round(Number(item.obsrValue))}%`;
+        }
+        if (item.category === 'WSD' && item.obsrValue != null && item.obsrValue !== '') {
+          wind = `${Number(item.obsrValue).toFixed(1)}m/s`;
         }
       });
 
@@ -215,26 +256,21 @@ export const getWeatherByRegion = async (regionName, forceRefresh = false) => {
           icon,
           condition: sky,
           temperature: `${temperature}℃`,
-          humidity: '60%',
-          wind: '5m/s'
-        }
+          humidity,
+          wind,
+        },
       };
 
-      // 캐시에 저장
       weatherCache.set(regionName, {
         data: result,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
 
       logger.log(`✅ 기상청 API 성공: ${regionName} - ${sky}, ${temperature}℃`);
       return result;
-    } else {
-      const errorMsg = data.response?.header?.resultMsg || 'API 응답 실패';
-      logger.error('❌ API 응답 오류:', data.response?.header);
-
-      // API 응답 오류도 재시도 가능한 경우가 있으므로 throw
-      throw new Error(errorMsg);
     }
+
+    throw new Error(lastError || '해당 지역 최신 관측 데이터를 찾지 못했습니다.');
 
   } catch (error) {
     logger.error(`❌ 기상청 API 최종 실패: ${regionName}`, error.message);
