@@ -109,7 +109,15 @@ export const createPostSupabase = async (post) => {
       captured_at: post.photoDate ? new Date(post.photoDate) : null,
       created_at: post.createdAt ? new Date(post.createdAt) : new Date(),
       is_in_app_camera: post.isInAppCamera === true,
-      exif_data: post.exifData && typeof post.exifData === 'object' ? post.exifData : null,
+      exif_data: (() => {
+        const base = post.exifData && typeof post.exifData === 'object' ? { ...post.exifData } : {};
+        const lat = Number(post?.coordinates?.lat);
+        const lng = Number(post?.coordinates?.lng);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          base.map_pin = { lat, lng };
+        }
+        return Object.keys(base).length ? base : null;
+      })(),
     };
 
     let { data, error } = await supabase
@@ -370,6 +378,12 @@ const mapRowToPost = (row) => {
     exifData:
       row.exif_data && typeof row.exif_data === 'object'
         ? row.exif_data
+        : null,
+    coordinates:
+      row.exif_data?.map_pin &&
+      Number.isFinite(Number(row.exif_data.map_pin.lat)) &&
+      Number.isFinite(Number(row.exif_data.map_pin.lng))
+        ? { lat: Number(row.exif_data.map_pin.lat), lng: Number(row.exif_data.map_pin.lng) }
         : null,
     likes: likesCount,
     likeCount: likesCount,

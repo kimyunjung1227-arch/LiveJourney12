@@ -136,6 +136,11 @@ const haversineKm = (a, b) => {
 };
 
 const extractCoordsFromPost = (post) => {
+  /** Supabase에 저장된 업로드 시 확정 좌표(모든 기기 동일) */
+  const mp = post?.exifData?.map_pin;
+  if (mp && Number.isFinite(Number(mp.lat)) && Number.isFinite(Number(mp.lng))) {
+    return { lat: Number(mp.lat), lng: Number(mp.lng) };
+  }
   const c = post?.coordinates;
   const lat = Number(
     c?.lat ?? c?.latitude ?? post?.lat ?? post?.latitude ?? post?.exifData?.latitude ?? post?.exifData?.lat,
@@ -157,6 +162,18 @@ const buildGeoQuery = (post) => {
   if (region && primary !== region) return `${primary} ${region}`;
   return primary;
 };
+
+/** 장소명·상세 위치 우선 — 카카오 키워드 검색이 지역 중심점보다 정확 */
+function buildKakaoPriorityQuery(post) {
+  const place = String(post?.placeName || '').trim();
+  const detailed = String(post?.detailedLocation || '').trim();
+  const loc = String(post?.location || '').trim();
+  const region = String(post?.region || '').trim();
+  const primary = place || detailed || loc;
+  if (!primary) return region || '';
+  if (region && !primary.includes(region)) return `${primary} ${region}`.trim();
+  return primary;
+}
 
 const normalizePost = (p) => {
   if (!p || typeof p !== 'object') return null;
@@ -321,25 +338,40 @@ const MapScreen = () => {
       const direct = extractCoordsFromPost(post);
       if (direct) return direct;
 
-      const qRaw = buildGeoQuery(post);
-      const q = String(qRaw || '').trim();
-      if (!q) return null;
+      const tryKakaoQuery = async (queryText) => {
+        const q = String(queryText || '').trim();
+        if (!q) return null;
+        const cached = geoCache.get(q);
+        if (cached !== undefined) return cached;
+        await ensureKakaoMapsReady();
+        const found = await searchPlaceWithKakaoFirst(q);
+        const coord =
+          found && Number.isFinite(found.lat) && Number.isFinite(found.lng) ? { lat: found.lat, lng: found.lng } : null;
+        geoCache.set(q, coord);
+        return coord;
+      };
 
-      const cached = geoCache.get(q);
-      if (cached !== undefined) return cached;
+      const qPriority = buildKakaoPriorityQuery(post);
+      let coord = await tryKakaoQuery(qPriority);
+      if (coord) return coord;
 
-      const regionCoord = getCoordinatesByLocation(post?.region || post?.location || '');
-      if (regionCoord) {
-        geoCache.set(q, regionCoord);
-        return regionCoord;
+      const qFallback = buildGeoQuery(post);
+      if (qFallback && qFallback !== qPriority) {
+        coord = await tryKakaoQuery(qFallback);
+        if (coord) return coord;
       }
 
-      await ensureKakaoMapsReady();
-      const found = await searchPlaceWithKakaoFirst(q);
-      const coord =
-        found && Number.isFinite(found.lat) && Number.isFinite(found.lng) ? { lat: found.lat, lng: found.lng } : null;
-      geoCache.set(q, coord);
-      return coord;
+      const regionOnly = String(post?.region || '').trim();
+      if (regionOnly) {
+        const regionCoord = getCoordinatesByLocation(regionOnly);
+        if (regionCoord) return regionCoord;
+      }
+      const locOnly = String(post?.location || '').trim();
+      if (locOnly && locOnly !== regionOnly) {
+        const locCoord = getCoordinatesByLocation(locOnly);
+        if (locCoord) return locCoord;
+      }
+      return null;
     },
     [geoCache],
   );
