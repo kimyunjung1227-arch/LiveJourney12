@@ -1,4 +1,8 @@
-name: Deploy to GitHub Pages (web)
+# https://kimyunjung1227-arch.github.io/LiveJourney12/ 배포
+# Settings → Pages → Source: "GitHub Actions"
+# Secrets: VITE_API_URL (Render 등 백엔드 https://.../api), Supabase·카카오맵 등
+
+name: Deploy to GitHub Pages
 
 on:
   push:
@@ -11,7 +15,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"
+  group: pages
   cancel-in-progress: false
 
 jobs:
@@ -25,7 +29,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20.18.1"
-          cache: "npm"
+          cache: npm
           cache-dependency-path: web/package-lock.json
 
       - name: Install dependencies
@@ -34,15 +38,22 @@ jobs:
 
       - name: Build
         working-directory: ./web
-        run: npm run build
         env:
-          VITE_BASE_URL: "/${{ github.event.repository.name }}/"
+          # 서브경로 필수: /LiveJourney12/
+          VITE_BASE_URL: /${{ github.event.repository.name }}/
+          # canonical·OG용 (저장소마다 자동)
+          VITE_SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
           VITE_KAKAO_MAP_API_KEY: ${{ secrets.VITE_KAKAO_MAP_API_KEY }}
-          VITE_KMA_API_KEY: ${{ secrets.VITE_KMA_API_KEY }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_ADMIN_EMAILS: ${{ secrets.VITE_ADMIN_EMAILS }}
+        run: npm run build
+
+      # 깊은 링크(직접 URL) 시 GitHub Pages가 404를 주므로 SPA 엔트리와 동일하게 맞춤
+      - name: SPA 404 fallback (GitHub Pages)
+        working-directory: ./web
+        run: cp dist/index.html dist/404.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -53,11 +64,11 @@ jobs:
           path: ./web/dist
 
   deploy:
+    runs-on: ubuntu-latest
+    needs: build
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
     permissions:
       pages: write
       id-token: write
@@ -65,85 +76,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
-# push to master 시 GitHub Pages 자동 배포 (로컬 빌드 실패 시 CI에서 빌드)
-#
-# [필수] 저장소 Settings → Pages → Build and deployment → Source: "GitHub Actions" 선택
-#        (브랜치 배포만 켜 두면 configure-pages 단계에서 HttpError: Not Found / Get Pages site failed 발생)
-#
-# GitHub Actions: JS 기반 액션의 Node 20 폐기 대비 — 러너에서 액션을 Node 24로 실행
-# https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
-name: Deploy to GitHub Pages
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
-on:
-  push:
-    branches:
-      - master
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "20.18.1"
-          cache: "npm"
-          cache-dependency-path: web/package-lock.json
-
-      - name: Install dependencies
-        working-directory: ./web
-        run: npm ci
-
-      - name: Build
-        working-directory: ./web
-        run: npm run build
-        env:
-          # GitHub Pages 서브경로 (https://owner.github.io/RepoName/) — 필수
-          VITE_BASE_URL: "/${{ github.event.repository.name }}/"
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
-          VITE_KAKAO_MAP_API_KEY: ${{ secrets.VITE_KAKAO_MAP_API_KEY }}
-          VITE_KMA_API_KEY: ${{ secrets.VITE_KMA_API_KEY }}
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_ADMIN_EMAILS: ${{ secrets.VITE_ADMIN_EMAILS }}
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v6
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: ./web/dist
-
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-    permissions:
-      pages: write
-      id-token: write
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5

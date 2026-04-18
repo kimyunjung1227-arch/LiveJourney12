@@ -35,7 +35,7 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// CORS — 정적 사이트(gh-pages, 커스텀 도메인)가 Render API를 직접 호출할 수 있게
+// CORS — gh-pages·Vercel·Render 교차 호출
 const devOrigins = ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'];
 const prodSiteOrigins = [
   'https://livejourney.co.kr',
@@ -58,7 +58,14 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, cb) => {
-      if (!origin || allowedOrigins.some((o) => origin === o)) return cb(null, true);
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.some((o) => origin === o)) return cb(null, true);
+      try {
+        const { hostname } = new URL(origin);
+        if (hostname.endsWith('.github.io') || hostname.endsWith('.vercel.app')) return cb(null, true);
+      } catch (_) {
+        /* ignore */
+      }
       return cb(null, false);
     },
     credentials: true,

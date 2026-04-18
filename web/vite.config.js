@@ -1,18 +1,18 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// 빌드 시점에 Vercel/로컬 환경변수 사용 (loadEnv 제거로 배포 빌드 안정화)
 const kakaoKey = typeof process !== 'undefined' && process.env && process.env.VITE_KAKAO_MAP_API_KEY
   ? String(process.env.VITE_KAKAO_MAP_API_KEY).trim()
   : ''
 
-/** OG·canonical·JSON-LD용 공개 베이스 URL(trailing slash 없음). 서브경로 배포 시 전체 베이스까지 포함해 설정 */
 function getPublicBaseForHtml() {
   const raw = typeof process !== 'undefined' && process.env && process.env.VITE_SITE_URL
     ? String(process.env.VITE_SITE_URL).trim()
     : ''
   return (raw || 'https://livejourney.co.kr').replace(/\/$/, '')
 }
+
+const devProxyTarget = process.env.VITE_DEV_PROXY_TARGET || 'http://127.0.0.1:5000'
 
 export default defineConfig({
   plugins: [
@@ -35,22 +35,14 @@ export default defineConfig({
     },
   ],
   publicDir: 'public',
-  // GitHub Pages: 서브경로 배포 시 필수 (CI에서 VITE_BASE_URL 주입). 로컬/Vercel은 기본 '/'
   base: process.env.VITE_BASE_URL || '/',
   server: {
     host: '0.0.0.0',
     port: 3000,
     open: true,
-    // 프론트만 켜도 /api·/uploads 가 백엔드(5000)로 전달되도록 (날씨 프록시·게시물 등)
     proxy: {
-      '/api': {
-        target: 'http://127.0.0.1:5000',
-        changeOrigin: true,
-      },
-      '/uploads': {
-        target: 'http://127.0.0.1:5000',
-        changeOrigin: true,
-      },
+      '/api': { target: devProxyTarget, changeOrigin: true },
+      '/uploads': { target: devProxyTarget, changeOrigin: true },
     },
   },
   optimizeDeps: {
@@ -61,10 +53,7 @@ export default defineConfig({
     assetsDir: 'assets',
     sourcemap: false,
     reportCompressedSize: false,
-    // Windows/최신 Node(예: 24)에서 esbuild native가 크래시(3221226505)하는 경우가 있어
-    // 로컬 환경에서도 안정적으로 빌드되도록 terser로 전환
     minify: 'terser',
-    // cssMinify도 기본적으로 esbuild를 사용하므로 로컬 크래시 회피를 위해 끔
     cssMinify: false,
     target: 'es2020',
     chunkSizeWarningLimit: 900,
@@ -73,4 +62,3 @@ export default defineConfig({
     },
   },
 })
-
