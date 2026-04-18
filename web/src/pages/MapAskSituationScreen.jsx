@@ -71,6 +71,12 @@ export default function MapAskSituationScreen() {
     return `${picked.lat.toFixed(5)}, ${picked.lng.toFixed(5)}`;
   }, [picked]);
 
+  /** 지도/검색으로 선택한 위치를 위치 입력창에도 동일하게 표시 */
+  useEffect(() => {
+    if (!picked) return;
+    setLocationQuery(pickedLabel);
+  }, [picked, pickedLabel]);
+
   const submit = () => {
     const q = text.trim();
     if (!q) return;
@@ -90,7 +96,8 @@ export default function MapAskSituationScreen() {
     navigate(-1);
   };
 
-  const setPickOverlayAt = useCallback((lat, lng) => {
+  /** zoomLevel: 숫자가 작을수록 확대(카카오맵 기본 1~14). 검색 이동 시에만 넘기면 됨 */
+  const setPickOverlayAt = useCallback((lat, lng, zoomLevel) => {
     const map = mapRef.current;
     if (!map || !window.kakao?.maps) return;
     const kakao = window.kakao;
@@ -114,6 +121,9 @@ export default function MapAskSituationScreen() {
       pickOverlayRef.current = overlay;
     } else {
       pickOverlayRef.current.setPosition(pos);
+    }
+    if (Number.isFinite(zoomLevel)) {
+      map.setLevel(zoomLevel);
     }
     map.panTo(pos);
   }, []);
@@ -165,7 +175,7 @@ export default function MapAskSituationScreen() {
           const lat = Number(first.y);
           const lng = Number(first.x);
           if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-          setPickOverlayAt(lat, lng);
+          setPickOverlayAt(lat, lng, 3);
           setPicked({ lat, lng, name: first.place_name || first.address_name || query });
         }
       });

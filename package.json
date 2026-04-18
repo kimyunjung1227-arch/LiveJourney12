@@ -20,5 +20,10 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "overrides": {
+    "passport-kakao": {
+      "passport-oauth2": "^1.8.0"
+    }
   }
 }

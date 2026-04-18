@@ -35,6 +35,10 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: KMA_API_KEY
+        sync: false
+      - key: SEOUL_TRAFFIC_API_KEY
+        sync: false
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY

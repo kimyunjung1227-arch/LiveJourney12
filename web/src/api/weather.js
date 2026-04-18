@@ -1,7 +1,14 @@
-// 날씨 API 연동
-import api from './axios';
+// 날씨·교통: 외부 API 키는 백엔드 `/api/proxy/*` 에만 두고, 클라이언트는 프록시만 호출합니다.
 import { getCoordinatesByRegion } from '../utils/regionCoordinates';
 import { logger } from '../utils/logger';
+
+/** VITE_API_URL 이 `.../api` 또는 origin 만 오더라도 백엔드 루트(origin)로 정규화 */
+function getBackendOrigin() {
+  const raw = String(import.meta.env.VITE_API_URL || 'http://localhost:5000/api').trim();
+  const noTrail = raw.replace(/\/+$/, '');
+  if (noTrail.endsWith('/api')) return noTrail.slice(0, -4);
+  return noTrail;
+}
 
 // 날씨 캐시 (5분간 유효)
 const weatherCache = new Map();
@@ -78,12 +85,7 @@ const fetchWithRetry = async (url, signal, retries = MAX_RETRIES) => {
  * @returns {Promise<Object>} 날씨 정보
  */
 export const getWeatherByRegion = async (regionName, forceRefresh = false) => {
-  const KMA_API_KEY = import.meta.env.VITE_KMA_API_KEY;
-
   logger.log('🌦️ 날씨 API 호출 시작:', regionName);
-  if (import.meta.env.DEV) {
-    logger.log('🔑 기상청 API 키 설정 여부:', KMA_API_KEY ? '설정됨' : '미설정');
-  }
 
   // 캐시 확인 - 있으면 즉시 반환! (강제 새로고침이 아닐 때만)
   if (!forceRefresh) {
@@ -92,15 +94,6 @@ export const getWeatherByRegion = async (regionName, forceRefresh = false) => {
       logger.log(`⚡ 캐시된 날씨 정보 즉시 반환: ${regionName}`);
       return cached.data;
     }
-  }
-
-  if (!KMA_API_KEY || KMA_API_KEY === 'your_kma_api_key_here') {
-    logger.warn('⚠️ 기상청 API 키가 설정되지 않았습니다. VITE_KMA_API_KEY를 설정해 주세요.');
-    return {
-      success: false,
-      error: 'API 키가 필요합니다',
-      weather: { icon: '🌤️', condition: '-', temperature: '-', humidity: '-', wind: '-' }
-    };
   }
 
   // 실제 기상청 API 호출 (재시도 로직 포함)
@@ -146,24 +139,20 @@ export const getWeatherByRegion = async (regionName, forceRefresh = false) => {
     // const baseDate = requestDate.toISOString().slice(0, 10).replace(/-/g, ''); // REMOVED due to UTC issue
     const baseTime = hours.toString().padStart(2, '0') + '00';
 
-    logger.log(`🔍 기상청 API 호출: ${regionName} (nx:${coords.nx}, ny:${coords.ny})`);
+    logger.log(`🔍 기상청(프록시) API 호출: ${regionName} (nx:${coords.nx}, ny:${coords.ny})`);
     logger.log(`📅 기준시각: ${baseDate} ${baseTime}`);
 
-    // 기상청 초단기실황 API 호출
-    const url = `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst`;
+    const origin = getBackendOrigin();
     const params = new URLSearchParams({
-      serviceKey: KMA_API_KEY,
-      pageNo: '1',
-      numOfRows: '10',
-      dataType: 'JSON',
       base_date: baseDate,
       base_time: baseTime,
       nx: String(coords.nx),
-      ny: String(coords.ny)
+      ny: String(coords.ny),
     });
-
-    const fullUrl = `${url}?${params.toString()}`;
-    logger.log('🌐 API URL:', fullUrl);
+    const fullUrl = `${origin}/api/proxy/kma/ultra-srt-ncst?${params.toString()}`;
+    if (import.meta.env.DEV) {
+      logger.log('🌐 날씨 프록시 URL:', fullUrl);
+    }
 
     // 재시도 로직이 포함된 fetch 호출
     const response = await fetchWithRetry(fullUrl, null, MAX_RETRIES);
@@ -171,7 +160,17 @@ export const getWeatherByRegion = async (regionName, forceRefresh = false) => {
     logger.log('📡 API 응답 상태:', response.status);
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      let detail = response.statusText;
+      try {
+        const errBody = await response.clone().json();
+        if (errBody?.error) detail = String(errBody.error);
+      } catch (_) {}
+      if (response.status === 503) {
+        throw new Error(
+          '날씨 프록시가 설정되지 않았습니다. 백엔드에 KMA_API_KEY(또는 DATA_GO_KR_SERVICE_KEY)를 설정해 주세요.'
+        );
+      }
+      throw new Error(`HTTP ${response.status}: ${detail}`);
     }
 
     const data = await response.json();
@@ -287,15 +286,15 @@ export const getWeatherIcon = (condition) => {
  * @returns {Promise<Object>} 교통 정보
  */
 export const getTrafficByRegion = async (regionName) => {
-  const SEOUL_TRAFFIC_KEY = import.meta.env.VITE_SEOUL_TRAFFIC_API_KEY;
-  const NATIONAL_TRAFFIC_KEY = import.meta.env.VITE_NATIONAL_TRAFFIC_API_KEY;
-
   try {
-    // 서울 지역 - TOPIS API 사용
-    if (regionName.includes('서울') && SEOUL_TRAFFIC_KEY) {
+    // 서울 지역 - 서울시 오픈API (키는 백엔드 프록시에서만 사용)
+    if (regionName.includes('서울')) {
       try {
-        const url = `http://openapi.seoul.go.kr:8088/${SEOUL_TRAFFIC_KEY}/json/TrafficInfo/1/10/`;
-        const response = await fetch(url);
+        const origin = getBackendOrigin();
+        const response = await fetch(`${origin}/api/proxy/traffic/seoul`);
+        if (!response.ok) {
+          throw new Error(`traffic proxy ${response.status}`);
+        }
         const data = await response.json();
 
         if (data.TrafficInfo?.row) {
@@ -326,18 +325,7 @@ export const getTrafficByRegion = async (regionName) => {
           };
         }
       } catch (error) {
-        logger.error('서울시 교통 API 오류:', error);
-      }
-    }
-
-    // 전국 - 국가교통정보센터 API 사용
-    if (NATIONAL_TRAFFIC_KEY) {
-      try {
-        // TODO: 국가교통정보센터 API 연동
-        // 실제 API 엔드포인트와 파라미터는 승인 후 확인
-        logger.log(`국가교통정보센터 API 호출: ${regionName}`);
-      } catch (error) {
-        logger.error('국가교통정보센터 API 오류:', error);
+        logger.error('서울시 교통 API(프록시) 오류:', error);
       }
     }
 

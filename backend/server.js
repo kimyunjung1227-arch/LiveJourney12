@@ -47,7 +47,16 @@ app.use(cors({
   credentials: true
 }));
 
-// API 레이트 리밋 (브루트포스·과도한 트래픽 완화)
+// 인증 라우트: 일반 API보다 촘촘한 레이트 리밋 (OAuth 시작·토큰 엔드포인트 남용 완화)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.AUTH_RATE_LIMIT_MAX || (process.env.NODE_ENV === 'production' ? 60 : 800)),
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/auth', authLimiter);
+
+// API 레이트 리밋 (브루트포스·과도한 트래픽 완화) — /api/auth 는 위에서 별도 처리하므로 제외
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: Number(process.env.API_RATE_LIMIT_MAX || (process.env.NODE_ENV === 'production' ? 400 : 5000)),
@@ -55,7 +64,9 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
   skip: (req) => {
     const p = req.path || '';
-    return p === '/health' || p === '/api/health';
+    if (p === '/health') return true;
+    if (p.startsWith('/auth')) return true;
+    return false;
   },
 });
 app.use('/api', apiLimiter);
@@ -144,6 +155,7 @@ const mapRouter = require('./routes/map');
 const locationsRouter = require('./routes/locations');
 const policiesRouter = require('./routes/policies');
 const feedbackRouter = require('./routes/feedback');
+const proxyRouter = require('./routes/proxy');
 
 app.use('/api/posts', postsRouter);
 app.use('/api/users', usersRouter);
@@ -156,6 +168,7 @@ app.use('/api/map', mapRouter);
 app.use('/api/locations', locationsRouter);
 app.use('/api/policies', policiesRouter);
 app.use('/api/feedback', feedbackRouter);
+app.use('/api/proxy', proxyRouter);
 
 // API 문서 (루트 경로)
 app.get('/', (req, res) => {
@@ -172,7 +185,9 @@ app.get('/', (req, res) => {
       upload: '/api/upload',
       search: '/api/search',
       map: '/api/map',
-      feedback: '/api/feedback'
+      feedback: '/api/feedback',
+      proxyWeather: '/api/proxy/kma/ultra-srt-ncst',
+      proxyTrafficSeoul: '/api/proxy/traffic/seoul'
     },
     documentation: '/api/docs'
   });
