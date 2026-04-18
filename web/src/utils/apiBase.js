@@ -1,8 +1,6 @@
 /**
- * 백엔드 베이스 URL
- * - 개발: Vite 프록시 → /api → localhost:5000
- * - livejourney.co.kr (Vercel): 같은 출처 `/api` → vercel.json 이 Render로 프록시 (CORS 불필요)
- * - GitHub Pages 등: VITE_API_URL 없으면 Render 직접 URL (백엔드 CORS 필요)
+ * axios용 API 베이스 (게시물·업로드 등 Node 백엔드 또는 동일 출처)
+ * 날씨(기상청)는 `weather.js`에서 Supabase Edge Function을 우선 사용 (VITE_SUPABASE_URL).
  */
 
 const DEFAULT_PROD_API_ORIGIN = 'https://livejourney-backend.onrender.com';

@@ -1,4 +1,4 @@
-// 날씨·교통: 외부 API 키는 백엔드 `/api/proxy/*` 에만 두고, 클라이언트는 프록시만 호출합니다.
+// 날씨: 우선 Supabase Edge Function `kma-ultra-ncst` (VITE_SUPABASE_*), 없으면 Node `/api/proxy/*`
 import { getCoordinatesByRegion } from '../utils/regionCoordinates';
 import { logger } from '../utils/logger';
 import { getBackendOrigin } from '../utils/apiBase';
@@ -19,7 +19,7 @@ const API_TIMEOUT = 10000; // 10초
  * @param {number} retries - 남은 재시도 횟수
  * @returns {Promise<Response>}
  */
-const fetchWithRetry = async (url, signal, retries = MAX_RETRIES) => {
+const fetchWithRetry = async (url, signal, retries = MAX_RETRIES, fetchInit = {}) => {
   for (let i = 0; i < retries; i++) {
     try {
       logger.log(`🔄 기상청 API 호출 시도 ${i + 1}/${retries}`);
@@ -32,7 +32,10 @@ const fetchWithRetry = async (url, signal, retries = MAX_RETRIES) => {
         signal.addEventListener('abort', () => controller.abort());
       }
 
-      const response = await fetch(url, { signal: controller.signal });
+      const response = await fetch(url, {
+        ...fetchInit,
+        signal: controller.signal,
+      });
       clearTimeout(timeoutId);
 
       if (response.ok) {
@@ -116,6 +119,28 @@ function normalizeKmaItems(raw) {
   return Array.isArray(raw) ? raw : [raw];
 }
 
+/** Supabase Edge Function 우선, 없으면 Node 프록시 */
+function buildKmaProxyUrl(searchParams) {
+  const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim().replace(/\/+$/, '');
+  if (supabaseUrl) {
+    return `${supabaseUrl}/functions/v1/kma-ultra-ncst?${searchParams.toString()}`;
+  }
+  const origin = getBackendOrigin();
+  return `${origin}/api/proxy/kma/ultra-srt-ncst?${searchParams.toString()}`;
+}
+
+function buildKmaFetchInit() {
+  const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim();
+  const anon = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+  if (!supabaseUrl || !anon) return {};
+  return {
+    headers: {
+      Authorization: `Bearer ${anon}`,
+      apikey: anon,
+    },
+  };
+}
+
 /**
  * 지역별 날씨 정보 가져오기 (캐시 + 재시도 + 타임아웃 적용)
  * @param {string} regionName - 지역명 (예: '서울', '부산')
@@ -148,7 +173,6 @@ export const getWeatherByRegion = async (regionName, forceRefresh = false) => {
 
     logger.log(`🔍 기상청(프록시) API 호출: ${regionName} (nx:${coords.nx}, ny:${coords.ny})`);
 
-    const origin = getBackendOrigin();
     let lastError = 'API 응답 실패';
 
     for (let hoursBack = 0; hoursBack < 4; hoursBack += 1) {
@@ -161,12 +185,12 @@ export const getWeatherByRegion = async (regionName, forceRefresh = false) => {
         nx: String(coords.nx),
         ny: String(coords.ny),
       });
-      const fullUrl = `${origin}/api/proxy/kma/ultra-srt-ncst?${params.toString()}`;
+      const fullUrl = buildKmaProxyUrl(params);
       if (import.meta.env.DEV) {
         logger.log('🌐 날씨 프록시 URL:', fullUrl);
       }
 
-      const response = await fetchWithRetry(fullUrl, null, MAX_RETRIES);
+      const response = await fetchWithRetry(fullUrl, null, MAX_RETRIES, buildKmaFetchInit());
       logger.log('📡 API 응답 상태:', response.status);
 
       if (!response.ok) {
