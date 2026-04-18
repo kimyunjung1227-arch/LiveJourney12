@@ -1,14 +1,20 @@
 /**
  * 백엔드 베이스 URL
  * - 개발: Vite 프록시 → /api → localhost:5000
- * - 프로덕션: VITE_API_URL 미설정 시 Render 백엔드로 직접 호출
- *   (GitHub Pages·정적 호스팅에는 /api 라우트가 없어 404가 남)
+ * - livejourney.co.kr (Vercel): 같은 출처 `/api` → vercel.json 이 Render로 프록시 (CORS 불필요)
+ * - GitHub Pages 등: VITE_API_URL 없으면 Render 직접 URL (백엔드 CORS 필요)
  */
 
-/** render.yaml 의 웹 서비스 URL과 맞춤. 다르면 빌드 시 VITE_API_URL 로 지정 */
 const DEFAULT_PROD_API_ORIGIN = 'https://livejourney-backend.onrender.com';
 
-/** fetch용 origin (끝에 /api 없음). 빈 문자열이면 같은 출처 `/api/...` (개발 전용) */
+/** Vercel 커스텀 도메인 — 브라우저가 livejourney.co.kr 로만 요청하게 해 CORS 회피 */
+function isLiveJourneyWebDomain() {
+  if (typeof window === 'undefined') return false;
+  const h = window.location.hostname;
+  return h === 'livejourney.co.kr' || h === 'www.livejourney.co.kr';
+}
+
+/** fetch용 origin (끝에 /api 없음). 빈 문자열이면 같은 출처 `/api/...` */
 export function getBackendOrigin() {
   const raw = String(import.meta.env.VITE_API_URL || '').trim();
   if (raw) {
@@ -17,6 +23,7 @@ export function getBackendOrigin() {
     return noTrail;
   }
   if (import.meta.env.DEV) return '';
+  if (isLiveJourneyWebDomain()) return '';
   return DEFAULT_PROD_API_ORIGIN;
 }
 
@@ -28,5 +35,6 @@ export function getApiBasePath() {
     return t.endsWith('/api') ? t : `${t}/api`;
   }
   if (import.meta.env.DEV) return '/api';
+  if (isLiveJourneyWebDomain()) return '/api';
   return `${DEFAULT_PROD_API_ORIGIN}/api`;
 }

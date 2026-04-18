@@ -55,13 +55,18 @@ const allowedOrigins = [
     ...(fromEnv.length === 0 && process.env.NODE_ENV !== 'production' ? devOrigins : []),
   ]),
 ];
-app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin || allowedOrigins.some((o) => origin === o)) return cb(null, true);
-    return cb(null, false);
-  },
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin || allowedOrigins.some((o) => origin === o)) return cb(null, true);
+      return cb(null, false);
+    },
+    credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    optionsSuccessStatus: 204,
+  })
+);
 
 // 인증 라우트: 일반 API보다 촘촘한 레이트 리밋 (OAuth 시작·토큰 엔드포인트 남용 완화)
 const authLimiter = rateLimit({
