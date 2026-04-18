@@ -40,7 +40,18 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3000,
-    open: true
+    open: true,
+    // 프론트만 켜도 /api·/uploads 가 백엔드(5000)로 전달되도록 (날씨 프록시·게시물 등)
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true,
+      },
+      '/uploads': {
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true,
+      },
+    },
   },
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom', 'axios', 'swiper', 'leaflet', 'react-leaflet'],

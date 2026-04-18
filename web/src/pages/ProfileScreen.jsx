@@ -12,6 +12,7 @@ import { getTrustScore, getTrustRawScore, getTrustGrade, TRUST_GRADES } from '..
 import { getCoordinatesByLocation } from '../utils/regionLocationMapping';
 import { follow, unfollow, isFollowing, getFollowerCount, getFollowingCount, getFollowerIds, getFollowingIds } from '../utils/followSystem';
 import { logger } from '../utils/logger';
+import { getBackendOrigin } from '../utils/apiBase';
 import { getDisplayImageUrl } from '../api/upload';
 import api from '../api/axios';
 import { cleanLegacyUploadedPosts, getUploadedPostsSafe } from '../utils/localStorageManager';
@@ -1360,16 +1361,16 @@ const ProfileScreen = () => {
     setLoginError('');
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const origin = getBackendOrigin();
       const providerLower = provider.toLowerCase();
       let authEndpoint = '';
 
       if (providerLower === 'kakao') {
-        authEndpoint = `${apiUrl}/api/auth/kakao`;
+        authEndpoint = `${origin}/api/auth/kakao`;
       } else if (providerLower === 'naver') {
-        authEndpoint = `${apiUrl}/api/auth/naver`;
+        authEndpoint = `${origin}/api/auth/naver`;
       } else if (providerLower === 'google') {
-        authEndpoint = `${apiUrl}/api/auth/google`;
+        authEndpoint = `${origin}/api/auth/google`;
       } else {
         throw new Error('지원하지 않는 소셜 로그인 제공자입니다.');
       }

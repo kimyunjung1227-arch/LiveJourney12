@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { logger } from '../utils/logger';
+import { getBackendOrigin } from '../utils/apiBase';
 
 const FeedbackModal = ({ isOpen, onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
@@ -55,7 +56,7 @@ const FeedbackModal = ({ isOpen, onClose, onSubmit }) => {
                          userAgent.includes('Safari') ? 'Safari' :
                          userAgent.includes('Edge') ? 'Edge' : 'Other';
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/feedback`, {
+      const response = await fetch(`${getBackendOrigin()}/api/feedback`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

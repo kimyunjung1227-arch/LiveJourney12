@@ -1,14 +1,7 @@
 // 날씨·교통: 외부 API 키는 백엔드 `/api/proxy/*` 에만 두고, 클라이언트는 프록시만 호출합니다.
 import { getCoordinatesByRegion } from '../utils/regionCoordinates';
 import { logger } from '../utils/logger';
-
-/** VITE_API_URL 이 `.../api` 또는 origin 만 오더라도 백엔드 루트(origin)로 정규화 */
-function getBackendOrigin() {
-  const raw = String(import.meta.env.VITE_API_URL || 'http://localhost:5000/api').trim();
-  const noTrail = raw.replace(/\/+$/, '');
-  if (noTrail.endsWith('/api')) return noTrail.slice(0, -4);
-  return noTrail;
-}
+import { getBackendOrigin } from '../utils/apiBase';
 
 // 날씨 캐시 (5분간 유효)
 const weatherCache = new Map();

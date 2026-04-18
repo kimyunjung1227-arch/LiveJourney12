@@ -1,9 +1,10 @@
 import api from './axios';
 import { logger } from '../utils/logger';
 import { supabase } from '../utils/supabaseClient';
+import { getApiBasePath } from '../utils/apiBase';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const UPLOAD_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
+const API_BASE = getApiBasePath();
+const UPLOAD_ORIGIN = API_BASE.replace(/\/api\/?$/, '') || (typeof window !== 'undefined' ? window.location.origin : '');
 
 // Supabase Storage 버킷 이름 (콘솔에서 동일한 이름으로 생성 필요)
 const SUPABASE_IMAGE_BUCKET = 'post-images';
