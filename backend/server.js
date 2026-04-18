@@ -35,13 +35,22 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// CORS — 프론트가 Render와 다른 도메인(livejourney.co.kr)일 때 브라우저 직접 호출 허용
+// CORS — 정적 사이트(gh-pages, 커스텀 도메인)가 Render API를 직접 호출할 수 있게
 const devOrigins = ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'];
-const prodSiteOrigins = ['https://livejourney.co.kr', 'https://www.livejourney.co.kr'];
+const prodSiteOrigins = [
+  'https://livejourney.co.kr',
+  'https://www.livejourney.co.kr',
+  'https://kimyunjung1227-arch.github.io',
+];
+const extraOrigins = (process.env.CORS_EXTRA_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 const fromEnv = process.env.FRONTEND_URL ? [String(process.env.FRONTEND_URL).trim()] : [];
 const allowedOrigins = [
   ...new Set([
     ...fromEnv,
+    ...extraOrigins,
     ...(process.env.NODE_ENV === 'production' ? prodSiteOrigins : []),
     ...(fromEnv.length === 0 && process.env.NODE_ENV !== 'production' ? devOrigins : []),
   ]),
