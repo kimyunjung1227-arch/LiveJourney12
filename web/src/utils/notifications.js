@@ -7,7 +7,11 @@ import {
   markAllNotificationsReadSupabase,
   markNotificationReadSupabase,
   deleteNotificationSupabase,
+  deleteAllNotificationsSupabase,
 } from '../api/notificationsSupabase';
+
+const isValidUuid = (v) =>
+  typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
 
 const NOTIFICATIONS_KEY = 'notifications';
 
@@ -80,14 +84,41 @@ export const getNotificationsForCurrentUser = () => {
   return all.filter((n) => !n.recipientUserId || String(n.recipientUserId) === uid);
 };
 
-// Supabase(멀티계정) 알림을 localStorage 캐시에 동기화
+/** DB 제약: type은 like | comment | follow | system 만 허용 */
+const toDbNotificationType = (t) => {
+  const x = String(t || 'system');
+  if (x === 'like' || x === 'comment' || x === 'follow' || x === 'system') return x;
+  return 'system';
+};
+
+const buildInsertPayloadForSelf = (notification, recipientUserId) => {
+  const postId = notification.postId ? String(notification.postId) : null;
+  return {
+    recipient_user_id: String(recipientUserId),
+    actor_user_id: notification.actorUserId && isValidUuid(String(notification.actorUserId))
+      ? String(notification.actorUserId)
+      : null,
+    type: toDbNotificationType(notification.type),
+    post_id: postId && isValidUuid(postId) ? postId : null,
+    actor_username: notification.actorUsername || null,
+    actor_avatar_url: notification.actorAvatar || null,
+    thumbnail_url: notification.thumbnailUrl || null,
+    message: String(notification.message || notification.title || '알림').slice(0, 2000),
+    read: !!notification.read,
+  };
+};
+
+// Supabase 알림을 localStorage 캐시에 덮어쓰기(동일 계정이면 모든 기기에서 같은 목록)
 export const syncNotificationsFromSupabase = async (userId) => {
   const uid = String(userId || '').trim();
   if (!uid) return [];
-  const existing = getNotifications();
   const rows = await fetchNotificationsSupabase(uid, { limit: 100 });
   const mapped = (rows || []).map((r) => {
-    const typ = r.type || 'system';
+    const rawType = r.type || 'system';
+    const typ =
+      rawType === 'system' && String(r.message || '').includes('뱃지를 획득')
+        ? 'badge'
+        : rawType;
     const actorId = r.actor_user_id ? String(r.actor_user_id) : null;
     let link = '/main';
     if (r.post_id) link = `/post/${r.post_id}`;
@@ -107,7 +138,12 @@ export const syncNotificationsFromSupabase = async (userId) => {
       thumbnailUrl: r.thumbnail_url || null,
       postId: r.post_id ? String(r.post_id) : null,
       recipientUserId: r.recipient_user_id ? String(r.recipient_user_id) : null,
-      kind: typ === 'follow' ? 'follow_received' : undefined,
+      kind:
+        typ === 'follow'
+          ? String(r.message || '').includes('회원님을')
+            ? 'follow_received'
+            : 'follow_started'
+          : undefined,
       link,
       icon: typeConfig.icon,
       iconBg: typeConfig.iconBg,
@@ -115,16 +151,7 @@ export const syncNotificationsFromSupabase = async (userId) => {
     };
   });
 
-  // 서버에 행이 없거나 조회 실패 시에도 로컬 전용 알림이 사라지지 않도록 병합
-  const serverIds = new Set(mapped.map((m) => String(m.id)));
-  const keptLocal = existing.filter((n) => !serverIds.has(String(n.id || '')));
-  const merged = [...mapped, ...keptLocal];
-  merged.sort((a, b) => {
-    const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-    const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-    return tb - ta;
-  });
-  const capped = merged.slice(0, 100);
+  const capped = mapped.slice(0, 100);
 
   try {
     localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(capped));
@@ -140,11 +167,12 @@ export const syncNotificationsFromSupabase = async (userId) => {
 export const sendNotificationToUser = async (notification) => {
   const recipient = notification?.recipientUserId ? String(notification.recipientUserId) : null;
   if (!recipient) return { success: false };
+  const pid = notification.postId ? String(notification.postId) : null;
   const payload = {
     recipient_user_id: recipient,
     actor_user_id: notification.actorUserId ? String(notification.actorUserId) : null,
-    type: notification.type || 'system',
-    post_id: notification.postId ? String(notification.postId) : null,
+    type: toDbNotificationType(notification.type),
+    post_id: pid && isValidUuid(pid) ? pid : null,
     actor_username: notification.actorUsername || null,
     actor_avatar_url: notification.actorAvatar || null,
     thumbnail_url: notification.thumbnailUrl || null,
@@ -154,35 +182,58 @@ export const sendNotificationToUser = async (notification) => {
   return await insertNotificationSupabase(payload);
 };
 
-// 알림 추가
+// 알림 추가 — 로그인(UUID) 시 Supabase에 저장 후 동기화하여 기기 간 동일 목록 유지
 export const addNotification = (notification) => {
+  const uid = getCurrentUserIdFromStorage();
+  const recipient = notification.recipientUserId ? String(notification.recipientUserId) : uid;
+
+  // 수신자가 다른 사람인 알림은 로컬에 쌓지 않음(상대 기기는 서버 동기화만 사용)
+  if (recipient && uid && String(recipient) !== String(uid)) {
+    return null;
+  }
+
   try {
-    const notifications = getNotifications();
     const newNotification = {
       id: Date.now().toString(),
       read: false,
       time: getTimeAgo(new Date()),
       timestamp: new Date().toISOString(),
-      ...notification
+      ...notification,
     };
 
-    // 타입별 기본 설정 적용
     const typeConfig = NOTIFICATION_TYPES[notification.type] || NOTIFICATION_TYPES.system;
     newNotification.icon = newNotification.icon || typeConfig.icon;
     newNotification.iconBg = newNotification.iconBg || typeConfig.iconBg;
     newNotification.iconColor = newNotification.iconColor || typeConfig.iconColor;
 
+    if (isValidUuid(uid) && recipient && String(recipient) === String(uid)) {
+      void (async () => {
+        const payload = buildInsertPayloadForSelf(newNotification, uid);
+        const res = await insertNotificationSupabase(payload);
+        if (res?.success) {
+          await syncNotificationsFromSupabase(uid);
+        } else {
+          try {
+            const notifications = getNotifications();
+            notifications.unshift(newNotification);
+            localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications.slice(0, 100)));
+            window.dispatchEvent(new Event('notificationUpdate'));
+            window.dispatchEvent(new Event('notificationCountChanged'));
+          } catch (e) {
+            logger.error('알림 로컬 폴백 실패:', e);
+          }
+        }
+      })();
+      logger.log('✅ 알림(Supabase 동기화 요청):', newNotification.message || newNotification.title);
+      return newNotification;
+    }
+
+    const notifications = getNotifications();
     notifications.unshift(newNotification);
-
-    // 최대 100개까지만 저장
-    const limitedNotifications = notifications.slice(0, 100);
-    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(limitedNotifications));
-
-    // 알림 업데이트 이벤트 발생
+    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications.slice(0, 100)));
     window.dispatchEvent(new Event('notificationUpdate'));
     window.dispatchEvent(new Event('notificationCountChanged'));
-
-    logger.log('✅ 알림 추가:', newNotification.title);
+    logger.log('✅ 알림 추가(로컬):', newNotification.message || newNotification.title);
     return newNotification;
   } catch (error) {
     logger.error('알림 추가 실패:', error);
@@ -226,7 +277,7 @@ export const markAllNotificationsAsRead = () => {
 
     logger.log('✅ 모든 알림 읽음 처리');
     const uid = getCurrentUserIdFromStorage();
-    if (uid) markAllNotificationsReadSupabase(uid);
+    if (uid && isValidUuid(uid)) markAllNotificationsReadSupabase(uid);
     return true;
   } catch (error) {
     logger.error('모든 알림 읽음 처리 실패:', error);
@@ -265,15 +316,19 @@ export const getUnreadCount = () => {
   }
 };
 
-// 모든 알림 삭제
+// 모든 알림 삭제 (로그인 시 서버에서도 삭제 → 모든 기기 반영)
 export const clearAllNotifications = () => {
   try {
-    localStorage.removeItem(NOTIFICATIONS_KEY);
-
-    // 알림 업데이트 이벤트 발생
-    window.dispatchEvent(new Event('notificationUpdate'));
-    window.dispatchEvent(new Event('notificationCountChanged'));
-
+    const uid = getCurrentUserIdFromStorage();
+    if (uid && isValidUuid(uid)) {
+      void deleteAllNotificationsSupabase(uid).then(async () => {
+        await syncNotificationsFromSupabase(uid);
+      });
+    } else {
+      localStorage.removeItem(NOTIFICATIONS_KEY);
+      window.dispatchEvent(new Event('notificationUpdate'));
+      window.dispatchEvent(new Event('notificationCountChanged'));
+    }
     logger.log('✅ 모든 알림 삭제');
     return true;
   } catch (error) {
@@ -317,8 +372,12 @@ export const notifyBadge = (badgeName, difficulty = '중') => {
   });
 };
 
-// 좋아요 알림 (썸네일·게시글 링크는 opts로 전달, recipientUserId가 있으면 해당 유저에게만 표시)
+// 좋아요 알림 (썸네일·게시글 링크는 opts로 전달, 타인 수신은 서버 sendNotificationToUser 경로만 사용)
 export const notifyLike = (username, postLocation, opts = {}) => {
+  const me = getCurrentUserIdFromStorage();
+  if (opts.recipientUserId && me && String(opts.recipientUserId) !== String(me)) {
+    return null;
+  }
   const postId = opts.postId;
   addNotification({
     type: 'like',
@@ -335,8 +394,12 @@ export const notifyLike = (username, postLocation, opts = {}) => {
   });
 };
 
-// 댓글 알림 (recipientUserId/postId 지정 가능)
+// 댓글 알림 (타인 수신은 서버 경로만)
 export const notifyComment = (username, postLocation, comment, opts = {}) => {
+  const me = getCurrentUserIdFromStorage();
+  if (opts.recipientUserId && me && String(opts.recipientUserId) !== String(me)) {
+    return null;
+  }
   const preview =
     typeof comment === 'string' && comment.trim()
       ? comment.trim().slice(0, 72) + (comment.trim().length > 72 ? '…' : '')
@@ -353,21 +416,10 @@ export const notifyComment = (username, postLocation, comment, opts = {}) => {
   });
 };
 
-/** 피팔로우 유저에게: 누군가 나를 팔로우함 — recipient = 피알림자(나) */
+/** 피팔로우 유저에게 — 실제 알림은 follow() → sendNotificationToUser 로만 전달(중복 로컬 저장 방지) */
 export const notifyFollowReceived = (followerUsername, recipientUserId, opts = {}) => {
   if (!recipientUserId) return null;
-  const actorId = opts.actorUserId ? String(opts.actorUserId) : null;
-  return addNotification({
-    type: 'follow',
-    kind: 'follow_received',
-    title: '',
-    message: `${followerUsername}님이 회원님을 팔로우하기 시작했습니다`,
-    actorUsername: followerUsername,
-    actorAvatar: opts.actorAvatar || null,
-    actorUserId: actorId,
-    recipientUserId: String(recipientUserId),
-    link: actorId ? `/user/${actorId}` : '/main',
-  });
+  return null;
 };
 
 /** 팔로우를 시작한 사람에게: 상대 프로필로 이동 */

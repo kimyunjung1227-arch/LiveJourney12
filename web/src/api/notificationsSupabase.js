@@ -76,3 +76,17 @@ export const deleteNotificationSupabase = async (notificationId) => {
   }
 };
 
+/** 수신함 전체 비우기(계정 단위 — 모든 기기에서 동일하게 비움) */
+export const deleteAllNotificationsSupabase = async (userId) => {
+  const uid = String(userId || '').trim();
+  if (!isValidUuid(uid)) return { success: false };
+  try {
+    const { error } = await supabase.from('notifications').delete().eq('recipient_user_id', uid);
+    if (error) throw error;
+    return { success: true };
+  } catch (e) {
+    logger.warn('deleteAllNotificationsSupabase 실패:', e?.message);
+    return { success: false };
+  }
+};
+

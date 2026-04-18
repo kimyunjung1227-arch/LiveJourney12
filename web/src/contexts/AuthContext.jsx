@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect, useMemo, useCall
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
 import { syncEarnedBadgesFromSupabase } from '../utils/badgeSystem';
+import { syncNotificationsFromSupabase } from '../utils/notifications';
 
 const AuthContext = createContext(null);
 
@@ -86,10 +87,11 @@ export const AuthProvider = ({ children }) => {
     }
   }, [appUser]);
 
-  // 로그인 시 Supabase에서 뱃지 목록 동기화 (로그아웃 후 재로그인해도 획득 뱃지 유지)
+  // 로그인 시 Supabase에서 뱃지·알림 동기화 (동일 계정이면 기기 간 동일 목록)
   useEffect(() => {
     if (appUser?.id) {
       syncEarnedBadgesFromSupabase(appUser.id);
+      void syncNotificationsFromSupabase(appUser.id);
     }
   }, [appUser?.id]);
 
