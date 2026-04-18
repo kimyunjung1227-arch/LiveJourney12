@@ -4,6 +4,12 @@ import { ArrowLeft } from 'lucide-react';
 
 const STORAGE_KEY = 'mapSituationQuestions_v1';
 
+/** 지도 클릭 시 주변에서 찾을 카테고리(카카오 로컬). 타일에 자주 보이는 유형 위주로 소수만 병렬 요청 */
+const NEARBY_CATEGORY_CODES = ['FD6', 'CE7', 'AT4', 'MT1', 'CS2', 'BK9', 'PO3', 'AD5', 'CT1', 'SC4', 'OL7', 'HP8'];
+
+/** 클릭 지점에서 이 거리(미터) 안의 검색된 장소만 선택으로 인정 */
+const MAX_PICK_DISTANCE_M = 90;
+
 const getKakaoAppKey = () => String(import.meta.env.VITE_KAKAO_MAP_API_KEY || '').trim();
 
 const loadKakaoSdkOnce = (appKey) =>
@@ -52,12 +58,23 @@ const ensureKakaoMapsReady = async () => {
   });
 };
 
+function haversineM(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
 export default function MapAskSituationScreen() {
   const navigate = useNavigate();
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const pickOverlayRef = useRef(null);
-  const placeMarkersRef = useRef([]);
+  const mapClickListenerRef = useRef(null);
 
   const [sdkError, setSdkError] = useState('');
   const [locationQuery, setLocationQuery] = useState('');
@@ -139,17 +156,74 @@ export default function MapAskSituationScreen() {
     }
   }, []);
 
-  const clearPlaceMarkers = useCallback(() => {
-    placeMarkersRef.current.forEach((m) => {
-      try {
-        m.setMap(null);
-      } catch {
-        /* ignore */
+  /**
+   * 타일 라벨 클릭 이벤트는 웹 API에 없음 → 클릭 좌표 주변 카테고리 검색으로
+   * 지도에 표시된 것과 같은(근접한) 등록 장소만 선택.
+   */
+  const findNearestRegisteredPlace = useCallback(async (lat, lng) => {
+    if (!window.kakao?.maps?.services) return null;
+    const kakao = window.kakao;
+    const loc = new kakao.maps.LatLng(lat, lng);
+    const sort = kakao.maps.services.SortBy.DISTANCE;
+
+    const chunk = await Promise.all(
+      NEARBY_CATEGORY_CODES.map(
+        (code) =>
+          new Promise((resolve) => {
+            try {
+              const places = new kakao.maps.services.Places();
+              places.categorySearch(
+                code,
+                (data, status) => {
+                  if (status === kakao.maps.services.Status.OK && Array.isArray(data) && data.length > 0) {
+                    resolve(data);
+                  } else {
+                    resolve([]);
+                  }
+                },
+                { location: loc, radius: MAX_PICK_DISTANCE_M, sort },
+              );
+            } catch {
+              resolve([]);
+            }
+          }),
+      ),
+    );
+
+    const seen = new Set();
+    const merged = [];
+    for (const arr of chunk) {
+      for (const p of arr) {
+        const id = p.id || `${p.x}|${p.y}|${p.place_name}`;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        merged.push(p);
       }
-    });
-    placeMarkersRef.current = [];
+    }
+    if (merged.length === 0) return null;
+
+    let best = null;
+    let bestD = Infinity;
+    for (const p of merged) {
+      const plat = Number(p.y);
+      const plng = Number(p.x);
+      if (!Number.isFinite(plat) || !Number.isFinite(plng)) continue;
+      const dFromApi = p.distance != null && p.distance !== '' ? Number(p.distance) : NaN;
+      const d = Number.isFinite(dFromApi) ? dFromApi : haversineM(lat, lng, plat, plng);
+      if (d < bestD) {
+        bestD = d;
+        best = p;
+      }
+    }
+    if (!best || bestD > MAX_PICK_DISTANCE_M) return null;
+    return {
+      lat: Number(best.y),
+      lng: Number(best.x),
+      name: best.place_name || best.address_name || null,
+    };
   }, []);
 
+  /** 검색: 항상 첫 결과 위치로 이동·선택 (지도선택 모드와 무관) */
   const keywordSearch = useCallback(
     async (q) => {
       const query = String(q || '').trim();
@@ -161,55 +235,6 @@ export default function MapAskSituationScreen() {
         places.keywordSearch(query, (data, status) => {
           if (status !== window.kakao.maps.services.Status.OK || !data || data.length === 0) return;
 
-          const kakao = window.kakao;
-          const map = mapRef.current;
-          if (!map) return;
-
-          if (picking) {
-            clearPickOverlay();
-            clearPlaceMarkers();
-            setPicked(null);
-
-            const slice = data.slice(0, 15);
-            slice.forEach((place) => {
-              const lat = Number(place.y);
-              const lng = Number(place.x);
-              if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-              const marker = new kakao.maps.Marker({
-                position: new kakao.maps.LatLng(lat, lng),
-                map,
-              });
-              kakao.maps.event.addListener(marker, 'click', () => {
-                setPickOverlayAt(lat, lng, 3);
-                setPicked({
-                  lat,
-                  lng,
-                  name: place.place_name || place.address_name || query,
-                });
-              });
-              placeMarkersRef.current.push(marker);
-            });
-
-            if (slice.length === 1) {
-              const lat = Number(slice[0].y);
-              const lng = Number(slice[0].x);
-              map.setLevel(3);
-              map.panTo(new kakao.maps.LatLng(lat, lng));
-            } else {
-              const bounds = new kakao.maps.LatLngBounds();
-              slice.forEach((place) => {
-                const lat = Number(place.y);
-                const lng = Number(place.x);
-                if (Number.isFinite(lat) && Number.isFinite(lng)) {
-                  bounds.extend(new kakao.maps.LatLng(lat, lng));
-                }
-              });
-              map.setBounds(bounds, 24, 24, 24, 24);
-            }
-            return;
-          }
-
-          clearPlaceMarkers();
           const first = data[0];
           const lat = Number(first.y);
           const lng = Number(first.x);
@@ -221,7 +246,7 @@ export default function MapAskSituationScreen() {
         /* ignore */
       }
     },
-    [clearPickOverlay, clearPlaceMarkers, picking, setPickOverlayAt],
+    [setPickOverlayAt],
   );
 
   useEffect(() => {
@@ -249,18 +274,56 @@ export default function MapAskSituationScreen() {
     };
   }, []);
 
-  /** 지도에서 고르기 OFF 시 검색 핀만 정리(빈 땅 탭 선택은 사용하지 않음) */
+  /** 지도선택 모드: 지도에 보이는 장소(등록 POI) 근처만 탭으로 지정 — 빈 땅은 무시 */
   useEffect(() => {
-    if (picking) return;
-    clearPlaceMarkers();
-  }, [picking, clearPlaceMarkers]);
+    const map = mapRef.current;
+    if (!map || !window.kakao?.maps?.event) return;
+    const kakao = window.kakao;
+
+    if (mapClickListenerRef.current) {
+      try {
+        kakao.maps.event.removeListener(map, 'click', mapClickListenerRef.current);
+      } catch {
+        /* ignore */
+      }
+      mapClickListenerRef.current = null;
+    }
+
+    if (!picking) return;
+
+    const onMapClick = async (mouseEvent) => {
+      try {
+        const latlng = mouseEvent.latLng;
+        const lat = latlng.getLat();
+        const lng = latlng.getLng();
+        const place = await findNearestRegisteredPlace(lat, lng);
+        if (!place) return;
+        setPickOverlayAt(place.lat, place.lng, 3);
+        setPicked({ lat: place.lat, lng: place.lng, name: place.name });
+      } catch {
+        /* ignore */
+      }
+    };
+
+    mapClickListenerRef.current = onMapClick;
+    kakao.maps.event.addListener(map, 'click', onMapClick);
+
+    return () => {
+      if (!mapClickListenerRef.current) return;
+      try {
+        kakao.maps.event.removeListener(map, 'click', mapClickListenerRef.current);
+      } catch {
+        /* ignore */
+      }
+      mapClickListenerRef.current = null;
+    };
+  }, [findNearestRegisteredPlace, picking, setPickOverlayAt]);
 
   useEffect(() => {
     return () => {
-      clearPlaceMarkers();
       clearPickOverlay();
     };
-  }, [clearPlaceMarkers, clearPickOverlay]);
+  }, [clearPickOverlay]);
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-white">
@@ -296,8 +359,8 @@ export default function MapAskSituationScreen() {
             className={`rounded-full border px-3.5 py-3 text-sm font-semibold shadow-sm ${
               picking ? 'border-primary bg-primary-10 text-primary' : 'border-gray-200 bg-white text-gray-900'
             }`}
-            aria-label="지도에서 고르기"
-            title="지도에서 고르기"
+            aria-label="지도선택하기"
+            title="지도선택하기"
           >
             <span
               className="material-symbols-outlined text-[20px]"
