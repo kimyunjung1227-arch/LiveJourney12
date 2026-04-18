@@ -39,104 +39,25 @@ const GUIDE_ITEMS = [
   },
 ];
 
-const ONGOING_ALL = [
-  {
-    id: 'o1',
-    title: '제주 실시간 여행 굿즈 패키지',
-    desc: '라이브저니와 함께하는 제주 감성 굿즈·쿠폰을 응모해 보세요.',
-    daysLeft: '5일 남음',
-    image:
-      'https://images.unsplash.com/photo-1596422846543-75c6fc197f07?w=600&h=800&fit=crop&q=80',
-  },
-  {
-    id: 'o2',
-    title: '동해안 드라이브 스페셜 기프티콘',
-    desc: '해안도로 추천 스팟과 함께하는 커피·디저트 쿠폰 래플입니다.',
-    daysLeft: '12일 남음',
-    image:
-      'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=600&h=800&fit=crop&q=80',
-  },
-  {
-    id: 'o3',
-    title: '야경 명소 포토 투어 응모권',
-    desc: '야경 촬영 명소 코스 안내와 함께 소정의 여행 지원금이 제공됩니다.',
-    daysLeft: '2일 남음',
-    image:
-      'https://images.unsplash.com/photo-1590523277543-a94d2e4eb00b?w=600&h=800&fit=crop&q=80',
-  },
-  {
-    id: 'o4',
-    title: '도심 속 피크닉 키트',
-    desc: '한강·숲길 피크닉에 어울리는 휴대용 매트·에코백을 드립니다.',
-    daysLeft: '8일 남음',
-    image:
-      'https://images.unsplash.com/photo-1527004013197-933c4bb611b3?w=600&h=800&fit=crop&q=80',
-  },
-  {
-    id: 'o5',
-    title: '역사 탐방 스탬프 투어',
-    desc: '보물급 유적 코스 안내 스탬프북과 기념품 세트.',
-    daysLeft: '20일 남음',
-    image:
-      'https://images.unsplash.com/photo-1570077188670-e3a318d66009?w=600&h=800&fit=crop&q=80',
-  },
-];
-
-const COMPLETED_ALL = [
-  {
-    id: 'c1',
-    title: '서울 근교 당일치기 패스',
-    category: '국내/근교 여행',
-    statusMessage: '당첨을 축하드려요.',
-    badge: '당첨',
-    image:
-      'https://images.unsplash.com/photo-1517154421773-0529f29ea451?w=200&h=200&fit=crop&q=80',
-  },
-  {
-    id: 'c2',
-    title: '겨울 스키 리조트 숙박권',
-    category: '국내/스키',
-    statusMessage: '다음 기회에..',
-    badge: '미당첨',
-    image:
-      'https://images.unsplash.com/photo-1551524160-587fd5c115f9?w=200&h=200&fit=crop&q=80',
-  },
-  {
-    id: 'c3',
-    title: '전통시장 먹거리 세트',
-    category: '국내/먹거리',
-    statusMessage: '응모하지 않은 래플입니다',
-    badge: '미응모',
-    image:
-      'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=200&h=200&fit=crop&q=80',
-  },
-  {
-    id: 'c4',
-    title: '남해 섬 루트 가이드북',
-    category: '국내/섬 여행',
-    statusMessage: '응모하지 않은 래플입니다',
-    badge: '미응모',
-    image:
-      'https://images.unsplash.com/photo-1500375592092-40eb2168fd21?w=200&h=200&fit=crop&q=80',
-  },
-];
-
 const INITIAL_COUNT = 3;
 
 const RaffleScreen = () => {
   const navigate = useNavigate();
   const [guideOpen, setGuideOpen] = useState(null);
   const [completedExpanded, setCompletedExpanded] = useState(false);
-  const [ongoingList, setOngoingList] = useState(ONGOING_ALL);
-  const [completedSource, setCompletedSource] = useState(COMPLETED_ALL);
+  const [loading, setLoading] = useState(true);
+  const [ongoingList, setOngoingList] = useState([]);
+  const [completedSource, setCompletedSource] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setLoading(true);
       const { ongoing, completed } = await fetchRafflesForUi();
       if (cancelled) return;
-      if (ongoing.length > 0) setOngoingList(ongoing);
-      if (completed.length > 0) setCompletedSource(completed);
+      setOngoingList(ongoing);
+      setCompletedSource(completed);
+      setLoading(false);
     })();
     return () => {
       cancelled = true;
@@ -161,14 +82,9 @@ const RaffleScreen = () => {
         <div className="screen-body pb-6">
           {/* 배너 — 너비 100%, 뷰포트에 맞춘 높이 */}
           <section className="relative w-full overflow-hidden">
-            <div className="relative w-full min-h-[88px] max-h-[min(28vh,176px)] aspect-[5/2] sm:aspect-[21/9] sm:max-h-[min(30vh,192px)]">
-              <img
-                src="https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=1200&h=400&fit=crop&q=80"
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover"
-              />
+            <div className="relative w-full min-h-[88px] max-h-[min(28vh,176px)] aspect-[5/2] sm:aspect-[21/9] sm:max-h-[min(30vh,192px)] bg-gradient-to-br from-sky-700 via-cyan-800 to-slate-900">
               <div
-                className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent"
+                className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/20 to-transparent"
                 aria-hidden
               />
             </div>
@@ -232,6 +148,15 @@ const RaffleScreen = () => {
                 현재 진행 중인 래플
               </h2>
 
+              {loading ? (
+                <p className="rounded-xl border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                  불러오는 중...
+                </p>
+              ) : ongoingList.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                  진행 중인 래플이 없습니다.
+                </p>
+              ) : (
               <div className="relative">
                 <div
                   className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -280,6 +205,7 @@ const RaffleScreen = () => {
                   ))}
                 </div>
               </div>
+              )}
             </section>
 
             {/* 완료 — 썸네일+제목·카테고리·상태, 우상단 배지, 당첨 리뷰(전 항목) */}
@@ -288,7 +214,7 @@ const RaffleScreen = () => {
                 <h2 className="border-l-[3px] border-primary pl-2 text-sm font-bold uppercase tracking-wide text-gray-900 dark:text-gray-100 sm:text-[15px]">
                   완료된 래플
                 </h2>
-                {completedSource.length > INITIAL_COUNT && (
+                {!loading && completedSource.length > INITIAL_COUNT && (
                   <button
                     type="button"
                     onClick={() => setCompletedExpanded((v) => !v)}
@@ -298,6 +224,15 @@ const RaffleScreen = () => {
                   </button>
                 )}
               </div>
+              {loading ? (
+                <p className="rounded-xl border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                  불러오는 중...
+                </p>
+              ) : completedSource.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                  완료된 래플이 없습니다.
+                </p>
+              ) : (
               <ul className="flex flex-col gap-0 divide-y divide-gray-100 dark:divide-gray-800">
                 {completedList.map((row) => (
                   <li key={row.id} className="flex gap-3 py-3 first:pt-0">
@@ -330,6 +265,7 @@ const RaffleScreen = () => {
                   </li>
                 ))}
               </ul>
+              )}
             </section>
           </div>
         </div>

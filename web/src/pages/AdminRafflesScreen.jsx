@@ -196,8 +196,8 @@ const AdminRafflesScreen = () => {
 
       <main className="space-y-8 p-4 pb-28">
         <p className="text-[13px] leading-relaxed text-gray-600 dark:text-gray-400">
-          진행 중·완료 래플을 등록하면 앱 래플 화면에 반영됩니다. DB에 데이터가 하나도 없으면 앱은 기본
-          예시 목업을 보여줍니다. 마이그레이션 적용:{' '}
+          진행 중·완료 래플을 등록하면 앱 래플 화면에 반영됩니다. DB에 데이터가 없으면 앱에는 안내 문구만
+          표시됩니다. 스키마:{' '}
           <code className="rounded bg-gray-200 px-1 text-[12px] dark:bg-gray-700">supabase/migrations/20250412000000_raffles.sql</code>
         </p>
 
