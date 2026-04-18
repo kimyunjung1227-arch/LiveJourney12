@@ -35,13 +35,20 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// CORS 설정 (개발 시 여러 origin 허용)
-const allowedOrigins = process.env.FRONTEND_URL
-  ? [process.env.FRONTEND_URL]
-  : ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'];
+// CORS — 프론트가 Render와 다른 도메인(livejourney.co.kr)일 때 브라우저 직접 호출 허용
+const devOrigins = ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'];
+const prodSiteOrigins = ['https://livejourney.co.kr', 'https://www.livejourney.co.kr'];
+const fromEnv = process.env.FRONTEND_URL ? [String(process.env.FRONTEND_URL).trim()] : [];
+const allowedOrigins = [
+  ...new Set([
+    ...fromEnv,
+    ...(process.env.NODE_ENV === 'production' ? prodSiteOrigins : []),
+    ...(fromEnv.length === 0 && process.env.NODE_ENV !== 'production' ? devOrigins : []),
+  ]),
+];
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.some(o => origin === o)) return cb(null, true);
+    if (!origin || allowedOrigins.some((o) => origin === o)) return cb(null, true);
     return cb(null, false);
   },
   credentials: true
