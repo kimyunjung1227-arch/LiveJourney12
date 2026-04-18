@@ -26,7 +26,10 @@ function normalizeDataGoKrServiceKey(raw) {
 
 router.get('/kma/ultra-srt-ncst', async (req, res) => {
   const serviceKey = normalizeDataGoKrServiceKey(
-    process.env.KMA_API_KEY || process.env.DATA_GO_KR_SERVICE_KEY || ''
+    process.env.KMA_API_KEY ||
+      process.env.DATA_GO_KR_SERVICE_KEY ||
+      process.env.VITE_KMA_API_KEY ||
+      ''
   );
   if (!serviceKey) {
     return res.status(503).json({

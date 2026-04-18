@@ -1,4 +1,5 @@
-// 날씨: Supabase Edge(선택) → Node `/api/proxy/kma/*` (기상청 키는 서버만)
+// 날씨: 브라우저 → 동일 출처 `/api/proxy/kma/*`(Node, 기상청 키는 서버만) 우선.
+// Supabase Edge는 폴백만(VITE_WEATHER_USE_SUPABASE=false 이면 제외). Edge를 먼저 호출하면 CORS·프리플라이트 이슈가 난다.
 import { getCoordinatesByRegion } from '../utils/regionCoordinates';
 import { logger } from '../utils/logger';
 import { getFetchApiUrl } from '../utils/apiBase';
@@ -93,25 +94,40 @@ const fetchWithRetry = async (url, signal, retries = MAX_RETRIES, fetchInit = {}
   throw new Error('모든 재시도 실패');
 };
 
-/** Edge 우선(설정 시), 아니면 Node 프록시 — Node 경로는 GitHub Pages BASE_URL 반영 */
-function buildKmaProxyUrl(searchParams) {
+/**
+ * 항상 Node(또는 VITE_API_URL 백엔드) 프록시를 1순위 — livejourney.co.kr 등은 동일 출처라 CORS 없음.
+ * Supabase는 2순위 폴백만. 예전처럼 Edge를 1순위로 두면 브라우저가 cross-origin + OPTIONS 프리플라이트에서 막힌다.
+ */
+function buildKmaProxyUrlList(searchParams) {
+  const q = searchParams.toString();
+  const nodeUrl = getFetchApiUrl(`/api/proxy/kma/ultra-srt-ncst?${q}`);
+  const list = [nodeUrl];
+
+  const useSupabaseFallback =
+    String(import.meta.env.VITE_WEATHER_USE_SUPABASE || 'true').trim() !== 'false';
   const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim().replace(/\/+$/, '');
-  if (supabaseUrl) {
-    return `${supabaseUrl}/functions/v1/kma-ultra-ncst?${searchParams.toString()}`;
+  if (useSupabaseFallback && supabaseUrl) {
+    list.push(`${supabaseUrl}/functions/v1/kma-ultra-ncst?${q}`);
   }
-  return getFetchApiUrl(`/api/proxy/kma/ultra-srt-ncst?${searchParams.toString()}`);
+  return list;
 }
 
-function buildKmaFetchInit() {
-  const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim();
+function buildKmaFetchInit(fullUrl) {
+  const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim().replace(/\/+$/, '');
   const anon = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
-  if (!supabaseUrl || !anon) return {};
+  if (!supabaseUrl || !anon || !String(fullUrl).startsWith(supabaseUrl)) return {};
   return {
     headers: {
       Authorization: `Bearer ${anon}`,
       apikey: anon,
     },
   };
+}
+
+function normalizeKmaResultCode(header) {
+  const raw = header?.resultCode;
+  if (raw == null || raw === '') return '';
+  return String(raw).trim();
 }
 
 export const getWeatherByRegion = async (regionName, forceRefresh = false) => {
@@ -145,44 +161,68 @@ export const getWeatherByRegion = async (regionName, forceRefresh = false) => {
         nx: String(coords.nx),
         ny: String(coords.ny),
       });
-      const fullUrl = buildKmaProxyUrl(params);
+      const urlCandidates = buildKmaProxyUrlList(params);
       if (import.meta.env.DEV) {
-        logger.log('🌐 날씨 URL:', fullUrl);
+        logger.log('🌐 날씨 프록시 후보:', urlCandidates);
       }
 
-      const response = await fetchWithRetry(fullUrl, null, MAX_RETRIES, buildKmaFetchInit());
-      logger.log('📡 API 응답 상태:', response.status);
+      let data = null;
+      let responseOk = false;
+      let httpErrorDetail = '';
 
-      if (!response.ok) {
-        let detail = response.statusText;
+      for (const fullUrl of urlCandidates) {
         try {
-          const errBody = await response.clone().json();
-          if (errBody?.error) detail = String(errBody.error);
-        } catch (_) {}
-        if (response.status === 503) {
+          const response = await fetchWithRetry(fullUrl, null, MAX_RETRIES, buildKmaFetchInit(fullUrl));
+          logger.log('📡 API 응답 상태:', response.status, fullUrl.slice(0, 80));
+
+          if (!response.ok) {
+            let detail = response.statusText;
+            try {
+              const errBody = await response.clone().json();
+              if (errBody?.error) detail = String(errBody.error);
+            } catch (_) {}
+            httpErrorDetail = detail;
+            if (response.status === 503) {
+              logger.warn(`⚠️ 프록시 미설정/불가 (${fullUrl.slice(0, 60)}…), 다음 경로 시도`);
+            } else {
+              logger.warn(`⚠️ HTTP ${response.status}, 다음 경로 시도`);
+            }
+            continue;
+          }
+
+          data = await response.json();
+          responseOk = true;
+          break;
+        } catch (err) {
+          httpErrorDetail = err?.message || String(err);
+          logger.warn(`⚠️ 날씨 요청 실패, 다음 경로 시도:`, httpErrorDetail);
+        }
+      }
+
+      if (!responseOk) {
+        lastError = httpErrorDetail || '모든 날씨 프록시 경로 실패';
+        if (lastError.includes('not configured') || lastError.includes('KMA_API_KEY')) {
           throw new Error(
-            '날씨 프록시 미설정: 백엔드 KMA_API_KEY 또는 Supabase Edge 시크릿을 확인하세요.'
+            '날씨 프록시 미설정: backend에 KMA_API_KEY(또는 DATA_GO_KR_SERVICE_KEY)를 넣거나 Supabase Edge에 KMA 시크릿을 설정하세요.'
           );
         }
-        lastError = detail;
-        logger.warn(`⚠️ HTTP ${response.status}, 이전 시각 재시도`);
+        logger.warn(`⚠️ HTTP 실패, 이전 시각 재시도: ${lastError}`);
         continue;
       }
 
-      const data = await response.json();
       logger.log('📦 API 응답 헤더:', data?.response?.header);
 
       const header = data?.response?.header;
-      const code = header?.resultCode;
+      const code = normalizeKmaResultCode(header);
       const rawItems = data?.response?.body?.items?.item;
 
-      if (code === '03' || code === '02' || rawItems == null) {
+      if (code === '03' || code === '3' || code === '02' || code === '2' || rawItems == null) {
         lastError = header?.resultMsg || `NO_DATA (${code || 'empty'})`;
         logger.warn(`⚠️ 데이터 없음, 이전 시각 재시도: ${lastError}`);
         continue;
       }
 
-      if (code !== '00') {
+      if (code !== '00' && code !== '0') {
         lastError = header?.resultMsg || 'API 응답 실패';
         logger.error('❌ 기상청 오류 코드:', header);
         throw new Error(lastError);

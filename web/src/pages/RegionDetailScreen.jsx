@@ -243,7 +243,13 @@ const RegionDetailScreen = () => {
           loading: false
         });
       } else {
-        setWeatherInfo(prev => ({ ...prev, loading: false }));
+        const w = result.weather || {};
+        setWeatherInfo({
+          icon: w.icon || '🌤️',
+          condition: w.condition && w.condition !== '-' ? w.condition : '정보 없음',
+          temperature: w.temperature || '-',
+          loading: false
+        });
       }
     } catch (error) {
       console.error('날씨 정보 조회 실패:', error);

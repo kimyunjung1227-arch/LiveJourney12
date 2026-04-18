@@ -1,6 +1,6 @@
 /**
  * axios용 API 베이스 (게시물·업로드 등 Node 백엔드 또는 동일 출처)
- * 날씨는 `weather.js`에서 Supabase Edge(선택) 또는 백엔드 `/api/proxy/kma/*`.
+ * 날씨는 `weather.js`에서 백엔드 `/api/proxy/kma/*` 우선(동일 출처), Supabase Edge는 폴백.
  *
  * GitHub Pages: VITE_API_URL = https://백엔드/api
  * livejourney.co.kr: 비우면 동일 출처 — `getFetchApiUrl` 이 BASE_URL 반영
