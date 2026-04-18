@@ -36,6 +36,7 @@ const AdminRafflesScreen = () => {
     load().finally(() => setLoading(false));
   }, [load]);
 
+  const scheduled = useMemo(() => rows.filter((r) => r.kind === 'scheduled'), [rows]);
   const ongoing = useMemo(() => rows.filter((r) => r.kind === 'ongoing'), [rows]);
   const completed = useMemo(() => rows.filter((r) => r.kind === 'completed'), [rows]);
 
@@ -81,11 +82,12 @@ const AdminRafflesScreen = () => {
     try {
       if (editingId) {
         const res = await updateRaffle(editingId, {
+          kind,
           title,
           image_url,
           description,
           sort_order,
-          ...(kind === 'ongoing'
+          ...(kind === 'ongoing' || kind === 'scheduled'
             ? {
                 days_left,
                 category: null,
@@ -154,7 +156,7 @@ const AdminRafflesScreen = () => {
             <div className="font-semibold text-gray-900 dark:text-white line-clamp-2">{r.title}</div>
             <div className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
               정렬 {r.sort_order ?? 0}
-              {r.kind === 'ongoing' && r.days_left ? ` · ${r.days_left}` : ''}
+              {(r.kind === 'ongoing' || r.kind === 'scheduled') && r.days_left ? ` · ${r.days_left}` : ''}
               {r.kind === 'completed' && r.badge ? ` · ${r.badge}` : ''}
             </div>
             <div className="mt-2 flex gap-2">
@@ -196,15 +198,36 @@ const AdminRafflesScreen = () => {
 
       <main className="space-y-8 p-4 pb-28">
         <p className="text-[13px] leading-relaxed text-gray-600 dark:text-gray-400">
-          진행 중·완료 래플을 등록하면 앱 래플 화면에 반영됩니다. DB에 데이터가 없으면 앱에는 안내 문구만
-          표시됩니다. 스키마:{' '}
-          <code className="rounded bg-gray-200 px-1 text-[12px] dark:bg-gray-700">supabase/migrations/20250412000000_raffles.sql</code>
+          진행 예정·진행 중·완료 래플을 등록하면 앱에 반영됩니다. 진행 예정은{' '}
+          <code className="rounded bg-gray-200 px-1 text-[12px] dark:bg-gray-700">scheduled</code> kind 마이그레이션(
+          <code className="rounded bg-gray-200 px-1 text-[12px] dark:bg-gray-700">20250418120000_raffles_scheduled_kind.sql</code>
+          ) 적용이 필요합니다.
         </p>
 
         {loading ? (
           <div className="py-8 text-center text-gray-500">불러오는 중...</div>
         ) : (
           <>
+            <section>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 className="text-[15px] font-extrabold text-gray-900 dark:text-white">진행 예정 래플</h2>
+                <button
+                  type="button"
+                  onClick={() => openCreate('scheduled')}
+                  className="rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white hover:opacity-90"
+                >
+                  추가
+                </button>
+              </div>
+              {scheduled.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-gray-300 py-6 text-center text-[13px] text-gray-500 dark:border-gray-600">
+                  등록된 진행 예정 래플이 없습니다.
+                </p>
+              ) : (
+                renderList(scheduled)
+              )}
+            </section>
+
             <section>
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h2 className="text-[15px] font-extrabold text-gray-900 dark:text-white">진행 중인 래플</h2>
@@ -218,7 +241,7 @@ const AdminRafflesScreen = () => {
               </div>
               {ongoing.length === 0 ? (
                 <p className="rounded-xl border border-dashed border-gray-300 py-6 text-center text-[13px] text-gray-500 dark:border-gray-600">
-                  등록된 진행 래플이 없습니다.
+                  등록된 진행 중 래플이 없습니다.
                 </p>
               ) : (
                 renderList(ongoing)
@@ -253,7 +276,13 @@ const AdminRafflesScreen = () => {
           <div className="max-h-[90vh] w-full max-w-[520px] overflow-y-auto rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900">
             <div className="flex items-center justify-between">
               <h3 className="m-0 text-[16px] font-extrabold text-gray-900 dark:text-gray-50">
-                {form.editingId ? '래플 수정' : form.kind === 'ongoing' ? '진행 래플 추가' : '완료 래플 추가'}
+                {form.editingId
+                  ? '래플 수정'
+                  : form.kind === 'scheduled'
+                    ? '진행 예정 래플 추가'
+                    : form.kind === 'ongoing'
+                      ? '진행 중 래플 추가'
+                      : '완료 래플 추가'}
               </h3>
               <button type="button" onClick={closeForm} className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-800">
                 <span className="material-symbols-outlined">close</span>
@@ -288,7 +317,7 @@ const AdminRafflesScreen = () => {
                 />
               </div>
 
-              {form.kind === 'ongoing' ? (
+              {form.kind === 'ongoing' || form.kind === 'scheduled' ? (
                 <>
                   <div>
                     <label className="mb-1 block text-[12px] font-semibold text-gray-700 dark:text-gray-200">설명</label>

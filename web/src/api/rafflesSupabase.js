@@ -24,16 +24,19 @@ export const fetchRaffles = async () => {
   }
 };
 
-/** 앱 UI용: 진행 중 / 완료 분리 및 필드 매핑 */
+const mapOngoingLike = (r) => ({
+  id: r.id,
+  title: r.title,
+  desc: r.description || '',
+  daysLeft: r.days_left || '진행 중',
+  image: r.image_url,
+});
+
+/** 앱 UI용: 진행 예정 / 진행 중 / 완료 분리 및 필드 매핑 */
 export const fetchRafflesForUi = async () => {
   const rows = await fetchRaffles();
-  const ongoing = sortRows(rows.filter((r) => r.kind === 'ongoing')).map((r) => ({
-    id: r.id,
-    title: r.title,
-    desc: r.description || '',
-    daysLeft: r.days_left || '진행 중',
-    image: r.image_url,
-  }));
+  const scheduled = sortRows(rows.filter((r) => r.kind === 'scheduled')).map(mapOngoingLike);
+  const ongoing = sortRows(rows.filter((r) => r.kind === 'ongoing')).map(mapOngoingLike);
   const completed = sortRows(rows.filter((r) => r.kind === 'completed')).map((r) => ({
     id: r.id,
     title: r.title,
@@ -42,12 +45,17 @@ export const fetchRafflesForUi = async () => {
     badge: r.badge || '미응모',
     image: r.image_url,
   }));
-  return { ongoing, completed };
+  return { scheduled, ongoing, completed };
 };
 
 export const createRaffle = async (payload) => {
   try {
-    const kind = payload.kind === 'completed' ? 'completed' : 'ongoing';
+    const kind =
+      payload.kind === 'completed'
+        ? 'completed'
+        : payload.kind === 'scheduled'
+          ? 'scheduled'
+          : 'ongoing';
     const row = {
       kind,
       title: (payload.title || '').trim(),
@@ -55,8 +63,8 @@ export const createRaffle = async (payload) => {
       description: payload.description != null ? String(payload.description).trim() : '',
       sort_order: Number.isFinite(Number(payload.sort_order)) ? Number(payload.sort_order) : 0,
     };
-    if (kind === 'ongoing') {
-      row.days_left = (payload.days_left || '').trim() || '진행 중';
+    if (kind === 'ongoing' || kind === 'scheduled') {
+      row.days_left = (payload.days_left || '').trim() || (kind === 'scheduled' ? '오픈 예정' : '진행 중');
       row.category = null;
       row.status_message = null;
       row.badge = null;
@@ -88,6 +96,10 @@ export const createRaffle = async (payload) => {
 export const updateRaffle = async (id, payload) => {
   try {
     const updates = {};
+    if (payload.kind !== undefined) {
+      const k = ['scheduled', 'ongoing', 'completed'].includes(payload.kind) ? payload.kind : 'ongoing';
+      updates.kind = k;
+    }
     if (payload.title !== undefined) updates.title = String(payload.title).trim();
     if (payload.image_url !== undefined) updates.image_url = String(payload.image_url).trim();
     if (payload.description !== undefined) updates.description = String(payload.description ?? '').trim();
