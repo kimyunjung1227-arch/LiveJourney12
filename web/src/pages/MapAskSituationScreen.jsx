@@ -57,7 +57,7 @@ export default function MapAskSituationScreen() {
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const pickOverlayRef = useRef(null);
-  const clickListenerRef = useRef(null);
+  const placeMarkersRef = useRef([]);
 
   const [sdkError, setSdkError] = useState('');
   const [locationQuery, setLocationQuery] = useState('');
@@ -128,61 +128,101 @@ export default function MapAskSituationScreen() {
     map.panTo(pos);
   }, []);
 
-  const findNearestPlaceName = useCallback(async (lat, lng) => {
-    if (!window.kakao?.maps?.services) return null;
-    return await new Promise((resolve) => {
+  const clearPickOverlay = useCallback(() => {
+    if (pickOverlayRef.current) {
       try {
-        const kakao = window.kakao;
-        const places = new kakao.maps.services.Places();
-        const loc = new kakao.maps.LatLng(lat, lng);
-        const categories = ['AT4', 'FD6', 'CE7', 'CT1', 'AD5']; // 관광/음식/카페/문화/숙박 순
-        let i = 0;
-        const tryNext = () => {
-          const code = categories[i++];
-          if (!code) {
-            resolve(null);
-            return;
-          }
-          places.categorySearch(
-            code,
-            (data, status) => {
-              if (status === kakao.maps.services.Status.OK && Array.isArray(data) && data[0]?.place_name) {
-                resolve(String(data[0].place_name));
-                return;
-              }
-              tryNext();
-            },
-            { location: loc, radius: 120, sort: kakao.maps.services.SortBy.DISTANCE },
-          );
-        };
-        tryNext();
+        pickOverlayRef.current.setMap(null);
       } catch {
-        resolve(null);
+        /* ignore */
       }
-    });
+      pickOverlayRef.current = null;
+    }
   }, []);
 
-  const keywordSearch = useCallback(async (q) => {
-    const query = String(q || '').trim();
-    if (!query) return;
-    if (!window.kakao?.maps?.services) return;
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    try {
-      const places = new window.kakao.maps.services.Places();
-      places.keywordSearch(query, async (data, status) => {
-        if (status === window.kakao.maps.services.Status.OK && data && data.length > 0) {
+  const clearPlaceMarkers = useCallback(() => {
+    placeMarkersRef.current.forEach((m) => {
+      try {
+        m.setMap(null);
+      } catch {
+        /* ignore */
+      }
+    });
+    placeMarkersRef.current = [];
+  }, []);
+
+  const keywordSearch = useCallback(
+    async (q) => {
+      const query = String(q || '').trim();
+      if (!query) return;
+      if (!window.kakao?.maps?.services) return;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      try {
+        const places = new window.kakao.maps.services.Places();
+        places.keywordSearch(query, (data, status) => {
+          if (status !== window.kakao.maps.services.Status.OK || !data || data.length === 0) return;
+
+          const kakao = window.kakao;
+          const map = mapRef.current;
+          if (!map) return;
+
+          if (picking) {
+            clearPickOverlay();
+            clearPlaceMarkers();
+            setPicked(null);
+
+            const slice = data.slice(0, 15);
+            slice.forEach((place) => {
+              const lat = Number(place.y);
+              const lng = Number(place.x);
+              if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+              const marker = new kakao.maps.Marker({
+                position: new kakao.maps.LatLng(lat, lng),
+                map,
+              });
+              kakao.maps.event.addListener(marker, 'click', () => {
+                setPickOverlayAt(lat, lng, 3);
+                setPicked({
+                  lat,
+                  lng,
+                  name: place.place_name || place.address_name || query,
+                });
+              });
+              placeMarkersRef.current.push(marker);
+            });
+
+            if (slice.length === 1) {
+              const lat = Number(slice[0].y);
+              const lng = Number(slice[0].x);
+              map.setLevel(3);
+              map.panTo(new kakao.maps.LatLng(lat, lng));
+            } else {
+              const bounds = new kakao.maps.LatLngBounds();
+              slice.forEach((place) => {
+                const lat = Number(place.y);
+                const lng = Number(place.x);
+                if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                  bounds.extend(new kakao.maps.LatLng(lat, lng));
+                }
+              });
+              map.setBounds(bounds, 24, 24, 24, 24);
+            }
+            return;
+          }
+
+          clearPlaceMarkers();
           const first = data[0];
           const lat = Number(first.y);
           const lng = Number(first.x);
           if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
           setPickOverlayAt(lat, lng, 3);
           setPicked({ lat, lng, name: first.place_name || first.address_name || query });
-        }
-      });
-    } catch {
-      /* ignore */
-    }
-  }, [setPickOverlayAt]);
+        });
+      } catch {
+        /* ignore */
+      }
+    },
+    [clearPickOverlay, clearPlaceMarkers, picking, setPickOverlayAt],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -209,46 +249,18 @@ export default function MapAskSituationScreen() {
     };
   }, []);
 
+  /** 지도에서 고르기 OFF 시 검색 핀만 정리(빈 땅 탭 선택은 사용하지 않음) */
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !window.kakao?.maps?.event) return;
-    const kakao = window.kakao;
-    if (clickListenerRef.current) {
-      try {
-        kakao.maps.event.removeListener(map, 'click', clickListenerRef.current);
-      } catch {
-        /* ignore */
-      }
-      clickListenerRef.current = null;
-    }
-    if (!picking) return;
+    if (picking) return;
+    clearPlaceMarkers();
+  }, [picking, clearPlaceMarkers]);
 
-    const onClick = async (mouseEvent) => {
-      try {
-        const latlng = mouseEvent.latLng;
-        const lat = latlng.getLat();
-        const lng = latlng.getLng();
-        setPickOverlayAt(lat, lng);
-        // 즉시 표시(좌표) 후, 비동기로 장소명 보강
-        setPicked({ lat, lng, name: null });
-        const placeName = await findNearestPlaceName(lat, lng);
-        setPicked({ lat, lng, name: placeName });
-      } catch {
-        /* ignore */
-      }
-    };
-    clickListenerRef.current = onClick;
-    kakao.maps.event.addListener(map, 'click', onClick);
+  useEffect(() => {
     return () => {
-      if (!clickListenerRef.current) return;
-      try {
-        kakao.maps.event.removeListener(map, 'click', clickListenerRef.current);
-      } catch {
-        /* ignore */
-      }
-      clickListenerRef.current = null;
+      clearPlaceMarkers();
+      clearPickOverlay();
     };
-  }, [findNearestPlaceName, picking, setPickOverlayAt]);
+  }, [clearPlaceMarkers, clearPickOverlay]);
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-white">
@@ -297,9 +309,9 @@ export default function MapAskSituationScreen() {
         </div>
 
         <div className="mb-3 overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
-          <div className="px-3 py-2 text-[11px] text-gray-600">
-            {sdkError ? `지도 로드 실패: ${sdkError}` : picking ? '지도에서 위치를 탭해서 선택해 주세요.' : pickedLabel ? `선택 위치: ${pickedLabel}` : '위치를 검색하거나 지도에서 선택하세요.'}
-          </div>
+          {sdkError ? (
+            <div className="px-3 py-2 text-[11px] text-red-600">{`지도 로드 실패: ${sdkError}`}</div>
+          ) : null}
           <div ref={mapElRef} className="h-[220px] w-full" />
         </div>
 
