@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
 const kakaoKey = typeof process !== 'undefined' && process.env && process.env.VITE_KAKAO_MAP_API_KEY
@@ -14,7 +14,27 @@ function getPublicBaseForHtml() {
 
 const devProxyTarget = process.env.VITE_DEV_PROXY_TARGET || 'http://127.0.0.1:5000'
 
-export default defineConfig({
+/**
+ * Vite는 기본적으로 VITE_ 로 시작하는 변수만 번들에 넣는다.
+ * Cloudflare 등에 SUPABASE_URL / SUPABASE_ANON_KEY 만 있고 VITE_ 접두사가 없으면
+ * 클라이언트에서 undefined 가 되어 날씨·Supabase 클라이언트가 동작하지 않는다.
+ * 빌드 시 VITE_* 또는 SUPABASE_* 중 있는 값을 합친다(service_role 등은 여기 넣지 말 것).
+ */
+function resolveSupabaseEnvForClient(mode) {
+  const env = { ...process.env, ...loadEnv(mode, process.cwd(), '') }
+  const url = String(env.VITE_SUPABASE_URL || env.SUPABASE_URL || '').trim()
+  const anon = String(env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || '').trim()
+  return { url, anon }
+}
+
+export default defineConfig(({ mode }) => {
+  const { url: supabaseUrl, anon: supabaseAnon } = resolveSupabaseEnvForClient(mode)
+
+  return {
+  define: {
+    'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
+    'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(supabaseAnon),
+  },
   plugins: [
     react(),
     {
@@ -61,4 +81,5 @@ export default defineConfig({
       maxParallelFileOps: 2,
     },
   },
+  }
 })
