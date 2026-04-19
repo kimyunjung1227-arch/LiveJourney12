@@ -7,13 +7,26 @@
 
 const KMA_BASE = 'https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst';
 
-const cors: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type, x-supabase-api-version, prefer',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS, HEAD',
-  'Access-Control-Max-Age': '86400',
-};
+/** 브라우저 프리플라이트: 게이트웨이 뒤에서도 Origin·요청 헤더를 그대로 반영 */
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get('Origin');
+  const requested = req.headers.get('Access-Control-Request-Headers');
+  const allowHeaders =
+    requested ||
+    'authorization, x-client-info, apikey, content-type, x-supabase-api-version, prefer';
+  const h: Record<string, string> = {
+    'Access-Control-Allow-Headers': allowHeaders,
+    'Access-Control-Allow-Methods': 'GET, OPTIONS, HEAD',
+    'Access-Control-Max-Age': '86400',
+  };
+  if (origin) {
+    h['Access-Control-Allow-Origin'] = origin;
+    h.Vary = 'Origin';
+  } else {
+    h['Access-Control-Allow-Origin'] = '*';
+  }
+  return h;
+}
 
 function normalizeDataGoKrServiceKey(raw: string): string {
   const s = String(raw ?? '').trim();
@@ -27,6 +40,8 @@ function normalizeDataGoKrServiceKey(raw: string): string {
 }
 
 Deno.serve(async (req) => {
+  const cors = corsHeaders(req);
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { status: 204, headers: cors });
   }

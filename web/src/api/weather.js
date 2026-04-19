@@ -1,4 +1,4 @@
-// 날씨: 동일 출처 `/api/proxy/kma/*` 우선(Vercel → Render 등). 실패 시 Supabase Edge 폴백.
+// 날씨: Supabase Edge `kma-ultra-ncst` 우선(VITE_SUPABASE_*). 실패 시에만 같은 출처 `/api/proxy/kma/*`(로컬 Vite 등).
 import { getCoordinatesByRegion } from '../utils/regionCoordinates';
 import { logger } from '../utils/logger';
 import { getFetchApiUrl } from '../utils/apiBase';
@@ -94,8 +94,9 @@ const fetchWithRetry = async (url, signal, retries = MAX_RETRIES, fetchInit = {}
 };
 
 /**
- * 1) 동일 출처 `/api/proxy/kma/*` 먼저 — Vercel `vercel.json`이 `/api`를 Render 등으로 넘기면 브라우저는 livejourney.co.kr 에만 요청(CORS 없음).
- * 2) 실패 시 Supabase Edge 폴백(anon + 헤더). Edge는 배포 시 `--no-verify-jwt` 권장.
+ * 1) Supabase Edge(브라우저에서 anon 헤더) — Render 등 별도 백엔드 없이 사용할 때 기본.
+ * 2) `/api/proxy/kma/*` — 로컬에서 Vite가 backend로 넘기거나 `VITE_API_URL` 로 백엔드가 있을 때.
+ * `VITE_WEATHER_NODE_PROXY_FIRST=true` 이면 2)를 먼저 시도.
  */
 function buildKmaProxyUrlList(searchParams) {
   const q = searchParams.toString();
@@ -105,19 +106,19 @@ function buildKmaProxyUrlList(searchParams) {
 
   const nodeUrl = getFetchApiUrl(`/api/proxy/kma/ultra-srt-ncst?${q}`);
 
-  const list = [];
-  list.push(nodeUrl);
+  const nodeFirst = String(import.meta.env.VITE_WEATHER_NODE_PROXY_FIRST || '').trim() === 'true';
 
-  const wantEdge =
-    edgeUrl && String(import.meta.env.VITE_WEATHER_USE_SUPABASE || 'true').trim() !== 'false';
-  if (wantEdge && edgeUrl && anonKey) {
-    if (!list.includes(edgeUrl)) list.push(edgeUrl);
-  } else if (wantEdge && edgeUrl && !anonKey) {
-    logger.warn(
-      'VITE_SUPABASE_ANON_KEY 없음 — Edge 폴백 생략. 웹 호스팅 환경 변수를 확인하세요.'
-    );
+  const edgeReady = Boolean(edgeUrl && anonKey);
+  if (!edgeReady) {
+    return [nodeUrl];
   }
-  return list;
+
+  const primary = edgeUrl;
+  const secondary = nodeUrl;
+  if (nodeFirst) {
+    return [secondary, primary];
+  }
+  return [primary, secondary];
 }
 
 function buildKmaFetchInit(fullUrl) {
