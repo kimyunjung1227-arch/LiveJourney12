@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { getDisplayImageUrl } from '../api/upload';
 import { getGridCoverDisplay } from '../utils/postMedia';
@@ -202,6 +202,45 @@ export default function HotplaceLiveFeedScreen() {
     setBestCutIdx((i) => (i + 1) % bestCuts.length);
   };
 
+  const bestCutSwipeRef = useRef({ x0: 0, pid: null, armed: false });
+  const bestCutSkipNavRef = useRef(false);
+  const SWIPE_PX = 48;
+
+  const onBestCutPointerDown = (e) => {
+    if (bestCuts.length <= 1) return;
+    bestCutSwipeRef.current = { x0: e.clientX, pid: e.pointerId, armed: true };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* noop */
+    }
+  };
+
+  const onBestCutPointerUp = (e) => {
+    const { x0, pid, armed } = bestCutSwipeRef.current;
+    bestCutSwipeRef.current = { x0: 0, pid: null, armed: false };
+    if (!armed || pid !== e.pointerId || bestCuts.length <= 1) return;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* noop */
+    }
+    const dx = e.clientX - x0;
+    if (Math.abs(dx) < SWIPE_PX) return;
+    bestCutSkipNavRef.current = true;
+    if (dx > 0) goBestPrev();
+    else goBestNext();
+  };
+
+  const onBestCutPointerCancel = (e) => {
+    bestCutSwipeRef.current = { x0: 0, pid: null, armed: false };
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* noop */
+    }
+  };
+
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col">
       <header className="sticky top-0 z-20 flex shrink-0 items-center gap-2 border-b border-border-light bg-background-light px-3 py-3 dark:border-border-dark dark:bg-background-dark">
@@ -231,114 +270,76 @@ export default function HotplaceLiveFeedScreen() {
                 <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{bestCutsRangeLabel}</span>
               </div>
 
-              <div className="relative w-full">
-                {bestCuts.length > 1 ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        goBestPrev();
-                      }}
-                      className="absolute left-1 top-1/2 z-[3] flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/55"
-                      aria-label="이전 베스트 컷"
-                    >
-                      <span className="material-symbols-outlined text-[22px]">chevron_left</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        goBestNext();
-                      }}
-                      className="absolute right-1 top-1/2 z-[3] flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/55"
-                      aria-label="다음 베스트 컷"
-                    >
-                      <span className="material-symbols-outlined text-[22px]">chevron_right</span>
-                    </button>
-                  </>
-                ) : null}
-
+              <div className="mx-auto w-full max-w-[260px]">
                 <button
                   type="button"
-                  onClick={() => navigate(`/post/${bestCutActive.id}`, { state: { post: bestCutActive, allPosts } })}
-                  className="relative block w-full overflow-hidden bg-zinc-100 dark:bg-zinc-800"
-                  aria-label={`베스트 컷 ${bestCutIdx + 1}/${bestCuts.length}`}
+                  onPointerDown={onBestCutPointerDown}
+                  onPointerUp={onBestCutPointerUp}
+                  onPointerCancel={onBestCutPointerCancel}
+                  onClick={() => {
+                    if (bestCutSkipNavRef.current) {
+                      bestCutSkipNavRef.current = false;
+                      return;
+                    }
+                    navigate(`/post/${bestCutActive.id}`, { state: { post: bestCutActive, allPosts } });
+                  }}
+                  className="relative block h-[200px] w-full overflow-hidden rounded-xl bg-zinc-100 dark:bg-zinc-800"
+                  aria-label={bestCuts.length > 1 ? '베스트 컷, 좌우로 밀어 넘기기' : '베스트 컷'}
                 >
-                  {(() => {
-                    const p = bestCutActive;
-                    const cover = getGridCoverDisplay(p, getDisplayImageUrl);
-                    const src = cover?.src || (Array.isArray(p.images) ? p.images[0] : p.image) || p.thumbnail || '';
-                    const url = src ? getDisplayImageUrl(src) : '';
-                    const likes = getLikeCount(p);
-                    const comments = getCommentCount(p);
-                    const isVideo = cover?.mode === 'video' && url;
-                    return (
-                      <>
-                        {isVideo ? (
-                          <video
-                            src={url}
-                            className="aspect-[3/4] w-full object-cover"
-                            muted
-                            playsInline
-                            preload="metadata"
-                            autoPlay
-                            loop
-                          />
-                        ) : url ? (
-                          <img
-                            src={url}
-                            alt=""
-                            className="aspect-[3/4] w-full object-cover"
-                            loading="eager"
-                            decoding="async"
-                            fetchPriority="high"
-                          />
-                        ) : (
-                          <div className="aspect-[3/4] w-full" />
-                        )}
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-3 pb-3 pt-12">
-                          <div className="flex items-center justify-between gap-2 text-[13px] font-bold text-white">
-                            <span className="inline-flex min-w-0 items-center gap-1 truncate">
-                              <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: '"FILL" 1' }}>
-                                favorite
+                    {(() => {
+                      const p = bestCutActive;
+                      const cover = getGridCoverDisplay(p, getDisplayImageUrl);
+                      const src = cover?.src || (Array.isArray(p.images) ? p.images[0] : p.image) || p.thumbnail || '';
+                      const url = src ? getDisplayImageUrl(src) : '';
+                      const likes = getLikeCount(p);
+                      const comments = getCommentCount(p);
+                      const isVideo = cover?.mode === 'video' && url;
+                      return (
+                        <>
+                          {isVideo ? (
+                            <video
+                              src={url}
+                              className="h-full w-full object-cover"
+                              muted
+                              playsInline
+                              preload="metadata"
+                              autoPlay
+                              loop
+                            />
+                          ) : url ? (
+                            <img
+                              src={url}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              loading="eager"
+                              decoding="async"
+                              fetchPriority="high"
+                            />
+                          ) : (
+                            <div className="h-full w-full" />
+                          )}
+                          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-2.5 pb-2 pt-10">
+                            <div className="flex items-center justify-between gap-2 text-[12px] font-bold text-white">
+                              <span className="inline-flex min-w-0 items-center gap-1 truncate">
+                                <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: '"FILL" 1' }}>
+                                  favorite
+                                </span>
+                                {likes}
                               </span>
-                              {likes}
-                            </span>
-                            {comments > 0 ? (
-                              <span className="inline-flex shrink-0 items-center gap-0.5">
-                                <span className="material-symbols-outlined text-[17px]">chat_bubble</span>
-                                {comments}
-                              </span>
-                            ) : (
-                              <span className="shrink-0 truncate text-[12px] font-semibold opacity-95">{getUserNameForPost(p)}</span>
-                            )}
+                              {comments > 0 ? (
+                                <span className="inline-flex shrink-0 items-center gap-0.5">
+                                  <span className="material-symbols-outlined text-[15px]">chat_bubble</span>
+                                  {comments}
+                                </span>
+                              ) : (
+                                <span className="shrink-0 truncate text-[11px] font-semibold opacity-95">{getUserNameForPost(p)}</span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </>
-                    );
-                  })()}
+                        </>
+                      );
+                    })()}
                 </button>
-
-                {bestCuts.length > 1 ? (
-                  <div className="mt-3 flex justify-center gap-1.5" role="tablist" aria-label="베스트 컷 선택">
-                    {bestCuts.map((p, i) => (
-                      <button
-                        key={String(p.id)}
-                        type="button"
-                        role="tab"
-                        aria-selected={i === bestCutIdx}
-                        onClick={() => setBestCutIdx(i)}
-                        className={
-                          i === bestCutIdx
-                            ? 'h-1.5 w-6 rounded-full bg-amber-500 transition'
-                            : 'h-1.5 w-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600'
-                        }
-                        aria-label={`${i + 1}번째`}
-                      />
-                    ))}
-                  </div>
-                ) : null}
               </div>
             </div>
           ) : null}
