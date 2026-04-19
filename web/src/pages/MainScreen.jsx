@@ -740,7 +740,7 @@ const MainScreen = () => {
                         className="hide-scrollbar"
                         onMouseDown={handleDragStart}
                     >
-                        {realtimeData.map((post) => {
+                        {realtimeData.map((post, rtIndex) => {
                             // 동영상 우선 체크: videos 배열이 있으면 첫 번째 동영상 사용
                             let firstVideo = null;
                             if (post.videos) {
@@ -800,9 +800,9 @@ const MainScreen = () => {
                                             <img
                                                 src={firstImage}
                                                 alt={post.location}
-                                                loading="eager"
+                                                loading={rtIndex === 0 ? 'eager' : 'lazy'}
                                                 decoding="async"
-                                                fetchPriority="high"
+                                                fetchPriority={rtIndex === 0 ? 'high' : 'auto'}
                                                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '14px' }}
                                             />
                                         ) : null}

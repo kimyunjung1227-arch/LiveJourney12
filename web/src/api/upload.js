@@ -61,6 +61,53 @@ const upgradeSupabaseHttpToHttps = (url) => {
   return url;
 };
 
+const IMAGE_FILE_EXT = /\.(jpe?g|png|webp|avif|bmp)(\?|#|$)/i;
+
+/** 카드·피드 등에서 불필요하게 큰 원본 대신 적당한 폭만 요청 */
+function supabaseFeedMaxWidthPx() {
+  if (typeof window === 'undefined') return 960;
+  const cssW = window.innerWidth || 1024;
+  const dpr = typeof window.devicePixelRatio === 'number' ? Math.min(2, window.devicePixelRatio) : 1;
+  if (cssW >= 1440) return Math.min(1400, Math.round(cssW * dpr * 0.5));
+  if (cssW >= 1024) return Math.min(1200, Math.round(cssW * dpr * 0.6));
+  if (cssW >= 600) return Math.min(960, Math.round(cssW * dpr * 0.85));
+  return Math.min(840, Math.round(cssW * dpr));
+}
+
+/**
+ * Supabase Storage 공개 이미지 → Image Transformation(render) URL (용량·디코딩 시간 단축)
+ * @see https://supabase.com/docs/guides/storage/serving/image-transformations
+ * 기본 OFF(무료 플랜 호환). Pro 등에서 켤 때: VITE_SUPABASE_IMAGE_TRANSFORM=true
+ */
+function applySupabaseImageResize(absoluteUrl) {
+  if (!absoluteUrl || absoluteUrl.startsWith('data:')) return absoluteUrl;
+  if (typeof import.meta === 'undefined' || String(import.meta.env?.VITE_SUPABASE_IMAGE_TRANSFORM || '').trim() !== 'true') {
+    return absoluteUrl;
+  }
+  const pathNoQuery = absoluteUrl.split('?')[0].split('#')[0];
+  if (/\.gif(\?|#|$)/i.test(pathNoQuery)) return absoluteUrl;
+  if (!IMAGE_FILE_EXT.test(pathNoQuery)) return absoluteUrl;
+  if (absoluteUrl.includes('/storage/v1/render/image/public/')) return absoluteUrl;
+  try {
+    const u = new URL(absoluteUrl);
+    if (!u.hostname.endsWith('.supabase.co')) return absoluteUrl;
+    const marker = '/storage/v1/object/public/';
+    const idx = u.pathname.indexOf(marker);
+    if (idx === -1) return absoluteUrl;
+    const rest = u.pathname.slice(idx + marker.length);
+    if (!rest) return absoluteUrl;
+    const out = new URL(`/storage/v1/render/image/public/${rest}`, u.origin);
+    u.searchParams.forEach((v, k) => {
+      out.searchParams.set(k, v);
+    });
+    out.searchParams.set('width', String(supabaseFeedMaxWidthPx()));
+    out.searchParams.set('quality', '80');
+    return out.toString();
+  } catch {
+    return absoluteUrl;
+  }
+}
+
 export const getDisplayImageUrl = (url) => {
   if (url == null) return '';
   const raw = typeof url === 'string' ? url : (url.url || url.src || url.href || '');
@@ -69,14 +116,19 @@ export const getDisplayImageUrl = (url) => {
   if (!trimmed) return '';
   if (trimmed.startsWith('blob:')) return PLACEHOLDER_IMAGE;
 
+  let resolved;
   const fromBucket = resolveSupabaseBucketRelativePath(trimmed);
-  if (fromBucket) return upgradeSupabaseHttpToHttps(fromBucket);
-
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    return upgradeSupabaseHttpToHttps(trimmed);
+  if (fromBucket) {
+    resolved = upgradeSupabaseHttpToHttps(fromBucket);
+  } else if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    resolved = upgradeSupabaseHttpToHttps(trimmed);
+  } else if (trimmed.startsWith('/')) {
+    resolved = `${UPLOAD_ORIGIN}${trimmed}`;
+  } else {
+    resolved = trimmed;
   }
-  if (trimmed.startsWith('/')) return `${UPLOAD_ORIGIN}${trimmed}`;
-  return trimmed;
+
+  return applySupabaseImageResize(resolved);
 };
 
 // 이미지를 Base64로 변환

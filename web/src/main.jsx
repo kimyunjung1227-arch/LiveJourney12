@@ -6,6 +6,30 @@ import './utils/clearStorage'
 import { requestNotificationPermission } from './utils/browserNotifications'
 import { logger } from './utils/logger'
 
+/** Supabase Storage 이미지 요청 전 TLS/DNS 연결을 미리 열어 첫 페인트 지연 완화 */
+function preconnectSupabaseOrigin() {
+  try {
+    const raw =
+      typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL
+        ? String(import.meta.env.VITE_SUPABASE_URL).trim()
+        : ''
+    if (!raw || typeof document === 'undefined') return
+    const origin = new URL(raw.startsWith('http') ? raw : `https://${raw}`).origin
+    if (!origin.includes('supabase.co')) return
+    const id = 'lj-preconnect-supabase'
+    if (document.getElementById(id)) return
+    const link = document.createElement('link')
+    link.id = id
+    link.rel = 'preconnect'
+    link.href = origin
+    link.crossOrigin = 'anonymous'
+    document.head.appendChild(link)
+  } catch {
+    /* ignore */
+  }
+}
+preconnectSupabaseOrigin()
+
 // Kakao Map API 로드: HTML 스크립트 대기 → 없으면 동적 주입 시도 → 초기화
 const loadKakaoMapAPI = () => {
   return new Promise((resolve, reject) => {
