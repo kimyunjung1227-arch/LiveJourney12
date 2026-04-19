@@ -19,7 +19,6 @@ import {
   feedGridCardBoxFlat,
   feedGridImageBoxFlat,
   feedGridInfoBox,
-  feedGridTitleStyle,
   feedGridDescStyle,
   feedGridMetaRow,
 } from '../utils/feedGridCardStyles';
@@ -444,14 +443,10 @@ export default function HotplaceLiveFeedScreen() {
           ) : null}
 
           <section id="situation-feed-section" aria-labelledby="situation-heading">
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-2">
               <h2 id="situation-heading" className="font-manrope text-[15px] font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100">
                 지금 이 시각 상황
               </h2>
-              <div className="flex items-center gap-0.5 font-inter text-[10px] font-bold text-gray-400 dark:text-zinc-500">
-                <span className="material-symbols-outlined text-[14px]">schedule</span>
-                최근 2시간
-              </div>
             </div>
 
             {postsForPlace.length === 0 ? (
@@ -479,7 +474,6 @@ export default function HotplaceLiveFeedScreen() {
                   const timeLabel =
                     post.timeLabel ||
                     getTimeAgo(post.photoDate || post.exifData?.photoDate || post.timestamp || post.createdAt || post.time);
-                  const titleText = post.location || '어딘가의 지금';
                   const descText = (post.content || post.note || '').trim();
                   return (
                     <div
@@ -505,7 +499,7 @@ export default function HotplaceLiveFeedScreen() {
                         {cover?.mode === 'img' && cover.src ? (
                           <img
                             src={cover.src}
-                            alt={titleText}
+                            alt=""
                             loading={index < 4 ? 'eager' : 'lazy'}
                             decoding="async"
                             fetchPriority={index < 4 ? 'high' : 'auto'}
@@ -562,7 +556,6 @@ export default function HotplaceLiveFeedScreen() {
                       </div>
 
                       <div style={feedGridInfoBox}>
-                        <div style={feedGridTitleStyle}>{titleText}</div>
                         {descText ? <div style={feedGridDescStyle}>{descText}</div> : null}
                         <div style={feedGridMetaRow}>
                           <span>{timeLabel}</span>
