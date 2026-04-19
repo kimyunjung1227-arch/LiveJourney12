@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { getDisplayImageUrl } from '../api/upload';
 import { getGridCoverDisplay } from '../utils/postMedia';
+import { formatExifDate } from '../utils/exifExtractor';
 import { getTimeAgo } from '../utils/timeUtils';
-import { getTrustGrade, getTrustRawScore } from '../utils/trustIndex';
+import { follow, unfollow, isFollowing, getCurrentUserId } from '../utils/followSystem';
+import { getTrustGrade, getTrustRawScore, getTrustScore } from '../utils/trustIndex';
 
-/** 목업 베스트 컷 포인트용 (반응 가중) */
 const MOCK_PRIMARY = '#1353d8';
 
 const getPostTimeMs = (post) => {
@@ -54,6 +55,42 @@ const getAvatarUrlForPost = (post) => {
   return null;
 };
 
+const hasExifForPost = (post) => {
+  const ex = post?.exifData;
+  return !!(
+    post?.photoDate ||
+    (ex && typeof ex === 'object' && (ex.photoDate || ex.gpsCoordinates || ex.cameraMake || ex.cameraModel))
+  );
+};
+
+const getExifTagForPost = (post) => {
+  const photoDate = post?.photoDate || post?.exifData?.photoDate || null;
+  const ex = post?.exifData && typeof post.exifData === 'object' ? post.exifData : null;
+  const cameraMake = ex?.cameraMake ? String(ex.cameraMake).trim() : '';
+  const cameraModel = ex?.cameraModel ? String(ex.cameraModel).trim() : '';
+  const cameraText = `${cameraMake} ${cameraModel}`.trim();
+
+  let timeText = '';
+  let fullTimeText = '';
+  if (photoDate) {
+    const d = new Date(photoDate);
+    if (!Number.isNaN(d.getTime())) {
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      timeText = `${hh}:${mm}`;
+      fullTimeText = d.toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+  }
+
+  const dayText = photoDate ? (formatExifDate(photoDate) || '') : '';
+  const parts = [dayText, timeText].filter(Boolean);
+  const when = parts.join(' ');
+  const text = [when, cameraText].filter(Boolean).join(' · ');
+  const title = [fullTimeText ? `촬영: ${fullTimeText}` : '', cameraText ? `기기: ${cameraText}` : ''].filter(Boolean).join('\n');
+
+  return text ? { text, title } : null;
+};
+
 const hasGpsPost = (post) =>
   !!(
     post?.coordinates ||
@@ -85,19 +122,6 @@ export default function HotplaceLiveFeedScreen() {
   }, [allPosts, loc.state?.placeKey, placeKey]);
 
   const now = Date.now();
-  const recent2h = useMemo(
-    () => postsForPlace.filter((p) => now - getPostTimeMs(p) <= 2 * 60 * 60 * 1000),
-    [postsForPlace, now],
-  );
-
-  const compassCount = useMemo(() => {
-    const s = new Set();
-    recent2h.forEach((p) => {
-      const id = getUserIdForPost(p) || getUserNameForPost(p);
-      if (id) s.add(id);
-    });
-    return s.size;
-  }, [recent2h]);
 
   const bestCuts = useMemo(() => {
     if (postsForPlace.length === 0) return [];
@@ -175,6 +199,7 @@ export default function HotplaceLiveFeedScreen() {
 
   const displayTitle = String(loc.state?.placeKey || placeKey || '실시간 현장').trim();
   const heroPost = bestCutActive || postsForPlace[0] || null;
+  const heroAuthorId = heroPost ? getUserIdForPost(heroPost) : '';
 
   const bestCutAuthorTrustName = useMemo(() => {
     if (!heroPost) return null;
@@ -185,10 +210,28 @@ export default function HotplaceLiveFeedScreen() {
     return grade?.name || null;
   }, [heroPost, allPosts]);
 
+  const heroTrustIndex = useMemo(() => {
+    if (!heroAuthorId || !heroPost) return null;
+    const authorPosts = allPosts.filter((p) => getUserIdForPost(p) === heroAuthorId);
+    return Math.round(getTrustScore(heroAuthorId, authorPosts.length ? authorPosts : null));
+  }, [heroAuthorId, heroPost, allPosts]);
+
   const situationPosts = useMemo(() => {
     if (!heroPost?.id) return postsForPlace;
     return postsForPlace.filter((p) => String(p.id) !== String(heroPost.id));
   }, [postsForPlace, heroPost]);
+
+  const [followHero, setFollowHero] = useState(false);
+  useEffect(() => {
+    if (!heroAuthorId) {
+      setFollowHero(false);
+      return;
+    }
+    setFollowHero(isFollowing(null, heroAuthorId));
+    const sync = () => setFollowHero(isFollowing(null, heroAuthorId));
+    window.addEventListener('followsUpdated', sync);
+    return () => window.removeEventListener('followsUpdated', sync);
+  }, [heroAuthorId]);
 
   const onSharePlace = () => {
     const url = typeof window !== 'undefined' ? window.location.href : '';
@@ -202,42 +245,37 @@ export default function HotplaceLiveFeedScreen() {
     }
   };
 
-  const heroDetailLine = useMemo(() => {
-    if (!heroPost) return '';
-    const note = String(heroPost.note || heroPost.content || '').trim();
-    const locStr = String(heroPost.detailedLocation || heroPost.placeName || '').trim();
-    const t = getPostTimeMs(heroPost);
-    const d = new Date(t);
-    const nowD = new Date();
-    const dayLabel =
-      d.toDateString() === nowD.toDateString()
-        ? '오늘'
-        : d.toDateString() === new Date(nowD.getTime() - 86400000).toDateString()
-          ? '어제'
-          : d.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
-    const clock = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
-    const tail = note ? note.slice(0, 40) + (note.length > 40 ? '…' : '') : locStr || displayTitle;
-    return `${dayLabel} ${clock} 촬영${tail ? ` · ${tail}` : ''}`;
-  }, [heroPost, displayTitle]);
+  const onFollowHero = (e) => {
+    e.stopPropagation();
+    if (!heroAuthorId) return;
+    const me = getCurrentUserId();
+    if (me && me === heroAuthorId) return;
+    if (followHero) {
+      unfollow(heroAuthorId);
+    } else {
+      follow(heroAuthorId);
+    }
+    setFollowHero(isFollowing(null, heroAuthorId));
+  };
 
   const heroAvatarUrl = heroPost ? getAvatarUrlForPost(heroPost) : null;
-
-  const heroPoints = heroPost ? Math.min(999, Math.max(10, getEngagementScore(heroPost) * 12 + getLikeCount(heroPost) * 3)) : 0;
-  const heroMedalHint = heroPost && getEngagementScore(heroPost) >= 2;
+  const showFollowHero = heroAuthorId && getCurrentUserId() && getCurrentUserId() !== heroAuthorId;
 
   return (
-    <div className="screen-layout flex min-h-screen flex-col bg-[#F2F4F6] dark:bg-background-dark">
-      <header className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b border-gray-100 bg-white/80 px-4 py-3 backdrop-blur-lg dark:border-border-dark dark:bg-background-dark/90">
+    <div className="screen-layout flex min-h-screen flex-col bg-background-light dark:bg-background-dark">
+      <header className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b border-border-light bg-background-light/95 px-4 py-3 backdrop-blur-md dark:border-border-dark dark:bg-background-dark/95">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <button
             type="button"
             onClick={() => navigate(-1)}
             aria-label="뒤로가기"
-            className="flex size-10 shrink-0 items-center justify-center rounded-full active:bg-gray-100 dark:active:bg-white/10"
+            className="flex size-10 shrink-0 items-center justify-center rounded-full active:bg-black/5 dark:active:bg-white/10"
           >
-            <span className="material-symbols-outlined text-2xl text-zinc-900 dark:text-zinc-100">arrow_back</span>
+            <span className="material-symbols-outlined text-2xl text-text-primary-light dark:text-text-primary-dark">
+              arrow_back
+            </span>
           </button>
-          <h1 className="font-manrope min-w-0 truncate text-[17px] font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+          <h1 className="font-manrope min-w-0 truncate text-[17px] font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark">
             {displayTitle}
           </h1>
         </div>
@@ -245,156 +283,125 @@ export default function HotplaceLiveFeedScreen() {
           type="button"
           onClick={onSharePlace}
           aria-label="더보기 및 공유"
-          className="flex size-10 shrink-0 items-center justify-center rounded-full active:bg-gray-100 dark:active:bg-white/10"
+          className="flex size-10 shrink-0 items-center justify-center rounded-full active:bg-black/5 dark:active:bg-white/10"
         >
-          <span className="material-symbols-outlined text-zinc-700 dark:text-zinc-200">more_horiz</span>
+          <span className="material-symbols-outlined text-text-primary-light dark:text-text-primary-dark">more_horiz</span>
         </button>
       </header>
 
       <div className="screen-content flex-1 overflow-y-auto pb-24 pt-4">
         <div className="px-5">
           {heroPost ? (
-            <section className="mb-8">
-              <button
-                type="button"
-                onPointerDown={onBestCutPointerDown}
-                onPointerUp={onBestCutPointerUp}
-                onPointerCancel={onBestCutPointerCancel}
-                onClick={() => {
-                  if (bestCutSkipNavRef.current) {
-                    bestCutSkipNavRef.current = false;
-                    return;
-                  }
-                  navigate(`/post/${heroPost.id}`, { state: { post: heroPost, allPosts } });
-                }}
-                className="relative w-full overflow-hidden rounded-3xl bg-white shadow-xl dark:bg-zinc-900 dark:shadow-none"
-                style={{ boxShadow: '0 0 20px rgba(19, 83, 216, 0.15)' }}
-                aria-label={bestCuts.length > 1 ? '오늘의 베스트, 좌우로 넘기기' : '오늘의 베스트'}
+            <section className="mb-10" aria-labelledby="best-cut-heading">
+              <h2
+                id="best-cut-heading"
+                className="font-manrope mb-4 text-[17px] font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100"
               >
-                <div className="relative h-[min(420px,72vh)] w-full sm:h-[420px]">
-                  {(() => {
-                    const p = heroPost;
-                    const cover = getGridCoverDisplay(p, getDisplayImageUrl);
-                    const src = cover?.src || (Array.isArray(p.images) ? p.images[0] : p.image) || p.thumbnail || '';
-                    const url = src ? getDisplayImageUrl(src) : '';
-                    const isVideo = cover?.mode === 'video' && url;
-                    return isVideo ? (
-                      <video
-                        src={url}
-                        className="h-full w-full object-cover"
-                        muted
-                        playsInline
-                        preload="metadata"
-                        autoPlay
-                        loop
-                      />
-                    ) : url ? (
-                      <img
-                        src={url}
-                        alt=""
-                        className="h-full w-full object-cover"
-                        loading="eager"
-                        decoding="async"
-                        fetchPriority="high"
-                      />
-                    ) : (
-                      <div className="h-full w-full bg-zinc-200 dark:bg-zinc-800" />
-                    );
-                  })()}
+                실시간 베스트 컷
+              </h2>
 
-                  <div className="pointer-events-none absolute left-4 top-4 z-10 flex gap-2">
-                    <div
-                      className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-white shadow-lg"
-                      style={{ backgroundColor: MOCK_PRIMARY }}
-                    >
-                      <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: '"FILL" 1' }}>
-                        workspace_premium
+              <div
+                className="overflow-hidden rounded-3xl bg-white shadow-xl dark:bg-zinc-900 dark:shadow-none"
+                style={{ boxShadow: '0 0 20px rgba(19, 83, 216, 0.12)' }}
+              >
+                <button
+                  type="button"
+                  onPointerDown={onBestCutPointerDown}
+                  onPointerUp={onBestCutPointerUp}
+                  onPointerCancel={onBestCutPointerCancel}
+                  onClick={() => {
+                    if (bestCutSkipNavRef.current) {
+                      bestCutSkipNavRef.current = false;
+                      return;
+                    }
+                    navigate(`/post/${heroPost.id}`, { state: { post: heroPost, allPosts } });
+                  }}
+                  className="relative block w-full"
+                  aria-label={bestCuts.length > 1 ? '베스트 컷, 좌우로 넘기기' : '베스트 컷 사진'}
+                >
+                  <div className="relative h-[min(460px,78vh)] w-full sm:h-[460px]">
+                    {(() => {
+                      const p = heroPost;
+                      const cover = getGridCoverDisplay(p, getDisplayImageUrl);
+                      const src = cover?.src || (Array.isArray(p.images) ? p.images[0] : p.image) || p.thumbnail || '';
+                      const url = src ? getDisplayImageUrl(src) : '';
+                      const isVideo = cover?.mode === 'video' && url;
+                      return isVideo ? (
+                        <video
+                          src={url}
+                          className="h-full w-full object-cover"
+                          muted
+                          playsInline
+                          preload="metadata"
+                          autoPlay
+                          loop
+                        />
+                      ) : url ? (
+                        <img
+                          src={url}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          loading="eager"
+                          decoding="async"
+                          fetchPriority="high"
+                        />
+                      ) : (
+                        <div className="h-full w-full bg-zinc-200 dark:bg-zinc-800" />
+                      );
+                    })()}
+                  </div>
+                </button>
+              </div>
+
+              <div className="mt-4 flex items-center gap-3">
+                {heroAvatarUrl ? (
+                  <img
+                    src={heroAvatarUrl}
+                    alt=""
+                    className="size-12 shrink-0 rounded-full object-cover ring-2 ring-zinc-200 dark:ring-zinc-600"
+                  />
+                ) : (
+                  <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-zinc-200 font-manrope text-lg font-bold text-zinc-600 dark:bg-zinc-700 dark:text-zinc-200">
+                    {getUserNameForPost(heroPost).slice(0, 1)}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-inter text-[15px] font-bold text-zinc-900 dark:text-zinc-100">
+                      {getUserNameForPost(heroPost)}
+                    </span>
+                    {bestCutAuthorTrustName ? (
+                      <span
+                        className="rounded-md px-2 py-0.5 font-inter text-[10px] font-extrabold text-white"
+                        style={{ backgroundColor: MOCK_PRIMARY }}
+                      >
+                        나침반 {bestCutAuthorTrustName}
                       </span>
-                      Today&apos;s Best
-                    </div>
+                    ) : null}
                   </div>
-
-                  <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-10">
-                    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/20 bg-white/85 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/85">
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <div className="relative shrink-0">
-                          {heroAvatarUrl ? (
-                            <img
-                              src={heroAvatarUrl}
-                              alt=""
-                              className="size-10 rounded-full border-2 object-cover"
-                              style={{ borderColor: `${MOCK_PRIMARY}33` }}
-                            />
-                          ) : (
-                            <div
-                              className="flex size-10 items-center justify-center rounded-full border-2 bg-blue-50 font-manrope text-sm font-bold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
-                              style={{ borderColor: `${MOCK_PRIMARY}33` }}
-                            >
-                              {getUserNameForPost(heroPost).slice(0, 1)}
-                            </div>
-                          )}
-                          <div className="absolute -bottom-1 -right-1 rounded-full bg-[#FFD700] p-0.5 shadow-sm">
-                            <span className="material-symbols-outlined text-[10px] font-bold text-black">star</span>
-                          </div>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-inter text-[13px] font-bold text-gray-900 dark:text-zinc-100">
-                            {getUserNameForPost(heroPost)}
-                            {bestCutAuthorTrustName ? (
-                              <span className="ml-1 text-[10px] font-normal" style={{ color: MOCK_PRIMARY }}>
-                                나침반 {bestCutAuthorTrustName}
-                              </span>
-                            ) : null}
-                          </p>
-                          <p className="font-inter text-[11px] text-gray-500 dark:text-zinc-400">{heroDetailLine}</p>
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <div className="rounded-lg bg-blue-50 px-2 py-1 dark:bg-blue-950/50">
-                          <p className="font-inter text-[10px] font-bold" style={{ color: MOCK_PRIMARY }}>
-                            +{heroPoints}p
-                          </p>
-                          <p className="font-inter text-[9px] font-medium text-blue-600 dark:text-blue-300">
-                            {heroMedalHint ? '메달후보' : '라이브 포인트'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  {heroTrustIndex != null ? (
+                    <p className="mt-1 font-inter text-[12px] font-semibold text-zinc-600 dark:text-zinc-400">
+                      신뢰지수 {heroTrustIndex}
+                    </p>
+                  ) : null}
                 </div>
-              </button>
+                {showFollowHero ? (
+                  <button
+                    type="button"
+                    onClick={onFollowHero}
+                    className={`shrink-0 rounded-xl px-4 py-2 font-inter text-[13px] font-bold transition-colors ${
+                      followHero
+                        ? 'bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100'
+                        : 'text-white'
+                    }`}
+                    style={followHero ? undefined : { backgroundColor: MOCK_PRIMARY }}
+                  >
+                    {followHero ? '팔로잉' : '팔로우'}
+                  </button>
+                ) : null}
+              </div>
             </section>
           ) : null}
-
-          <section className="mb-10">
-            <div className="flex items-center justify-between rounded-2xl bg-white px-5 py-4 shadow-sm dark:bg-zinc-900 dark:shadow-none">
-              <div className="flex items-center gap-4">
-                <div className="flex flex-col">
-                  <span className="font-inter text-[11px] font-medium text-gray-400 dark:text-zinc-500">현재 상황</span>
-                  <span className="font-inter flex items-center gap-1 text-sm font-bold" style={{ color: MOCK_PRIMARY }}>
-                    <span className="relative flex h-2 w-2">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
-                      <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
-                    </span>
-                    {compassCount}명이 실시간 중계 중
-                  </span>
-                </div>
-                <div className="h-8 w-px bg-gray-100 dark:bg-zinc-700" />
-                <div className="flex flex-col">
-                  <span className="font-inter text-[11px] font-medium text-gray-400 dark:text-zinc-500">평균 대기</span>
-                  <span className="font-inter text-sm font-bold text-zinc-900 dark:text-zinc-100">여유로움</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="rounded-xl bg-gray-50 p-2 dark:bg-zinc-800"
-                aria-label="안내"
-                onClick={() => onSharePlace()}
-              >
-                <span className="material-symbols-outlined text-xl text-gray-400">info</span>
-              </button>
-            </div>
-          </section>
 
           <section id="situation-feed-section" aria-labelledby="situation-heading">
             <div className="mb-5 flex items-center justify-between">
@@ -419,6 +426,7 @@ export default function HotplaceLiveFeedScreen() {
                   const ago = getTimeAgo(post.timestamp || post.createdAt || post.time || tms);
                   const caption = String(post.note || post.content || '').trim();
                   const gps = hasGpsPost(post);
+                  const exifTag = hasExifForPost(post) ? getExifTagForPost(post) : null;
                   return (
                     <button
                       key={String(post.id)}
@@ -444,9 +452,19 @@ export default function HotplaceLiveFeedScreen() {
                             className="h-full w-full object-cover"
                           />
                         ) : null}
-                        <div className="pointer-events-none absolute left-2.5 top-2.5 rounded-lg bg-black/30 px-2 py-1 font-inter text-[9px] font-bold text-white backdrop-blur-md">
-                          {ago}
-                        </div>
+                        {exifTag ? (
+                          <div
+                            className="pointer-events-none absolute left-2.5 top-2.5 z-[2] max-w-[90%] truncate rounded-full border px-2 py-1 font-inter text-[9px] font-extrabold dark:border-emerald-500/40 dark:bg-emerald-950/50 dark:text-emerald-100"
+                            style={{ borderColor: 'rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.14)', color: '#064e3b' }}
+                            title={exifTag.title || exifTag.text}
+                          >
+                            {exifTag.text}
+                          </div>
+                        ) : (
+                          <div className="pointer-events-none absolute left-2.5 top-2.5 rounded-lg bg-black/30 px-2 py-1 font-inter text-[9px] font-bold text-white backdrop-blur-md">
+                            {ago}
+                          </div>
+                        )}
                         {gps ? (
                           <div className="pointer-events-none absolute bottom-2.5 right-2.5 rounded-full bg-white/90 p-1 shadow-sm dark:bg-zinc-900/90">
                             <span className="material-symbols-outlined text-[14px] text-gray-700 dark:text-zinc-200">
