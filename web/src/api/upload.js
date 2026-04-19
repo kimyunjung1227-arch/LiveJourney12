@@ -18,6 +18,49 @@ const SUPABASE_IMAGE_BUCKET = 'post-images';
 // blob: URL은 새로고침 후 사라져 404 발생 → placeholder 반환으로 요청 방지
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIGZpbGw9IiNlNWU3ZWIiLz48cGF0aCBkPSJNMjAgMTR2MTJNMTRIMjBoMTIiIHN0cm9rZT0iIzljYTljYSIgc3Ryb2tlLXdpZHRoPSIyIi8+PC9zdmc+';
 
+/**
+ * DB에 https 전체 URL이 아니라 `uploads/...` · `videos/...` 만 들어 있는 경우 공개 URL로 복원
+ */
+const resolveSupabaseBucketRelativePath = (trimmed) => {
+  if (!trimmed || /^(https?:|\/|data:|blob:)/i.test(trimmed)) return '';
+  const pathOnly = trimmed.split(/[?#]/)[0].trim();
+  if (!pathOnly || !/^(uploads\/|videos\/)/i.test(pathOnly)) return '';
+  try {
+    if (supabase) {
+      const { data } = supabase.storage.from(SUPABASE_IMAGE_BUCKET).getPublicUrl(pathOnly);
+      if (data?.publicUrl) return data.publicUrl;
+    }
+  } catch {
+    /* ignore */
+  }
+  const base =
+    typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL
+      ? String(import.meta.env.VITE_SUPABASE_URL).replace(/\/$/, '')
+      : '';
+  if (!base) return '';
+  const enc = pathOnly
+    .split('/')
+    .filter(Boolean)
+    .map((seg) => encodeURIComponent(seg))
+    .join('/');
+  return `${base}/storage/v1/object/public/${SUPABASE_IMAGE_BUCKET}/${enc}`;
+};
+
+/** HTTPS 페이지에서 Supabase 스토리지 http 링크가 막히는 경우 방지 */
+const upgradeSupabaseHttpToHttps = (url) => {
+  if (!url || !url.startsWith('http://')) return url;
+  try {
+    const u = new URL(url);
+    if (u.hostname.endsWith('.supabase.co')) {
+      u.protocol = 'https:';
+      return u.toString();
+    }
+  } catch {
+    /* ignore */
+  }
+  return url;
+};
+
 export const getDisplayImageUrl = (url) => {
   if (url == null) return '';
   const raw = typeof url === 'string' ? url : (url.url || url.src || url.href || '');
@@ -25,7 +68,13 @@ export const getDisplayImageUrl = (url) => {
   const trimmed = raw.trim();
   if (!trimmed) return '';
   if (trimmed.startsWith('blob:')) return PLACEHOLDER_IMAGE;
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+
+  const fromBucket = resolveSupabaseBucketRelativePath(trimmed);
+  if (fromBucket) return upgradeSupabaseHttpToHttps(fromBucket);
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return upgradeSupabaseHttpToHttps(trimmed);
+  }
   if (trimmed.startsWith('/')) return `${UPLOAD_ORIGIN}${trimmed}`;
   return trimmed;
 };
