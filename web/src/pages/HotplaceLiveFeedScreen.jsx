@@ -309,6 +309,13 @@ export default function HotplaceLiveFeedScreen() {
 
   return (
     <div className="screen-layout flex min-h-screen flex-col bg-background-light dark:bg-background-dark">
+      <style>
+        {`
+          .best-cut-swiper.swiper .swiper-wrapper {
+            transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+          }
+        `}
+      </style>
       <header className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b border-border-light bg-background-light/95 px-4 py-3 backdrop-blur-md dark:border-border-dark dark:bg-background-dark/95">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <button
@@ -377,9 +384,10 @@ export default function HotplaceLiveFeedScreen() {
                     <div className="h-full w-full bg-zinc-700" />
                   ) : (
                     <Swiper
-                      className="h-full w-full [&_.swiper-wrapper]:h-full [&_.swiper-slide]:h-full"
-                      speed={300}
-                      resistanceRatio={0.85}
+                      className="best-cut-swiper h-full w-full [&_.swiper-wrapper]:h-full [&_.swiper-slide]:h-full"
+                      speed={520}
+                      resistanceRatio={0.72}
+                      roundLengths
                       slidesPerView={1}
                       spaceBetween={0}
                       onSwiper={(s) => {
@@ -438,23 +446,46 @@ export default function HotplaceLiveFeedScreen() {
                     </div>
                   </div>
 
-                  {flatSlides.length > 1 && (
-                    <div className="pointer-events-none absolute right-3 top-3 z-10 text-right sm:right-4 sm:top-4">
-                      <div className="inline-flex flex-col items-end gap-0.5 rounded-xl bg-black/45 px-2.5 py-1.5 font-inter text-white shadow-sm backdrop-blur-sm">
-                        <span className="text-[12px] font-bold tabular-nums leading-none">
-                          {flatIdx + 1} / {flatSlides.length}
+                  {/* 중앙: 게시물 수·현재 게시물 기준 (우측 상단 숫자 제거) */}
+                  {(bestCuts.length > 1 || heroMediaItems.length > 1) && (
+                    <div className="pointer-events-none absolute left-1/2 top-[40%] z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5">
+                      {bestCuts.length > 1 ? (
+                        <span className="rounded-full bg-black/50 px-3 py-1.5 font-inter text-[12px] font-bold tabular-nums text-white shadow-md backdrop-blur-md">
+                          게시물 {currentBestCutIndex + 1} / {bestCuts.length}
                         </span>
-                        {bestCuts.length > 1 ? (
-                          <span className="text-[9px] font-semibold tabular-nums text-white/85">
-                            게시물 {currentBestCutIndex + 1} / {bestCuts.length}
-                          </span>
-                        ) : null}
-                      </div>
+                      ) : null}
+                      {heroMediaItems.length > 1 ? (
+                        <span className="rounded-full bg-black/40 px-2.5 py-1 font-inter text-[11px] font-semibold tabular-nums text-white/95 shadow-sm backdrop-blur-sm">
+                          사진 {heroMediaIdx + 1} / {heroMediaItems.length}
+                        </span>
+                      ) : null}
                     </div>
                   )}
 
-                  {/* 하단 점: 같은 게시물에 미디어가 여러 장이면 해당 미디어 기준, 아니면 베스트 컷 게시물별 */}
-                  {heroMediaItems.length > 1 ? (
+                  {/* 하단 점: 게시물 개수(bestCuts)에 맞춤 — 미디어가 여러 장인 게시물 안에서는 같은 게시물 점이 활성 유지 */}
+                  {bestCuts.length > 1 ? (
+                    <div className="absolute bottom-[5.25rem] left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 sm:bottom-[5.5rem]">
+                      {bestCuts.map((_, index) => (
+                        <button
+                          key={String(index)}
+                          type="button"
+                          tabIndex={0}
+                          aria-label={`베스트 컷 게시물 ${index + 1} / ${bestCuts.length}`}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const start = postFirstFlatIndex[index];
+                            if (start != null) slideToFlatIndex(start);
+                          }}
+                          className={`carousel-page-dot inline-flex min-h-0 min-w-0 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 p-0 leading-none transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
+                            index === currentBestCutIndex
+                              ? 'h-1.5 w-5 bg-white'
+                              : 'h-1.5 w-1.5 bg-white/40 hover:bg-white/55'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  ) : heroMediaItems.length > 1 ? (
                     <div className="absolute bottom-[5.25rem] left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 sm:bottom-[5.5rem]">
                       {heroMediaItems.map((_, index) => {
                         const targetFlat = flatSlides.findIndex(
@@ -479,28 +510,6 @@ export default function HotplaceLiveFeedScreen() {
                           />
                         );
                       })}
-                    </div>
-                  ) : bestCuts.length > 1 ? (
-                    <div className="absolute bottom-[5.25rem] left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 sm:bottom-[5.5rem]">
-                      {bestCuts.map((_, index) => (
-                        <button
-                          key={String(index)}
-                          type="button"
-                          tabIndex={0}
-                          aria-label={`베스트 컷 게시물 ${index + 1} / ${bestCuts.length}`}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const start = postFirstFlatIndex[index];
-                            if (start != null) slideToFlatIndex(start);
-                          }}
-                          className={`carousel-page-dot inline-flex min-h-0 min-w-0 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 p-0 leading-none transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
-                            index === currentBestCutIndex
-                              ? 'h-1.5 w-5 bg-white'
-                              : 'h-1.5 w-1.5 bg-white/40 hover:bg-white/55'
-                          }`}
-                        />
-                      ))}
                     </div>
                   ) : null}
 
