@@ -4,7 +4,8 @@ import { getDisplayImageUrl } from '../api/upload';
 import { getGridCoverDisplay } from '../utils/postMedia';
 import { formatExifDate } from '../utils/exifExtractor';
 import { getTimeAgo } from '../utils/timeUtils';
-import { getTrustGrade, getTrustRawScore } from '../utils/trustIndex';
+import { follow, unfollow, isFollowing, getCurrentUserId } from '../utils/followSystem';
+import { getTrustGrade, getTrustRawScore, getTrustScore } from '../utils/trustIndex';
 
 const MOCK_PRIMARY = '#1353d8';
 
@@ -198,6 +199,7 @@ export default function HotplaceLiveFeedScreen() {
 
   const displayTitle = String(loc.state?.placeKey || placeKey || '실시간 현장').trim();
   const heroPost = bestCutActive || postsForPlace[0] || null;
+  const heroAuthorId = heroPost ? getUserIdForPost(heroPost) : '';
 
   const bestCutAuthorTrustName = useMemo(() => {
     if (!heroPost) return null;
@@ -207,6 +209,24 @@ export default function HotplaceLiveFeedScreen() {
     const { grade } = getTrustGrade(raw, uid || null, authorPosts.length ? authorPosts : null);
     return grade?.name || null;
   }, [heroPost, allPosts]);
+
+  const heroTrustIndex = useMemo(() => {
+    if (!heroAuthorId || !heroPost) return null;
+    const authorPosts = allPosts.filter((p) => getUserIdForPost(p) === heroAuthorId);
+    return Math.round(getTrustScore(heroAuthorId, authorPosts.length ? authorPosts : null));
+  }, [heroAuthorId, heroPost, allPosts]);
+
+  const [followHero, setFollowHero] = useState(false);
+  useEffect(() => {
+    if (!heroAuthorId) {
+      setFollowHero(false);
+      return;
+    }
+    setFollowHero(isFollowing(null, heroAuthorId));
+    const sync = () => setFollowHero(isFollowing(null, heroAuthorId));
+    window.addEventListener('followsUpdated', sync);
+    return () => window.removeEventListener('followsUpdated', sync);
+  }, [heroAuthorId]);
 
   const situationPosts = useMemo(() => {
     if (!heroPost?.id) return postsForPlace;
@@ -250,6 +270,39 @@ export default function HotplaceLiveFeedScreen() {
     : 0;
   const heroMedalHint = heroPost && getEngagementScore(heroPost) >= 2;
 
+  const heroExifShort = useMemo(() => {
+    if (!heroPost || !hasExifForPost(heroPost)) return null;
+    const tag = getExifTagForPost(heroPost);
+    if (!tag?.text) return null;
+    return tag.text.length > 28 ? `${tag.text.slice(0, 26)}…` : tag.text;
+  }, [heroPost]);
+
+  const heroExifTooltip = useMemo(() => {
+    if (!heroPost || !hasExifForPost(heroPost)) return '';
+    const t = getExifTagForPost(heroPost);
+    return t?.title || t?.text || '';
+  }, [heroPost]);
+
+  const showFollowHero = Boolean(heroAuthorId && getCurrentUserId() && getCurrentUserId() !== heroAuthorId);
+
+  const openHeroPost = () => {
+    if (!heroPost) return;
+    if (bestCutSkipNavRef.current) {
+      bestCutSkipNavRef.current = false;
+      return;
+    }
+    navigate(`/post/${heroPost.id}`, { state: { post: heroPost, allPosts } });
+  };
+
+  const onFollowHero = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!heroAuthorId) return;
+    if (followHero) unfollow(heroAuthorId);
+    else follow(heroAuthorId);
+    setFollowHero(isFollowing(null, heroAuthorId));
+  };
+
   return (
     <div className="screen-layout flex min-h-screen flex-col bg-background-light dark:bg-background-dark">
       <header className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b border-border-light bg-background-light/95 px-4 py-3 backdrop-blur-md dark:border-border-dark dark:bg-background-dark/95">
@@ -281,24 +334,49 @@ export default function HotplaceLiveFeedScreen() {
       <div className="screen-content flex-1 overflow-y-auto pb-24 pt-4">
         <div className="px-5">
           {heroPost ? (
-            <section className="mb-8">
-              <button
-                type="button"
-                onPointerDown={onBestCutPointerDown}
-                onPointerUp={onBestCutPointerUp}
-                onPointerCancel={onBestCutPointerCancel}
-                onClick={() => {
-                  if (bestCutSkipNavRef.current) {
-                    bestCutSkipNavRef.current = false;
-                    return;
-                  }
-                  navigate(`/post/${heroPost.id}`, { state: { post: heroPost, allPosts } });
-                }}
-                className="relative w-full overflow-hidden rounded-3xl bg-white shadow-xl dark:bg-zinc-900 dark:shadow-none"
-                style={{ boxShadow: '0 0 20px rgba(19, 83, 216, 0.15)' }}
-                aria-label={bestCuts.length > 1 ? '오늘의 베스트 컷, 좌우로 넘기기' : '오늘의 베스트 컷'}
+            <section className="mb-8" aria-labelledby="best-cut-title">
+              <div className="mb-3 flex items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <h2
+                    id="best-cut-title"
+                    className="font-manrope text-[17px] font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100"
+                  >
+                    실시간 베스트 컷
+                  </h2>
+                  <p className="mt-1 font-inter text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
+                    48시간 안 반응이 높은 순 · 사진을 좌우로 넘겨 다른 베스트를 볼 수 있어요
+                  </p>
+                </div>
+                {bestCuts.length > 1 ? (
+                  <span
+                    className="shrink-0 rounded-full bg-zinc-100 px-2.5 py-1 font-inter text-[11px] font-bold tabular-nums text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                    aria-live="polite"
+                  >
+                    {bestCutIdx + 1} / {bestCuts.length}
+                  </span>
+                ) : null}
+              </div>
+
+              <div
+                className="relative overflow-hidden rounded-3xl bg-zinc-950 shadow-xl ring-1 ring-black/5 dark:ring-white/10"
+                style={{ boxShadow: '0 16px 48px rgba(19, 83, 216, 0.14)' }}
               >
-                <div className="relative h-[min(420px,72vh)] w-full sm:h-[420px]">
+                <div
+                  className="relative h-[min(440px,74vh)] w-full sm:h-[440px]"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      openHeroPost();
+                    }
+                  }}
+                  onPointerDown={onBestCutPointerDown}
+                  onPointerUp={onBestCutPointerUp}
+                  onPointerCancel={onBestCutPointerCancel}
+                  onClick={openHeroPost}
+                  aria-label={bestCuts.length > 1 ? '베스트 컷 사진, 탭하면 게시물로 이동 · 좌우로 넘기기' : '베스트 컷 사진, 탭하면 게시물로 이동'}
+                >
                   {(() => {
                     const p = heroPost;
                     const cover = getGridCoverDisplay(p, getDisplayImageUrl);
@@ -325,71 +403,152 @@ export default function HotplaceLiveFeedScreen() {
                         fetchPriority="high"
                       />
                     ) : (
-                      <div className="h-full w-full bg-zinc-200 dark:bg-zinc-800" />
+                      <div className="h-full w-full bg-zinc-700" />
                     );
                   })()}
 
-                  <div className="pointer-events-none absolute left-4 top-4 z-10 flex gap-2">
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/45 via-transparent to-black/70" />
+
+                  <div className="pointer-events-none absolute left-3 top-3 z-10 flex max-w-[calc(100%-5.5rem)] flex-col gap-2 sm:left-4 sm:top-4">
                     <div
-                      className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-white shadow-lg"
-                      style={{ backgroundColor: MOCK_PRIMARY }}
+                      className="inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1.5 font-inter text-[11px] font-extrabold tracking-wide text-white shadow-lg"
+                      style={{
+                        background: `linear-gradient(135deg, ${MOCK_PRIMARY} 0%, #0c3a9e 100%)`,
+                        boxShadow: '0 4px 14px rgba(19, 83, 216, 0.45)',
+                      }}
                     >
-                      <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: '"FILL" 1' }}>
-                        workspace_premium
+                      <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: '"FILL" 1' }}>
+                        verified
                       </span>
-                      Today&apos;s Best
+                      <span>베스트 컷</span>
+                      <span className="text-[9px] font-bold uppercase opacity-90">Best</span>
                     </div>
                   </div>
 
-                  <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-10">
-                    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/20 bg-white/85 p-4 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/85">
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <div className="relative shrink-0">
-                          {heroAvatarUrl ? (
-                            <img
-                              src={heroAvatarUrl}
-                              alt=""
-                              className="size-10 rounded-full border-2 object-cover"
-                              style={{ borderColor: `${MOCK_PRIMARY}33` }}
-                            />
-                          ) : (
-                            <div
-                              className="flex size-10 items-center justify-center rounded-full border-2 bg-blue-50 font-manrope text-sm font-bold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
-                              style={{ borderColor: `${MOCK_PRIMARY}33` }}
-                            >
-                              {getUserNameForPost(heroPost).slice(0, 1)}
-                            </div>
-                          )}
-                          <div className="absolute -bottom-1 -right-1 rounded-full bg-[#FFD700] p-0.5 shadow-sm">
-                            <span className="material-symbols-outlined text-[10px] font-bold text-black">star</span>
+                  {heroExifShort ? (
+                    <div
+                      className="pointer-events-none absolute right-3 top-3 z-10 max-w-[min(55%,12rem)] truncate rounded-full border border-emerald-400/35 bg-emerald-950/55 px-2.5 py-1 font-inter text-[9px] font-bold text-emerald-100 backdrop-blur-sm sm:right-4 sm:top-4"
+                      title={heroExifTooltip || undefined}
+                    >
+                      {heroExifShort}
+                    </div>
+                  ) : null}
+
+                  {bestCuts.length > 1 ? (
+                    <>
+                      <div className="pointer-events-none absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/25 p-1 text-white/90 backdrop-blur-sm">
+                        <span className="material-symbols-outlined text-[22px]">chevron_left</span>
+                      </div>
+                      <div className="pointer-events-none absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/25 p-1 text-white/90 backdrop-blur-sm">
+                        <span className="material-symbols-outlined text-[22px]">chevron_right</span>
+                      </div>
+                      <div className="pointer-events-none absolute bottom-[5.25rem] left-0 right-0 z-10 flex justify-center gap-1.5 sm:bottom-[5.5rem]">
+                        {bestCuts.map((_, i) => (
+                          <span
+                            key={String(i)}
+                            className={`h-1.5 rounded-full transition-all duration-300 ${
+                              i === bestCutIdx ? 'w-5 bg-white' : 'w-1.5 bg-white/40'
+                            }`}
+                            aria-hidden
+                          />
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+
+                <div
+                  className="absolute bottom-0 left-0 right-0 z-20 px-3 pb-3 pt-10 sm:px-4 sm:pb-4"
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <div className="rounded-2xl border border-white/30 bg-white/93 p-3 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/93">
+                    <div className="flex items-start gap-3">
+                      <div className="relative shrink-0">
+                        {heroAvatarUrl ? (
+                          <img
+                            src={heroAvatarUrl}
+                            alt=""
+                            className="size-11 rounded-full border-2 object-cover shadow-sm"
+                            style={{ borderColor: `${MOCK_PRIMARY}40` }}
+                          />
+                        ) : (
+                          <div
+                            className="flex size-11 items-center justify-center rounded-full border-2 bg-blue-50 font-manrope text-[15px] font-bold text-zinc-700 shadow-sm dark:bg-zinc-800 dark:text-zinc-200"
+                            style={{ borderColor: `${MOCK_PRIMARY}40` }}
+                          >
+                            {getUserNameForPost(heroPost).slice(0, 1)}
                           </div>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-inter text-[13px] font-bold text-gray-900 dark:text-zinc-100">
-                            {getUserNameForPost(heroPost)}
-                            {bestCutAuthorTrustName ? (
-                              <span className="ml-1 text-[10px] font-normal" style={{ color: MOCK_PRIMARY }}>
-                                나침반 {bestCutAuthorTrustName}
-                              </span>
-                            ) : null}
-                          </p>
-                          <p className="font-inter text-[11px] text-gray-500 dark:text-zinc-400">{heroDetailLine}</p>
+                        )}
+                        <div className="absolute -bottom-0.5 -right-0.5 flex size-5 items-center justify-center rounded-full bg-amber-400 shadow ring-2 ring-white dark:ring-zinc-900">
+                          <span className="material-symbols-outlined text-[12px] font-bold text-amber-950">star</span>
                         </div>
                       </div>
-                      <div className="shrink-0 text-right">
-                        <div className="rounded-lg bg-blue-50 px-2 py-1 dark:bg-blue-950/50">
-                          <p className="font-inter text-[10px] font-bold" style={{ color: MOCK_PRIMARY }}>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-inter text-[14px] font-bold text-zinc-900 dark:text-zinc-100">
+                            {getUserNameForPost(heroPost)}
+                          </span>
+                          {bestCutAuthorTrustName ? (
+                            <span
+                              className="rounded-md px-1.5 py-0.5 font-inter text-[9px] font-extrabold uppercase tracking-wide text-white"
+                              style={{ backgroundColor: MOCK_PRIMARY }}
+                            >
+                              나침반 {bestCutAuthorTrustName}
+                            </span>
+                          ) : null}
+                          {heroTrustIndex != null ? (
+                            <span className="font-inter text-[10px] font-semibold text-zinc-500 dark:text-zinc-400">
+                              신뢰 {heroTrustIndex}
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-0.5 line-clamp-2 font-inter text-[11px] leading-snug text-zinc-600 dark:text-zinc-400">
+                          {heroDetailLine}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-inter text-[10px] font-semibold text-zinc-500 dark:text-zinc-400">
+                          <span className="inline-flex items-center gap-0.5">
+                            <span className="material-symbols-outlined text-[13px] text-rose-500" style={{ fontVariationSettings: '"FILL" 1' }}>
+                              favorite
+                            </span>
+                            {getLikeCount(heroPost)}
+                          </span>
+                          <span className="inline-flex items-center gap-0.5">
+                            <span className="material-symbols-outlined text-[13px]">chat_bubble</span>
+                            {getCommentCount(heroPost)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 flex-col items-end gap-2">
+                        {showFollowHero ? (
+                          <button
+                            type="button"
+                            onClick={onFollowHero}
+                            className={`rounded-xl px-3 py-1.5 font-inter text-[12px] font-bold transition-colors ${
+                              followHero
+                                ? 'bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100'
+                                : 'text-white'
+                            }`}
+                            style={followHero ? undefined : { backgroundColor: MOCK_PRIMARY }}
+                          >
+                            {followHero ? '팔로잉' : '팔로우'}
+                          </button>
+                        ) : null}
+                        <div className="rounded-xl bg-blue-50 px-2.5 py-1.5 text-right dark:bg-blue-950/40">
+                          <p className="font-inter text-[11px] font-bold leading-none" style={{ color: MOCK_PRIMARY }}>
                             +{heroPoints}p
                           </p>
-                          <p className="font-inter text-[9px] font-medium text-blue-600 dark:text-blue-300">
-                            {heroMedalHint ? '메달후보' : '라이브 포인트'}
+                          <p className="mt-0.5 font-inter text-[9px] font-medium text-blue-600 dark:text-blue-300">
+                            {heroMedalHint ? '메달 후보' : '라이브 포인트'}
                           </p>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </button>
+              </div>
             </section>
           ) : null}
 
