@@ -1,7 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { getDisplayImageUrl } from '../api/upload';
-import { getGridCoverDisplay, buildMediaItemsFromPost, normalizePostForMedia, isVideoUri } from '../utils/postMedia';
+import {
+  getGridCoverDisplay,
+  buildMediaItemsFromPost,
+  normalizePostForMedia,
+  isVideoUri,
+  toMediaStr,
+} from '../utils/postMedia';
 import { formatExifDate } from '../utils/exifExtractor';
 import { getTimeAgo } from '../utils/timeUtils';
 import { follow, unfollow, isFollowing, getCurrentUserId } from '../utils/followSystem';
@@ -98,14 +104,16 @@ const hasGpsPost = (post) =>
     (Array.isArray(post?.coordinates) && post.coordinates.length >= 2)
   );
 
-/** 베스트 컷 메인(그리드 커버와 동일)을 제외한 같은 게시물의 나머지 미디어 */
-const getSiblingMediaItemsForPost = (post) => {
+/** 베스트 컷 영역 슬라이드용: 게시물의 모든 미디어(순서 유지) */
+const getHeroMediaItems = (post) => {
+  if (!post) return [];
   const items = buildMediaItemsFromPost(normalizePostForMedia(post));
-  if (items.length <= 1) return [];
-  let mainIdx = items.findIndex((m) => m.type === 'image');
-  if (mainIdx < 0) mainIdx = items.findIndex((m) => m.type === 'video');
-  if (mainIdx < 0) return [];
-  return items.filter((_, i) => i !== mainIdx);
+  if (items.length > 0) return items;
+  const raw =
+    (Array.isArray(post.images) && post.images[0]) || post.image || post.thumbnail || post.imageUrl || '';
+  const u = toMediaStr(raw);
+  if (!u) return [];
+  return [{ type: isVideoUri(u) ? 'video' : 'image', uri: u }];
 };
 
 export default function HotplaceLiveFeedScreen() {
@@ -168,13 +176,25 @@ export default function HotplaceLiveFeedScreen() {
     setBestCutIdx((i) => (i + 1) % bestCuts.length);
   };
 
-  const bestCutSwipeRef = useRef({ x0: 0, pid: null, armed: false });
-  const bestCutSkipNavRef = useRef(false);
+  const heroSwipeRef = useRef({ x0: 0, pid: null, armed: false });
+  const heroGestureSkipNavRef = useRef(false);
   const SWIPE_PX = 48;
 
-  const onBestCutPointerDown = (e) => {
-    if (bestCuts.length <= 1) return;
-    bestCutSwipeRef.current = { x0: e.clientX, pid: e.pointerId, armed: true };
+  const displayTitle = String(loc.state?.placeKey || placeKey || '실시간 현장').trim();
+  const heroPost = bestCutActive || postsForPlace[0] || null;
+  const heroAuthorId = heroPost ? getUserIdForPost(heroPost) : '';
+
+  const heroMediaItems = useMemo(() => getHeroMediaItems(heroPost), [heroPost]);
+  const [heroMediaIdx, setHeroMediaIdx] = useState(0);
+  useEffect(() => {
+    setHeroMediaIdx(0);
+  }, [heroPost?.id]);
+
+  const onHeroPointerDown = (e) => {
+    const multiMedia = heroMediaItems.length > 1;
+    const multiBest = bestCuts.length > 1;
+    if (!multiMedia && !multiBest) return;
+    heroSwipeRef.current = { x0: e.clientX, pid: e.pointerId, armed: true };
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {
@@ -182,10 +202,10 @@ export default function HotplaceLiveFeedScreen() {
     }
   };
 
-  const onBestCutPointerUp = (e) => {
-    const { x0, pid, armed } = bestCutSwipeRef.current;
-    bestCutSwipeRef.current = { x0: 0, pid: null, armed: false };
-    if (!armed || pid !== e.pointerId || bestCuts.length <= 1) return;
+  const onHeroPointerUp = (e) => {
+    const { x0, pid, armed } = heroSwipeRef.current;
+    heroSwipeRef.current = { x0: 0, pid: null, armed: false };
+    if (!armed || pid !== e.pointerId) return;
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {
@@ -193,23 +213,29 @@ export default function HotplaceLiveFeedScreen() {
     }
     const dx = e.clientX - x0;
     if (Math.abs(dx) < SWIPE_PX) return;
-    bestCutSkipNavRef.current = true;
-    if (dx > 0) goBestPrev();
-    else goBestNext();
+    heroGestureSkipNavRef.current = true;
+    if (heroMediaItems.length > 1) {
+      if (dx > 0) {
+        setHeroMediaIdx((i) => (i - 1 + heroMediaItems.length) % heroMediaItems.length);
+      } else {
+        setHeroMediaIdx((i) => (i + 1) % heroMediaItems.length);
+      }
+      return;
+    }
+    if (bestCuts.length > 1) {
+      if (dx > 0) goBestPrev();
+      else goBestNext();
+    }
   };
 
-  const onBestCutPointerCancel = (e) => {
-    bestCutSwipeRef.current = { x0: 0, pid: null, armed: false };
+  const onHeroPointerCancel = (e) => {
+    heroSwipeRef.current = { x0: 0, pid: null, armed: false };
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {
       /* noop */
     }
   };
-
-  const displayTitle = String(loc.state?.placeKey || placeKey || '실시간 현장').trim();
-  const heroPost = bestCutActive || postsForPlace[0] || null;
-  const heroAuthorId = heroPost ? getUserIdForPost(heroPost) : '';
 
   const heroTrustMeta = useMemo(() => {
     if (!heroPost || !heroAuthorId) {
@@ -251,9 +277,6 @@ export default function HotplaceLiveFeedScreen() {
     return postsForPlace.filter((p) => String(p.id) !== String(heroPost.id));
   }, [postsForPlace, heroPost]);
 
-  /** 베스트 컷으로 선정된 게시물 안의 다른 사진·동영상 — 가로 스크롤 썸네일 */
-  const heroPostSiblingMedia = useMemo(() => getSiblingMediaItemsForPost(heroPost), [heroPost]);
-
   const onSharePlace = () => {
     const url = typeof window !== 'undefined' ? window.location.href : '';
     const title = displayTitle;
@@ -275,8 +298,8 @@ export default function HotplaceLiveFeedScreen() {
 
   const openHeroPost = () => {
     if (!heroPost) return;
-    if (bestCutSkipNavRef.current) {
-      bestCutSkipNavRef.current = false;
+    if (heroGestureSkipNavRef.current) {
+      heroGestureSkipNavRef.current = false;
       return;
     }
     navigate(`/post/${heroPost.id}`, { state: { post: heroPost, allPosts } });
@@ -332,16 +355,41 @@ export default function HotplaceLiveFeedScreen() {
                     실시간 베스트 컷
                   </h2>
                   <p className="mt-0.5 font-inter text-[10px] leading-snug text-zinc-500 dark:text-zinc-400">
-                    48시간 내 반응 순 · 좌우 스와이프
+                    48시간 내 반응 순 · 사진은 좌우로 넘겨 보기
+                    {bestCuts.length > 1 ? ' · 다른 베스트는 상단 화살표' : ''}
                   </p>
                 </div>
                 {bestCuts.length > 1 ? (
-                  <span
-                    className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 font-inter text-[10px] font-bold tabular-nums text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
-                    aria-live="polite"
-                  >
-                    {bestCutIdx + 1} / {bestCuts.length}
-                  </span>
+                  <div className="flex shrink-0 items-center gap-0.5 rounded-full bg-zinc-100 px-0.5 py-0.5 dark:bg-zinc-800">
+                    <button
+                      type="button"
+                      aria-label="이전 베스트 컷"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        goBestPrev();
+                      }}
+                      className="flex size-7 items-center justify-center rounded-full text-zinc-600 active:bg-zinc-200 dark:text-zinc-300 dark:active:bg-zinc-700"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">chevron_left</span>
+                    </button>
+                    <span
+                      className="min-w-[2.75rem] text-center font-inter text-[10px] font-bold tabular-nums text-zinc-600 dark:text-zinc-300"
+                      aria-live="polite"
+                    >
+                      {bestCutIdx + 1} / {bestCuts.length}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label="다음 베스트 컷"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        goBestNext();
+                      }}
+                      className="flex size-7 items-center justify-center rounded-full text-zinc-600 active:bg-zinc-200 dark:text-zinc-300 dark:active:bg-zinc-700"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+                    </button>
+                  </div>
                 ) : null}
               </div>
 
@@ -350,7 +398,7 @@ export default function HotplaceLiveFeedScreen() {
                 style={{ boxShadow: '0 12px 36px rgba(19, 83, 216, 0.1)' }}
               >
                 <div
-                  className="relative h-[min(300px,42svh)] w-full max-h-[46vh] bg-zinc-950 sm:h-[300px] sm:max-h-none"
+                  className="relative h-[min(380px,54svh)] w-full max-h-[58vh] bg-zinc-950 sm:h-[380px] sm:max-h-none"
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
@@ -359,50 +407,61 @@ export default function HotplaceLiveFeedScreen() {
                       openHeroPost();
                     }
                   }}
-                  onPointerDown={onBestCutPointerDown}
-                  onPointerUp={onBestCutPointerUp}
-                  onPointerCancel={onBestCutPointerCancel}
+                  onPointerDown={onHeroPointerDown}
+                  onPointerUp={onHeroPointerUp}
+                  onPointerCancel={onHeroPointerCancel}
                   onClick={openHeroPost}
-                  aria-label={bestCuts.length > 1 ? '베스트 컷 사진, 탭하면 게시물로 이동 · 좌우로 넘기기' : '베스트 컷 사진, 탭하면 게시물로 이동'}
+                  aria-label={
+                    heroMediaItems.length > 1
+                      ? '베스트 컷 사진, 같은 게시물 사진은 좌우 스와이프 · 탭하면 게시물로 이동'
+                      : bestCuts.length > 1
+                        ? '베스트 컷 사진, 탭하면 게시물로 이동 · 다른 베스트는 상단 화살표'
+                        : '베스트 컷 사진, 탭하면 게시물로 이동'
+                  }
                 >
-                  {(() => {
-                    const p = heroPost;
-                    const cover = getGridCoverDisplay(p, (u) => u);
-                    const rawSrc =
-                      cover?.src ||
-                      (Array.isArray(p.images) ? p.images[0] : p.image) ||
-                      p.thumbnail ||
-                      '';
-                    const isVideo = cover?.mode === 'video' || (rawSrc && isVideoUri(rawSrc));
-                    const url = rawSrc
-                      ? isVideo
-                        ? getDisplayImageUrl(rawSrc)
-                        : getDisplayImageUrl(rawSrc, { hero: true })
-                      : '';
-                    return isVideo ? (
-                      <video
-                        src={url}
-                        className="h-full w-full object-cover [transform:translateZ(0)]"
-                        muted
-                        playsInline
-                        preload="metadata"
-                        autoPlay
-                        loop
-                      />
-                    ) : url ? (
-                      <img
-                        src={url}
-                        alt=""
-                        className="h-full w-full object-cover [transform:translateZ(0)]"
-                        loading="eager"
-                        decoding="async"
-                        fetchPriority="high"
-                        sizes="100vw"
-                      />
-                    ) : (
+                  <div className="absolute inset-0 overflow-hidden">
+                    {heroMediaItems.length === 0 ? (
                       <div className="h-full w-full bg-zinc-700" />
-                    );
-                  })()}
+                    ) : (
+                      <div
+                        className="flex h-full transition-transform duration-300 ease-out will-change-transform"
+                        style={{
+                          width: `${heroMediaItems.length * 100}%`,
+                          transform: `translateX(-${(100 / heroMediaItems.length) * heroMediaIdx}%)`,
+                        }}
+                      >
+                        {heroMediaItems.map((m, i) => (
+                          <div
+                            key={`slide-${i}-${m.uri}`}
+                            className="h-full shrink-0 overflow-hidden bg-zinc-950"
+                            style={{ width: `${100 / heroMediaItems.length}%` }}
+                          >
+                            {m.type === 'video' ? (
+                              <video
+                                src={getDisplayImageUrl(m.uri)}
+                                className="h-full w-full object-cover [transform:translateZ(0)]"
+                                muted
+                                playsInline
+                                preload="metadata"
+                                autoPlay={heroMediaIdx === i}
+                                loop
+                              />
+                            ) : (
+                              <img
+                                src={getDisplayImageUrl(m.uri, { hero: true })}
+                                alt=""
+                                className="h-full w-full object-cover [transform:translateZ(0)]"
+                                loading={i === 0 ? 'eager' : 'lazy'}
+                                decoding="async"
+                                fetchPriority={i === 0 ? 'high' : 'auto'}
+                                sizes="100vw"
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/8 via-transparent to-black/30" />
 
@@ -421,46 +480,60 @@ export default function HotplaceLiveFeedScreen() {
                     </div>
                   </div>
 
-                  {bestCuts.length > 1 ? (
+                  {heroMediaItems.length > 1 ? (
                     <>
-                      <div className="pointer-events-none absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/25 p-1 text-white/90 backdrop-blur-sm">
+                      <div className="pointer-events-none absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/25 p-1 text-white/90">
                         <span className="material-symbols-outlined text-[22px]">chevron_left</span>
                       </div>
-                      <div className="pointer-events-none absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/25 p-1 text-white/90 backdrop-blur-sm">
+                      <div className="pointer-events-none absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/25 p-1 text-white/90">
                         <span className="material-symbols-outlined text-[22px]">chevron_right</span>
                       </div>
-                      <div className="pointer-events-none absolute bottom-[4.75rem] left-0 right-0 z-10 flex justify-center gap-1.5 sm:bottom-[5rem]">
-                        {bestCuts.map((_, i) => (
+                      <div className="pointer-events-none absolute bottom-[5.5rem] left-0 right-0 z-10 flex justify-center gap-1.5 sm:bottom-[5.75rem]">
+                        {heroMediaItems.map((_, i) => (
                           <span
                             key={String(i)}
                             className={`h-1.5 rounded-full transition-all duration-300 ${
-                              i === bestCutIdx ? 'w-5 bg-white' : 'w-1.5 bg-white/40'
+                              i === heroMediaIdx ? 'w-5 bg-white' : 'w-1.5 bg-white/40'
                             }`}
                             aria-hidden
                           />
                         ))}
                       </div>
                     </>
+                  ) : bestCuts.length > 1 ? (
+                    <div className="pointer-events-none absolute bottom-[5.5rem] left-0 right-0 z-10 flex justify-center gap-1.5 sm:bottom-[5.75rem]">
+                      {bestCuts.map((_, i) => (
+                        <span
+                          key={String(i)}
+                          className={`h-1.5 rounded-full transition-all duration-300 ${
+                            i === bestCutIdx ? 'w-5 bg-white' : 'w-1.5 bg-white/40'
+                          }`}
+                          aria-hidden
+                        />
+                      ))}
+                    </div>
                   ) : null}
 
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/95 via-black/45 to-transparent px-3 pb-2.5 pt-7 sm:px-4 sm:pb-3 sm:pt-8">
-                    <div className="flex items-center gap-2 sm:gap-2.5">
-                      {heroAvatarUrl ? (
-                        <img
-                          src={heroAvatarUrl}
-                          alt=""
-                          className="size-9 shrink-0 rounded-full border-2 border-white object-cover shadow-md ring-1 ring-black/15"
-                        />
-                      ) : (
-                        <div className="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-white bg-zinc-900 font-manrope text-sm font-extrabold text-white shadow-md ring-1 ring-black/20">
-                          {getUserNameForPost(heroPost).slice(0, 1)}
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0 leading-tight">
-                          <span className="font-manrope text-[9px] font-extrabold uppercase tracking-[0.1em] text-white/75">
-                            오늘의 작가
-                          </span>
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/95 via-black/45 to-transparent px-3 pb-2.5 pt-9 sm:px-4 sm:pb-3 sm:pt-10">
+                    <div className="flex items-end gap-2 sm:gap-2.5">
+                      <div className="flex shrink-0 flex-col items-center gap-1">
+                        <p className="whitespace-nowrap font-manrope text-[9px] font-extrabold uppercase tracking-[0.1em] text-white/75 drop-shadow-sm">
+                          오늘의 작가
+                        </p>
+                        {heroAvatarUrl ? (
+                          <img
+                            src={heroAvatarUrl}
+                            alt=""
+                            className="size-9 rounded-full border-2 border-white object-cover shadow-md ring-1 ring-black/15"
+                          />
+                        ) : (
+                          <div className="flex size-9 items-center justify-center rounded-full border-2 border-white bg-zinc-900 font-manrope text-sm font-extrabold text-white shadow-md ring-1 ring-black/20">
+                            {getUserNameForPost(heroPost).slice(0, 1)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1 pb-0.5">
+                        <div className="flex flex-wrap items-center gap-x-1 gap-y-0 leading-tight">
                           <span className="font-inter text-[13px] font-extrabold tracking-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.75)]">
                             {getUserNameForPost(heroPost)}
                           </span>
@@ -501,49 +574,6 @@ export default function HotplaceLiveFeedScreen() {
                     </div>
                   </div>
                 </div>
-
-                {heroPostSiblingMedia.length > 0 ? (
-                  <div className="border-t border-zinc-200/80 bg-zinc-50/95 px-1.5 py-1.5 dark:border-zinc-700 dark:bg-zinc-900/90">
-                    <div className="mb-1 flex items-center justify-between px-1">
-                      <p className="font-inter text-[10px] font-extrabold text-zinc-700 dark:text-zinc-200">
-                        이 게시물의 다른 사진
-                      </p>
-                      <span className="font-inter text-[9px] font-semibold text-zinc-400 dark:text-zinc-500">
-                        {heroPostSiblingMedia.length}장
-                      </span>
-                    </div>
-                    <div className="flex gap-1.5 overflow-x-auto pb-0.5 pl-0.5 pr-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                      {heroPostSiblingMedia.map((m, mi) => {
-                        const poster =
-                          m.type === 'image'
-                            ? getDisplayImageUrl(m.uri)
-                            : m.posterUri
-                              ? getDisplayImageUrl(m.posterUri)
-                              : '';
-                        const videoSrc = m.type === 'video' ? getDisplayImageUrl(m.uri) : '';
-                        const showVideoThumb = m.type === 'video' && videoSrc && !poster;
-                        return (
-                          <button
-                            key={`${m.type}-${m.uri}-${mi}`}
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (!heroPost?.id) return;
-                              navigate(`/post/${heroPost.id}`, { state: { post: heroPost, allPosts } });
-                            }}
-                            className="relative h-14 w-[3rem] shrink-0 overflow-hidden rounded-lg bg-zinc-200 ring-1 ring-zinc-200/80 transition active:scale-95 dark:bg-zinc-800 dark:ring-zinc-600"
-                          >
-                            {showVideoThumb ? (
-                              <video src={videoSrc} muted playsInline preload="metadata" className="h-full w-full object-cover" />
-                            ) : poster ? (
-                              <img src={poster} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
-                            ) : null}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
               </div>
             </section>
           ) : null}
