@@ -20,8 +20,8 @@ $ProjectRef = "donxoyznlahewufadamu"
 Write-Host ""
 Write-Host "프로젝트 ref: $ProjectRef" -ForegroundColor Gray
 Write-Host "아래는 최초 1회만 필요합니다." -ForegroundColor Yellow
-Write-Host "  npx supabase@latest login"
-Write-Host "  npm run supabase:link   (이미 --project-ref $ProjectRef 포함)"
+Write-Host "  로그인: 터미널에 직접 입력 (npm 말고) — npx supabase@latest login"
+Write-Host "  링크: npm run supabase:link   (--yes 포함, npm에서 stdin 오류 방지)"
 Write-Host ""
 Write-Host "기상청 키(시크릿) 설정 예:" -ForegroundColor Yellow
 Write-Host "  npx supabase@latest secrets set --project-ref $ProjectRef KMA_API_KEY=공공데이터포털_인증키"
