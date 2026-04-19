@@ -17,9 +17,9 @@
     "build": "cd web && npm run build",
     "start": "npm run dev",
     "ship": "powershell -ExecutionPolicy Bypass -File ./scripts/commit-and-deploy.ps1",
-    "supabase:deploy:kma": "npx --yes supabase@latest functions deploy kma-ultra-ncst",
+    "supabase:deploy:kma": "npx --yes supabase@latest functions deploy kma-ultra-ncst --project-ref donxoyznlahewufadamu",
     "supabase:login": "npx --yes supabase@latest login",
-    "supabase:link": "npx --yes supabase@latest link"
+    "supabase:link": "npx --yes supabase@latest link --project-ref donxoyznlahewufadamu"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

@@ -12,8 +12,13 @@ supabase secrets set DATA_GO_KR_SERVICE_KEY=...
 
 ## 배포
 
+프로젝트 ref `donxoyznlahewufadamu` 가 저장소 `package.json` / `supabase/config.toml` 에 맞춰져 있음.
+
 ```bash
-supabase functions deploy kma-ultra-ncst
+# 저장소 루트에서
+npm run supabase:deploy:kma
+# 또는
+npx supabase@latest functions deploy kma-ultra-ncst --project-ref donxoyznlahewufadamu
 ```
 
 프론트는 `VITE_SUPABASE_URL`이 있으면 자동으로  

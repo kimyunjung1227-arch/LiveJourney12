@@ -1,0 +1,3 @@
+# Supabase 프로젝트 (Reference ID — 공개 저장소에 있어도 무방)
+# CLI: npx supabase@latest functions deploy --project-ref …
+project_id = "donxoyznlahewufadamu"

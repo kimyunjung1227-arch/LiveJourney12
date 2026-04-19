@@ -15,17 +15,20 @@ Write-Host ""
 Write-Host "=== Supabase CLI (npx) ===" -ForegroundColor Cyan
 npx --yes supabase@latest --version
 
+$ProjectRef = "donxoyznlahewufadamu"
+
 Write-Host ""
+Write-Host "프로젝트 ref: $ProjectRef" -ForegroundColor Gray
 Write-Host "아래는 최초 1회만 필요합니다." -ForegroundColor Yellow
 Write-Host "  npx supabase@latest login"
-Write-Host "  npx supabase@latest link --project-ref <대시보드 Reference ID>"
+Write-Host "  npm run supabase:link   (이미 --project-ref $ProjectRef 포함)"
 Write-Host ""
 Write-Host "기상청 키(시크릿) 설정 예:" -ForegroundColor Yellow
-Write-Host "  npx supabase@latest secrets set KMA_API_KEY=공공데이터포털_인증키"
+Write-Host "  npx supabase@latest secrets set --project-ref $ProjectRef KMA_API_KEY=공공데이터포털_인증키"
 Write-Host ""
 
 Write-Host "=== functions deploy kma-ultra-ncst ===" -ForegroundColor Cyan
-npx --yes supabase@latest functions deploy kma-ultra-ncst
+npx --yes supabase@latest functions deploy kma-ultra-ncst --project-ref $ProjectRef
 
 Write-Host ""
 Write-Host "완료." -ForegroundColor Green
