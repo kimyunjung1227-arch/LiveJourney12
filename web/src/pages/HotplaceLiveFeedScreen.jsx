@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import 'swiper/css';
 import { getDisplayImageUrl } from '../api/upload';
+import { getWeatherByRegion } from '../api/weather';
 import {
   getGridCoverDisplay,
   buildMediaItemsFromPost,
@@ -10,9 +11,18 @@ import {
   isVideoUri,
   toMediaStr,
 } from '../utils/postMedia';
-import { formatExifDate } from '../utils/exifExtractor';
 import { getTimeAgo } from '../utils/timeUtils';
 import { getTrustGrade, getTrustRawScore, getTrustScore } from '../utils/trustIndex';
+import StatusBadge from '../components/StatusBadge';
+import { getPhotoStatusFromPost } from '../utils/photoStatus';
+import {
+  feedGridCardBoxFlat,
+  feedGridImageBoxFlat,
+  feedGridInfoBox,
+  feedGridTitleStyle,
+  feedGridDescStyle,
+  feedGridMetaRow,
+} from '../utils/feedGridCardStyles';
 
 const MOCK_PRIMARY = '#1353d8';
 
@@ -59,42 +69,6 @@ const getAvatarUrlForPost = (post) => {
     if (raw && String(raw).trim()) return getDisplayImageUrl(String(raw));
   }
   return null;
-};
-
-const hasExifForPost = (post) => {
-  const ex = post?.exifData;
-  return !!(
-    post?.photoDate ||
-    (ex && typeof ex === 'object' && (ex.photoDate || ex.gpsCoordinates || ex.cameraMake || ex.cameraModel))
-  );
-};
-
-const getExifTagForPost = (post) => {
-  const photoDate = post?.photoDate || post?.exifData?.photoDate || null;
-  const ex = post?.exifData && typeof post.exifData === 'object' ? post.exifData : null;
-  const cameraMake = ex?.cameraMake ? String(ex.cameraMake).trim() : '';
-  const cameraModel = ex?.cameraModel ? String(ex.cameraModel).trim() : '';
-  const cameraText = `${cameraMake} ${cameraModel}`.trim();
-
-  let timeText = '';
-  let fullTimeText = '';
-  if (photoDate) {
-    const d = new Date(photoDate);
-    if (!Number.isNaN(d.getTime())) {
-      const hh = String(d.getHours()).padStart(2, '0');
-      const mm = String(d.getMinutes()).padStart(2, '0');
-      timeText = `${hh}:${mm}`;
-      fullTimeText = d.toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-    }
-  }
-
-  const dayText = photoDate ? (formatExifDate(photoDate) || '') : '';
-  const parts = [dayText, timeText].filter(Boolean);
-  const when = parts.join(' ');
-  const text = [when, cameraText].filter(Boolean).join(' · ');
-  const title = [fullTimeText ? `촬영: ${fullTimeText}` : '', cameraText ? `기기: ${cameraText}` : ''].filter(Boolean).join('\n');
-
-  return text ? { text, title } : null;
 };
 
 /** 베스트 컷 영역 슬라이드용: 게시물의 모든 미디어(순서 유지) */
@@ -189,6 +163,40 @@ export default function HotplaceLiveFeedScreen() {
     if (!heroPost?.id) return postsForPlace;
     return postsForPlace.filter((p) => String(p.id) !== String(heroPost.id));
   }, [postsForPlace, heroPost]);
+
+  const [weatherByRegion, setWeatherByRegion] = useState({});
+
+  useEffect(() => {
+    const regions = new Set();
+    situationPosts.forEach((p) => {
+      if (!p || p.weather || p.weatherSnapshot) return;
+      const r = (p.region || p.location || '').trim().split(/\s+/)[0] || p.region || p.location;
+      if (!r) return;
+      if (weatherByRegion?.[r]) return;
+      regions.add(r);
+    });
+    if (regions.size === 0) return;
+    let cancelled = false;
+    const map = {};
+    Promise.all(
+      Array.from(regions).map(async (region) => {
+        try {
+          const res = await getWeatherByRegion(region);
+          if (!cancelled && res?.success && res.weather) return { region, weather: res.weather };
+        } catch (_) {}
+        return null;
+      })
+    ).then((results) => {
+      if (cancelled) return;
+      results.forEach((r) => {
+        if (r) map[r.region] = r.weather;
+      });
+      setWeatherByRegion((prev) => ({ ...prev, ...map }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [situationPosts, weatherByRegion]);
 
   const onSharePlace = () => {
     const url = typeof window !== 'undefined' ? window.location.href : '';
@@ -451,28 +459,65 @@ export default function HotplaceLiveFeedScreen() {
             ) : situationPosts.length === 0 ? (
               <p className="py-8 text-center text-sm text-gray-500 dark:text-zinc-400">추가로 표시할 제보가 없어요.</p>
             ) : (
-              <div id="situation-grid" className="grid grid-cols-2 gap-2">
-                {situationPosts.map((post, pi) => {
+              <div
+                id="situation-grid"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                  rowGap: '7px',
+                  columnGap: '7px',
+                  paddingBottom: '16px',
+                }}
+              >
+                {situationPosts.map((post, index) => {
                   const cover = getGridCoverDisplay(post, getDisplayImageUrl);
-                  const tms = getPostTimeMs(post) || Date.now();
-                  const ago = getTimeAgo(post.timestamp || post.createdAt || post.time || tms);
-                  const caption = String(post.note || post.content || '').trim();
-                  const exifTag = hasExifForPost(post) ? getExifTagForPost(post) : null;
+                  const regionKey =
+                    (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
+                  const weather = post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
+                  const hasWeather = weather && (weather.icon || weather.temperature);
+                  const status = getPhotoStatusFromPost(post);
+                  const timeLabel =
+                    post.timeLabel ||
+                    getTimeAgo(post.photoDate || post.exifData?.photoDate || post.timestamp || post.createdAt || post.time);
+                  const titleText = post.location || '어딘가의 지금';
+                  const descText = (post.content || post.note || '').trim();
                   return (
-                    <button
+                    <div
                       key={String(post.id)}
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts } })}
-                      className="group text-left transition-transform active:scale-[0.98]"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          navigate(`/post/${post.id}`, { state: { post, allPosts } });
+                        }
+                      }}
+                      style={{
+                        ...feedGridCardBoxFlat,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                      }}
+                      className="transition-transform active:scale-[0.98]"
                     >
-                      <div className="relative mb-2 aspect-[3/4] overflow-hidden rounded-2xl bg-zinc-100 shadow-sm dark:bg-zinc-800">
+                      <div style={feedGridImageBoxFlat}>
                         {cover?.mode === 'img' && cover.src ? (
                           <img
                             src={cover.src}
-                            alt=""
-                            loading={pi < 4 ? 'eager' : 'lazy'}
+                            alt={titleText}
+                            loading={index < 4 ? 'eager' : 'lazy'}
                             decoding="async"
-                            className="h-full w-full object-cover"
+                            fetchPriority={index < 4 ? 'high' : 'auto'}
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                              display: 'block',
+                            }}
                           />
                         ) : cover?.mode === 'video' && cover.src ? (
                           <video
@@ -480,29 +525,56 @@ export default function HotplaceLiveFeedScreen() {
                             muted
                             playsInline
                             preload="metadata"
-                            className="h-full w-full object-cover"
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                              display: 'block',
+                            }}
                           />
-                        ) : null}
-                        {exifTag ? (
-                          <div
-                            className="pointer-events-none absolute left-2.5 top-2.5 z-[2] max-w-[90%] truncate rounded-full border px-2 py-1 font-inter text-[9px] font-extrabold dark:border-emerald-500/40 dark:bg-emerald-950/50 dark:text-emerald-100"
-                            style={{ borderColor: 'rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.14)', color: '#064e3b' }}
-                            title={exifTag.title || exifTag.text}
-                          >
-                            {exifTag.text}
-                          </div>
                         ) : (
-                          <div className="pointer-events-none absolute left-2.5 top-2.5 rounded-lg bg-black/30 px-2 py-1 font-inter text-[9px] font-bold text-white backdrop-blur-md">
-                            {ago}
+                          <div
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#cbd5e1',
+                            }}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>
+                              image
+                            </span>
+                          </div>
+                        )}
+                        {status !== 'NONE' && (
+                          <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 3 }}>
+                            <StatusBadge status={status} />
                           </div>
                         )}
                       </div>
-                      {caption ? (
-                        <p className="line-clamp-2 px-1 font-inter text-[12px] font-medium leading-tight text-gray-700 dark:text-zinc-300">
-                          {caption}
-                        </p>
-                      ) : null}
-                    </button>
+
+                      <div style={feedGridInfoBox}>
+                        <div style={feedGridTitleStyle}>{titleText}</div>
+                        {descText ? <div style={feedGridDescStyle}>{descText}</div> : null}
+                        <div style={feedGridMetaRow}>
+                          <span>{timeLabel}</span>
+                          {hasWeather && (weather.icon || weather.temperature) ? (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              {weather.icon ? <span>{weather.icon}</span> : null}
+                              {weather.temperature ? <span>{weather.temperature}</span> : null}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
