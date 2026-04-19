@@ -67,6 +67,25 @@ const getExifTagForPost = (post) => {
 const getPlaceKeyForPost = (post) =>
   String(post?.location || post?.placeName || post?.detailedLocation || post?.region || '').trim();
 
+const HOURS_48_MS = 48 * 60 * 60 * 1000;
+const BEST_CUT_MAX = 6;
+
+const getLikeCount = (post) => {
+  const n = post?.likes ?? post?.likeCount ?? post?.likesCount;
+  const v = Number(n);
+  return Number.isFinite(v) && v >= 0 ? v : 0;
+};
+
+const getCommentCount = (post) => {
+  const c = post?.comments;
+  if (Array.isArray(c)) return c.length;
+  const n = Number(post?.commentsCount);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+};
+
+/** 좋아요 가중 + 댓글 — 베스트 컷 정렬용 */
+const getEngagementScore = (post) => getLikeCount(post) * 2 + getCommentCount(post);
+
 const pickKeywords = (posts) => {
   const map = new Map();
   const bump = (k, inc = 1) => {
@@ -130,6 +149,29 @@ export default function HotplaceLiveFeedScreen() {
     () => postsForPlace.filter((p) => now - getPostTimeMs(p) <= 30 * 60 * 1000).slice(0, 5),
     [postsForPlace, now],
   );
+
+  const { bestCuts, bestCutsRangeLabel } = useMemo(() => {
+    if (postsForPlace.length === 0) {
+      return { bestCuts: [], bestCutsRangeLabel: '' };
+    }
+    const in48 = postsForPlace.filter((p) => now - getPostTimeMs(p) <= HOURS_48_MS);
+    const pool = in48.length > 0 ? in48 : postsForPlace;
+    const label = in48.length > 0 ? '최근 48시간 · 반응 순' : '이 장소 · 반응 순';
+    const sorted = [...pool].sort((a, b) => {
+      const d = getEngagementScore(b) - getEngagementScore(a);
+      if (d !== 0) return d;
+      return getPostTimeMs(b) - getPostTimeMs(a);
+    });
+    const seen = new Set();
+    const out = [];
+    for (let i = 0; i < sorted.length && out.length < BEST_CUT_MAX; i += 1) {
+      const id = String(sorted[i]?.id ?? i);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      out.push(sorted[i]);
+    }
+    return { bestCuts: out, bestCutsRangeLabel: label };
+  }, [postsForPlace, now]);
 
   const compassCount = useMemo(() => {
     const s = new Set();
@@ -205,6 +247,67 @@ export default function HotplaceLiveFeedScreen() {
               </div>
             ) : null}
           </div>
+
+          {bestCuts.length > 0 ? (
+            <div className="mt-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-[13px] font-extrabold text-zinc-900 dark:text-zinc-50">실시간 베스트 컷</p>
+                <p className="shrink-0 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{bestCutsRangeLabel}</p>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] scrollbar-hide">
+                {bestCuts.map((p, ri) => {
+                  const cover = getGridCoverDisplay(p, getDisplayImageUrl);
+                  const src = cover?.src || (Array.isArray(p.images) ? p.images[0] : p.image) || p.thumbnail || '';
+                  const url = src ? getDisplayImageUrl(src) : '';
+                  const likes = getLikeCount(p);
+                  const comments = getCommentCount(p);
+                  return (
+                    <button
+                      key={String(p.id)}
+                      type="button"
+                      onClick={() => navigate(`/post/${p.id}`, { state: { post: p, allPosts } })}
+                      className="relative h-[132px] w-[120px] shrink-0 overflow-hidden rounded-2xl bg-zinc-100 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-700"
+                      aria-label={`베스트 컷, 좋아요 ${likes}개`}
+                    >
+                      {url ? (
+                        <img
+                          src={url}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          loading="eager"
+                          decoding="async"
+                          fetchPriority={ri < 4 ? 'high' : 'auto'}
+                        />
+                      ) : null}
+                      <div
+                        className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent pt-6 pb-2 px-2"
+                        aria-hidden
+                      >
+                        <div className="flex items-center justify-between gap-1 text-[11px] font-bold text-white">
+                          <span className="inline-flex min-w-0 items-center gap-0.5 truncate">
+                            <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: '"FILL" 1' }}>
+                              favorite
+                            </span>
+                            {likes}
+                          </span>
+                          {comments > 0 ? (
+                            <span className="inline-flex shrink-0 items-center gap-0.5">
+                              <span className="material-symbols-outlined text-[14px]">chat_bubble</span>
+                              {comments}
+                            </span>
+                          ) : (
+                            <span className="shrink-0 truncate text-[10px] font-semibold opacity-90">
+                              {getUserNameForPost(p)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
 
           {recent30m.length > 0 ? (
             <div className="mt-4">
