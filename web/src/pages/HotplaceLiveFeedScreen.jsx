@@ -12,7 +12,6 @@ import {
 } from '../utils/postMedia';
 import { formatExifDate } from '../utils/exifExtractor';
 import { getTimeAgo } from '../utils/timeUtils';
-import { follow, unfollow, isFollowing, getCurrentUserId } from '../utils/followSystem';
 import { getTrustGrade, getTrustRawScore, getTrustScore } from '../utils/trustIndex';
 
 const MOCK_PRIMARY = '#1353d8';
@@ -99,13 +98,6 @@ const getExifTagForPost = (post) => {
   return text ? { text, title } : null;
 };
 
-const hasGpsPost = (post) =>
-  !!(
-    post?.coordinates ||
-    (post?.latitude != null && post?.longitude != null) ||
-    (Array.isArray(post?.coordinates) && post.coordinates.length >= 2)
-  );
-
 /** 베스트 컷 영역 슬라이드용: 게시물의 모든 미디어(순서 유지) */
 const getHeroMediaItems = (post) => {
   if (!post) return [];
@@ -116,22 +108,6 @@ const getHeroMediaItems = (post) => {
   const u = toMediaStr(raw);
   if (!u) return [];
   return [{ type: isVideoUri(u) ? 'video' : 'image', uri: u }];
-};
-
-/** 베스트 컷 게시물들의 미디어를 순서대로 펼친 슬라이드 (게시물·사진 모두 좌우로 넘김) */
-const buildFlatBestCutSlides = (bestCuts) => {
-  const out = [];
-  for (const post of bestCuts) {
-    const items = getHeroMediaItems(post);
-    if (items.length === 0) {
-      out.push({ post, media: null, mediaIndex: 0, mediaCount: 0 });
-    } else {
-      items.forEach((m, mediaIndex) => {
-        out.push({ post, media: m, mediaIndex, mediaCount: items.length });
-      });
-    }
-  }
-  return out;
 };
 
 export default function HotplaceLiveFeedScreen() {
@@ -179,50 +155,37 @@ export default function HotplaceLiveFeedScreen() {
     return out;
   }, [postsForPlace, now]);
 
-  const flatSlides = useMemo(() => buildFlatBestCutSlides(bestCuts), [bestCuts]);
-  const [flatIdx, setFlatIdx] = useState(0);
-  const heroSwiperRef = useRef(null);
+  const [bestCutIdx, setBestCutIdx] = useState(0);
+  const [innerMediaIdx, setInnerMediaIdx] = useState(0);
+  const outerSwiperRef = useRef(null);
+  const innerSwiperByPostIdRef = useRef(new Map());
   const cardTapRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
-    setFlatIdx(0);
+    setBestCutIdx(0);
+    setInnerMediaIdx(0);
   }, [bestCuts]);
 
   useEffect(() => {
-    setFlatIdx((i) => Math.min(i, Math.max(0, flatSlides.length - 1)));
-  }, [flatSlides.length]);
+    setInnerMediaIdx(0);
+    const id = bestCuts[bestCutIdx]?.id;
+    if (id != null) {
+      innerSwiperByPostIdRef.current.get(String(id))?.slideTo(0, 0);
+    }
+  }, [bestCutIdx, bestCuts]);
 
   const displayTitle = String(loc.state?.placeKey || placeKey || '실시간 현장').trim();
-  const currentSlide = flatSlides[flatIdx] || null;
-  const heroPost = currentSlide?.post ?? null;
+  const heroPost = bestCuts[bestCutIdx] ?? null;
   const heroAuthorId = heroPost ? getUserIdForPost(heroPost) : '';
 
   const heroMediaItems = useMemo(() => (heroPost ? getHeroMediaItems(heroPost) : []), [heroPost]);
-  const heroMediaIdx = currentSlide?.mediaIndex ?? 0;
 
-  const currentBestCutIndex = useMemo(() => {
-    if (!heroPost || bestCuts.length === 0) return 0;
-    const i = bestCuts.findIndex((p) => String(p?.id) === String(heroPost.id));
-    return i >= 0 ? i : 0;
-  }, [heroPost, bestCuts]);
-
-  const slideToFlatIndex = (idx) => {
-    const max = Math.max(0, flatSlides.length - 1);
+  const slideToBestCut = (idx) => {
+    const max = Math.max(0, bestCuts.length - 1);
     const next = Math.min(Math.max(0, idx), max);
-    setFlatIdx(next);
-    heroSwiperRef.current?.slideTo(next);
+    setBestCutIdx(next);
+    outerSwiperRef.current?.slideTo(next);
   };
-
-  /** 각 베스트 컷 게시물이 flatSlides에서 시작하는 인덱스 (한 장짜리면 점 탭용) */
-  const postFirstFlatIndex = useMemo(() => {
-    const starts = [];
-    let acc = 0;
-    for (const post of bestCuts) {
-      starts.push(acc);
-      acc += Math.max(1, getHeroMediaItems(post).length);
-    }
-    return starts;
-  }, [bestCuts]);
 
   const heroTrustMeta = useMemo(() => {
     if (!heroPost || !heroAuthorId) {
@@ -247,18 +210,6 @@ export default function HotplaceLiveFeedScreen() {
     return Math.round(getTrustScore(heroAuthorId, authorPosts.length ? authorPosts : null));
   }, [heroAuthorId, heroPost, allPosts]);
 
-  const [followHero, setFollowHero] = useState(false);
-  useEffect(() => {
-    if (!heroAuthorId) {
-      setFollowHero(false);
-      return;
-    }
-    setFollowHero(isFollowing(null, heroAuthorId));
-    const sync = () => setFollowHero(isFollowing(null, heroAuthorId));
-    window.addEventListener('followsUpdated', sync);
-    return () => window.removeEventListener('followsUpdated', sync);
-  }, [heroAuthorId]);
-
   const situationPosts = useMemo(() => {
     if (!heroPost?.id) return postsForPlace;
     return postsForPlace.filter((p) => String(p.id) !== String(heroPost.id));
@@ -281,8 +232,6 @@ export default function HotplaceLiveFeedScreen() {
   /** 1행: 지역 + 노마드일 때만「비기너」(첨부 시안과 동일). 상위 등급은 2행에 등급명만 표시 */
   const profileLine1Suffix = heroTrustMeta.grade?.id === 'nomad' ? '비기너' : '';
 
-  const showFollowHero = Boolean(heroAuthorId && getCurrentUserId() && getCurrentUserId() !== heroAuthorId);
-
   const openHeroPost = () => {
     if (!heroPost) return;
     navigate(`/post/${heroPost.id}`, { state: { post: heroPost, allPosts } });
@@ -298,20 +247,14 @@ export default function HotplaceLiveFeedScreen() {
     if (d < 14) openHeroPost();
   };
 
-  const onFollowHero = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!heroAuthorId) return;
-    if (followHero) unfollow(heroAuthorId);
-    else follow(heroAuthorId);
-    setFollowHero(isFollowing(null, heroAuthorId));
-  };
+  const heroExifTag = heroPost && hasExifForPost(heroPost) ? getExifTagForPost(heroPost) : null;
 
   return (
     <div className="screen-layout flex min-h-screen flex-col bg-background-light dark:bg-background-dark">
       <style>
         {`
-          .best-cut-swiper.swiper .swiper-wrapper {
+          .best-cut-swiper.swiper .swiper-wrapper,
+          .best-cut-swiper-inner.swiper .swiper-wrapper {
             transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
           }
         `}
@@ -354,7 +297,7 @@ export default function HotplaceLiveFeedScreen() {
                   실시간 베스트 컷
                 </h2>
                 <p className="mt-0.5 font-inter text-[10px] leading-snug text-zinc-500 dark:text-zinc-400">
-                  48시간 내 반응 순 · 좌우 슬라이드로 게시물·사진 보기
+                  48시간 내 반응 순 · 좌우로 베스트 게시물 넘기기 · 같은 게시물 안에서 사진 넘기기
                 </p>
               </div>
 
@@ -375,57 +318,84 @@ export default function HotplaceLiveFeedScreen() {
                   onPointerDown={onHeroCardPointerDown}
                   onPointerUp={onHeroCardPointerUp}
                   aria-label={
-                    flatSlides.length > 1
-                      ? '베스트 컷, 좌우로 슬라이드 · 탭하면 게시물로 이동'
+                    bestCuts.length > 1 || heroMediaItems.length > 1
+                      ? '베스트 컷, 바깥 스와이프로 게시물 · 안쪽 스와이프로 사진 · 탭하면 게시물로 이동'
                       : '베스트 컷, 탭하면 게시물로 이동'
                   }
                 >
-                  {flatSlides.length === 0 ? (
+                  {bestCuts.length === 0 ? (
                     <div className="h-full w-full bg-zinc-700" />
                   ) : (
                     <Swiper
-                      className="best-cut-swiper h-full w-full [&_.swiper-wrapper]:h-full [&_.swiper-slide]:h-full"
+                      className="best-cut-swiper best-cut-swiper-outer h-full w-full [&_.swiper-wrapper]:h-full [&_.swiper-slide]:h-full"
                       speed={520}
                       resistanceRatio={0.72}
                       roundLengths
                       slidesPerView={1}
                       spaceBetween={0}
                       onSwiper={(s) => {
-                        heroSwiperRef.current = s;
+                        outerSwiperRef.current = s;
                       }}
-                      onSlideChange={(s) => setFlatIdx(s.activeIndex)}
-                      initialSlide={Math.min(flatIdx, flatSlides.length - 1)}
+                      onSlideChange={(s) => {
+                        setBestCutIdx(s.activeIndex);
+                      }}
+                      initialSlide={Math.min(bestCutIdx, bestCuts.length - 1)}
                       key={bestCuts.map((p) => String(p?.id ?? '')).join(',')}
                     >
-                      {flatSlides.map((slide, slideIndex) => (
-                        <SwiperSlide key={`${slide.post?.id}-${slide.mediaIndex}-${slideIndex}`}>
-                          <div className="relative h-full min-h-[min(380px,54svh)] w-full overflow-hidden bg-zinc-950 sm:min-h-[380px]">
-                            {slide.media?.type === 'video' ? (
-                              <video
-                                src={getDisplayImageUrl(slide.media.uri)}
-                                className="h-full w-full object-cover [transform:translateZ(0)]"
-                                muted
-                                playsInline
-                                preload="metadata"
-                                autoPlay={flatIdx === slideIndex}
-                                loop
-                              />
-                            ) : slide.media ? (
-                              <img
-                                src={getDisplayImageUrl(slide.media.uri, { hero: true })}
-                                alt=""
-                                className="h-full w-full object-cover [transform:translateZ(0)]"
-                                loading={slideIndex === 0 ? 'eager' : 'lazy'}
-                                decoding="async"
-                                fetchPriority={slideIndex === 0 ? 'high' : 'auto'}
-                                sizes="100vw"
-                              />
-                            ) : (
-                              <div className="h-full w-full bg-zinc-700" />
-                            )}
-                          </div>
-                        </SwiperSlide>
-                      ))}
+                      {bestCuts.map((post, postSlideIndex) => {
+                        const items = getHeroMediaItems(post);
+                        const mediaSlides = items.length > 0 ? items : [{ type: 'empty' }];
+                        return (
+                          <SwiperSlide key={String(post.id)}>
+                            <Swiper
+                              className="best-cut-swiper-inner h-full w-full [&_.swiper-wrapper]:h-full [&_.swiper-slide]:h-full"
+                              nested
+                              speed={480}
+                              resistanceRatio={0.72}
+                              roundLengths
+                              slidesPerView={1}
+                              spaceBetween={0}
+                              onSwiper={(sw) => {
+                                innerSwiperByPostIdRef.current.set(String(post.id), sw);
+                              }}
+                              onSlideChange={(sw) => {
+                                if (postSlideIndex === bestCutIdx) setInnerMediaIdx(sw.activeIndex);
+                              }}
+                              initialSlide={0}
+                            >
+                              {mediaSlides.map((m, mi) => (
+                                <SwiperSlide key={`${post.id}-m-${mi}`}>
+                                  <div className="relative h-full min-h-[min(380px,54svh)] w-full overflow-hidden bg-zinc-950 sm:min-h-[380px]">
+                                    {m.type === 'video' ? (
+                                      <video
+                                        src={getDisplayImageUrl(m.uri)}
+                                        className="h-full w-full object-cover [transform:translateZ(0)]"
+                                        muted
+                                        playsInline
+                                        preload="metadata"
+                                        autoPlay={bestCutIdx === postSlideIndex && innerMediaIdx === mi}
+                                        loop
+                                      />
+                                    ) : m.type === 'empty' ? (
+                                      <div className="h-full w-full bg-zinc-700" />
+                                    ) : (
+                                      <img
+                                        src={getDisplayImageUrl(m.uri, { hero: true })}
+                                        alt=""
+                                        className="h-full w-full object-cover [transform:translateZ(0)]"
+                                        loading={postSlideIndex === 0 && mi === 0 ? 'eager' : 'lazy'}
+                                        decoding="async"
+                                        fetchPriority={postSlideIndex === 0 && mi === 0 ? 'high' : 'auto'}
+                                        sizes="100vw"
+                                      />
+                                    )}
+                                  </div>
+                                </SwiperSlide>
+                              ))}
+                            </Swiper>
+                          </SwiperSlide>
+                        );
+                      })}
                     </Swiper>
                   )}
 
@@ -446,130 +416,110 @@ export default function HotplaceLiveFeedScreen() {
                     </div>
                   </div>
 
-                  {/* 중앙: 게시물 수·현재 게시물 기준 (우측 상단 숫자 제거) */}
-                  {(bestCuts.length > 1 || heroMediaItems.length > 1) && (
-                    <div className="pointer-events-none absolute left-1/2 top-[40%] z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5">
-                      {bestCuts.length > 1 ? (
-                        <span className="rounded-full bg-black/50 px-3 py-1.5 font-inter text-[12px] font-bold tabular-nums text-white shadow-md backdrop-blur-md">
-                          게시물 {currentBestCutIndex + 1} / {bestCuts.length}
-                        </span>
-                      ) : null}
-                      {heroMediaItems.length > 1 ? (
-                        <span className="rounded-full bg-black/40 px-2.5 py-1 font-inter text-[11px] font-semibold tabular-nums text-white/95 shadow-sm backdrop-blur-sm">
-                          사진 {heroMediaIdx + 1} / {heroMediaItems.length}
-                        </span>
-                      ) : null}
-                    </div>
-                  )}
-
-                  {/* 하단 점: 게시물 개수(bestCuts)에 맞춤 — 미디어가 여러 장인 게시물 안에서는 같은 게시물 점이 활성 유지 */}
-                  {bestCuts.length > 1 ? (
-                    <div className="absolute bottom-[5.25rem] left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 sm:bottom-[5.5rem]">
-                      {bestCuts.map((_, index) => (
-                        <button
-                          key={String(index)}
-                          type="button"
-                          tabIndex={0}
-                          aria-label={`베스트 컷 게시물 ${index + 1} / ${bestCuts.length}`}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const start = postFirstFlatIndex[index];
-                            if (start != null) slideToFlatIndex(start);
-                          }}
-                          className={`carousel-page-dot inline-flex min-h-0 min-w-0 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 p-0 leading-none transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
-                            index === currentBestCutIndex
-                              ? 'h-1.5 w-5 bg-white'
-                              : 'h-1.5 w-1.5 bg-white/40 hover:bg-white/55'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  ) : heroMediaItems.length > 1 ? (
-                    <div className="absolute bottom-[5.25rem] left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 sm:bottom-[5.5rem]">
-                      {heroMediaItems.map((_, index) => {
-                        const targetFlat = flatSlides.findIndex(
-                          (s) => s.post && String(s.post.id) === String(heroPost?.id) && s.mediaIndex === index
-                        );
-                        return (
-                          <button
-                            key={String(index)}
-                            type="button"
-                            tabIndex={0}
-                            aria-label={`사진 ${index + 1} / ${heroMediaItems.length}`}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (targetFlat >= 0) slideToFlatIndex(targetFlat);
-                            }}
-                            className={`carousel-page-dot inline-flex min-h-0 min-w-0 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 p-0 leading-none transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
-                              index === heroMediaIdx
-                                ? 'h-1.5 w-5 bg-white'
-                                : 'h-1.5 w-1.5 bg-white/40 hover:bg-white/55'
-                            }`}
-                          />
-                        );
-                      })}
+                  {heroExifTag ? (
+                    <div
+                      className="pointer-events-none absolute left-2.5 top-[3.25rem] z-10 max-w-[min(92%,20rem)] truncate rounded-full border px-2 py-1 font-inter text-[9px] font-extrabold sm:left-3.5 dark:border-emerald-500/40 dark:bg-emerald-950/50 dark:text-emerald-100"
+                      style={{ borderColor: 'rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.14)', color: '#064e3b' }}
+                      title={heroExifTag.title || heroExifTag.text}
+                    >
+                      {heroExifTag.text}
                     </div>
                   ) : null}
 
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/95 via-black/45 to-transparent px-3 pb-2.5 pt-9 sm:px-4 sm:pb-3 sm:pt-10">
-                    <div className="flex items-end gap-2 sm:gap-2.5">
-                      <div className="flex shrink-0 flex-col items-center gap-1">
-                        <p className="whitespace-nowrap font-manrope text-[9px] font-extrabold uppercase tracking-[0.1em] text-white/75 drop-shadow-sm">
-                          오늘의 작가
-                        </p>
-                        {heroAvatarUrl ? (
-                          <img
-                            src={heroAvatarUrl}
-                            alt=""
-                            className="size-9 rounded-full border-2 border-white object-cover shadow-md ring-1 ring-black/15"
-                          />
-                        ) : (
-                          <div className="flex size-9 items-center justify-center rounded-full border-2 border-white bg-zinc-900 font-manrope text-sm font-extrabold text-white shadow-md ring-1 ring-black/20">
-                            {getUserNameForPost(heroPost).slice(0, 1)}
-                          </div>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1 pb-0.5">
-                        <div className="flex flex-wrap items-center gap-x-1 gap-y-0 leading-tight">
-                          <span className="font-inter text-[13px] font-extrabold tracking-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.75)]">
-                            {getUserNameForPost(heroPost)}
-                          </span>
-                          <span className="material-symbols-outlined text-[15px] text-white/65" aria-hidden>
-                            explore
-                          </span>
-                          <span className="font-inter text-[11px] font-semibold text-white/90">
-                            {heroTrustMeta.regionLabel}
-                            {profileLine1Suffix ? ` ${profileLine1Suffix}` : ''}
-                          </span>
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/95 via-black/45 to-transparent px-3 pb-2.5 pt-8 sm:px-4 sm:pb-3 sm:pt-9">
+                    <div className="flex flex-col items-stretch gap-2">
+                      {bestCuts.length > 1 ? (
+                        <div className="flex justify-center gap-1.5">
+                          {bestCuts.map((_, index) => (
+                            <button
+                              key={String(index)}
+                              type="button"
+                              tabIndex={0}
+                              aria-label={`베스트 컷 게시물 ${index + 1} / ${bestCuts.length}`}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                slideToBestCut(index);
+                              }}
+                              className={`carousel-page-dot pointer-events-auto inline-flex min-h-0 min-w-0 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 p-0 leading-none transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
+                                index === bestCutIdx ? 'h-1.5 w-5 bg-white' : 'h-1.5 w-1.5 bg-white/40 hover:bg-white/55'
+                              }`}
+                            />
+                          ))}
                         </div>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-x-1 text-[10px] leading-tight text-sky-100/95">
-                          {heroTrustIndex != null ? (
-                            <span className="font-inter font-bold">신뢰지수 {heroTrustIndex}</span>
-                          ) : (
-                            <span className="font-inter font-semibold text-white/55">신뢰지수 —</span>
-                          )}
-                          <span className="material-symbols-outlined text-[13px] text-sky-200/85" aria-hidden>
-                            explore
-                          </span>
-                          {heroTrustMeta.grade?.name ? (
-                            <span className="font-inter font-bold">{heroTrustMeta.grade.name}</span>
-                          ) : null}
-                        </div>
-                      </div>
-                      {showFollowHero ? (
-                        <button
-                          type="button"
-                          onClick={onFollowHero}
-                          className={`pointer-events-auto shrink-0 rounded-lg px-2.5 py-1.5 font-inter text-[10px] font-extrabold shadow-md transition-colors ${
-                            followHero ? 'bg-white/25 text-white ring-1 ring-white/40' : 'text-white ring-2 ring-white/30'
-                          }`}
-                          style={followHero ? undefined : { backgroundColor: MOCK_PRIMARY }}
-                        >
-                          {followHero ? '팔로잉' : '팔로우'}
-                        </button>
                       ) : null}
+                      {heroMediaItems.length > 1 ? (
+                        <div className="flex justify-center gap-1.5">
+                          {heroMediaItems.map((_, index) => (
+                            <button
+                              key={String(index)}
+                              type="button"
+                              tabIndex={0}
+                              aria-label={`사진 ${index + 1} / ${heroMediaItems.length}`}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                innerSwiperByPostIdRef.current.get(String(heroPost?.id))?.slideTo(index);
+                              }}
+                              className={`carousel-page-dot pointer-events-auto inline-flex min-h-0 min-w-0 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 p-0 leading-none transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
+                                index === innerMediaIdx ? 'h-1.5 w-5 bg-white' : 'h-1.5 w-1.5 bg-white/40 hover:bg-white/55'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      ) : null}
+                      {bestCuts.length > 1 ? (
+                        <div className="pointer-events-none flex justify-center pb-0.5">
+                          <span className="rounded-full bg-black/50 px-3 py-1 font-inter text-[11px] font-bold tabular-nums text-white shadow-md backdrop-blur-md">
+                            게시물 {bestCutIdx + 1} / {bestCuts.length}
+                          </span>
+                        </div>
+                      ) : null}
+                      <div className="pointer-events-none flex items-end gap-2 sm:gap-2.5">
+                        <div className="flex shrink-0 flex-col items-center gap-1">
+                          <p className="whitespace-nowrap font-manrope text-[9px] font-extrabold uppercase tracking-[0.1em] text-white/75 drop-shadow-sm">
+                            오늘의 작가
+                          </p>
+                          {heroAvatarUrl ? (
+                            <img
+                              src={heroAvatarUrl}
+                              alt=""
+                              className="size-9 rounded-full border-2 border-white object-cover shadow-md ring-1 ring-black/15"
+                            />
+                          ) : (
+                            <div className="flex size-9 items-center justify-center rounded-full border-2 border-white bg-zinc-900 font-manrope text-sm font-extrabold text-white shadow-md ring-1 ring-black/20">
+                              {getUserNameForPost(heroPost).slice(0, 1)}
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1 pb-0.5">
+                          <div className="flex flex-wrap items-center gap-x-1 gap-y-0 leading-tight">
+                            <span className="font-inter text-[13px] font-extrabold tracking-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.75)]">
+                              {getUserNameForPost(heroPost)}
+                            </span>
+                            <span className="material-symbols-outlined text-[15px] text-white/65" aria-hidden>
+                              explore
+                            </span>
+                            <span className="font-inter text-[11px] font-semibold text-white/90">
+                              {heroTrustMeta.regionLabel}
+                              {profileLine1Suffix ? ` ${profileLine1Suffix}` : ''}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-1 text-[10px] leading-tight text-sky-100/95">
+                            {heroTrustIndex != null ? (
+                              <span className="font-inter font-bold">신뢰지수 {heroTrustIndex}</span>
+                            ) : (
+                              <span className="font-inter font-semibold text-white/55">신뢰지수 —</span>
+                            )}
+                            <span className="material-symbols-outlined text-[13px] text-sky-200/85" aria-hidden>
+                              explore
+                            </span>
+                            {heroTrustMeta.grade?.name ? (
+                              <span className="font-inter font-bold">{heroTrustMeta.grade.name}</span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -599,7 +549,6 @@ export default function HotplaceLiveFeedScreen() {
                   const tms = getPostTimeMs(post) || Date.now();
                   const ago = getTimeAgo(post.timestamp || post.createdAt || post.time || tms);
                   const caption = String(post.note || post.content || '').trim();
-                  const gps = hasGpsPost(post);
                   const exifTag = hasExifForPost(post) ? getExifTagForPost(post) : null;
                   return (
                     <button
@@ -639,13 +588,6 @@ export default function HotplaceLiveFeedScreen() {
                             {ago}
                           </div>
                         )}
-                        {gps ? (
-                          <div className="pointer-events-none absolute bottom-2.5 right-2.5 rounded-full bg-white/90 p-1 shadow-sm dark:bg-zinc-900/90">
-                            <span className="material-symbols-outlined text-[14px] text-gray-700 dark:text-zinc-200">
-                              gps_fixed
-                            </span>
-                          </div>
-                        ) : null}
                       </div>
                       {caption ? (
                         <p className="line-clamp-2 px-1 font-inter text-[12px] font-medium leading-tight text-gray-700 dark:text-zinc-300">
