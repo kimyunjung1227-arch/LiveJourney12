@@ -73,7 +73,9 @@ export default {
         "placeholder-dark": "#6B7280",
       },
       fontFamily: {
-        "display": ["Plus Jakarta Sans", "Noto Sans KR", "sans-serif"]
+        "display": ["Plus Jakarta Sans", "Noto Sans KR", "sans-serif"],
+        "manrope": ["Manrope", "Noto Sans KR", "sans-serif"],
+        "inter": ["Inter", "Noto Sans KR", "sans-serif"],
       },
       borderRadius: {
         "DEFAULT": "1rem",

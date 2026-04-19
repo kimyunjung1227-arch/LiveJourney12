@@ -233,6 +233,8 @@ export default function HotplaceLiveFeedScreen() {
     }
   };
 
+  const displayTitle = String(loc.state?.placeKey || placeKey || '실시간 현장').trim();
+
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col">
       <header className="sticky top-0 z-20 flex shrink-0 items-center gap-2 border-b border-border-light bg-background-light px-3 py-3 dark:border-border-dark dark:bg-background-dark">
@@ -252,6 +254,33 @@ export default function HotplaceLiveFeedScreen() {
 
       <div className="screen-content flex-1 overflow-y-auto bg-background-light dark:bg-background-dark">
         <div className="px-4 pb-20 pt-3">
+          <section
+            className="@container -mx-4 mb-5 w-[calc(100%+2rem)] px-4"
+            aria-label="장소 요약"
+          >
+            <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-cyan-50 via-white to-slate-100 p-5 shadow-sm ring-1 ring-zinc-200/90 dark:from-slate-900 dark:via-slate-800 dark:to-cyan-950/90 dark:shadow-lg dark:ring-white/10">
+              <p className="font-inter text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300/90">
+                Live spot
+              </p>
+              <h2 className="font-manrope mt-2 text-[22px] font-extrabold leading-[1.15] tracking-[-0.02em] text-zinc-900 dark:text-white sm:text-2xl">
+                {displayTitle}
+              </h2>
+              <p className="font-inter mt-2.5 text-[13px] font-medium leading-relaxed text-zinc-600 dark:text-white/80">
+                실시간 제보와 반응이 모이는 장소예요.
+              </p>
+              <div className="font-inter mt-4 flex flex-wrap gap-2">
+                <span className="rounded-full bg-cyan-500/15 px-3 py-1 text-[12px] font-semibold text-cyan-900 dark:bg-white/10 dark:text-white">
+                  제보 {postsForPlace.length}개
+                </span>
+                {compassCount > 0 ? (
+                  <span className="rounded-full bg-cyan-500/15 px-3 py-1 text-[12px] font-semibold text-cyan-900 dark:bg-white/10 dark:text-white">
+                    중계 {compassCount}명 · 2시간
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </section>
+
           {bestCuts.length > 0 && bestCutActive ? (
             <div className="pt-1">
               <div className="mb-3 flex items-end justify-between gap-2">
