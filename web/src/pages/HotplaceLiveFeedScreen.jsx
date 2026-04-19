@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { getDisplayImageUrl } from '../api/upload';
 import { getGridCoverDisplay } from '../utils/postMedia';
@@ -182,12 +182,25 @@ export default function HotplaceLiveFeedScreen() {
     return s.size;
   }, [recent2h]);
 
-  const brief = useMemo(() => {
-    const keys = pickKeywords(recent2h);
-    if (!placeKey) return '';
-    if (keys.length === 0) return '집계 중';
-    return keys.join(' ');
+  const briefKeywords = useMemo(() => {
+    if (!placeKey) return [];
+    return pickKeywords(recent2h);
   }, [placeKey, recent2h]);
+
+  const [bestCutIdx, setBestCutIdx] = useState(0);
+  useEffect(() => {
+    setBestCutIdx(0);
+  }, [bestCuts]);
+
+  const bestCutActive = bestCuts[bestCutIdx] || null;
+  const goBestPrev = () => {
+    if (bestCuts.length <= 1) return;
+    setBestCutIdx((i) => (i - 1 + bestCuts.length) % bestCuts.length);
+  };
+  const goBestNext = () => {
+    if (bestCuts.length <= 1) return;
+    setBestCutIdx((i) => (i + 1) % bestCuts.length);
+  };
 
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col">
@@ -208,96 +221,146 @@ export default function HotplaceLiveFeedScreen() {
 
       <div className="screen-content flex-1 overflow-y-auto bg-background-light dark:bg-background-dark">
         <div className="px-4 pb-20 pt-3">
-          {bestCuts.length > 0 ? (
-            <div className="relative overflow-hidden rounded-3xl border-2 border-amber-400/45 bg-gradient-to-br from-amber-50 via-white to-rose-50/80 p-3 shadow-[0_12px_40px_-12px_rgba(245,158,11,0.35)] dark:border-amber-500/35 dark:from-amber-950/50 dark:via-zinc-900 dark:to-rose-950/30 dark:shadow-[0_12px_40px_-12px_rgba(0,0,0,0.5)]">
-              <div className="pointer-events-none absolute -right-8 -top-8 size-32 rounded-full bg-amber-400/20 blur-2xl dark:bg-amber-500/15" aria-hidden />
-              <div className="relative mb-3 flex items-end justify-between gap-2">
+          {bestCuts.length > 0 && bestCutActive ? (
+            <div className="pt-1">
+              <div className="mb-3 flex items-end justify-between gap-2">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-amber-700/90 dark:text-amber-300/90">Best cut</p>
-                  <p className="mt-0.5 text-[17px] font-black leading-tight tracking-tight text-zinc-900 dark:text-white">
-                    실시간 베스트 컷
-                  </p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400/90">Best cut</p>
+                  <p className="mt-0.5 text-lg font-black leading-tight text-zinc-900 dark:text-white">실시간 베스트 컷</p>
                 </div>
-                <span className="shrink-0 rounded-full border border-amber-500/40 bg-white/90 px-2.5 py-1 text-[10px] font-bold text-amber-900 shadow-sm dark:border-amber-400/30 dark:bg-zinc-800/90 dark:text-amber-100">
-                  {bestCutsRangeLabel}
-                </span>
+                <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{bestCutsRangeLabel}</span>
               </div>
-              <div className="relative flex gap-3 overflow-x-auto pb-1 pt-0.5 [-webkit-overflow-scrolling:touch] scrollbar-hide">
-                {bestCuts.map((p, ri) => {
-                  const cover = getGridCoverDisplay(p, getDisplayImageUrl);
-                  const src = cover?.src || (Array.isArray(p.images) ? p.images[0] : p.image) || p.thumbnail || '';
-                  const url = src ? getDisplayImageUrl(src) : '';
-                  const likes = getLikeCount(p);
-                  const comments = getCommentCount(p);
-                  const rank = ri + 1;
-                  return (
+
+              <div className="relative w-full">
+                {bestCuts.length > 1 ? (
+                  <>
                     <button
-                      key={String(p.id)}
                       type="button"
-                      onClick={() => navigate(`/post/${p.id}`, { state: { post: p, allPosts } })}
-                      className="group relative h-[168px] w-[132px] shrink-0 overflow-hidden rounded-2xl bg-zinc-100 shadow-lg ring-2 ring-amber-400/50 ring-offset-2 ring-offset-amber-50/80 transition active:scale-[0.98] dark:bg-zinc-800 dark:ring-amber-500/40 dark:ring-offset-zinc-900"
-                      aria-label={`베스트 컷 ${rank}위, 좋아요 ${likes}개`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        goBestPrev();
+                      }}
+                      className="absolute left-1 top-1/2 z-[3] flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/55"
+                      aria-label="이전 베스트 컷"
                     >
-                      {rank <= 3 ? (
-                        <span
-                          className="absolute left-2 top-2 z-[2] flex size-7 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-[12px] font-black text-white shadow-md"
-                          aria-hidden
-                        >
-                          {rank}
-                        </span>
-                      ) : null}
-                      {url ? (
-                        <img
-                          src={url}
-                          alt=""
-                          className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                          loading="eager"
-                          decoding="async"
-                          fetchPriority={ri < 4 ? 'high' : 'auto'}
-                        />
-                      ) : null}
-                      <div
-                        className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent pt-10 pb-2.5 px-2.5"
-                        aria-hidden
-                      >
-                        <div className="flex items-center justify-between gap-1 text-[12px] font-bold text-white">
-                          <span className="inline-flex min-w-0 items-center gap-0.5 truncate">
-                            <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: '"FILL" 1' }}>
-                              favorite
-                            </span>
-                            {likes}
-                          </span>
-                          {comments > 0 ? (
-                            <span className="inline-flex shrink-0 items-center gap-0.5">
-                              <span className="material-symbols-outlined text-[15px]">chat_bubble</span>
-                              {comments}
-                            </span>
-                          ) : (
-                            <span className="shrink-0 truncate text-[11px] font-semibold opacity-90">
-                              {getUserNameForPost(p)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                      <span className="material-symbols-outlined text-[22px]">chevron_left</span>
                     </button>
-                  );
-                })}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        goBestNext();
+                      }}
+                      className="absolute right-1 top-1/2 z-[3] flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/55"
+                      aria-label="다음 베스트 컷"
+                    >
+                      <span className="material-symbols-outlined text-[22px]">chevron_right</span>
+                    </button>
+                  </>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => navigate(`/post/${bestCutActive.id}`, { state: { post: bestCutActive, allPosts } })}
+                  className="relative block w-full overflow-hidden bg-zinc-100 dark:bg-zinc-800"
+                  aria-label={`베스트 컷 ${bestCutIdx + 1}/${bestCuts.length}`}
+                >
+                  {(() => {
+                    const p = bestCutActive;
+                    const cover = getGridCoverDisplay(p, getDisplayImageUrl);
+                    const src = cover?.src || (Array.isArray(p.images) ? p.images[0] : p.image) || p.thumbnail || '';
+                    const url = src ? getDisplayImageUrl(src) : '';
+                    const likes = getLikeCount(p);
+                    const comments = getCommentCount(p);
+                    const isVideo = cover?.mode === 'video' && url;
+                    return (
+                      <>
+                        {isVideo ? (
+                          <video
+                            src={url}
+                            className="aspect-[3/4] w-full object-cover"
+                            muted
+                            playsInline
+                            preload="metadata"
+                            autoPlay
+                            loop
+                          />
+                        ) : url ? (
+                          <img
+                            src={url}
+                            alt=""
+                            className="aspect-[3/4] w-full object-cover"
+                            loading="eager"
+                            decoding="async"
+                            fetchPriority="high"
+                          />
+                        ) : (
+                          <div className="aspect-[3/4] w-full" />
+                        )}
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-3 pb-3 pt-12">
+                          <div className="flex items-center justify-between gap-2 text-[13px] font-bold text-white">
+                            <span className="inline-flex min-w-0 items-center gap-1 truncate">
+                              <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: '"FILL" 1' }}>
+                                favorite
+                              </span>
+                              {likes}
+                            </span>
+                            {comments > 0 ? (
+                              <span className="inline-flex shrink-0 items-center gap-0.5">
+                                <span className="material-symbols-outlined text-[17px]">chat_bubble</span>
+                                {comments}
+                              </span>
+                            ) : (
+                              <span className="shrink-0 truncate text-[12px] font-semibold opacity-95">{getUserNameForPost(p)}</span>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </button>
+
+                {bestCuts.length > 1 ? (
+                  <div className="mt-3 flex justify-center gap-1.5" role="tablist" aria-label="베스트 컷 선택">
+                    {bestCuts.map((p, i) => (
+                      <button
+                        key={String(p.id)}
+                        type="button"
+                        role="tab"
+                        aria-selected={i === bestCutIdx}
+                        onClick={() => setBestCutIdx(i)}
+                        className={
+                          i === bestCutIdx
+                            ? 'h-1.5 w-6 rounded-full bg-amber-500 transition'
+                            : 'h-1.5 w-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600'
+                        }
+                        aria-label={`${i + 1}번째`}
+                      />
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : null}
 
-          <div
-            className={
-              bestCuts.length > 0
-                ? 'mt-4 rounded-2xl border border-zinc-100/90 bg-white/95 px-3.5 py-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/95'
-                : 'rounded-2xl border border-zinc-100 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900'
-            }
-          >
-            <p className="text-[12px] font-semibold leading-snug text-zinc-800 dark:text-zinc-100">{brief}</p>
-            <p className="mt-1.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
-              중계 {compassCount}명 · 2시간
-            </p>
-          </div>
+          {briefKeywords.length > 0 || compassCount > 0 ? (
+            <div className={bestCuts.length > 0 ? 'mt-5' : 'pt-1'}>
+              {briefKeywords.length > 0 ? (
+                <p className="text-[12px] font-semibold leading-snug text-zinc-800 dark:text-zinc-100">{briefKeywords.join(' ')}</p>
+              ) : null}
+              {compassCount > 0 ? (
+                <p
+                  className={
+                    briefKeywords.length > 0
+                      ? 'mt-1.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400'
+                      : 'text-[11px] font-medium text-zinc-500 dark:text-zinc-400'
+                  }
+                >
+                  중계 {compassCount}명 · 2시간
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           {recent30m.length > 0 ? (
             <div className="mt-4">
