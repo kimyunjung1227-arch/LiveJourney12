@@ -167,14 +167,6 @@ export default function HotplaceLiveFeedScreen() {
   }, [bestCuts]);
 
   const bestCutActive = bestCuts[bestCutIdx] || null;
-  const goBestPrev = () => {
-    if (bestCuts.length <= 1) return;
-    setBestCutIdx((i) => (i - 1 + bestCuts.length) % bestCuts.length);
-  };
-  const goBestNext = () => {
-    if (bestCuts.length <= 1) return;
-    setBestCutIdx((i) => (i + 1) % bestCuts.length);
-  };
 
   const heroSwipeRef = useRef({ x0: 0, pid: null, armed: false });
   const heroGestureSkipNavRef = useRef(false);
@@ -186,14 +178,16 @@ export default function HotplaceLiveFeedScreen() {
 
   const heroMediaItems = useMemo(() => getHeroMediaItems(heroPost), [heroPost]);
   const [heroMediaIdx, setHeroMediaIdx] = useState(0);
+
   useEffect(() => {
-    setHeroMediaIdx(0);
-  }, [heroPost?.id]);
+    setHeroMediaIdx((idx) => {
+      const max = Math.max(0, heroMediaItems.length - 1);
+      return Math.min(idx, max);
+    });
+  }, [heroMediaItems.length, heroPost?.id]);
 
   const onHeroPointerDown = (e) => {
-    const multiMedia = heroMediaItems.length > 1;
-    const multiBest = bestCuts.length > 1;
-    if (!multiMedia && !multiBest) return;
+    if (heroMediaItems.length <= 1 && bestCuts.length <= 1) return;
     heroSwipeRef.current = { x0: e.clientX, pid: e.pointerId, armed: true };
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -202,6 +196,7 @@ export default function HotplaceLiveFeedScreen() {
     }
   };
 
+  /** PostDetail과 동일: 같은 게시물 내 미디어를 먼저 넘기고, 끝에서 다음/이전 베스트 컷으로 이동 */
   const onHeroPointerUp = (e) => {
     const { x0, pid, armed } = heroSwipeRef.current;
     heroSwipeRef.current = { x0: 0, pid: null, armed: false };
@@ -214,17 +209,39 @@ export default function HotplaceLiveFeedScreen() {
     const dx = e.clientX - x0;
     if (Math.abs(dx) < SWIPE_PX) return;
     heroGestureSkipNavRef.current = true;
-    if (heroMediaItems.length > 1) {
-      if (dx > 0) {
-        setHeroMediaIdx((i) => (i - 1 + heroMediaItems.length) % heroMediaItems.length);
-      } else {
-        setHeroMediaIdx((i) => (i + 1) % heroMediaItems.length);
+
+    const nMedia = heroMediaItems.length;
+    const nBest = bestCuts.length;
+    if (nMedia === 0 && nBest <= 1) return;
+
+    const swipeNext = dx < 0;
+    const swipePrev = dx > 0;
+
+    if (swipeNext) {
+      if (nMedia > 1 && heroMediaIdx < nMedia - 1) {
+        setHeroMediaIdx((i) => i + 1);
+        return;
+      }
+      if (nBest > 1) {
+        setBestCutIdx((i) => (i + 1) % nBest);
+        setHeroMediaIdx(0);
       }
       return;
     }
-    if (bestCuts.length > 1) {
-      if (dx > 0) goBestPrev();
-      else goBestNext();
+
+    if (swipePrev) {
+      if (nMedia > 1 && heroMediaIdx > 0) {
+        setHeroMediaIdx((i) => i - 1);
+        return;
+      }
+      if (nBest > 1) {
+        const prevBest = (bestCutIdx - 1 + nBest) % nBest;
+        const prevPost = bestCuts[prevBest];
+        const prevMedia = getHeroMediaItems(prevPost);
+        const lastIdx = Math.max(0, prevMedia.length - 1);
+        setBestCutIdx(prevBest);
+        setHeroMediaIdx(lastIdx);
+      }
     }
   };
 
@@ -346,51 +363,16 @@ export default function HotplaceLiveFeedScreen() {
         <div className="px-5">
           {heroPost ? (
             <section className="mb-4" aria-labelledby="best-cut-title">
-              <div className="mb-2 flex items-end justify-between gap-2">
-                <div className="min-w-0">
-                  <h2
-                    id="best-cut-title"
-                    className="font-manrope text-[16px] font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100"
-                  >
-                    실시간 베스트 컷
-                  </h2>
-                  <p className="mt-0.5 font-inter text-[10px] leading-snug text-zinc-500 dark:text-zinc-400">
-                    48시간 내 반응 순 · 사진은 좌우로 넘겨 보기
-                    {bestCuts.length > 1 ? ' · 다른 베스트는 상단 화살표' : ''}
-                  </p>
-                </div>
-                {bestCuts.length > 1 ? (
-                  <div className="flex shrink-0 items-center gap-0.5 rounded-full bg-zinc-100 px-0.5 py-0.5 dark:bg-zinc-800">
-                    <button
-                      type="button"
-                      aria-label="이전 베스트 컷"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        goBestPrev();
-                      }}
-                      className="flex size-7 items-center justify-center rounded-full text-zinc-600 active:bg-zinc-200 dark:text-zinc-300 dark:active:bg-zinc-700"
-                    >
-                      <span className="material-symbols-outlined text-[20px]">chevron_left</span>
-                    </button>
-                    <span
-                      className="min-w-[2.75rem] text-center font-inter text-[10px] font-bold tabular-nums text-zinc-600 dark:text-zinc-300"
-                      aria-live="polite"
-                    >
-                      {bestCutIdx + 1} / {bestCuts.length}
-                    </span>
-                    <button
-                      type="button"
-                      aria-label="다음 베스트 컷"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        goBestNext();
-                      }}
-                      className="flex size-7 items-center justify-center rounded-full text-zinc-600 active:bg-zinc-200 dark:text-zinc-300 dark:active:bg-zinc-700"
-                    >
-                      <span className="material-symbols-outlined text-[20px]">chevron_right</span>
-                    </button>
-                  </div>
-                ) : null}
+              <div className="mb-2">
+                <h2
+                  id="best-cut-title"
+                  className="font-manrope text-[16px] font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100"
+                >
+                  실시간 베스트 컷
+                </h2>
+                <p className="mt-0.5 font-inter text-[10px] leading-snug text-zinc-500 dark:text-zinc-400">
+                  48시간 내 반응 순 · 좌우로 넘겨 보기
+                </p>
               </div>
 
               <div
@@ -412,11 +394,9 @@ export default function HotplaceLiveFeedScreen() {
                   onPointerCancel={onHeroPointerCancel}
                   onClick={openHeroPost}
                   aria-label={
-                    heroMediaItems.length > 1
-                      ? '베스트 컷 사진, 같은 게시물 사진은 좌우 스와이프 · 탭하면 게시물로 이동'
-                      : bestCuts.length > 1
-                        ? '베스트 컷 사진, 탭하면 게시물로 이동 · 다른 베스트는 상단 화살표'
-                        : '베스트 컷 사진, 탭하면 게시물로 이동'
+                    heroMediaItems.length > 1 || bestCuts.length > 1
+                      ? '베스트 컷 사진, 좌우 스와이프로 사진·베스트 컷 이동 · 탭하면 게시물로 이동'
+                      : '베스트 컷 사진, 탭하면 게시물로 이동'
                   }
                 >
                   <div className="absolute inset-0 overflow-hidden">
@@ -480,35 +460,57 @@ export default function HotplaceLiveFeedScreen() {
                     </div>
                   </div>
 
+                  {(heroMediaItems.length > 1 || bestCuts.length > 1) && (
+                    <div className="pointer-events-none absolute right-3 top-[3.15rem] z-10 sm:right-4 sm:top-[3.25rem]">
+                      <div className="rounded-full bg-black/45 px-2.5 py-1 font-inter text-[11px] font-semibold tabular-nums text-white shadow-sm backdrop-blur-sm">
+                        {heroMediaItems.length > 1
+                          ? `${heroMediaIdx + 1} / ${heroMediaItems.length}`
+                          : `${bestCutIdx + 1} / ${bestCuts.length}`}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 게시물 상세(PostDetail)와 동일: 하단 점 인디케이터 — 미디어 여러 장이면 미디어, 한 장이면 베스트 컷 */}
                   {heroMediaItems.length > 1 ? (
-                    <>
-                      <div className="pointer-events-none absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/25 p-1 text-white/90">
-                        <span className="material-symbols-outlined text-[22px]">chevron_left</span>
-                      </div>
-                      <div className="pointer-events-none absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/25 p-1 text-white/90">
-                        <span className="material-symbols-outlined text-[22px]">chevron_right</span>
-                      </div>
-                      <div className="pointer-events-none absolute bottom-[5.5rem] left-0 right-0 z-10 flex justify-center gap-1.5 sm:bottom-[5.75rem]">
-                        {heroMediaItems.map((_, i) => (
-                          <span
-                            key={String(i)}
-                            className={`h-1.5 rounded-full transition-all duration-300 ${
-                              i === heroMediaIdx ? 'w-5 bg-white' : 'w-1.5 bg-white/40'
-                            }`}
-                            aria-hidden
-                          />
-                        ))}
-                      </div>
-                    </>
-                  ) : bestCuts.length > 1 ? (
-                    <div className="pointer-events-none absolute bottom-[5.5rem] left-0 right-0 z-10 flex justify-center gap-1.5 sm:bottom-[5.75rem]">
-                      {bestCuts.map((_, i) => (
-                        <span
-                          key={String(i)}
-                          className={`h-1.5 rounded-full transition-all duration-300 ${
-                            i === bestCutIdx ? 'w-5 bg-white' : 'w-1.5 bg-white/40'
+                    <div className="absolute bottom-[5.25rem] left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 sm:bottom-[5.5rem]">
+                      {heroMediaItems.map((_, index) => (
+                        <button
+                          key={String(index)}
+                          type="button"
+                          tabIndex={0}
+                          aria-label={`사진 ${index + 1} / ${heroMediaItems.length}`}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHeroMediaIdx(index);
+                          }}
+                          className={`carousel-page-dot inline-flex min-h-0 min-w-0 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 p-0 leading-none transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
+                            index === heroMediaIdx
+                              ? 'h-1.5 w-5 bg-white'
+                              : 'h-1.5 w-1.5 bg-white/40 hover:bg-white/55'
                           }`}
-                          aria-hidden
+                        />
+                      ))}
+                    </div>
+                  ) : bestCuts.length > 1 ? (
+                    <div className="absolute bottom-[5.25rem] left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 sm:bottom-[5.5rem]">
+                      {bestCuts.map((_, index) => (
+                        <button
+                          key={String(index)}
+                          type="button"
+                          tabIndex={0}
+                          aria-label={`베스트 컷 ${index + 1} / ${bestCuts.length}`}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setBestCutIdx(index);
+                            setHeroMediaIdx(0);
+                          }}
+                          className={`carousel-page-dot inline-flex min-h-0 min-w-0 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 p-0 leading-none transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
+                            index === bestCutIdx
+                              ? 'h-1.5 w-5 bg-white'
+                              : 'h-1.5 w-1.5 bg-white/40 hover:bg-white/55'
+                          }`}
                         />
                       ))}
                     </div>
