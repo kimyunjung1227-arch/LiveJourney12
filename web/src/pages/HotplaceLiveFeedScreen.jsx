@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Swiper, SwiperSlide } from 'swiper/react';
+import 'swiper/css';
 import { getDisplayImageUrl } from '../api/upload';
 import {
   getGridCoverDisplay,
@@ -116,6 +118,22 @@ const getHeroMediaItems = (post) => {
   return [{ type: isVideoUri(u) ? 'video' : 'image', uri: u }];
 };
 
+/** 베스트 컷 게시물들의 미디어를 순서대로 펼친 슬라이드 (게시물·사진 모두 좌우로 넘김) */
+const buildFlatBestCutSlides = (bestCuts) => {
+  const out = [];
+  for (const post of bestCuts) {
+    const items = getHeroMediaItems(post);
+    if (items.length === 0) {
+      out.push({ post, media: null, mediaIndex: 0, mediaCount: 0 });
+    } else {
+      items.forEach((m, mediaIndex) => {
+        out.push({ post, media: m, mediaIndex, mediaCount: items.length });
+      });
+    }
+  }
+  return out;
+};
+
 export default function HotplaceLiveFeedScreen() {
   const navigate = useNavigate();
   const loc = useLocation();
@@ -161,98 +179,50 @@ export default function HotplaceLiveFeedScreen() {
     return out;
   }, [postsForPlace, now]);
 
-  const [bestCutIdx, setBestCutIdx] = useState(0);
+  const flatSlides = useMemo(() => buildFlatBestCutSlides(bestCuts), [bestCuts]);
+  const [flatIdx, setFlatIdx] = useState(0);
+  const heroSwiperRef = useRef(null);
+  const cardTapRef = useRef({ x: 0, y: 0 });
+
   useEffect(() => {
-    setBestCutIdx(0);
+    setFlatIdx(0);
   }, [bestCuts]);
 
-  const bestCutActive = bestCuts[bestCutIdx] || null;
-
-  const heroSwipeRef = useRef({ x0: 0, pid: null, armed: false });
-  const heroGestureSkipNavRef = useRef(false);
-  const SWIPE_PX = 48;
+  useEffect(() => {
+    setFlatIdx((i) => Math.min(i, Math.max(0, flatSlides.length - 1)));
+  }, [flatSlides.length]);
 
   const displayTitle = String(loc.state?.placeKey || placeKey || '실시간 현장').trim();
-  const heroPost = bestCutActive || postsForPlace[0] || null;
+  const currentSlide = flatSlides[flatIdx] || null;
+  const heroPost = currentSlide?.post ?? null;
   const heroAuthorId = heroPost ? getUserIdForPost(heroPost) : '';
 
-  const heroMediaItems = useMemo(() => getHeroMediaItems(heroPost), [heroPost]);
-  const [heroMediaIdx, setHeroMediaIdx] = useState(0);
+  const heroMediaItems = useMemo(() => (heroPost ? getHeroMediaItems(heroPost) : []), [heroPost]);
+  const heroMediaIdx = currentSlide?.mediaIndex ?? 0;
 
-  useEffect(() => {
-    setHeroMediaIdx((idx) => {
-      const max = Math.max(0, heroMediaItems.length - 1);
-      return Math.min(idx, max);
-    });
-  }, [heroMediaItems.length, heroPost?.id]);
+  const currentBestCutIndex = useMemo(() => {
+    if (!heroPost || bestCuts.length === 0) return 0;
+    const i = bestCuts.findIndex((p) => String(p?.id) === String(heroPost.id));
+    return i >= 0 ? i : 0;
+  }, [heroPost, bestCuts]);
 
-  const onHeroPointerDown = (e) => {
-    if (heroMediaItems.length <= 1 && bestCuts.length <= 1) return;
-    heroSwipeRef.current = { x0: e.clientX, pid: e.pointerId, armed: true };
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      /* noop */
-    }
+  const slideToFlatIndex = (idx) => {
+    const max = Math.max(0, flatSlides.length - 1);
+    const next = Math.min(Math.max(0, idx), max);
+    setFlatIdx(next);
+    heroSwiperRef.current?.slideTo(next);
   };
 
-  /** PostDetail과 동일: 같은 게시물 내 미디어를 먼저 넘기고, 끝에서 다음/이전 베스트 컷으로 이동 */
-  const onHeroPointerUp = (e) => {
-    const { x0, pid, armed } = heroSwipeRef.current;
-    heroSwipeRef.current = { x0: 0, pid: null, armed: false };
-    if (!armed || pid !== e.pointerId) return;
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      /* noop */
+  /** 각 베스트 컷 게시물이 flatSlides에서 시작하는 인덱스 (한 장짜리면 점 탭용) */
+  const postFirstFlatIndex = useMemo(() => {
+    const starts = [];
+    let acc = 0;
+    for (const post of bestCuts) {
+      starts.push(acc);
+      acc += Math.max(1, getHeroMediaItems(post).length);
     }
-    const dx = e.clientX - x0;
-    if (Math.abs(dx) < SWIPE_PX) return;
-    heroGestureSkipNavRef.current = true;
-
-    const nMedia = heroMediaItems.length;
-    const nBest = bestCuts.length;
-    if (nMedia === 0 && nBest <= 1) return;
-
-    const swipeNext = dx < 0;
-    const swipePrev = dx > 0;
-
-    if (swipeNext) {
-      if (nMedia > 1 && heroMediaIdx < nMedia - 1) {
-        setHeroMediaIdx((i) => i + 1);
-        return;
-      }
-      if (nBest > 1) {
-        setBestCutIdx((i) => (i + 1) % nBest);
-        setHeroMediaIdx(0);
-      }
-      return;
-    }
-
-    if (swipePrev) {
-      if (nMedia > 1 && heroMediaIdx > 0) {
-        setHeroMediaIdx((i) => i - 1);
-        return;
-      }
-      if (nBest > 1) {
-        const prevBest = (bestCutIdx - 1 + nBest) % nBest;
-        const prevPost = bestCuts[prevBest];
-        const prevMedia = getHeroMediaItems(prevPost);
-        const lastIdx = Math.max(0, prevMedia.length - 1);
-        setBestCutIdx(prevBest);
-        setHeroMediaIdx(lastIdx);
-      }
-    }
-  };
-
-  const onHeroPointerCancel = (e) => {
-    heroSwipeRef.current = { x0: 0, pid: null, armed: false };
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      /* noop */
-    }
-  };
+    return starts;
+  }, [bestCuts]);
 
   const heroTrustMeta = useMemo(() => {
     if (!heroPost || !heroAuthorId) {
@@ -315,11 +285,17 @@ export default function HotplaceLiveFeedScreen() {
 
   const openHeroPost = () => {
     if (!heroPost) return;
-    if (heroGestureSkipNavRef.current) {
-      heroGestureSkipNavRef.current = false;
-      return;
-    }
     navigate(`/post/${heroPost.id}`, { state: { post: heroPost, allPosts } });
+  };
+
+  const onHeroCardPointerDown = (e) => {
+    cardTapRef.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const onHeroCardPointerUp = (e) => {
+    if (e.target.closest?.('button') || e.target.closest?.('.swiper-pagination')) return;
+    const d = Math.hypot(e.clientX - cardTapRef.current.x, e.clientY - cardTapRef.current.y);
+    if (d < 14) openHeroPost();
   };
 
   const onFollowHero = (e) => {
@@ -371,7 +347,7 @@ export default function HotplaceLiveFeedScreen() {
                   실시간 베스트 컷
                 </h2>
                 <p className="mt-0.5 font-inter text-[10px] leading-snug text-zinc-500 dark:text-zinc-400">
-                  48시간 내 반응 순 · 좌우로 넘겨 보기
+                  48시간 내 반응 순 · 좌우 슬라이드로 게시물·사진 보기
                 </p>
               </div>
 
@@ -389,59 +365,61 @@ export default function HotplaceLiveFeedScreen() {
                       openHeroPost();
                     }
                   }}
-                  onPointerDown={onHeroPointerDown}
-                  onPointerUp={onHeroPointerUp}
-                  onPointerCancel={onHeroPointerCancel}
-                  onClick={openHeroPost}
+                  onPointerDown={onHeroCardPointerDown}
+                  onPointerUp={onHeroCardPointerUp}
                   aria-label={
-                    heroMediaItems.length > 1 || bestCuts.length > 1
-                      ? '베스트 컷 사진, 좌우 스와이프로 사진·베스트 컷 이동 · 탭하면 게시물로 이동'
-                      : '베스트 컷 사진, 탭하면 게시물로 이동'
+                    flatSlides.length > 1
+                      ? '베스트 컷, 좌우로 슬라이드 · 탭하면 게시물로 이동'
+                      : '베스트 컷, 탭하면 게시물로 이동'
                   }
                 >
-                  <div className="absolute inset-0 overflow-hidden">
-                    {heroMediaItems.length === 0 ? (
-                      <div className="h-full w-full bg-zinc-700" />
-                    ) : (
-                      <div
-                        className="flex h-full transition-transform duration-300 ease-out will-change-transform"
-                        style={{
-                          width: `${heroMediaItems.length * 100}%`,
-                          transform: `translateX(-${(100 / heroMediaItems.length) * heroMediaIdx}%)`,
-                        }}
-                      >
-                        {heroMediaItems.map((m, i) => (
-                          <div
-                            key={`slide-${i}-${m.uri}`}
-                            className="h-full shrink-0 overflow-hidden bg-zinc-950"
-                            style={{ width: `${100 / heroMediaItems.length}%` }}
-                          >
-                            {m.type === 'video' ? (
+                  {flatSlides.length === 0 ? (
+                    <div className="h-full w-full bg-zinc-700" />
+                  ) : (
+                    <Swiper
+                      className="h-full w-full [&_.swiper-wrapper]:h-full [&_.swiper-slide]:h-full"
+                      speed={300}
+                      resistanceRatio={0.85}
+                      slidesPerView={1}
+                      spaceBetween={0}
+                      onSwiper={(s) => {
+                        heroSwiperRef.current = s;
+                      }}
+                      onSlideChange={(s) => setFlatIdx(s.activeIndex)}
+                      initialSlide={Math.min(flatIdx, flatSlides.length - 1)}
+                      key={bestCuts.map((p) => String(p?.id ?? '')).join(',')}
+                    >
+                      {flatSlides.map((slide, slideIndex) => (
+                        <SwiperSlide key={`${slide.post?.id}-${slide.mediaIndex}-${slideIndex}`}>
+                          <div className="relative h-full min-h-[min(380px,54svh)] w-full overflow-hidden bg-zinc-950 sm:min-h-[380px]">
+                            {slide.media?.type === 'video' ? (
                               <video
-                                src={getDisplayImageUrl(m.uri)}
+                                src={getDisplayImageUrl(slide.media.uri)}
                                 className="h-full w-full object-cover [transform:translateZ(0)]"
                                 muted
                                 playsInline
                                 preload="metadata"
-                                autoPlay={heroMediaIdx === i}
+                                autoPlay={flatIdx === slideIndex}
                                 loop
                               />
-                            ) : (
+                            ) : slide.media ? (
                               <img
-                                src={getDisplayImageUrl(m.uri, { hero: true })}
+                                src={getDisplayImageUrl(slide.media.uri, { hero: true })}
                                 alt=""
                                 className="h-full w-full object-cover [transform:translateZ(0)]"
-                                loading={i === 0 ? 'eager' : 'lazy'}
+                                loading={slideIndex === 0 ? 'eager' : 'lazy'}
                                 decoding="async"
-                                fetchPriority={i === 0 ? 'high' : 'auto'}
+                                fetchPriority={slideIndex === 0 ? 'high' : 'auto'}
                                 sizes="100vw"
                               />
+                            ) : (
+                              <div className="h-full w-full bg-zinc-700" />
                             )}
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                        </SwiperSlide>
+                      ))}
+                    </Swiper>
+                  )}
 
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/8 via-transparent to-black/30" />
 
@@ -460,37 +438,47 @@ export default function HotplaceLiveFeedScreen() {
                     </div>
                   </div>
 
-                  {(heroMediaItems.length > 1 || bestCuts.length > 1) && (
-                    <div className="pointer-events-none absolute right-3 top-[3.15rem] z-10 sm:right-4 sm:top-[3.25rem]">
-                      <div className="rounded-full bg-black/45 px-2.5 py-1 font-inter text-[11px] font-semibold tabular-nums text-white shadow-sm backdrop-blur-sm">
-                        {heroMediaItems.length > 1
-                          ? `${heroMediaIdx + 1} / ${heroMediaItems.length}`
-                          : `${bestCutIdx + 1} / ${bestCuts.length}`}
+                  {flatSlides.length > 1 && (
+                    <div className="pointer-events-none absolute right-3 top-3 z-10 text-right sm:right-4 sm:top-4">
+                      <div className="inline-flex flex-col items-end gap-0.5 rounded-xl bg-black/45 px-2.5 py-1.5 font-inter text-white shadow-sm backdrop-blur-sm">
+                        <span className="text-[12px] font-bold tabular-nums leading-none">
+                          {flatIdx + 1} / {flatSlides.length}
+                        </span>
+                        {bestCuts.length > 1 ? (
+                          <span className="text-[9px] font-semibold tabular-nums text-white/85">
+                            게시물 {currentBestCutIndex + 1} / {bestCuts.length}
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                   )}
 
-                  {/* 게시물 상세(PostDetail)와 동일: 하단 점 인디케이터 — 미디어 여러 장이면 미디어, 한 장이면 베스트 컷 */}
+                  {/* 하단 점: 같은 게시물에 미디어가 여러 장이면 해당 미디어 기준, 아니면 베스트 컷 게시물별 */}
                   {heroMediaItems.length > 1 ? (
                     <div className="absolute bottom-[5.25rem] left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 sm:bottom-[5.5rem]">
-                      {heroMediaItems.map((_, index) => (
-                        <button
-                          key={String(index)}
-                          type="button"
-                          tabIndex={0}
-                          aria-label={`사진 ${index + 1} / ${heroMediaItems.length}`}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setHeroMediaIdx(index);
-                          }}
-                          className={`carousel-page-dot inline-flex min-h-0 min-w-0 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 p-0 leading-none transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
-                            index === heroMediaIdx
-                              ? 'h-1.5 w-5 bg-white'
-                              : 'h-1.5 w-1.5 bg-white/40 hover:bg-white/55'
-                          }`}
-                        />
-                      ))}
+                      {heroMediaItems.map((_, index) => {
+                        const targetFlat = flatSlides.findIndex(
+                          (s) => s.post && String(s.post.id) === String(heroPost?.id) && s.mediaIndex === index
+                        );
+                        return (
+                          <button
+                            key={String(index)}
+                            type="button"
+                            tabIndex={0}
+                            aria-label={`사진 ${index + 1} / ${heroMediaItems.length}`}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (targetFlat >= 0) slideToFlatIndex(targetFlat);
+                            }}
+                            className={`carousel-page-dot inline-flex min-h-0 min-w-0 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 p-0 leading-none transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
+                              index === heroMediaIdx
+                                ? 'h-1.5 w-5 bg-white'
+                                : 'h-1.5 w-1.5 bg-white/40 hover:bg-white/55'
+                            }`}
+                          />
+                        );
+                      })}
                     </div>
                   ) : bestCuts.length > 1 ? (
                     <div className="absolute bottom-[5.25rem] left-1/2 z-30 flex -translate-x-1/2 items-center gap-1.5 sm:bottom-[5.5rem]">
@@ -499,15 +487,15 @@ export default function HotplaceLiveFeedScreen() {
                           key={String(index)}
                           type="button"
                           tabIndex={0}
-                          aria-label={`베스트 컷 ${index + 1} / ${bestCuts.length}`}
+                          aria-label={`베스트 컷 게시물 ${index + 1} / ${bestCuts.length}`}
                           onPointerDown={(e) => e.stopPropagation()}
                           onClick={(e) => {
                             e.stopPropagation();
-                            setBestCutIdx(index);
-                            setHeroMediaIdx(0);
+                            const start = postFirstFlatIndex[index];
+                            if (start != null) slideToFlatIndex(start);
                           }}
                           className={`carousel-page-dot inline-flex min-h-0 min-w-0 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 p-0 leading-none transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
-                            index === bestCutIdx
+                            index === currentBestCutIndex
                               ? 'h-1.5 w-5 bg-white'
                               : 'h-1.5 w-1.5 bg-white/40 hover:bg-white/55'
                           }`}
