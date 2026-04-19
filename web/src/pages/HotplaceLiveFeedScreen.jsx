@@ -52,37 +52,6 @@ const getAvatarUrlForPost = (post) => {
   return null;
 };
 
-const pickKeywords = (posts) => {
-  const map = new Map();
-  const bump = (k, inc = 1) => {
-    const key = String(k || '').trim();
-    if (!key) return;
-    map.set(key, (map.get(key) || 0) + inc);
-  };
-  (posts || []).forEach((p) => {
-    const tags = [
-      ...(Array.isArray(p?.reasonTags) ? p.reasonTags : []),
-      ...(Array.isArray(p?.aiHotTags) ? p.aiHotTags : []),
-      ...(Array.isArray(p?.tags) ? p.tags : []),
-    ];
-    tags.forEach((t) => {
-      const raw = String(t || '').replace(/#/g, '').replace(/_/g, ' ').trim();
-      if (raw) bump(`#${raw}`, 2);
-    });
-    const text = `${p?.note || ''} ${p?.content || ''}`.trim();
-    const hashes = text.match(/#[^\s#]+/g) || [];
-    hashes.forEach((h) => bump(h.replace(/_/g, ' '), 3));
-    // 가벼운 키워드 추출(과도한 NLP는 생략)
-    ['만개', '절정', '사람 많', '사람 보통', '한산', '바람', '웨이팅', '줄', '혼잡', '꽃', '단풍', '야경'].forEach((k) => {
-      if (text.includes(k)) bump(`#${k.replace(/\s+/g, '')}`, 1);
-    });
-  });
-  return [...map.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([k]) => k)
-    .slice(0, 3);
-};
-
 export default function HotplaceLiveFeedScreen() {
   const navigate = useNavigate();
   const loc = useLocation();
@@ -107,10 +76,6 @@ export default function HotplaceLiveFeedScreen() {
   }, [allPosts, loc.state?.placeKey, placeKey]);
 
   const now = Date.now();
-  const recent2h = useMemo(
-    () => postsForPlace.filter((p) => now - getPostTimeMs(p) <= 2 * 60 * 60 * 1000),
-    [postsForPlace, now],
-  );
   const bestCuts = useMemo(() => {
     if (postsForPlace.length === 0) {
       return [];
@@ -132,39 +97,6 @@ export default function HotplaceLiveFeedScreen() {
     }
     return out;
   }, [postsForPlace, now]);
-
-  const briefKeywords = useMemo(() => {
-    if (!placeKey) return [];
-    return pickKeywords(recent2h);
-  }, [placeKey, recent2h]);
-
-  const realtimeSituationLabel = useMemo(() => {
-    if (briefKeywords.length > 0) {
-      const t = briefKeywords[0].replace(/^#/, '').trim();
-      return t ? `실시간: ${t}` : '실시간: 현장 제보';
-    }
-    return '실시간: 현장 제보';
-  }, [briefKeywords]);
-
-  const recentContributorAvatars = useMemo(() => {
-    const seen = new Set();
-    const urls = [];
-    for (const p of recent2h) {
-      const id = getUserIdForPost(p) || getUserNameForPost(p);
-      if (seen.has(id)) continue;
-      seen.add(id);
-      const av = getAvatarUrlForPost(p);
-      if (av) urls.push(av);
-      if (urls.length >= 3) break;
-    }
-    return urls;
-  }, [recent2h]);
-
-  const uniqueRecentUserCount = useMemo(() => {
-    const s = new Set();
-    recent2h.forEach((p) => s.add(getUserIdForPost(p) || getUserNameForPost(p)));
-    return s.size;
-  }, [recent2h]);
 
   const [bestCutIdx, setBestCutIdx] = useState(0);
   useEffect(() => {
@@ -259,7 +191,7 @@ export default function HotplaceLiveFeedScreen() {
     return loc ? `${loc}, ${clock} 촬영` : `${clock} 촬영`;
   }, [heroPost, displayTitle]);
 
-  const plusMoreVisitors = Math.max(0, uniqueRecentUserCount - 3);
+  const heroAvatarUrl = heroPost ? getAvatarUrlForPost(heroPost) : null;
 
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col">
@@ -288,98 +220,93 @@ export default function HotplaceLiveFeedScreen() {
       <div className="screen-content flex-1 overflow-y-auto bg-background-light dark:bg-background-dark">
         <div className="px-4 pb-20 pt-2">
           {heroPost ? (
-            <div className="-mx-4 mb-8 w-[calc(100%+2rem)]">
-              <button
-                type="button"
-                onPointerDown={onBestCutPointerDown}
-                onPointerUp={onBestCutPointerUp}
-                onPointerCancel={onBestCutPointerCancel}
-                onClick={() => {
-                  if (bestCutSkipNavRef.current) {
-                    bestCutSkipNavRef.current = false;
-                    return;
-                  }
-                  navigate(`/post/${heroPost.id}`, { state: { post: heroPost, allPosts } });
-                }}
-                className="relative block min-h-[300px] w-full overflow-hidden rounded-none bg-zinc-100 aspect-[3/4] max-h-[min(88vh,720px)] dark:bg-zinc-800"
-                aria-label={bestCuts.length > 1 ? '베스트 컷, 좌우로 밀어 넘기기' : '오늘의 베스트 컷'}
-              >
-                {(() => {
-                  const p = heroPost;
-                  const cover = getGridCoverDisplay(p, getDisplayImageUrl);
-                  const src = cover?.src || (Array.isArray(p.images) ? p.images[0] : p.image) || p.thumbnail || '';
-                  const url = src ? getDisplayImageUrl(src) : '';
-                  const isVideo = cover?.mode === 'video' && url;
-                  return (
-                    <>
-                      {isVideo ? (
-                        <video
-                          src={url}
-                          className="h-full w-full object-cover"
-                          muted
-                          playsInline
-                          preload="metadata"
-                          autoPlay
-                          loop
-                        />
-                      ) : url ? (
-                        <img
-                          src={url}
-                          alt=""
-                          className="h-full w-full object-cover"
-                          loading="eager"
-                          decoding="async"
-                          fetchPriority="high"
-                        />
-                      ) : (
-                        <div className="h-full w-full" />
-                      )}
-                      <div className="pointer-events-none absolute left-0 right-0 top-0 z-[2] flex items-start justify-between gap-2 px-3 pt-3">
-                        <span className="rounded-full bg-blue-600 px-3 py-1.5 font-inter text-[11px] font-extrabold text-white shadow-sm">
-                          오늘의 베스트 컷
+            <section className="mb-8" aria-labelledby="best-cut-heading">
+              <h2 id="best-cut-heading" className="font-manrope mb-3 text-[17px] font-extrabold tracking-tight text-zinc-900 dark:text-white">
+                실시간 베스트 컷
+              </h2>
+
+              <div className="mx-auto w-full max-w-[280px]">
+                <button
+                  type="button"
+                  onPointerDown={onBestCutPointerDown}
+                  onPointerUp={onBestCutPointerUp}
+                  onPointerCancel={onBestCutPointerCancel}
+                  onClick={() => {
+                    if (bestCutSkipNavRef.current) {
+                      bestCutSkipNavRef.current = false;
+                      return;
+                    }
+                    navigate(`/post/${heroPost.id}`, { state: { post: heroPost, allPosts } });
+                  }}
+                  className="relative block w-full overflow-hidden rounded-none bg-zinc-100 aspect-[3/4] max-h-[min(48vh,400px)] dark:bg-zinc-800"
+                  aria-label={bestCuts.length > 1 ? '베스트 컷 사진, 좌우로 밀어 넘기기' : '베스트 컷 사진'}
+                >
+                  {(() => {
+                    const p = heroPost;
+                    const cover = getGridCoverDisplay(p, getDisplayImageUrl);
+                    const src = cover?.src || (Array.isArray(p.images) ? p.images[0] : p.image) || p.thumbnail || '';
+                    const url = src ? getDisplayImageUrl(src) : '';
+                    const isVideo = cover?.mode === 'video' && url;
+                    return isVideo ? (
+                      <video
+                        src={url}
+                        className="h-full w-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                        autoPlay
+                        loop
+                      />
+                    ) : url ? (
+                      <img
+                        src={url}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        loading="eager"
+                        decoding="async"
+                        fetchPriority="high"
+                      />
+                    ) : (
+                      <div className="h-full w-full bg-zinc-200 dark:bg-zinc-700" />
+                    );
+                  })()}
+                </button>
+
+                <button
+                  type="button"
+                  className="mt-3 flex w-full items-start gap-3 rounded-lg text-left transition hover:bg-zinc-50/80 dark:hover:bg-white/5"
+                  onClick={() => navigate(`/post/${heroPost.id}`, { state: { post: heroPost, allPosts } })}
+                >
+                  {heroAvatarUrl ? (
+                    <img
+                      src={heroAvatarUrl}
+                      alt=""
+                      className="size-11 shrink-0 rounded-full object-cover ring-1 ring-zinc-200 dark:ring-zinc-600"
+                    />
+                  ) : (
+                    <div
+                      className="flex size-11 shrink-0 items-center justify-center rounded-full bg-zinc-200 font-inter text-[15px] font-bold text-zinc-600 ring-1 ring-zinc-200 dark:bg-zinc-700 dark:text-zinc-300 dark:ring-zinc-600"
+                      aria-hidden
+                    >
+                      {getUserNameForPost(heroPost).slice(0, 1)}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1 pt-0.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-inter text-[15px] font-bold text-zinc-900 dark:text-white">{getUserNameForPost(heroPost)}</span>
+                      {bestCutAuthorTrustName ? (
+                        <span className="rounded-md bg-amber-100 px-2 py-0.5 font-inter text-[10px] font-extrabold text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
+                          신뢰도 {bestCutAuthorTrustName}
                         </span>
-                        <span className="inline-flex max-w-[55%] items-center gap-1 rounded-full bg-teal-600/95 px-2.5 py-1.5 font-inter text-[10px] font-bold leading-tight text-white shadow-sm">
-                          <span className="material-symbols-outlined shrink-0 text-[14px]">rss_feed</span>
-                          <span className="truncate">{realtimeSituationLabel}</span>
-                        </span>
-                      </div>
-                      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] bg-gradient-to-t from-black/90 via-black/45 to-transparent px-3 pb-4 pt-20">
-                        <div className="flex items-end justify-between gap-3">
-                          <div className="min-w-0 flex-1 font-inter">
-                            <p className="text-[15px] font-extrabold tracking-tight text-white drop-shadow-md">
-                              Photo by {getUserNameForPost(p)}
-                            </p>
-                            {bestCutAuthorTrustName ? (
-                              <span className="mt-1.5 inline-block rounded bg-amber-400 px-2 py-0.5 text-[10px] font-extrabold text-amber-950 shadow-sm">
-                                신뢰도: {bestCutAuthorTrustName}
-                              </span>
-                            ) : null}
-                            <p className="mt-2 text-[11px] font-medium leading-snug text-white/90">{heroDetailLine}</p>
-                          </div>
-                          <div className="flex shrink-0 items-center">
-                            <div className="flex -space-x-2">
-                              {recentContributorAvatars.map((av, i) => (
-                                <img
-                                  key={`${av}-${i}`}
-                                  src={av}
-                                  alt=""
-                                  className="size-9 rounded-full border-2 border-white object-cover dark:border-zinc-900"
-                                />
-                              ))}
-                            </div>
-                            {plusMoreVisitors > 0 ? (
-                              <span className="ml-1 flex h-9 min-w-[2.25rem] items-center justify-center rounded-full border-2 border-white bg-zinc-800 pl-0.5 font-inter text-[11px] font-extrabold text-white dark:border-zinc-900">
-                                +{plusMoreVisitors}
-                              </span>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  );
-                })()}
-              </button>
-            </div>
+                      ) : null}
+                    </div>
+                    {heroDetailLine ? (
+                      <p className="mt-1 font-inter text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">{heroDetailLine}</p>
+                    ) : null}
+                  </div>
+                </button>
+              </div>
+            </section>
           ) : null}
 
           <section id="situation-feed-section" className="mt-1" aria-labelledby="situation-heading">
