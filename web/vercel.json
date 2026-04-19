@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/proxy/kma/ultra-srt-ncst",
+      "destination": "https://donxoyznlahewufadamu.supabase.co/functions/v1/kma-ultra-ncst"
+    },
+    {
       "source": "/api/:path*",
       "destination": "https://livejourney-backend.onrender.com/api/:path*"
     },

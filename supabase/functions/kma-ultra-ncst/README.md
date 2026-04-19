@@ -22,4 +22,4 @@ npx supabase@latest functions deploy kma-ultra-ncst --project-ref donxoyznlahewu
 ```
 
 프론트는 `VITE_SUPABASE_URL`이 있으면 자동으로  
-`{SUPABASE_URL}/functions/v1/kma-ultra-ncst` 를 호출합니다 (`VITE_SUPABASE_ANON_KEY` 헤더 필요).
+`{SUPABASE_URL}/functions/v1/kma-ultra-ncst` 를 호출합니다 (anon 키는 URL 쿼리 `apikey` 로 전달).

@@ -11,6 +11,7 @@ const API_TIMEOUT = 20000;
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
+/** 초단기실황은 매시 정각·10·20·30분 생성, 약 10분 지연 — 분이 40 미만이면 이전 시각(base_time)을 쓰는 편이 안전 */
 function getKstNcstBaseDateTime(hoursBack = 0) {
   const parts = new Intl.DateTimeFormat('en', {
     timeZone: 'Asia/Seoul',
@@ -94,35 +95,40 @@ const fetchWithRetry = async (url, signal, retries = MAX_RETRIES, fetchInit = {}
 };
 
 /**
- * 1) Supabase Edge — anon 은 쿼리 `apikey` 만 사용(Authorization 미사용 → 단순 요청, CORS 이슈 완화).
- * 2) `/api/proxy/kma/*` — 로컬 Vite 또는 `VITE_API_URL` 백엔드.
- * `VITE_WEATHER_NODE_PROXY_FIRST=true` 이면 2)를 먼저 시도.
+ * 1) 동일 출처 `/api/proxy/kma/ultra-srt-ncst` — Vercel rewrites 로 Supabase Edge 로 전달(CORS 회피).
+ * 2) Supabase Edge 직접 URL — anon 은 쿼리 `apikey` 만(헤더 없음).
+ * 프로덕션 빌드에서는 기본으로 1) 우선. `VITE_WEATHER_EDGE_FIRST=true` 이면 2) 우선.
  */
 function buildKmaProxyUrlList(searchParams) {
   const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim().replace(/\/+$/, '');
   const anonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+
+  const withApiKey = (params) => {
+    const p = new URLSearchParams(params);
+    if (anonKey) p.set('apikey', anonKey);
+    return p.toString();
+  };
+
   let edgeUrl = null;
   if (supabaseUrl && anonKey) {
-    const p = new URLSearchParams(searchParams);
-    p.set('apikey', anonKey);
-    edgeUrl = `${supabaseUrl}/functions/v1/kma-ultra-ncst?${p.toString()}`;
+    edgeUrl = `${supabaseUrl}/functions/v1/kma-ultra-ncst?${withApiKey(searchParams)}`;
   }
 
-  const nodeUrl = getFetchApiUrl(`/api/proxy/kma/ultra-srt-ncst?${q}`);
+  const nodeUrl = getFetchApiUrl(`/api/proxy/kma/ultra-srt-ncst?${withApiKey(searchParams)}`);
 
-  const nodeFirst = String(import.meta.env.VITE_WEATHER_NODE_PROXY_FIRST || '').trim() === 'true';
+  const edgeFirst = String(import.meta.env.VITE_WEATHER_EDGE_FIRST || '').trim() === 'true';
+  /** 프로덕션: Vercel 프록시(동일 도메인) 먼저 — 개발은 Edge 직접이 편함 */
+  const proxyFirst = import.meta.env.PROD && !edgeFirst;
 
   const edgeReady = Boolean(edgeUrl && anonKey);
   if (!edgeReady) {
     return [nodeUrl];
   }
 
-  const primary = edgeUrl;
-  const secondary = nodeUrl;
-  if (nodeFirst) {
-    return [secondary, primary];
+  if (proxyFirst) {
+    return [nodeUrl, edgeUrl];
   }
-  return [primary, secondary];
+  return [edgeUrl, nodeUrl];
 }
 
 function buildKmaFetchInit(fullUrl) {

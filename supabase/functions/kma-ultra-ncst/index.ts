@@ -4,16 +4,10 @@
  * 배포: supabase functions deploy kma-ultra-ncst
  * 시크릿: supabase secrets set KMA_API_KEY=...
  *
- * CORS: Supabase Functions 가이드와 동일한 헤더 세트
+ * CORS: `_shared/cors.ts` — Preflight(OPTIONS) 및 모든 JSON 응답에 동일 헤더
  * @see https://supabase.com/docs/guides/functions/cors
  */
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type, x-supabase-api-version, prefer',
-  'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-  'Access-Control-Max-Age': '86400',
-};
+import { corsHeaders } from '../_shared/cors.ts';
 
 const KMA_BASE = 'https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst';
 
@@ -29,8 +23,9 @@ function normalizeDataGoKrServiceKey(raw: string): string {
 }
 
 Deno.serve(async (req) => {
+  // Preflight — 브라우저가 cross-origin 요청 전에 보내는 OPTIONS
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { status: 204, headers: corsHeaders });
+    return new Response('ok', { status: 200, headers: corsHeaders });
   }
 
   if (req.method !== 'GET') {
