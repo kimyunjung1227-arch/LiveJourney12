@@ -3,30 +3,19 @@
  * Secrets: KMA_API_KEY 또는 DATA_GO_KR_SERVICE_KEY
  * 배포: supabase functions deploy kma-ultra-ncst
  * 시크릿: supabase secrets set KMA_API_KEY=...
+ *
+ * CORS: Supabase Functions 가이드와 동일한 헤더 세트
+ * @see https://supabase.com/docs/guides/functions/cors
  */
+const corsHeaders: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers':
+    'authorization, x-client-info, apikey, content-type, x-supabase-api-version, prefer',
+  'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+  'Access-Control-Max-Age': '86400',
+};
 
 const KMA_BASE = 'https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst';
-
-/** 브라우저 프리플라이트: 게이트웨이 뒤에서도 Origin·요청 헤더를 그대로 반영 */
-function corsHeaders(req: Request): Record<string, string> {
-  const origin = req.headers.get('Origin');
-  const requested = req.headers.get('Access-Control-Request-Headers');
-  const allowHeaders =
-    requested ||
-    'authorization, x-client-info, apikey, content-type, x-supabase-api-version, prefer';
-  const h: Record<string, string> = {
-    'Access-Control-Allow-Headers': allowHeaders,
-    'Access-Control-Allow-Methods': 'GET, OPTIONS, HEAD',
-    'Access-Control-Max-Age': '86400',
-  };
-  if (origin) {
-    h['Access-Control-Allow-Origin'] = origin;
-    h.Vary = 'Origin';
-  } else {
-    h['Access-Control-Allow-Origin'] = '*';
-  }
-  return h;
-}
 
 function normalizeDataGoKrServiceKey(raw: string): string {
   const s = String(raw ?? '').trim();
@@ -40,16 +29,14 @@ function normalizeDataGoKrServiceKey(raw: string): string {
 }
 
 Deno.serve(async (req) => {
-  const cors = corsHeaders(req);
-
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { status: 204, headers: cors });
+    return new Response('ok', { status: 204, headers: corsHeaders });
   }
 
   if (req.method !== 'GET') {
     return new Response(JSON.stringify({ success: false, error: 'Method not allowed' }), {
       status: 405,
-      headers: { ...cors, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -59,7 +46,7 @@ Deno.serve(async (req) => {
   if (!serviceKey) {
     return new Response(
       JSON.stringify({ success: false, error: 'KMA_API_KEY not configured (Edge Function secrets)' }),
-      { status: 503, headers: { ...cors, 'Content-Type': 'application/json' } }
+      { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 
@@ -72,7 +59,7 @@ Deno.serve(async (req) => {
   if (!base_date || !base_time || nx == null || ny == null) {
     return new Response(
       JSON.stringify({ success: false, error: 'Missing base_date, base_time, nx, ny' }),
-      { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 
@@ -104,18 +91,18 @@ Deno.serve(async (req) => {
           error: 'KMA returned non-JSON',
           rawPreview: text.slice(0, 200),
         }),
-        { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } }
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     return new Response(JSON.stringify(data), {
       status: 200,
-      headers: { ...cors, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return new Response(JSON.stringify({ success: false, error: msg }), {
       status: 502,
-      headers: { ...cors, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });

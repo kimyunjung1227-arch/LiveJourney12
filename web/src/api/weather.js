@@ -1,4 +1,4 @@
-// 날씨: Supabase Edge `kma-ultra-ncst` 우선(VITE_SUPABASE_*). 실패 시에만 같은 출처 `/api/proxy/kma/*`(로컬 Vite 등).
+// 날씨: Supabase Edge `kma-ultra-ncst` 우선. anon 키는 URL `apikey` 로만 전달(헤더 없음 → CORS 프리플라이트 없음).
 import { getCoordinatesByRegion } from '../utils/regionCoordinates';
 import { logger } from '../utils/logger';
 import { getFetchApiUrl } from '../utils/apiBase';
@@ -94,15 +94,19 @@ const fetchWithRetry = async (url, signal, retries = MAX_RETRIES, fetchInit = {}
 };
 
 /**
- * 1) Supabase Edge(브라우저에서 anon 헤더) — Render 등 별도 백엔드 없이 사용할 때 기본.
- * 2) `/api/proxy/kma/*` — 로컬에서 Vite가 backend로 넘기거나 `VITE_API_URL` 로 백엔드가 있을 때.
+ * 1) Supabase Edge — anon 은 쿼리 `apikey` 만 사용(Authorization 미사용 → 단순 요청, CORS 이슈 완화).
+ * 2) `/api/proxy/kma/*` — 로컬 Vite 또는 `VITE_API_URL` 백엔드.
  * `VITE_WEATHER_NODE_PROXY_FIRST=true` 이면 2)를 먼저 시도.
  */
 function buildKmaProxyUrlList(searchParams) {
-  const q = searchParams.toString();
   const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim().replace(/\/+$/, '');
   const anonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
-  const edgeUrl = supabaseUrl ? `${supabaseUrl}/functions/v1/kma-ultra-ncst?${q}` : null;
+  let edgeUrl = null;
+  if (supabaseUrl && anonKey) {
+    const p = new URLSearchParams(searchParams);
+    p.set('apikey', anonKey);
+    edgeUrl = `${supabaseUrl}/functions/v1/kma-ultra-ncst?${p.toString()}`;
+  }
 
   const nodeUrl = getFetchApiUrl(`/api/proxy/kma/ultra-srt-ncst?${q}`);
 
@@ -122,6 +126,14 @@ function buildKmaProxyUrlList(searchParams) {
 }
 
 function buildKmaFetchInit(fullUrl) {
+  try {
+    const u = new URL(fullUrl);
+    if (u.searchParams.has('apikey')) {
+      return {};
+    }
+  } catch {
+    /* fall through */
+  }
   const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim().replace(/\/+$/, '');
   const anon = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
   if (!supabaseUrl || !anon) return {};
