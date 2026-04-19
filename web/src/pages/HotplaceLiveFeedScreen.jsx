@@ -201,14 +201,22 @@ export default function HotplaceLiveFeedScreen() {
   const heroPost = bestCutActive || postsForPlace[0] || null;
   const heroAuthorId = heroPost ? getUserIdForPost(heroPost) : '';
 
-  const bestCutAuthorTrustName = useMemo(() => {
-    if (!heroPost) return null;
-    const uid = getUserIdForPost(heroPost);
-    const authorPosts = uid ? allPosts.filter((p) => getUserIdForPost(p) === uid) : [];
-    const raw = getTrustRawScore(uid || null, authorPosts.length ? authorPosts : null);
-    const { grade } = getTrustGrade(raw, uid || null, authorPosts.length ? authorPosts : null);
-    return grade?.name || null;
-  }, [heroPost, allPosts]);
+  const heroTrustMeta = useMemo(() => {
+    if (!heroPost || !heroAuthorId) {
+      return { grade: null, regionLabel: '' };
+    }
+    const authorPosts = allPosts.filter((p) => getUserIdForPost(p) === heroAuthorId);
+    const postsArg = authorPosts.length ? authorPosts : null;
+    const raw = getTrustRawScore(heroAuthorId, postsArg);
+    const { grade } = getTrustGrade(raw, heroAuthorId, postsArg);
+    const u = heroPost.user;
+    const region =
+      String(u?.region || u?.city || u?.location || '').trim() ||
+      String(heroPost.region || '').trim() ||
+      displayTitle.split(/[\s,·]/)[0]?.trim() ||
+      '';
+    return { grade, regionLabel: region || '여행' };
+  }, [heroPost, heroAuthorId, allPosts, displayTitle]);
 
   const heroTrustIndex = useMemo(() => {
     if (!heroAuthorId || !heroPost) return null;
@@ -245,43 +253,10 @@ export default function HotplaceLiveFeedScreen() {
     }
   };
 
-  const heroDetailLine = useMemo(() => {
-    if (!heroPost) return '';
-    const note = String(heroPost.note || heroPost.content || '').trim();
-    const locStr = String(heroPost.detailedLocation || heroPost.placeName || '').trim();
-    const t = getPostTimeMs(heroPost);
-    const d = new Date(t);
-    const nowD = new Date();
-    const dayLabel =
-      d.toDateString() === nowD.toDateString()
-        ? '오늘'
-        : d.toDateString() === new Date(nowD.getTime() - 86400000).toDateString()
-          ? '어제'
-          : d.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
-    const clock = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
-    const tail = note ? note.slice(0, 40) + (note.length > 40 ? '…' : '') : locStr || displayTitle;
-    return `${dayLabel} ${clock} 촬영${tail ? ` · ${tail}` : ''}`;
-  }, [heroPost, displayTitle]);
-
   const heroAvatarUrl = heroPost ? getAvatarUrlForPost(heroPost) : null;
 
-  const heroPoints = heroPost
-    ? Math.min(999, Math.max(10, getEngagementScore(heroPost) * 12 + getLikeCount(heroPost) * 3))
-    : 0;
-  const heroMedalHint = heroPost && getEngagementScore(heroPost) >= 2;
-
-  const heroExifShort = useMemo(() => {
-    if (!heroPost || !hasExifForPost(heroPost)) return null;
-    const tag = getExifTagForPost(heroPost);
-    if (!tag?.text) return null;
-    return tag.text.length > 28 ? `${tag.text.slice(0, 26)}…` : tag.text;
-  }, [heroPost]);
-
-  const heroExifTooltip = useMemo(() => {
-    if (!heroPost || !hasExifForPost(heroPost)) return '';
-    const t = getExifTagForPost(heroPost);
-    return t?.title || t?.text || '';
-  }, [heroPost]);
+  /** 1행: 지역 + 노마드일 때만「비기너」(첨부 시안과 동일). 상위 등급은 2행에 등급명만 표시 */
+  const profileLine1Suffix = heroTrustMeta.grade?.id === 'nomad' ? '비기너' : '';
 
   const showFollowHero = Boolean(heroAuthorId && getCurrentUserId() && getCurrentUserId() !== heroAuthorId);
 
@@ -358,11 +333,11 @@ export default function HotplaceLiveFeedScreen() {
               </div>
 
               <div
-                className="relative overflow-hidden rounded-3xl bg-zinc-950 shadow-xl ring-1 ring-black/5 dark:ring-white/10"
-                style={{ boxShadow: '0 16px 48px rgba(19, 83, 216, 0.14)' }}
+                className="overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-black/5 dark:bg-zinc-900 dark:ring-white/10"
+                style={{ boxShadow: '0 16px 48px rgba(19, 83, 216, 0.12)' }}
               >
                 <div
-                  className="relative h-[min(440px,74vh)] w-full sm:h-[440px]"
+                  className="relative h-[min(440px,74vh)] w-full bg-zinc-950 sm:h-[440px]"
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
@@ -407,32 +382,7 @@ export default function HotplaceLiveFeedScreen() {
                     );
                   })()}
 
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/45 via-transparent to-black/70" />
-
-                  <div className="pointer-events-none absolute left-3 top-3 z-10 flex max-w-[calc(100%-5.5rem)] flex-col gap-2 sm:left-4 sm:top-4">
-                    <div
-                      className="inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1.5 font-inter text-[11px] font-extrabold tracking-wide text-white shadow-lg"
-                      style={{
-                        background: `linear-gradient(135deg, ${MOCK_PRIMARY} 0%, #0c3a9e 100%)`,
-                        boxShadow: '0 4px 14px rgba(19, 83, 216, 0.45)',
-                      }}
-                    >
-                      <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: '"FILL" 1' }}>
-                        verified
-                      </span>
-                      <span>베스트 컷</span>
-                      <span className="text-[9px] font-bold uppercase opacity-90">Best</span>
-                    </div>
-                  </div>
-
-                  {heroExifShort ? (
-                    <div
-                      className="pointer-events-none absolute right-3 top-3 z-10 max-w-[min(55%,12rem)] truncate rounded-full border border-emerald-400/35 bg-emerald-950/55 px-2.5 py-1 font-inter text-[9px] font-bold text-emerald-100 backdrop-blur-sm sm:right-4 sm:top-4"
-                      title={heroExifTooltip || undefined}
-                    >
-                      {heroExifShort}
-                    </div>
-                  ) : null}
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/35" />
 
                   {bestCuts.length > 1 ? (
                     <>
@@ -442,7 +392,7 @@ export default function HotplaceLiveFeedScreen() {
                       <div className="pointer-events-none absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/25 p-1 text-white/90 backdrop-blur-sm">
                         <span className="material-symbols-outlined text-[22px]">chevron_right</span>
                       </div>
-                      <div className="pointer-events-none absolute bottom-[5.25rem] left-0 right-0 z-10 flex justify-center gap-1.5 sm:bottom-[5.5rem]">
+                      <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-10 flex justify-center gap-1.5">
                         {bestCuts.map((_, i) => (
                           <span
                             key={String(i)}
@@ -457,96 +407,63 @@ export default function HotplaceLiveFeedScreen() {
                   ) : null}
                 </div>
 
-                <div
-                  className="absolute bottom-0 left-0 right-0 z-20 px-3 pb-3 pt-10 sm:px-4 sm:pb-4"
-                  onClick={(e) => e.stopPropagation()}
-                  onPointerDown={(e) => e.stopPropagation()}
-                >
-                  <div className="rounded-2xl border border-white/30 bg-white/93 p-3 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-zinc-900/93">
-                    <div className="flex items-start gap-3">
-                      <div className="relative shrink-0">
-                        {heroAvatarUrl ? (
-                          <img
-                            src={heroAvatarUrl}
-                            alt=""
-                            className="size-11 rounded-full border-2 object-cover shadow-sm"
-                            style={{ borderColor: `${MOCK_PRIMARY}40` }}
-                          />
-                        ) : (
-                          <div
-                            className="flex size-11 items-center justify-center rounded-full border-2 bg-blue-50 font-manrope text-[15px] font-bold text-zinc-700 shadow-sm dark:bg-zinc-800 dark:text-zinc-200"
-                            style={{ borderColor: `${MOCK_PRIMARY}40` }}
-                          >
-                            {getUserNameForPost(heroPost).slice(0, 1)}
-                          </div>
-                        )}
-                        <div className="absolute -bottom-0.5 -right-0.5 flex size-5 items-center justify-center rounded-full bg-amber-400 shadow ring-2 ring-white dark:ring-zinc-900">
-                          <span className="material-symbols-outlined text-[12px] font-bold text-amber-950">star</span>
-                        </div>
-                      </div>
+                <div className="flex items-center gap-3 border-t border-zinc-100 bg-white px-4 py-3.5 dark:border-zinc-700 dark:bg-white">
+                  {heroAvatarUrl ? (
+                    <img
+                      src={heroAvatarUrl}
+                      alt=""
+                      className="size-12 shrink-0 rounded-full bg-zinc-200 object-cover ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-600"
+                    />
+                  ) : (
+                    <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-zinc-900 font-manrope text-[17px] font-bold text-white dark:bg-zinc-950">
+                      {getUserNameForPost(heroPost).slice(0, 1)}
+                    </div>
+                  )}
 
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="font-inter text-[14px] font-bold text-zinc-900 dark:text-zinc-100">
-                            {getUserNameForPost(heroPost)}
-                          </span>
-                          {bestCutAuthorTrustName ? (
-                            <span
-                              className="rounded-md px-1.5 py-0.5 font-inter text-[9px] font-extrabold uppercase tracking-wide text-white"
-                              style={{ backgroundColor: MOCK_PRIMARY }}
-                            >
-                              나침반 {bestCutAuthorTrustName}
-                            </span>
-                          ) : null}
-                          {heroTrustIndex != null ? (
-                            <span className="font-inter text-[10px] font-semibold text-zinc-500 dark:text-zinc-400">
-                              신뢰 {heroTrustIndex}
-                            </span>
-                          ) : null}
-                        </div>
-                        <p className="mt-0.5 line-clamp-2 font-inter text-[11px] leading-snug text-zinc-600 dark:text-zinc-400">
-                          {heroDetailLine}
-                        </p>
-                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-inter text-[10px] font-semibold text-zinc-500 dark:text-zinc-400">
-                          <span className="inline-flex items-center gap-0.5">
-                            <span className="material-symbols-outlined text-[13px] text-rose-500" style={{ fontVariationSettings: '"FILL" 1' }}>
-                              favorite
-                            </span>
-                            {getLikeCount(heroPost)}
-                          </span>
-                          <span className="inline-flex items-center gap-0.5">
-                            <span className="material-symbols-outlined text-[13px]">chat_bubble</span>
-                            {getCommentCount(heroPost)}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex shrink-0 flex-col items-end gap-2">
-                        {showFollowHero ? (
-                          <button
-                            type="button"
-                            onClick={onFollowHero}
-                            className={`rounded-xl px-3 py-1.5 font-inter text-[12px] font-bold transition-colors ${
-                              followHero
-                                ? 'bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100'
-                                : 'text-white'
-                            }`}
-                            style={followHero ? undefined : { backgroundColor: MOCK_PRIMARY }}
-                          >
-                            {followHero ? '팔로잉' : '팔로우'}
-                          </button>
-                        ) : null}
-                        <div className="rounded-xl bg-blue-50 px-2.5 py-1.5 text-right dark:bg-blue-950/40">
-                          <p className="font-inter text-[11px] font-bold leading-none" style={{ color: MOCK_PRIMARY }}>
-                            +{heroPoints}p
-                          </p>
-                          <p className="mt-0.5 font-inter text-[9px] font-medium text-blue-600 dark:text-blue-300">
-                            {heroMedalHint ? '메달 후보' : '라이브 포인트'}
-                          </p>
-                        </div>
-                      </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5">
+                      <span className="font-inter text-[15px] font-bold text-zinc-900 dark:text-zinc-900">
+                        {getUserNameForPost(heroPost)}
+                      </span>
+                      <span className="material-symbols-outlined text-[17px] text-zinc-400 dark:text-zinc-500" aria-hidden>
+                        explore
+                      </span>
+                      <span className="font-inter text-[15px] font-normal text-zinc-900 dark:text-zinc-900">
+                        {heroTrustMeta.regionLabel}
+                        {profileLine1Suffix ? ` ${profileLine1Suffix}` : ''}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-1 text-[13px] leading-snug text-sky-700/90 dark:text-sky-800">
+                      {heroTrustIndex != null ? (
+                        <span className="font-inter font-medium">
+                          신뢰지수 {heroTrustIndex}
+                        </span>
+                      ) : (
+                        <span className="font-inter font-medium text-zinc-500 dark:text-zinc-600">신뢰지수 —</span>
+                      )}
+                      <span className="material-symbols-outlined text-[16px] text-sky-600/70 dark:text-sky-800/80" aria-hidden>
+                        explore
+                      </span>
+                      {heroTrustMeta.grade?.name ? (
+                        <span className="font-inter font-medium">{heroTrustMeta.grade.name}</span>
+                      ) : null}
                     </div>
                   </div>
+
+                  {showFollowHero ? (
+                    <button
+                      type="button"
+                      onClick={onFollowHero}
+                      className={`shrink-0 rounded-xl px-3.5 py-2 font-inter text-[12px] font-bold transition-colors ${
+                        followHero
+                          ? 'bg-zinc-200 text-zinc-800 dark:bg-zinc-200 dark:text-zinc-800'
+                          : 'text-white'
+                      }`}
+                      style={followHero ? undefined : { backgroundColor: MOCK_PRIMARY }}
+                    >
+                      {followHero ? '팔로잉' : '팔로우'}
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </section>
