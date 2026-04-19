@@ -468,7 +468,9 @@ const MagazineDetailScreen = () => {
                   src={heroImage}
                   alt=""
                   className="h-full w-full object-cover"
-                  loading="lazy"
+                  loading="eager"
+                  decoding="async"
+                  fetchPriority="high"
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-gray-400">
@@ -574,7 +576,7 @@ const MagazineDetailScreen = () => {
                         {mainImage && (
                           <div className="mt-2 overflow-hidden rounded-[4px] border border-zinc-100 dark:border-zinc-800 shadow-[0_2px_10px_rgba(15,23,42,0.08)]">
                             <div className="w-full bg-gray-100 dark:bg-gray-800" style={{ aspectRatio: '4/3' }}>
-                              <img src={mainImage} alt="" className="w-full h-full object-cover" loading="lazy" />
+                              <img src={mainImage} alt="" className="w-full h-full object-cover" loading="eager" decoding="async" />
                             </div>
                           </div>
                         )}
@@ -611,7 +613,7 @@ const MagazineDetailScreen = () => {
                                 >
                                   <div className="w-full overflow-hidden rounded-[4px] bg-gray-100 dark:bg-gray-800" style={{ aspectRatio: '4/3' }}>
                                     {l.image ? (
-                                      <img src={l.image} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                      <img src={l.image} alt="" className="w-full h-full object-cover" loading="eager" decoding="async" />
                                     ) : (
                                       <div className="w-full h-full flex items-center justify-center text-gray-300">
                                         <span className="material-symbols-outlined text-[22px]">photo</span>
@@ -699,7 +701,7 @@ const MagazineDetailScreen = () => {
                               style={{ aspectRatio: '4/3' }}
                             >
                               {src ? (
-                                <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                <img src={src} alt="" className="w-full h-full object-cover" loading="eager" decoding="async" />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center text-gray-300">
                                   <span className="material-symbols-outlined text-5xl">image</span>
@@ -709,7 +711,7 @@ const MagazineDetailScreen = () => {
                               {/* 작성자 프로필 (우하단) */}
                               <div className="absolute bottom-2 right-2 z-10 inline-flex items-center gap-1.5 rounded-full bg-black/45 px-2 py-1 text-white backdrop-blur-[6px]">
                                 {sec.author.avatar ? (
-                                  <img src={sec.author.avatar} alt="" className="w-5 h-5 rounded-full object-cover bg-slate-200" />
+                                  <img src={sec.author.avatar} alt="" className="w-5 h-5 rounded-full object-cover bg-slate-200" loading="eager" decoding="async" />
                                 ) : (
                                   <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px] font-extrabold">
                                     {sec.author.username.charAt(0)}
@@ -761,7 +763,7 @@ const MagazineDetailScreen = () => {
                               >
                                 <div className="w-full overflow-hidden rounded-[4px] bg-gray-100 dark:bg-gray-800" style={{ aspectRatio: '4/3' }}>
                                   {l.image ? (
-                                    <img src={l.image} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                    <img src={l.image} alt="" className="w-full h-full object-cover" loading="eager" decoding="async" />
                                   ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-300">
                                       <span className="material-symbols-outlined text-[22px]">photo</span>

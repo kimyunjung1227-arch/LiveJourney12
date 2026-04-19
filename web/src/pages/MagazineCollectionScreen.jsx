@@ -129,7 +129,7 @@ const MagazineCollectionScreen = () => {
                   >
                     <div className="w-[100px] h-[100px] flex-shrink-0 bg-zinc-100 dark:bg-zinc-800 relative">
                       {cover ? (
-                        <img src={cover} alt="" className="w-full h-full object-cover" loading="lazy" />
+                        <img src={cover} alt="" className="w-full h-full object-cover" loading="eager" decoding="async" />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center text-zinc-400">
                           <span className="material-symbols-outlined text-3xl">menu_book</span>

@@ -372,7 +372,7 @@ const CrowdedPlaceScreen = () => {
                                         >
                                             <div className="relative aspect-[16/10] w-full overflow-hidden bg-zinc-100 dark:bg-zinc-800">
                                                 {img ? (
-                                                    <img src={img} alt="" className="h-full w-full object-cover" decoding="async" />
+                                                    <img src={img} alt="" className="h-full w-full object-cover" loading="eager" decoding="async" />
                                                 ) : (
                                                     <div className="flex h-full w-full items-center justify-center text-xs text-zinc-400">
                                                         사진 없음

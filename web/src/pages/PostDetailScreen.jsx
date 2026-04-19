@@ -1178,6 +1178,9 @@ const PostDetailScreen = () => {
                             src={media.url}
                             alt=""
                             className="w-full h-full object-cover"
+                            loading="eager"
+                            decoding="async"
+                            fetchPriority={index === 0 ? 'high' : 'auto'}
                           />
                         )}
                       </div>
@@ -1189,6 +1192,9 @@ const PostDetailScreen = () => {
                         src={image}
                         alt=""
                         className="w-full flex-shrink-0 object-cover"
+                        loading="eager"
+                        decoding="async"
+                        fetchPriority={index === 0 ? 'high' : 'auto'}
                         style={{ height: '60vh', minHeight: '330px' }}
                       />
                     </SwiperSlide>

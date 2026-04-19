@@ -1,5 +1,6 @@
 import React from 'react';
 import { getDisplayImageUrl } from '../api/upload';
+import { IMG_FAST } from '../utils/imgAttrs';
 
 const VIDEO_PLACEHOLDER = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIGZpbGw9IiNlNWU3ZWIiLz48cGF0aCBkPSJNMjQgMTl2MjJsMTYtMTFMMjQgMTl6IiBmaWxsPSIjOWNhOWNhIi8+PC9zdmc+';
 
@@ -24,6 +25,7 @@ export default function PostThumbnail({ post, className = '', style = {}, alt, .
         alt={label}
         className={className}
         style={{ objectFit: 'cover', ...style }}
+        {...IMG_FAST}
         {...props}
       />
     );
@@ -36,6 +38,7 @@ export default function PostThumbnail({ post, className = '', style = {}, alt, .
         alt={label}
         className={className}
         style={{ objectFit: 'cover', ...style }}
+        {...IMG_FAST}
         {...props}
       />
     );

@@ -800,6 +800,9 @@ const MainScreen = () => {
                                             <img
                                                 src={firstImage}
                                                 alt={post.location}
+                                                loading="eager"
+                                                decoding="async"
+                                                fetchPriority="high"
                                                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '14px' }}
                                             />
                                         ) : null}
@@ -982,7 +985,7 @@ const MainScreen = () => {
                                     >
                                         <div style={{ width: 56, height: 56, borderRadius: 12, overflow: 'hidden', background: '#e5e7eb', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                             {cover ? (
-                                                <img src={cover} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                                <img src={cover} alt="" loading="eager" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                                             ) : (
                                                 <span className="material-symbols-outlined" style={{ color: '#94a3b8' }}>photo</span>
                                             )}

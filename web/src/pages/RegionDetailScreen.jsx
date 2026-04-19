@@ -478,7 +478,7 @@ const RegionDetailScreen = () => {
                       columnGap: '7px'
                     }}
                   >
-                    {realtimePhotos.map((photo) => {
+                    {realtimePhotos.map((photo, idx) => {
                       const weather = photo.weather || null;
                       const hasWeather = weather && (weather.icon || weather.temperature);
                       const likedPosts = JSON.parse(localStorage.getItem('likedPosts') || '{}');
@@ -513,6 +513,9 @@ const RegionDetailScreen = () => {
                               <img
                                 src={gridCover.src}
                                 alt={photo.location || region.name}
+                                loading="eager"
+                                decoding="async"
+                                fetchPriority={idx < 4 ? 'high' : 'auto'}
                                 style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                               />
                             ) : (

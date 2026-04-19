@@ -39,7 +39,7 @@ const MagazineFieldVoices = memo(function MagazineFieldVoices({ voices = [], cla
           >
             {v.thumbUrl ? (
               <div className="aspect-[16/10] w-full bg-zinc-200 dark:bg-zinc-800">
-                <img src={v.thumbUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+                <img src={v.thumbUrl} alt="" className="h-full w-full object-cover" loading="eager" decoding="async" />
               </div>
             ) : null}
             <div className="px-3 py-2.5">

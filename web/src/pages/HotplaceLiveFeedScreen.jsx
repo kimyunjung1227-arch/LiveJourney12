@@ -213,7 +213,7 @@ export default function HotplaceLiveFeedScreen() {
                 <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">최근 30분 · 5장</p>
               </div>
               <div className="flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] scrollbar-hide">
-                {recent30m.map((p) => {
+                {recent30m.map((p, ri) => {
                   const cover = getGridCoverDisplay(p, getDisplayImageUrl);
                   const src = cover?.src || (Array.isArray(p.images) ? p.images[0] : p.image) || p.thumbnail || '';
                   const url = src ? getDisplayImageUrl(src) : '';
@@ -224,7 +224,16 @@ export default function HotplaceLiveFeedScreen() {
                       onClick={() => navigate(`/post/${p.id}`, { state: { post: p, allPosts } })}
                       className="relative h-[120px] w-[120px] shrink-0 overflow-hidden rounded-2xl bg-zinc-100 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-700"
                     >
-                      {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : null}
+                      {url ? (
+                        <img
+                          src={url}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          loading="eager"
+                          decoding="async"
+                          fetchPriority={ri < 6 ? 'high' : 'auto'}
+                        />
+                      ) : null}
                     </button>
                   );
                 })}
@@ -256,7 +265,7 @@ export default function HotplaceLiveFeedScreen() {
                   columnGap: '8px',
                 }}
               >
-                {postsForPlace.map((post) => {
+                {postsForPlace.map((post, pi) => {
                   const cover = getGridCoverDisplay(post, getDisplayImageUrl);
                   const exifTag = getExifTagForPost(post);
                   return (
@@ -271,6 +280,9 @@ export default function HotplaceLiveFeedScreen() {
                           <img
                             src={cover.src}
                             alt=""
+                            loading="eager"
+                            decoding="async"
+                            fetchPriority={pi < 4 ? 'high' : 'auto'}
                             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                           />
                         ) : cover?.mode === 'video' && cover.src ? (

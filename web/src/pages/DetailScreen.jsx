@@ -502,6 +502,8 @@ const DetailScreen = () => {
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                             src={item.image}
                             alt={item.location}
+                            loading="eager"
+                            decoding="async"
                           />
                         )}
 

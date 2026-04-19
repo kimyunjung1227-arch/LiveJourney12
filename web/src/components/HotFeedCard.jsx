@@ -194,6 +194,7 @@ const HotFeedCard = ({
                         <img
                             src={String(src).startsWith('data:') ? src : getDisplayImageUrl(src)}
                             alt={title}
+                            loading="eager"
                             decoding="async"
                             fetchPriority="high"
                             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
@@ -229,6 +230,8 @@ const HotFeedCard = ({
                                     key={`${post.id}-av-${ai}`}
                                     src={url}
                                     alt=""
+                                    loading="eager"
+                                    decoding="async"
                                     style={{
                                         width: 26,
                                         height: 26,

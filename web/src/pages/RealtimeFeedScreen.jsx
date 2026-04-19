@@ -224,6 +224,9 @@ const RealtimeFeedScreen = () => {
                       <img
                         src={post.gridCover.src}
                         alt={post.location}
+                        loading="eager"
+                        decoding="async"
+                        fetchPriority={index < 4 ? 'high' : 'auto'}
                         style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                       />
                     ) : post.gridCover?.mode === 'video' && post.gridCover.src ? (

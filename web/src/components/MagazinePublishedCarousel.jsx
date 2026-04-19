@@ -60,7 +60,9 @@ function HeroRotator({ urls, resetKey, timeLabel, hideMedia = false }) {
                     src={src}
                     alt=""
                     className="h-full w-full object-cover"
-                    loading={i === 0 ? 'eager' : 'lazy'}
+                    loading="eager"
+                    decoding="async"
+                    fetchPriority={i === 0 ? 'high' : 'auto'}
                     draggable={false}
                   />
                 </div>
@@ -112,7 +114,7 @@ function AroundRecommendGrid({ items }) {
           >
             <div className="relative h-[52px] w-full bg-zinc-100 dark:bg-zinc-800">
               {ar.image ? (
-                <img src={ar.image} alt="" className="h-full w-full object-cover" loading="lazy" />
+                <img src={ar.image} alt="" className="h-full w-full object-cover" loading="eager" decoding="async" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-zinc-300 dark:text-zinc-600">
                   <span className="material-symbols-outlined text-[20px]">location_on</span>
@@ -244,7 +246,7 @@ function RealtimePostGrid({ posts, onOpenPost, onOpenMain, hideMedia = false }) 
               >
                 <div className="relative aspect-[4/3] bg-zinc-100 dark:bg-zinc-800">
                   {uri ? (
-                    <img src={uri} alt="" className="h-full w-full object-cover" loading="lazy" />
+                    <img src={uri} alt="" className="h-full w-full object-cover" loading="eager" decoding="async" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-zinc-400">
                       <span className="material-symbols-outlined text-3xl">image</span>

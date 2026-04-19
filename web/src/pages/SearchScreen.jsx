@@ -1274,7 +1274,15 @@ const SearchScreen = () => {
                       style={{ width: '160px', minWidth: '160px', maxWidth: '160px', scrollSnapStop: 'always' }}
                     >
                       <div className="relative w-full overflow-hidden" style={{ aspectRatio: '9/10', height: 'auto', borderRadius: '12px', marginBottom: '2px' }}>
-                        <img src={displayImage} alt={card.name} className="w-full h-full object-cover" style={{ display: 'block', borderRadius: '12px' }} />
+                        <img
+                          src={displayImage}
+                          alt={card.name}
+                          className="w-full h-full object-cover"
+                          loading="eager"
+                          decoding="async"
+                          fetchPriority={index < 6 ? 'high' : 'auto'}
+                          style={{ display: 'block', borderRadius: '12px' }}
+                        />
                         {weather && (
                           <span className="absolute top-3 right-3 text-white text-xs font-semibold bg-black/60 backdrop-blur-sm px-2.5 py-1 rounded-lg flex items-center gap-1">
                             <span>{weather.icon}</span>

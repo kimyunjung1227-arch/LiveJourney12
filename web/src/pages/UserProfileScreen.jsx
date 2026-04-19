@@ -625,6 +625,9 @@ const UserProfileScreen = () => {
                       src={user.profileImage}
                       alt="Profile"
                       className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+                      loading="eager"
+                      decoding="async"
+                      fetchPriority="high"
                     />
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
@@ -933,6 +936,9 @@ const UserProfileScreen = () => {
                                     src={getDisplayImageUrl(post.imageUrl || post.images?.[0] || post.image || post.thumbnail)}
                                     alt=""
                                     className="w-full h-full object-cover hover:scale-110 transition-all duration-300"
+                                    loading="eager"
+                                    decoding="async"
+                                    fetchPriority={index < 8 ? 'high' : 'auto'}
                                   />
                                 )}
                               </div>
@@ -987,6 +993,9 @@ const UserProfileScreen = () => {
                               src={getDisplayImageUrl(post.imageUrl || post.images?.[0] || post.image || post.thumbnail)}
                               alt=""
                               className="w-full h-full object-cover"
+                              loading="eager"
+                              decoding="async"
+                              fetchPriority={index < 9 ? 'high' : 'auto'}
                             />
                           )}
                         </div>
@@ -1271,7 +1280,7 @@ const UserProfileScreen = () => {
                           >
                             <div className="w-11 h-11 rounded-full overflow-hidden flex-shrink-0 bg-teal-100 dark:bg-teal-900">
                               {profileImage ? (
-                                <img src={profileImage} alt="" className="w-full h-full object-cover" />
+                                <img src={profileImage} alt="" className="w-full h-full object-cover" loading="eager" decoding="async" />
                               ) : null}
                             </div>
                             <div className="flex-1 min-w-0 flex flex-col items-start gap-1">
@@ -1485,6 +1494,9 @@ const UserProfileScreen = () => {
                   <img
                     src={getDisplayImageUrl(selectedPost.post.images?.[0] || selectedPost.post.imageUrl || selectedPost.post.image || selectedPost.post.thumbnail)}
                     alt={selectedPost.post.location || '여행지'}
+                    loading="eager"
+                    decoding="async"
+                    fetchPriority="high"
                     style={{
                       width: '100%',
                       height: '100%',

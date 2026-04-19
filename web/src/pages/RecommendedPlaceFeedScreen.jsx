@@ -266,7 +266,7 @@ export default function RecommendedPlaceFeedScreen() {
                       }
                     >
                       <div className="w-full aspect-[3/4] max-h-[min(92vh,520px)] overflow-hidden bg-slate-200">
-                        <img src={mediaUrls[0]} alt="" className="w-full h-full object-cover rounded-none" />
+                        <img src={mediaUrls[0]} alt="" className="w-full h-full object-cover rounded-none" loading="eager" decoding="async" fetchPriority="high" />
                       </div>
                     </button>
                   ) : (
@@ -287,7 +287,7 @@ export default function RecommendedPlaceFeedScreen() {
                             }
                           >
                             <div className="w-full aspect-[3/4] max-h-[min(92vh,520px)] overflow-hidden bg-slate-200">
-                              <img src={url} alt="" className="w-full h-full object-cover rounded-none" />
+                              <img src={url} alt="" className="w-full h-full object-cover rounded-none" loading="eager" decoding="async" fetchPriority={i === 0 ? 'high' : 'auto'} />
                             </div>
                           </button>
                         </SwiperSlide>
@@ -305,6 +305,8 @@ export default function RecommendedPlaceFeedScreen() {
                         src={avatarSrc}
                         alt=""
                         className="size-10 rounded-full object-cover shrink-0 bg-slate-100"
+                        loading="eager"
+                        decoding="async"
                       />
                     ) : (
                       <div
