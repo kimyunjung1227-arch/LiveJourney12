@@ -241,6 +241,15 @@ export default function HotplaceLiveFeedScreen() {
     return postsForPlace.filter((p) => String(p.id) !== String(heroPost.id));
   }, [postsForPlace, heroPost]);
 
+  /** 베스트 작가의 다른 게시물(현재 히어로 제외) — 가로 스크롤 썸네일 */
+  const heroAuthorGalleryPosts = useMemo(() => {
+    if (!heroAuthorId || !heroPost?.id) return [];
+    return allPosts
+      .filter((p) => p && getUserIdForPost(p) === heroAuthorId && String(p.id) !== String(heroPost.id))
+      .sort((a, b) => getPostTimeMs(b) - getPostTimeMs(a))
+      .slice(0, 18);
+  }, [allPosts, heroAuthorId, heroPost?.id]);
+
   const onSharePlace = () => {
     const url = typeof window !== 'undefined' ? window.location.href : '';
     const title = displayTitle;
@@ -306,25 +315,25 @@ export default function HotplaceLiveFeedScreen() {
         </button>
       </header>
 
-      <div className="screen-content flex-1 overflow-y-auto pb-24 pt-4">
+      <div className="screen-content flex min-h-0 flex-1 flex-col overflow-y-auto pb-24 pt-3">
         <div className="px-5">
           {heroPost ? (
-            <section className="mb-8" aria-labelledby="best-cut-title">
-              <div className="mb-3 flex items-end justify-between gap-3">
+            <section className="mb-4" aria-labelledby="best-cut-title">
+              <div className="mb-2 flex items-end justify-between gap-2">
                 <div className="min-w-0">
                   <h2
                     id="best-cut-title"
-                    className="font-manrope text-[17px] font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100"
+                    className="font-manrope text-[16px] font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100"
                   >
                     실시간 베스트 컷
                   </h2>
-                  <p className="mt-1 font-inter text-[11px] leading-snug text-zinc-500 dark:text-zinc-400">
-                    48시간 안 반응이 높은 순 · 사진을 좌우로 넘겨 다른 베스트를 볼 수 있어요
+                  <p className="mt-0.5 font-inter text-[10px] leading-snug text-zinc-500 dark:text-zinc-400">
+                    48시간 내 반응 순 · 좌우 스와이프
                   </p>
                 </div>
                 {bestCuts.length > 1 ? (
                   <span
-                    className="shrink-0 rounded-full bg-zinc-100 px-2.5 py-1 font-inter text-[11px] font-bold tabular-nums text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                    className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 font-inter text-[10px] font-bold tabular-nums text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
                     aria-live="polite"
                   >
                     {bestCutIdx + 1} / {bestCuts.length}
@@ -334,10 +343,10 @@ export default function HotplaceLiveFeedScreen() {
 
               <div
                 className="overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-black/5 dark:bg-zinc-900 dark:ring-white/10"
-                style={{ boxShadow: '0 16px 48px rgba(19, 83, 216, 0.12)' }}
+                style={{ boxShadow: '0 12px 36px rgba(19, 83, 216, 0.1)' }}
               >
                 <div
-                  className="relative h-[min(440px,74vh)] w-full bg-zinc-950 sm:h-[440px]"
+                  className="relative h-[min(300px,42svh)] w-full max-h-[46vh] bg-zinc-950 sm:h-[300px] sm:max-h-none"
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
@@ -407,7 +416,7 @@ export default function HotplaceLiveFeedScreen() {
                       <div className="pointer-events-none absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/25 p-1 text-white/90 backdrop-blur-sm">
                         <span className="material-symbols-outlined text-[22px]">chevron_right</span>
                       </div>
-                      <div className="pointer-events-none absolute bottom-[4.25rem] left-0 right-0 z-10 flex justify-center gap-1.5 sm:bottom-[4.5rem]">
+                      <div className="pointer-events-none absolute bottom-[7rem] left-0 right-0 z-10 flex justify-center gap-1.5 sm:bottom-[7.25rem]">
                         {bestCuts.map((_, i) => (
                           <span
                             key={String(i)}
@@ -421,57 +430,57 @@ export default function HotplaceLiveFeedScreen() {
                     </>
                   ) : null}
 
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/80 via-black/45 to-transparent px-3 pb-2.5 pt-10 sm:px-4">
-                    <div className="flex items-end gap-2">
-                      <p className="shrink-0 font-manrope text-[10px] font-extrabold uppercase tracking-wider text-white/95">
-                        오늘의 작가
-                      </p>
-                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black via-black/65 to-transparent px-3 pb-3 pt-14 sm:px-4 sm:pb-3.5 sm:pt-16">
+                    <div className="flex items-end gap-2.5">
+                      <div className="flex shrink-0 flex-col items-center gap-1">
+                        <p className="whitespace-nowrap font-manrope text-[9px] font-extrabold uppercase tracking-[0.12em] text-white/90 drop-shadow-md">
+                          오늘의 작가
+                        </p>
                         {heroAvatarUrl ? (
                           <img
                             src={heroAvatarUrl}
                             alt=""
-                            className="size-8 shrink-0 rounded-full border border-white/30 object-cover shadow-sm"
+                            className="size-14 rounded-full border-[3px] border-white object-cover shadow-xl ring-2 ring-black/20"
                           />
                         ) : (
-                          <div className="flex size-8 shrink-0 items-center justify-center rounded-full border border-white/25 bg-black/40 font-manrope text-[11px] font-bold text-white">
+                          <div className="flex size-14 items-center justify-center rounded-full border-[3px] border-white bg-zinc-900 font-manrope text-lg font-extrabold text-white shadow-xl ring-2 ring-black/25">
                             {getUserNameForPost(heroPost).slice(0, 1)}
                           </div>
                         )}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-x-0.5 gap-y-0 leading-tight">
-                            <span className="font-inter text-[11px] font-bold text-white">
-                              {getUserNameForPost(heroPost)}
-                            </span>
-                            <span className="material-symbols-outlined text-[12px] text-white/55" aria-hidden>
-                              explore
-                            </span>
-                            <span className="font-inter text-[11px] font-normal text-white/95">
-                              {heroTrustMeta.regionLabel}
-                              {profileLine1Suffix ? ` ${profileLine1Suffix}` : ''}
-                            </span>
-                          </div>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-x-0.5 text-[10px] leading-tight text-sky-200/95">
-                            {heroTrustIndex != null ? (
-                              <span className="font-inter font-medium">신뢰지수 {heroTrustIndex}</span>
-                            ) : (
-                              <span className="font-inter font-medium text-white/50">신뢰지수 —</span>
-                            )}
-                            <span className="material-symbols-outlined text-[12px] text-sky-300/80" aria-hidden>
-                              explore
-                            </span>
-                            {heroTrustMeta.grade?.name ? (
-                              <span className="font-inter font-medium">{heroTrustMeta.grade.name}</span>
-                            ) : null}
-                          </div>
+                      </div>
+                      <div className="min-w-0 flex-1 pb-0.5">
+                        <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 leading-tight">
+                          <span className="font-inter text-[14px] font-extrabold tracking-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">
+                            {getUserNameForPost(heroPost)}
+                          </span>
+                          <span className="material-symbols-outlined text-[16px] text-white/70 drop-shadow-md" aria-hidden>
+                            explore
+                          </span>
+                          <span className="font-inter text-[12px] font-semibold text-white/95 drop-shadow-md">
+                            {heroTrustMeta.regionLabel}
+                            {profileLine1Suffix ? ` ${profileLine1Suffix}` : ''}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-1 text-[11px] leading-tight text-sky-100">
+                          {heroTrustIndex != null ? (
+                            <span className="font-inter font-bold drop-shadow-sm">신뢰지수 {heroTrustIndex}</span>
+                          ) : (
+                            <span className="font-inter font-semibold text-white/55">신뢰지수 —</span>
+                          )}
+                          <span className="material-symbols-outlined text-[14px] text-sky-200/90" aria-hidden>
+                            explore
+                          </span>
+                          {heroTrustMeta.grade?.name ? (
+                            <span className="font-inter font-bold">{heroTrustMeta.grade.name}</span>
+                          ) : null}
                         </div>
                       </div>
                       {showFollowHero ? (
                         <button
                           type="button"
                           onClick={onFollowHero}
-                          className={`pointer-events-auto shrink-0 rounded-lg px-2 py-1 font-inter text-[10px] font-bold shadow-sm transition-colors ${
-                            followHero ? 'bg-white/20 text-white' : 'text-white'
+                          className={`pointer-events-auto shrink-0 rounded-xl px-3 py-2 font-inter text-[11px] font-extrabold shadow-lg transition-colors ${
+                            followHero ? 'bg-white/25 text-white ring-1 ring-white/40' : 'text-white ring-2 ring-white/30'
                           }`}
                           style={followHero ? undefined : { backgroundColor: MOCK_PRIMARY }}
                         >
@@ -481,17 +490,54 @@ export default function HotplaceLiveFeedScreen() {
                     </div>
                   </div>
                 </div>
+
+                {heroAuthorGalleryPosts.length > 0 ? (
+                  <div className="border-t border-zinc-200/80 bg-zinc-50/95 px-1.5 py-1.5 dark:border-zinc-700 dark:bg-zinc-900/90">
+                    <div className="mb-1 flex items-center justify-between px-1">
+                      <p className="font-inter text-[10px] font-extrabold text-zinc-700 dark:text-zinc-200">
+                        작가의 다른 사진
+                      </p>
+                      <span className="font-inter text-[9px] font-semibold text-zinc-400 dark:text-zinc-500">
+                        {heroAuthorGalleryPosts.length}장
+                      </span>
+                    </div>
+                    <div className="flex gap-1.5 overflow-x-auto pb-0.5 pl-0.5 pr-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      {heroAuthorGalleryPosts.map((post) => {
+                        const cover = getGridCoverDisplay(post, getDisplayImageUrl);
+                        const src = cover?.src || (Array.isArray(post.images) ? post.images[0] : post.image) || post.thumbnail || '';
+                        const thumb = src ? getDisplayImageUrl(src) : '';
+                        return (
+                          <button
+                            key={String(post.id)}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/post/${post.id}`, { state: { post, allPosts } });
+                            }}
+                            className="relative h-14 w-[3rem] shrink-0 overflow-hidden rounded-lg bg-zinc-200 ring-1 ring-zinc-200/80 transition active:scale-95 dark:bg-zinc-800 dark:ring-zinc-600"
+                          >
+                            {cover?.mode === 'video' && thumb ? (
+                              <video src={thumb} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                            ) : thumb ? (
+                              <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </section>
           ) : null}
 
           <section id="situation-feed-section" aria-labelledby="situation-heading">
-            <div className="mb-5 flex items-center justify-between">
-              <h2 id="situation-heading" className="font-manrope text-lg font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 id="situation-heading" className="font-manrope text-[15px] font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100">
                 지금 이 시각 상황
               </h2>
-              <div className="flex items-center gap-1 font-inter text-[12px] font-bold text-gray-400 dark:text-zinc-500">
-                <span className="material-symbols-outlined text-sm">schedule</span>
+              <div className="flex items-center gap-0.5 font-inter text-[10px] font-bold text-gray-400 dark:text-zinc-500">
+                <span className="material-symbols-outlined text-[14px]">schedule</span>
                 최근 2시간
               </div>
             </div>
@@ -501,7 +547,7 @@ export default function HotplaceLiveFeedScreen() {
             ) : situationPosts.length === 0 ? (
               <p className="py-8 text-center text-sm text-gray-500 dark:text-zinc-400">추가로 표시할 제보가 없어요.</p>
             ) : (
-              <div id="situation-grid" className="grid grid-cols-2 gap-3">
+              <div id="situation-grid" className="grid grid-cols-2 gap-2">
                 {situationPosts.map((post, pi) => {
                   const cover = getGridCoverDisplay(post, getDisplayImageUrl);
                   const tms = getPostTimeMs(post) || Date.now();
