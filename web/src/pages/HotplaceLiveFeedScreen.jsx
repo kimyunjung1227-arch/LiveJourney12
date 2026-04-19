@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { getDisplayImageUrl } from '../api/upload';
-import { getGridCoverDisplay } from '../utils/postMedia';
+import { getGridCoverDisplay, buildMediaItemsFromPost, normalizePostForMedia, isVideoUri } from '../utils/postMedia';
 import { formatExifDate } from '../utils/exifExtractor';
 import { getTimeAgo } from '../utils/timeUtils';
 import { follow, unfollow, isFollowing, getCurrentUserId } from '../utils/followSystem';
@@ -97,6 +97,16 @@ const hasGpsPost = (post) =>
     (post?.latitude != null && post?.longitude != null) ||
     (Array.isArray(post?.coordinates) && post.coordinates.length >= 2)
   );
+
+/** 베스트 컷 메인(그리드 커버와 동일)을 제외한 같은 게시물의 나머지 미디어 */
+const getSiblingMediaItemsForPost = (post) => {
+  const items = buildMediaItemsFromPost(normalizePostForMedia(post));
+  if (items.length <= 1) return [];
+  let mainIdx = items.findIndex((m) => m.type === 'image');
+  if (mainIdx < 0) mainIdx = items.findIndex((m) => m.type === 'video');
+  if (mainIdx < 0) return [];
+  return items.filter((_, i) => i !== mainIdx);
+};
 
 export default function HotplaceLiveFeedScreen() {
   const navigate = useNavigate();
@@ -241,14 +251,8 @@ export default function HotplaceLiveFeedScreen() {
     return postsForPlace.filter((p) => String(p.id) !== String(heroPost.id));
   }, [postsForPlace, heroPost]);
 
-  /** 베스트 작가의 다른 게시물(현재 히어로 제외) — 가로 스크롤 썸네일 */
-  const heroAuthorGalleryPosts = useMemo(() => {
-    if (!heroAuthorId || !heroPost?.id) return [];
-    return allPosts
-      .filter((p) => p && getUserIdForPost(p) === heroAuthorId && String(p.id) !== String(heroPost.id))
-      .sort((a, b) => getPostTimeMs(b) - getPostTimeMs(a))
-      .slice(0, 18);
-  }, [allPosts, heroAuthorId, heroPost?.id]);
+  /** 베스트 컷으로 선정된 게시물 안의 다른 사진·동영상 — 가로 스크롤 썸네일 */
+  const heroPostSiblingMedia = useMemo(() => getSiblingMediaItemsForPost(heroPost), [heroPost]);
 
   const onSharePlace = () => {
     const url = typeof window !== 'undefined' ? window.location.href : '';
@@ -363,14 +367,22 @@ export default function HotplaceLiveFeedScreen() {
                 >
                   {(() => {
                     const p = heroPost;
-                    const cover = getGridCoverDisplay(p, getDisplayImageUrl);
-                    const src = cover?.src || (Array.isArray(p.images) ? p.images[0] : p.image) || p.thumbnail || '';
-                    const url = src ? getDisplayImageUrl(src) : '';
-                    const isVideo = cover?.mode === 'video' && url;
+                    const cover = getGridCoverDisplay(p, (u) => u);
+                    const rawSrc =
+                      cover?.src ||
+                      (Array.isArray(p.images) ? p.images[0] : p.image) ||
+                      p.thumbnail ||
+                      '';
+                    const isVideo = cover?.mode === 'video' || (rawSrc && isVideoUri(rawSrc));
+                    const url = rawSrc
+                      ? isVideo
+                        ? getDisplayImageUrl(rawSrc)
+                        : getDisplayImageUrl(rawSrc, { hero: true })
+                      : '';
                     return isVideo ? (
                       <video
                         src={url}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-cover [transform:translateZ(0)]"
                         muted
                         playsInline
                         preload="metadata"
@@ -381,17 +393,18 @@ export default function HotplaceLiveFeedScreen() {
                       <img
                         src={url}
                         alt=""
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-cover [transform:translateZ(0)]"
                         loading="eager"
                         decoding="async"
                         fetchPriority="high"
+                        sizes="100vw"
                       />
                     ) : (
                       <div className="h-full w-full bg-zinc-700" />
                     );
                   })()}
 
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/55" />
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/8 via-transparent to-black/30" />
 
                   <div className="pointer-events-none absolute left-3 top-3 z-10 sm:left-4 sm:top-4">
                     <div
@@ -416,7 +429,7 @@ export default function HotplaceLiveFeedScreen() {
                       <div className="pointer-events-none absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/25 p-1 text-white/90 backdrop-blur-sm">
                         <span className="material-symbols-outlined text-[22px]">chevron_right</span>
                       </div>
-                      <div className="pointer-events-none absolute bottom-[7rem] left-0 right-0 z-10 flex justify-center gap-1.5 sm:bottom-[7.25rem]">
+                      <div className="pointer-events-none absolute bottom-[4.75rem] left-0 right-0 z-10 flex justify-center gap-1.5 sm:bottom-[5rem]">
                         {bestCuts.map((_, i) => (
                           <span
                             key={String(i)}
@@ -430,44 +443,42 @@ export default function HotplaceLiveFeedScreen() {
                     </>
                   ) : null}
 
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black via-black/65 to-transparent px-3 pb-3 pt-14 sm:px-4 sm:pb-3.5 sm:pt-16">
-                    <div className="flex items-end gap-2.5">
-                      <div className="flex shrink-0 flex-col items-center gap-1">
-                        <p className="whitespace-nowrap font-manrope text-[9px] font-extrabold uppercase tracking-[0.12em] text-white/90 drop-shadow-md">
-                          오늘의 작가
-                        </p>
-                        {heroAvatarUrl ? (
-                          <img
-                            src={heroAvatarUrl}
-                            alt=""
-                            className="size-14 rounded-full border-[3px] border-white object-cover shadow-xl ring-2 ring-black/20"
-                          />
-                        ) : (
-                          <div className="flex size-14 items-center justify-center rounded-full border-[3px] border-white bg-zinc-900 font-manrope text-lg font-extrabold text-white shadow-xl ring-2 ring-black/25">
-                            {getUserNameForPost(heroPost).slice(0, 1)}
-                          </div>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1 pb-0.5">
-                        <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 leading-tight">
-                          <span className="font-inter text-[14px] font-extrabold tracking-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/95 via-black/45 to-transparent px-3 pb-2.5 pt-7 sm:px-4 sm:pb-3 sm:pt-8">
+                    <div className="flex items-center gap-2 sm:gap-2.5">
+                      {heroAvatarUrl ? (
+                        <img
+                          src={heroAvatarUrl}
+                          alt=""
+                          className="size-9 shrink-0 rounded-full border-2 border-white object-cover shadow-md ring-1 ring-black/15"
+                        />
+                      ) : (
+                        <div className="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-white bg-zinc-900 font-manrope text-sm font-extrabold text-white shadow-md ring-1 ring-black/20">
+                          {getUserNameForPost(heroPost).slice(0, 1)}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0 leading-tight">
+                          <span className="font-manrope text-[9px] font-extrabold uppercase tracking-[0.1em] text-white/75">
+                            오늘의 작가
+                          </span>
+                          <span className="font-inter text-[13px] font-extrabold tracking-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.75)]">
                             {getUserNameForPost(heroPost)}
                           </span>
-                          <span className="material-symbols-outlined text-[16px] text-white/70 drop-shadow-md" aria-hidden>
+                          <span className="material-symbols-outlined text-[15px] text-white/65" aria-hidden>
                             explore
                           </span>
-                          <span className="font-inter text-[12px] font-semibold text-white/95 drop-shadow-md">
+                          <span className="font-inter text-[11px] font-semibold text-white/90">
                             {heroTrustMeta.regionLabel}
                             {profileLine1Suffix ? ` ${profileLine1Suffix}` : ''}
                           </span>
                         </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-1 text-[11px] leading-tight text-sky-100">
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-1 text-[10px] leading-tight text-sky-100/95">
                           {heroTrustIndex != null ? (
-                            <span className="font-inter font-bold drop-shadow-sm">신뢰지수 {heroTrustIndex}</span>
+                            <span className="font-inter font-bold">신뢰지수 {heroTrustIndex}</span>
                           ) : (
                             <span className="font-inter font-semibold text-white/55">신뢰지수 —</span>
                           )}
-                          <span className="material-symbols-outlined text-[14px] text-sky-200/90" aria-hidden>
+                          <span className="material-symbols-outlined text-[13px] text-sky-200/85" aria-hidden>
                             explore
                           </span>
                           {heroTrustMeta.grade?.name ? (
@@ -479,7 +490,7 @@ export default function HotplaceLiveFeedScreen() {
                         <button
                           type="button"
                           onClick={onFollowHero}
-                          className={`pointer-events-auto shrink-0 rounded-xl px-3 py-2 font-inter text-[11px] font-extrabold shadow-lg transition-colors ${
+                          className={`pointer-events-auto shrink-0 rounded-lg px-2.5 py-1.5 font-inter text-[10px] font-extrabold shadow-md transition-colors ${
                             followHero ? 'bg-white/25 text-white ring-1 ring-white/40' : 'text-white ring-2 ring-white/30'
                           }`}
                           style={followHero ? undefined : { backgroundColor: MOCK_PRIMARY }}
@@ -491,35 +502,41 @@ export default function HotplaceLiveFeedScreen() {
                   </div>
                 </div>
 
-                {heroAuthorGalleryPosts.length > 0 ? (
+                {heroPostSiblingMedia.length > 0 ? (
                   <div className="border-t border-zinc-200/80 bg-zinc-50/95 px-1.5 py-1.5 dark:border-zinc-700 dark:bg-zinc-900/90">
                     <div className="mb-1 flex items-center justify-between px-1">
                       <p className="font-inter text-[10px] font-extrabold text-zinc-700 dark:text-zinc-200">
-                        작가의 다른 사진
+                        이 게시물의 다른 사진
                       </p>
                       <span className="font-inter text-[9px] font-semibold text-zinc-400 dark:text-zinc-500">
-                        {heroAuthorGalleryPosts.length}장
+                        {heroPostSiblingMedia.length}장
                       </span>
                     </div>
                     <div className="flex gap-1.5 overflow-x-auto pb-0.5 pl-0.5 pr-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                      {heroAuthorGalleryPosts.map((post) => {
-                        const cover = getGridCoverDisplay(post, getDisplayImageUrl);
-                        const src = cover?.src || (Array.isArray(post.images) ? post.images[0] : post.image) || post.thumbnail || '';
-                        const thumb = src ? getDisplayImageUrl(src) : '';
+                      {heroPostSiblingMedia.map((m, mi) => {
+                        const poster =
+                          m.type === 'image'
+                            ? getDisplayImageUrl(m.uri)
+                            : m.posterUri
+                              ? getDisplayImageUrl(m.posterUri)
+                              : '';
+                        const videoSrc = m.type === 'video' ? getDisplayImageUrl(m.uri) : '';
+                        const showVideoThumb = m.type === 'video' && videoSrc && !poster;
                         return (
                           <button
-                            key={String(post.id)}
+                            key={`${m.type}-${m.uri}-${mi}`}
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`/post/${post.id}`, { state: { post, allPosts } });
+                              if (!heroPost?.id) return;
+                              navigate(`/post/${heroPost.id}`, { state: { post: heroPost, allPosts } });
                             }}
                             className="relative h-14 w-[3rem] shrink-0 overflow-hidden rounded-lg bg-zinc-200 ring-1 ring-zinc-200/80 transition active:scale-95 dark:bg-zinc-800 dark:ring-zinc-600"
                           >
-                            {cover?.mode === 'video' && thumb ? (
-                              <video src={thumb} muted playsInline preload="metadata" className="h-full w-full object-cover" />
-                            ) : thumb ? (
-                              <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                            {showVideoThumb ? (
+                              <video src={videoSrc} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                            ) : poster ? (
+                              <img src={poster} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
                             ) : null}
                           </button>
                         );

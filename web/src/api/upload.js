@@ -74,12 +74,24 @@ function supabaseFeedMaxWidthPx() {
   return Math.min(840, Math.round(cssW * dpr));
 }
 
+/** 베스트 컷 풀폭 히어로 등 — DPR 반영해 변환 시 더 높은 폭·품질 */
+function supabaseHeroMaxWidthPx() {
+  if (typeof window === 'undefined') return 1680;
+  const cssW = window.innerWidth || 1024;
+  const dpr = typeof window.devicePixelRatio === 'number' ? Math.min(2.5, window.devicePixelRatio) : 1;
+  return Math.min(2048, Math.round(cssW * dpr));
+}
+
 /**
  * Supabase Storage 공개 이미지 → Image Transformation(render) URL (용량·디코딩 시간 단축)
  * @see https://supabase.com/docs/guides/storage/serving/image-transformations
  * 기본 OFF(무료 플랜 호환). Pro 등에서 켤 때: VITE_SUPABASE_IMAGE_TRANSFORM=true
  */
-function applySupabaseImageResize(absoluteUrl) {
+/**
+ * @param {{ hero?: boolean, maxWidth?: number, quality?: number }} [opts]
+ * - hero: 베스트 컷 등 대형 표시용(더 넓은 width·높은 quality)
+ */
+function applySupabaseImageResize(absoluteUrl, opts) {
   if (!absoluteUrl || absoluteUrl.startsWith('data:')) return absoluteUrl;
   if (typeof import.meta === 'undefined' || String(import.meta.env?.VITE_SUPABASE_IMAGE_TRANSFORM || '').trim() !== 'true') {
     return absoluteUrl;
@@ -100,15 +112,28 @@ function applySupabaseImageResize(absoluteUrl) {
     u.searchParams.forEach((v, k) => {
       out.searchParams.set(k, v);
     });
-    out.searchParams.set('width', String(supabaseFeedMaxWidthPx()));
-    out.searchParams.set('quality', '80');
+    const widthPx =
+      typeof opts?.maxWidth === 'number' && opts.maxWidth > 0
+        ? opts.maxWidth
+        : opts?.hero
+          ? supabaseHeroMaxWidthPx()
+          : supabaseFeedMaxWidthPx();
+    const quality =
+      typeof opts?.quality === 'number' && opts.quality > 0 && opts.quality <= 100
+        ? opts.quality
+        : opts?.hero
+          ? 90
+          : 80;
+    out.searchParams.set('width', String(widthPx));
+    out.searchParams.set('quality', String(quality));
     return out.toString();
   } catch {
     return absoluteUrl;
   }
 }
 
-export const getDisplayImageUrl = (url) => {
+/** @param {{ hero?: boolean, maxWidth?: number, quality?: number }} [opts] */
+export const getDisplayImageUrl = (url, opts) => {
   if (url == null) return '';
   const raw = typeof url === 'string' ? url : (url.url || url.src || url.href || '');
   if (!raw || typeof raw !== 'string') return '';
@@ -128,7 +153,7 @@ export const getDisplayImageUrl = (url) => {
     resolved = trimmed;
   }
 
-  return applySupabaseImageResize(resolved);
+  return applySupabaseImageResize(resolved, opts);
 };
 
 // 이미지를 Base64로 변환
