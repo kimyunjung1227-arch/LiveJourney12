@@ -3,14 +3,6 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { getDisplayImageUrl } from '../api/upload';
 import { getGridCoverDisplay } from '../utils/postMedia';
 import { formatExifDate } from '../utils/exifExtractor';
-import {
-  feedGridCardBoxFlat,
-  feedGridImageBoxFlat,
-  feedGridInfoBox,
-  feedGridTitleStyle,
-  feedGridDescStyle,
-  feedGridMetaRow,
-} from '../utils/feedGridCardStyles';
 
 const getPostTimeMs = (post) => {
   const raw = post?.timestamp || post?.createdAt || post?.time || post?.photoDate;
@@ -270,7 +262,7 @@ export default function HotplaceLiveFeedScreen() {
                 <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{bestCutsRangeLabel}</span>
               </div>
 
-              <div className="mx-auto w-full max-w-[260px]">
+              <div className="-mx-4 w-[calc(100%+2rem)]">
                 <button
                   type="button"
                   onPointerDown={onBestCutPointerDown}
@@ -283,7 +275,7 @@ export default function HotplaceLiveFeedScreen() {
                     }
                     navigate(`/post/${bestCutActive.id}`, { state: { post: bestCutActive, allPosts } });
                   }}
-                  className="relative block h-[200px] w-full overflow-hidden rounded-xl bg-zinc-100 dark:bg-zinc-800"
+                  className="relative block aspect-[4/5] w-full max-h-[min(78vh,560px)] overflow-hidden rounded-none bg-zinc-100 dark:bg-zinc-800"
                   aria-label={bestCuts.length > 1 ? '베스트 컷, 좌우로 밀어 넘기기' : '베스트 컷'}
                 >
                     {(() => {
@@ -414,33 +406,35 @@ export default function HotplaceLiveFeedScreen() {
             {postsForPlace.length === 0 ? (
               <div className="py-12 text-center text-sm text-zinc-500 dark:text-zinc-400">표시할 게시물이 없어요.</div>
             ) : (
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                  rowGap: '8px',
-                  columnGap: '8px',
-                }}
-              >
+              <div className="-mx-4 flex w-[calc(100%+2rem)] flex-col">
                 {postsForPlace.map((post, pi) => {
                   const cover = getGridCoverDisplay(post, getDisplayImageUrl);
                   const exifTag = getExifTagForPost(post);
+                  const tms = getPostTimeMs(post) || Date.now();
+                  const timeLabel = (() => {
+                    const d = new Date(tms);
+                    const now = new Date();
+                    const isToday = d.toDateString() === now.toDateString();
+                    const clock = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+                    if (isToday) return `오늘 ${clock}`;
+                    return d.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+                  })();
                   return (
                     <div
                       key={String(post.id)}
                       onClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts } })}
-                      style={{ ...feedGridCardBoxFlat, cursor: 'pointer', display: 'flex', flexDirection: 'column' }}
+                      className="cursor-pointer border-b border-zinc-200 bg-background-light dark:border-zinc-800 dark:bg-background-dark"
                       role="presentation"
                     >
-                      <div style={feedGridImageBoxFlat}>
+                      <div className="relative aspect-[4/5] w-full overflow-hidden bg-zinc-200 dark:bg-zinc-800">
                         {cover?.mode === 'img' && cover.src ? (
                           <img
                             src={cover.src}
                             alt=""
-                            loading="eager"
+                            loading={pi < 3 ? 'eager' : 'lazy'}
                             decoding="async"
                             fetchPriority={pi < 4 ? 'high' : 'auto'}
-                            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                            className="absolute inset-0 size-full object-cover"
                           />
                         ) : cover?.mode === 'video' && cover.src ? (
                           <video
@@ -448,26 +442,30 @@ export default function HotplaceLiveFeedScreen() {
                             muted
                             playsInline
                             preload="metadata"
-                            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                            className="absolute inset-0 size-full object-cover"
                           />
                         ) : null}
                         {hasExifForPost(post) && exifTag ? (
                           <div
-                            className="absolute left-2 top-2 z-[2] max-w-[92%] rounded-full border px-2 py-1 text-[10px] font-extrabold truncate"
+                            className="absolute left-2 top-2 z-[2] max-w-[92%] rounded-full border px-2 py-1 text-[10px] font-extrabold truncate dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-100"
                             style={{ borderColor: 'rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.14)', color: '#064e3b' }}
                             title={exifTag.title || exifTag.text}
                           >
                             {exifTag.text}
                           </div>
                         ) : null}
+                        <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/45 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-[2px]">
+                          {timeLabel}
+                        </div>
                       </div>
 
-                      <div style={feedGridInfoBox}>
-                        <div style={feedGridTitleStyle}>{getUserNameForPost(post)}</div>
-                        {(post.content || post.note) && <div style={feedGridDescStyle}>{post.content || post.note}</div>}
-                        <div style={feedGridMetaRow}>
-                          <span>{new Date(getPostTimeMs(post) || Date.now()).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span>
-                          <span className="truncate">{String(post.location || '').trim()}</span>
+                      <div className="px-4 pb-5 pt-3">
+                        <div className="text-[13px] font-bold text-zinc-900 dark:text-zinc-100">{getUserNameForPost(post)}</div>
+                        {(post.content || post.note) && (
+                          <div className="mt-1 line-clamp-2 text-[12px] leading-snug text-zinc-600 dark:text-zinc-300">{post.content || post.note}</div>
+                        )}
+                        <div className="mt-1.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+                          <span className="block truncate">{String(post.location || post.placeName || '').trim()}</span>
                         </div>
                       </div>
                     </div>
