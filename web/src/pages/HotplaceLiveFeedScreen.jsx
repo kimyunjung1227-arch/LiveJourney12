@@ -382,7 +382,22 @@ export default function HotplaceLiveFeedScreen() {
                     );
                   })()}
 
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/35" />
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/55" />
+
+                  <div className="pointer-events-none absolute left-3 top-3 z-10 sm:left-4 sm:top-4">
+                    <div
+                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-inter text-[10px] font-extrabold tracking-wide text-white shadow-md"
+                      style={{
+                        background: `linear-gradient(135deg, ${MOCK_PRIMARY} 0%, #0c3a9e 100%)`,
+                        boxShadow: '0 4px 14px rgba(19, 83, 216, 0.4)',
+                      }}
+                    >
+                      <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: '"FILL" 1' }}>
+                        workspace_premium
+                      </span>
+                      베스트
+                    </div>
+                  </div>
 
                   {bestCuts.length > 1 ? (
                     <>
@@ -392,7 +407,7 @@ export default function HotplaceLiveFeedScreen() {
                       <div className="pointer-events-none absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/25 p-1 text-white/90 backdrop-blur-sm">
                         <span className="material-symbols-outlined text-[22px]">chevron_right</span>
                       </div>
-                      <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-10 flex justify-center gap-1.5">
+                      <div className="pointer-events-none absolute bottom-[4.25rem] left-0 right-0 z-10 flex justify-center gap-1.5 sm:bottom-[4.5rem]">
                         {bestCuts.map((_, i) => (
                           <span
                             key={String(i)}
@@ -405,65 +420,66 @@ export default function HotplaceLiveFeedScreen() {
                       </div>
                     </>
                   ) : null}
-                </div>
 
-                <div className="flex items-center gap-3 border-t border-zinc-100 bg-white px-4 py-3.5 dark:border-zinc-700 dark:bg-white">
-                  {heroAvatarUrl ? (
-                    <img
-                      src={heroAvatarUrl}
-                      alt=""
-                      className="size-12 shrink-0 rounded-full bg-zinc-200 object-cover ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-600"
-                    />
-                  ) : (
-                    <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-zinc-900 font-manrope text-[17px] font-bold text-white dark:bg-zinc-950">
-                      {getUserNameForPost(heroPost).slice(0, 1)}
-                    </div>
-                  )}
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5">
-                      <span className="font-inter text-[15px] font-bold text-zinc-900 dark:text-zinc-900">
-                        {getUserNameForPost(heroPost)}
-                      </span>
-                      <span className="material-symbols-outlined text-[17px] text-zinc-400 dark:text-zinc-500" aria-hidden>
-                        explore
-                      </span>
-                      <span className="font-inter text-[15px] font-normal text-zinc-900 dark:text-zinc-900">
-                        {heroTrustMeta.regionLabel}
-                        {profileLine1Suffix ? ` ${profileLine1Suffix}` : ''}
-                      </span>
-                    </div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-1 text-[13px] leading-snug text-sky-700/90 dark:text-sky-800">
-                      {heroTrustIndex != null ? (
-                        <span className="font-inter font-medium">
-                          신뢰지수 {heroTrustIndex}
-                        </span>
-                      ) : (
-                        <span className="font-inter font-medium text-zinc-500 dark:text-zinc-600">신뢰지수 —</span>
-                      )}
-                      <span className="material-symbols-outlined text-[16px] text-sky-600/70 dark:text-sky-800/80" aria-hidden>
-                        explore
-                      </span>
-                      {heroTrustMeta.grade?.name ? (
-                        <span className="font-inter font-medium">{heroTrustMeta.grade.name}</span>
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/80 via-black/45 to-transparent px-3 pb-2.5 pt-10 sm:px-4">
+                    <div className="flex items-end gap-2">
+                      <p className="shrink-0 font-manrope text-[10px] font-extrabold uppercase tracking-wider text-white/95">
+                        오늘의 작가
+                      </p>
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        {heroAvatarUrl ? (
+                          <img
+                            src={heroAvatarUrl}
+                            alt=""
+                            className="size-8 shrink-0 rounded-full border border-white/30 object-cover shadow-sm"
+                          />
+                        ) : (
+                          <div className="flex size-8 shrink-0 items-center justify-center rounded-full border border-white/25 bg-black/40 font-manrope text-[11px] font-bold text-white">
+                            {getUserNameForPost(heroPost).slice(0, 1)}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-x-0.5 gap-y-0 leading-tight">
+                            <span className="font-inter text-[11px] font-bold text-white">
+                              {getUserNameForPost(heroPost)}
+                            </span>
+                            <span className="material-symbols-outlined text-[12px] text-white/55" aria-hidden>
+                              explore
+                            </span>
+                            <span className="font-inter text-[11px] font-normal text-white/95">
+                              {heroTrustMeta.regionLabel}
+                              {profileLine1Suffix ? ` ${profileLine1Suffix}` : ''}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-0.5 text-[10px] leading-tight text-sky-200/95">
+                            {heroTrustIndex != null ? (
+                              <span className="font-inter font-medium">신뢰지수 {heroTrustIndex}</span>
+                            ) : (
+                              <span className="font-inter font-medium text-white/50">신뢰지수 —</span>
+                            )}
+                            <span className="material-symbols-outlined text-[12px] text-sky-300/80" aria-hidden>
+                              explore
+                            </span>
+                            {heroTrustMeta.grade?.name ? (
+                              <span className="font-inter font-medium">{heroTrustMeta.grade.name}</span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                      {showFollowHero ? (
+                        <button
+                          type="button"
+                          onClick={onFollowHero}
+                          className={`pointer-events-auto shrink-0 rounded-lg px-2 py-1 font-inter text-[10px] font-bold shadow-sm transition-colors ${
+                            followHero ? 'bg-white/20 text-white' : 'text-white'
+                          }`}
+                          style={followHero ? undefined : { backgroundColor: MOCK_PRIMARY }}
+                        >
+                          {followHero ? '팔로잉' : '팔로우'}
+                        </button>
                       ) : null}
                     </div>
                   </div>
-
-                  {showFollowHero ? (
-                    <button
-                      type="button"
-                      onClick={onFollowHero}
-                      className={`shrink-0 rounded-xl px-3.5 py-2 font-inter text-[12px] font-bold transition-colors ${
-                        followHero
-                          ? 'bg-zinc-200 text-zinc-800 dark:bg-zinc-200 dark:text-zinc-800'
-                          : 'text-white'
-                      }`}
-                      style={followHero ? undefined : { backgroundColor: MOCK_PRIMARY }}
-                    >
-                      {followHero ? '팔로잉' : '팔로우'}
-                    </button>
-                  ) : null}
                 </div>
               </div>
             </section>
