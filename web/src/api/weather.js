@@ -101,16 +101,24 @@ const fetchWithRetry = async (url, signal, retries = MAX_RETRIES, fetchInit = {}
 function buildKmaProxyUrlList(searchParams) {
   const q = searchParams.toString();
   const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim().replace(/\/+$/, '');
+  const anonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
   const edgeUrl = supabaseUrl ? `${supabaseUrl}/functions/v1/kma-ultra-ncst?${q}` : null;
 
   const nodeUrl = getFetchApiUrl(`/api/proxy/kma/ultra-srt-ncst?${q}`);
   const hasExplicitNodeApi = String(import.meta.env.VITE_API_URL || '').trim() !== '';
 
   const list = [];
-  const useEdge =
+  const wantEdge =
     edgeUrl && String(import.meta.env.VITE_WEATHER_USE_SUPABASE || 'true').trim() !== 'false';
-  if (useEdge) {
-    list.push(edgeUrl);
+  // Edge 게이트웨이는 Authorization + apikey(anon) 필수 — 없으면 UNAUTHORIZED_NO_AUTH_HEADER
+  if (wantEdge && edgeUrl) {
+    if (anonKey) {
+      list.push(edgeUrl);
+    } else {
+      logger.warn(
+        'VITE_SUPABASE_ANON_KEY 가 없어 Supabase Edge 날씨 호출을 건너뜁니다. 웹 빌드/호스팅 환경 변수에 anon 키를 넣으세요.'
+      );
+    }
   }
   if (import.meta.env.DEV || hasExplicitNodeApi) {
     if (!list.includes(nodeUrl)) list.push(nodeUrl);
@@ -124,7 +132,14 @@ function buildKmaProxyUrlList(searchParams) {
 function buildKmaFetchInit(fullUrl) {
   const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim().replace(/\/+$/, '');
   const anon = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
-  if (!supabaseUrl || !anon || !String(fullUrl).startsWith(supabaseUrl)) return {};
+  if (!supabaseUrl || !anon) return {};
+  try {
+    const u = new URL(fullUrl);
+    const base = new URL(supabaseUrl.includes('://') ? supabaseUrl : `https://${supabaseUrl}`);
+    if (u.host !== base.host) return {};
+  } catch {
+    if (!String(fullUrl).startsWith(supabaseUrl)) return {};
+  }
   return {
     headers: {
       Authorization: `Bearer ${anon}`,
