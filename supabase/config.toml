@@ -1,3 +1,7 @@
 # Supabase 프로젝트 (Reference ID — 공개 저장소에 있어도 무방)
 # CLI: npx supabase@latest functions deploy --project-ref …
 project_id = "donxoyznlahewufadamu"
+
+# 브라우저 프리플라이트(OPTIONS) 시 게이트웨이 JWT 검사로 CORS가 깨지는 것을 줄이기 위해 공개 프록시로 둠(실제 기상청 키는 Edge 시크릿만).
+[functions.kma-ultra-ncst]
+verify_jwt = false

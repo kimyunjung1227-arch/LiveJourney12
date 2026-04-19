@@ -28,7 +28,7 @@ Write-Host "  npx supabase@latest secrets set --project-ref $ProjectRef KMA_API_
 Write-Host ""
 
 Write-Host "=== functions deploy kma-ultra-ncst ===" -ForegroundColor Cyan
-npx --yes supabase@latest functions deploy kma-ultra-ncst --project-ref $ProjectRef
+npx --yes supabase@latest functions deploy kma-ultra-ncst --project-ref $ProjectRef --no-verify-jwt
 
 Write-Host ""
 Write-Host "완료." -ForegroundColor Green

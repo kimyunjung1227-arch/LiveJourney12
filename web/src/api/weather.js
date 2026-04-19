@@ -1,5 +1,4 @@
-// 날씨: Supabase Edge `kma-ultra-ncst` 우선(배포가 Supabase만 쓸 때). Edge 시크릿에 KMA_API_KEY.
-// 로컬 또는 VITE_API_URL 로 Express를 쓰는 경우에만 Node `/api/proxy/kma/*` 후보에 포함.
+// 날씨: 동일 출처 `/api/proxy/kma/*` 우선(Vercel → Render 등). 실패 시 Supabase Edge 폴백.
 import { getCoordinatesByRegion } from '../utils/regionCoordinates';
 import { logger } from '../utils/logger';
 import { getFetchApiUrl } from '../utils/apiBase';
@@ -95,8 +94,8 @@ const fetchWithRetry = async (url, signal, retries = MAX_RETRIES, fetchInit = {}
 };
 
 /**
- * Supabase URL이 있으면 Edge를 1순위(서버 없이 기상청 키는 Edge 시크릿만).
- * Node 프록시는 로컬(dev) 또는 VITE_API_URL 로 별도 백엔드를 둔 경우에만 후보에 넣음.
+ * 1) 동일 출처 `/api/proxy/kma/*` 먼저 — Vercel `vercel.json`이 `/api`를 Render 등으로 넘기면 브라우저는 livejourney.co.kr 에만 요청(CORS 없음).
+ * 2) 실패 시 Supabase Edge 폴백(anon + 헤더). Edge는 배포 시 `--no-verify-jwt` 권장.
  */
 function buildKmaProxyUrlList(searchParams) {
   const q = searchParams.toString();
@@ -105,26 +104,18 @@ function buildKmaProxyUrlList(searchParams) {
   const edgeUrl = supabaseUrl ? `${supabaseUrl}/functions/v1/kma-ultra-ncst?${q}` : null;
 
   const nodeUrl = getFetchApiUrl(`/api/proxy/kma/ultra-srt-ncst?${q}`);
-  const hasExplicitNodeApi = String(import.meta.env.VITE_API_URL || '').trim() !== '';
 
   const list = [];
+  list.push(nodeUrl);
+
   const wantEdge =
     edgeUrl && String(import.meta.env.VITE_WEATHER_USE_SUPABASE || 'true').trim() !== 'false';
-  // Edge 게이트웨이는 Authorization + apikey(anon) 필수 — 없으면 UNAUTHORIZED_NO_AUTH_HEADER
-  if (wantEdge && edgeUrl) {
-    if (anonKey) {
-      list.push(edgeUrl);
-    } else {
-      logger.warn(
-        'VITE_SUPABASE_ANON_KEY 가 없어 Supabase Edge 날씨 호출을 건너뜁니다. 웹 빌드/호스팅 환경 변수에 anon 키를 넣으세요.'
-      );
-    }
-  }
-  if (import.meta.env.DEV || hasExplicitNodeApi) {
-    if (!list.includes(nodeUrl)) list.push(nodeUrl);
-  }
-  if (list.length === 0) {
-    list.push(nodeUrl);
+  if (wantEdge && edgeUrl && anonKey) {
+    if (!list.includes(edgeUrl)) list.push(edgeUrl);
+  } else if (wantEdge && edgeUrl && !anonKey) {
+    logger.warn(
+      'VITE_SUPABASE_ANON_KEY 없음 — Edge 폴백 생략. 웹 호스팅 환경 변수를 확인하세요.'
+    );
   }
   return list;
 }
