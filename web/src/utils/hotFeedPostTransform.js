@@ -1,5 +1,6 @@
 import { getDisplayImageUrl } from '../api/upload';
 import { getTimeAgo, filterRecentPosts } from './timeUtils';
+import { normalizePlaceIdentityKey } from './placeKeyNormalize';
 
 /** 메인 실시간 핫플과 동일한 시드 기반 수치 (급상승 % 등) */
 export function deterministicHashRange(seed, min, max) {
@@ -43,6 +44,13 @@ export function getPlaceKeyForHotStats(post) {
   return post.location || post.placeName || post.detailedLocation || '기록';
 }
 
+/** buildPlaceStatsMap / transformPostForHotFeed 집계용 — 표기 공백 차이 통합 */
+export function getPlaceStatsAggregationKey(post) {
+  const raw = String(getPlaceKeyForHotStats(post) || '').trim();
+  const norm = normalizePlaceIdentityKey(raw);
+  return norm || '기록';
+}
+
 function collectTextForPost(post) {
   const tags = Array.isArray(post.tags) ? post.tags : [];
   const parts = [
@@ -64,7 +72,7 @@ export function buildPlaceStatsMap(posts) {
   const placeStats = {};
 
   posts.forEach((post) => {
-    const placeKey = getPlaceKeyForHotStats(post);
+    const placeKey = getPlaceStatsAggregationKey(post);
     if (!placeStats[placeKey]) {
       placeStats[placeKey] = {
         waitingRecent: 0,
@@ -131,7 +139,7 @@ export function transformPostForHotFeed(post, placeStats) {
         ? deterministicHashRange(post.id, 50, 79)
         : deterministicHashRange(post.id, 20, 49);
 
-  const placeKey = getPlaceKeyForHotStats(post);
+  const placeKey = getPlaceStatsAggregationKey(post);
   const stats = placeStats[placeKey] || {
     waitingRecent: 0,
     soldoutRecent: 0,

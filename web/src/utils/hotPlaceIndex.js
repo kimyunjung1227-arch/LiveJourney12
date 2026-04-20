@@ -1,4 +1,5 @@
 import { getDisplayImageUrl } from '../api/upload';
+import { normalizePlaceIdentityKey, pickPreferredPlaceDisplayLabel } from './placeKeyNormalize';
 
 // 거리 계산 (km)
 const getDistanceKm = (lat1, lon1, lat2, lon2) => {
@@ -34,8 +35,8 @@ const getPostCoords = (post) => {
   return null;
 };
 
-const getPlaceKey = (post) =>
-  (post?.placeName || post?.detailedLocation || post?.location || '알 수 없는 장소');
+const getPlaceKeyRaw = (post) =>
+  String(post?.placeName || post?.detailedLocation || post?.location || '알 수 없는 장소').trim();
 
 const getPlaceImage = (post) =>
   getDisplayImageUrl(post?.images?.[0] || post?.thumbnail || post?.image || post?.imageUrl || post?.videos?.[0] || '');
@@ -105,15 +106,28 @@ export const computeHotPlaces = (posts, searchEvents, options = {}) => {
 
   const radiusKm = radiusMeters / 1000;
 
-  // placeKey 기준 그룹핑
-  const placeGroups = new Map();
+  // 동일 장소(띄어쓰기 표기만 다른 경우 포함) 기준 그룹핑
+  /** @type {Map<string, { items: { post: unknown, coords: unknown }[], labels: Set<string> }>} */
+  const placeByNorm = new Map();
   (posts || []).forEach((post) => {
     const coords = getPostCoords(post);
     if (!coords) return;
-    const key = getPlaceKey(post);
-    const list = placeGroups.get(key) || [];
-    list.push({ post, coords });
-    placeGroups.set(key, list);
+    const raw = getPlaceKeyRaw(post);
+    const norm = normalizePlaceIdentityKey(raw);
+    if (!norm) return;
+    let entry = placeByNorm.get(norm);
+    if (!entry) {
+      entry = { items: [], labels: new Set() };
+      placeByNorm.set(norm, entry);
+    }
+    entry.items.push({ post, coords });
+    entry.labels.add(raw);
+  });
+
+  const placeGroups = new Map();
+  placeByNorm.forEach((entry, norm) => {
+    const key = pickPreferredPlaceDisplayLabel([...entry.labels]) || norm;
+    placeGroups.set(key, entry.items);
   });
 
   // 검색 이벤트 그룹핑

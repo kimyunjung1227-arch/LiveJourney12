@@ -22,6 +22,7 @@ import {
   feedGridDescStyle,
   feedGridMetaRow,
 } from '../utils/feedGridCardStyles';
+import { normalizePlaceIdentityKey } from '../utils/placeKeyNormalize';
 
 const MOCK_PRIMARY = '#1353d8';
 
@@ -100,8 +101,9 @@ export default function HotplaceLiveFeedScreen() {
   const postsForPlace = useMemo(() => {
     const key = String(loc.state?.placeKey || placeKey || '').trim();
     if (!key) return [];
+    const keyNorm = normalizePlaceIdentityKey(key);
     return allPosts
-      .filter((p) => p && getPlaceKeyForPost(p) === key)
+      .filter((p) => p && normalizePlaceIdentityKey(getPlaceKeyForPost(p)) === keyNorm)
       .sort((a, b) => getPostTimeMs(b) - getPostTimeMs(a));
   }, [allPosts, loc.state?.placeKey, placeKey]);
 

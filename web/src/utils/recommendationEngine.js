@@ -11,6 +11,7 @@ import {
   isPostLive,
   getRecommendationTransparencyLabel,
 } from './timeUtils';
+import { normalizePlaceIdentityKey, pickPreferredPlaceDisplayLabel } from './placeKeyNormalize';
 
 /**
  * (구) 지역 추천 → (신) 분위기/장소 추천으로 확장
@@ -435,7 +436,10 @@ const scoreTagsFromPool = (placeKey, postsForPlace, stat) => {
 };
 
 const calculatePlaceUnitStats = (posts, placeKey) => {
-  const placePosts = (Array.isArray(posts) ? posts : []).filter((post) => getPlaceKey(post) === placeKey);
+  const targetNorm = normalizePlaceIdentityKey(placeKey);
+  const placePosts = (Array.isArray(posts) ? posts : []).filter(
+    (post) => normalizePlaceIdentityKey(getPlaceKey(post)) === targetNorm
+  );
 
   const total = placePosts.length;
   const bloomCount = placePosts.filter((p) => hasCategory(p, 'bloom')).length;
@@ -924,7 +928,17 @@ export const getRecommendedRegions = (posts, recommendationType = 'blooming', op
   })();
 
   const list = Array.isArray(posts) ? posts : [];
-  const keys = Array.from(new Set(list.map((p) => getPlaceKey(p)).filter((k) => k && k !== '기록')));
+  const mergedKeys = new Map();
+  list.forEach((p) => {
+    const k = getPlaceKey(p);
+    if (!k || k === '기록') return;
+    const norm = normalizePlaceIdentityKey(k);
+    if (!norm) return;
+    const prev = mergedKeys.get(norm);
+    if (!prev) mergedKeys.set(norm, k);
+    else mergedKeys.set(norm, pickPreferredPlaceDisplayLabel([prev, k]));
+  });
+  const keys = [...mergedKeys.values()];
   const stats = keys.map((k) => calculatePlaceUnitStats(list, k)).filter((s) => s.total > 0);
 
   const filterConfig = options.filterConfig || loadLiveJourneyFilterConfig();

@@ -7,6 +7,7 @@
 import { getPostAgeInHours } from './timeUtils';
 import { getConversionCountByPost, getConversionCount } from './conversionEvents';
 import { filterVerifiedPosts } from './hotspotVerification';
+import { normalizePlaceIdentityKey, pickPreferredPlaceDisplayLabel } from './placeKeyNormalize';
 
 const getUserIdForPost = (post) => {
   const uid = post?.userId ?? post?.user?.id ?? post?.user?.uid ?? post?.user ?? post?.authorId ?? post?.author?.id;
@@ -225,13 +226,26 @@ export const rankHotspotPlaces = (posts, options = {}) => {
     list = filterVerifiedPosts(list, { minScore: 0.35, attachScore: true });
   }
 
-  const byPlace = new Map();
+  /** @type {Map<string, { posts: unknown[], labels: Set<string> }>} */
+  const byNorm = new Map();
   list.forEach((p) => {
-    const key = getPlaceKey(p);
-    if (!key) return;
-    const bucket = byPlace.get(key) || [];
-    bucket.push(p);
-    byPlace.set(key, bucket);
+    const raw = getPlaceKey(p);
+    if (!raw) return;
+    const norm = normalizePlaceIdentityKey(raw);
+    if (!norm) return;
+    let entry = byNorm.get(norm);
+    if (!entry) {
+      entry = { posts: [], labels: new Set() };
+      byNorm.set(norm, entry);
+    }
+    entry.posts.push(p);
+    entry.labels.add(raw);
+  });
+
+  const byPlace = new Map();
+  byNorm.forEach((entry, norm) => {
+    const key = pickPreferredPlaceDisplayLabel([...entry.labels]) || norm;
+    byPlace.set(key, entry.posts);
   });
 
   const WR = 2.2;
