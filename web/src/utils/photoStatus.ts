@@ -1,6 +1,6 @@
 export type PhotoStatus = 'LIVE' | 'VERIFIED' | 'NONE';
 
-const HOURS_48_MS = 48 * 60 * 60 * 1000;
+const HOURS_30_MS = 30 * 60 * 60 * 1000;
 /** EXIF 등으로 알 수 있는 촬영 시각이 이 안이면 「현장 LIVE」(추천 엔진의 live 구간과 동일) */
 const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
 
@@ -40,9 +40,9 @@ export function getPhotoStatusFromPost(post: any, nowMs = Date.now()): PhotoStat
   if (!Number.isFinite(diff) || diff < 0) return 'NONE';
   // ✅ 태그는 시간에 따라 자동으로 변해야 한다.
   // - 촬영~현재 3시간 이내: 현장 LIVE
-  // - 3~48시간: 최근 인증
-  // - 48시간 이후: 태그 없음
+  // - 3~30시간: 최근 인증
+  // - 30시간 이후: 태그 없음
   if (diff <= LIVE_WINDOW_MS) return 'LIVE';
-  return diff <= HOURS_48_MS ? 'VERIFIED' : 'NONE';
+  return diff <= HOURS_30_MS ? 'VERIFIED' : 'NONE';
 }
 

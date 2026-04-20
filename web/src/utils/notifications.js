@@ -84,10 +84,10 @@ export const getNotificationsForCurrentUser = () => {
   return all.filter((n) => !n.recipientUserId || String(n.recipientUserId) === uid);
 };
 
-/** DB 제약: type은 like | comment | follow | system 만 허용 */
+/** DB 제약: type은 like | comment | follow | post | badge | system */
 const toDbNotificationType = (t) => {
   const x = String(t || 'system');
-  if (x === 'like' || x === 'comment' || x === 'follow' || x === 'system') return x;
+  if (x === 'like' || x === 'comment' || x === 'follow' || x === 'post' || x === 'badge' || x === 'system') return x;
   return 'system';
 };
 
@@ -116,13 +116,18 @@ export const syncNotificationsFromSupabase = async (userId) => {
   const mapped = (rows || []).map((r) => {
     const rawType = r.type || 'system';
     const typ =
-      rawType === 'system' && String(r.message || '').includes('뱃지를 획득')
+      rawType === 'badge'
         ? 'badge'
-        : rawType;
+        : rawType === 'system' && String(r.message || '').includes('뱃지를 획득')
+          ? 'badge'
+          : rawType === 'post'
+            ? 'post'
+            : rawType;
     const actorId = r.actor_user_id ? String(r.actor_user_id) : null;
     let link = '/main';
     if (r.post_id) link = `/post/${r.post_id}`;
     else if (typ === 'follow' && actorId) link = `/user/${actorId}`;
+    else if (typ === 'badge') link = '/profile';
     const typeConfig = NOTIFICATION_TYPES[typ] || NOTIFICATION_TYPES.system;
     return {
       id: String(r.id),

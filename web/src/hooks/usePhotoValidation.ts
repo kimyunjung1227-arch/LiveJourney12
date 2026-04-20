@@ -33,7 +33,7 @@ export type UsePhotoValidationResult = {
   dateTimeOriginalRaw: string | null;
 };
 
-const HOURS_48_MS = 48 * 60 * 60 * 1000;
+const HOURS_30_MS = 30 * 60 * 60 * 1000;
 const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
 
 function statusFromCaptureDate(date: Date | null, nowMs: number): PhotoStatus {
@@ -41,7 +41,7 @@ function statusFromCaptureDate(date: Date | null, nowMs: number): PhotoStatus {
   const diff = nowMs - date.getTime();
   if (!Number.isFinite(diff) || diff < 0) return 'NONE';
   if (diff <= LIVE_WINDOW_MS) return 'LIVE';
-  return diff <= HOURS_48_MS ? 'VERIFIED' : 'NONE';
+  return diff <= HOURS_30_MS ? 'VERIFIED' : 'NONE';
 }
 
 function parseExifDateTimeOriginal(raw: unknown): Date | null {
