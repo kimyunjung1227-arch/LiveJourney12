@@ -316,6 +316,7 @@ const MapScreen = () => {
   const postOverlaysRef = useRef([]);
   const userOverlayRef = useRef(null);
   const searchOverlayRef = useRef(null);
+  const searchDebounceRef = useRef(0);
   const idleListenerRef = useRef(null);
   const sheetDragRef = useRef(null);
   const rafSyncRef = useRef(0);
@@ -328,6 +329,8 @@ const MapScreen = () => {
   const [selectedPostCard, setSelectedPostCard] = useState(null);
   const [highlightedPostId, setHighlightedPostId] = useState(null);
   const [searchedPlace, setSearchedPlace] = useState(null); // { lat, lng, label }
+  const [remoteSuggests, setRemoteSuggests] = useState([]); // Kakao keywordSearch results
+  const [remoteSuggestLoading, setRemoteSuggestLoading] = useState(false);
 
   const [userPos, setUserPos] = useState(null);
   const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
@@ -421,30 +424,36 @@ const MapScreen = () => {
     [postsWithCoords, selectedFilters],
   );
 
-  const searchItems = useMemo(() => {
-    const map = new Map();
-    postsFiltered.forEach((p) => {
-      const label = String(p?.placeName || p?.location || p?.region || '').trim();
-      if (!label) return;
-      const key = label.toLowerCase();
-      const cur = map.get(key);
-      if (!cur) {
-        map.set(key, { key, label, post: p, count: 1 });
-      } else {
-        cur.count += 1;
-      }
-    });
-    return [...map.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
-  }, [postsFiltered]);
+  const recommendedQueries = useMemo(
+    () => [
+      { label: '석촌호수', query: '석촌호수' },
+      { label: '성수', query: '성수' },
+      { label: '홍대', query: '홍대입구' },
+      { label: '강남역', query: '강남역' },
+      { label: '여의도 한강공원', query: '여의도 한강공원' },
+      { label: '해운대', query: '해운대 해수욕장' },
+      { label: '광안리', query: '광안리 해수욕장' },
+      { label: '전주 한옥마을', query: '전주 한옥마을' },
+      { label: '경주 황리단길', query: '황리단길' },
+      { label: '제주', query: '제주도' },
+    ],
+    [],
+  );
 
   const searchResults = useMemo(() => {
-    const q = String(query || '').trim().toLowerCase();
-    const base = searchItems;
-    if (!q) return base.slice(0, 20);
-    return base
-      .filter((x) => x.key.includes(q) || x.label.toLowerCase().includes(q))
-      .slice(0, 20);
-  }, [query, searchItems]);
+    const q = String(query || '').trim();
+    if (!q) {
+      return recommendedQueries.map((x) => ({ kind: 'preset', key: `preset:${x.query}`, label: x.label, query: x.query }));
+    }
+    return (remoteSuggests || []).map((r) => ({
+      kind: 'kakao',
+      key: `kakao:${r.id || `${r.x}|${r.y}|${r.place_name}`}`,
+      label: r.place_name || r.address_name || q,
+      address: r.road_address_name || r.address_name || '',
+      lat: Number(r.y),
+      lng: Number(r.x),
+    }));
+  }, [query, remoteSuggests, recommendedQueries]);
 
   const toggleFilter = useCallback((key) => {
     setSelectedFilters((prev) => {
@@ -516,28 +525,116 @@ const MapScreen = () => {
     [scheduleViewportSync],
   );
 
-  const selectSearchResult = useCallback(
-    (item) => {
-      if (!item?.post) return;
-      setSearchOpen(false);
-      setSelectedPostCard(null);
-      setHighlightedPostId(String(item.post.id));
-      setSearchedPlace({
-        lat: Number(item.post.__coords?.lat),
-        lng: Number(item.post.__coords?.lng),
-        label: String(item.label || '').trim() || String(item.post.placeName || item.post.location || item.post.region || '').trim() || String(query || '').trim(),
-      });
-      setSheetMode('peek');
-      panToPost(item.post);
+  const panToLatLng = useCallback(
+    (lat, lng) => {
+      const map = kakaoMapRef.current;
+      if (!map || !window.kakao?.maps) return;
+      if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) return;
       try {
-        setTimeout(() => {
-          setHighlightedPostId((prev) => (prev === String(item.post.id) ? null : prev));
-        }, 4500);
+        map.panTo(new window.kakao.maps.LatLng(Number(lat), Number(lng)));
+        setViewCenter({ lat: Number(lat), lng: Number(lng) });
+        scheduleViewportSync();
       } catch {
         /* ignore */
       }
     },
-    [panToPost, query],
+    [scheduleViewportSync],
+  );
+
+  const keywordSuggest = useCallback(async (q) => {
+    const queryText = String(q || '').trim();
+    if (!queryText) {
+      setRemoteSuggests([]);
+      return;
+    }
+    try {
+      await ensureKakaoMapsReady();
+      if (!window.kakao?.maps?.services) return;
+      setRemoteSuggestLoading(true);
+      const places = new window.kakao.maps.services.Places();
+      places.keywordSearch(
+        queryText,
+        (data, status) => {
+          try {
+            if (status !== window.kakao.maps.services.Status.OK || !Array.isArray(data)) {
+              setRemoteSuggests([]);
+              return;
+            }
+            setRemoteSuggests(data.slice(0, 20));
+          } finally {
+            setRemoteSuggestLoading(false);
+          }
+        },
+        { size: 15 },
+      );
+    } catch {
+      setRemoteSuggests([]);
+      setRemoteSuggestLoading(false);
+    }
+  }, []);
+
+  // 검색 오버레이가 열려 있고 입력이 바뀌면 전국 키워드 추천 자동 갱신(디바운스)
+  useEffect(() => {
+    if (!searchOpen) return undefined;
+    const q = String(query || '').trim();
+    if (!q) {
+      setRemoteSuggests([]);
+      setRemoteSuggestLoading(false);
+      return undefined;
+    }
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      void keywordSuggest(q);
+    }, 220);
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+  }, [query, searchOpen, keywordSuggest]);
+
+  const selectSearchResult = useCallback(
+    (item) => {
+      if (!item) return;
+      setSearchOpen(false);
+      setSelectedPostCard(null);
+      setSheetMode('peek');
+
+      if (item.kind === 'preset') {
+        // 프리셋은 키워드 검색 후 첫 결과로 이동
+        const q = String(item.query || item.label || '').trim();
+        if (!q) return;
+        void (async () => {
+          try {
+            await ensureKakaoMapsReady();
+            if (!window.kakao?.maps?.services) return;
+            const places = new window.kakao.maps.services.Places();
+            places.keywordSearch(q, (data, status) => {
+              if (status !== window.kakao.maps.services.Status.OK || !Array.isArray(data) || data.length === 0) return;
+              const first = data[0];
+              const lat = Number(first.y);
+              const lng = Number(first.x);
+              if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+              setSearchedPlace({ lat, lng, label: first.place_name || q });
+              setMapCenter({ lat, lng });
+              panToLatLng(lat, lng);
+            });
+          } catch {
+            /* ignore */
+          }
+        })();
+        return;
+      }
+
+      if (item.kind === 'kakao') {
+        const lat = Number(item.lat);
+        const lng = Number(item.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        setSearchedPlace({ lat, lng, label: String(item.label || '').trim() });
+        setMapCenter({ lat, lng });
+        panToLatLng(lat, lng);
+        return;
+      }
+    },
+    [panToLatLng],
   );
 
   const openPostCard = useCallback(
@@ -765,33 +862,28 @@ const MapScreen = () => {
       e?.preventDefault?.();
       const q = String(query || '').trim();
       if (!q) return;
-      // 1) 현재 지도에 표시된 장소(핀) 목록에서 먼저 검색
-      const hit =
-        searchItems.find((x) => x.label === q) ||
-        searchItems.find((x) => x.key === q.toLowerCase()) ||
-        null;
-      if (hit) {
-        selectSearchResult(hit);
-        return;
-      }
       try {
         await ensureKakaoMapsReady();
         const found = await searchPlaceWithKakaoFirst(q);
         if (found && Number.isFinite(found.lat) && Number.isFinite(found.lng)) {
           setSearchedPlace({ lat: found.lat, lng: found.lng, label: q });
           setMapCenter({ lat: found.lat, lng: found.lng });
+          panToLatLng(found.lat, found.lng);
+          setSearchOpen(false);
           return;
         }
         const fallback = getCoordinatesByLocation(q);
         if (fallback) {
           setSearchedPlace({ lat: fallback.lat, lng: fallback.lng, label: q });
           setMapCenter(fallback);
+          panToLatLng(fallback.lat, fallback.lng);
+          setSearchOpen(false);
         }
       } catch (err) {
         logger.warn(t.warnSearch, err?.message || err);
       }
     },
-    [query, searchItems, selectSearchResult],
+    [query, panToLatLng],
   );
 
   // 검색한 장소 전용 핀(오버레이)
@@ -907,7 +999,9 @@ const MapScreen = () => {
                 {String(query || '').trim() ? '추천 결과' : '지도에 보이는 장소'}
               </div>
               <div className="mt-2 max-h-[calc(100dvh-140px)] overflow-y-auto rounded-2xl border border-gray-100 bg-white shadow-sm">
-                {searchResults.length === 0 ? (
+                {remoteSuggestLoading ? (
+                  <div className="px-4 py-4 text-sm text-gray-500">검색 중…</div>
+                ) : searchResults.length === 0 ? (
                   <div className="px-4 py-4 text-sm text-gray-500">검색 결과가 없어요</div>
                 ) : (
                   <div className="divide-y divide-gray-100">
@@ -920,7 +1014,11 @@ const MapScreen = () => {
                       >
                         <div className="min-w-0">
                           <div className="truncate text-sm font-semibold text-gray-900">{it.label}</div>
-                          <div className="mt-0.5 text-[12px] text-gray-500">{`사진 ${it.count.toLocaleString()}개`}</div>
+                          {it.kind === 'kakao' ? (
+                            <div className="mt-0.5 truncate text-[12px] text-gray-500">{it.address || ''}</div>
+                          ) : (
+                            <div className="mt-0.5 text-[12px] text-gray-500">추천 장소</div>
+                          )}
                         </div>
                         <div className="shrink-0 text-[12px] font-semibold" style={{ color: PRIMARY_DARK }}>
                           이동
