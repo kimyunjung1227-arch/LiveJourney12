@@ -242,8 +242,8 @@ export const extractExifData = async (file, options = {}) => {
 
     let merged = exifData;
     const dateBefore = resolveCaptureDate(merged);
-    const gpsBefore = normalizeGps(merged.GPSLatitude, merged.GPSLongitude);
-    if (!dateBefore || !gpsBefore) {
+    // GPS만 없고 촬영 시각은 이미 있으면 XMP/IPTC 전체 재파싱은 비용 대비 이득이 작아 생략한다.
+    if (!dateBefore) {
       merged = await enrichWithXmpIptc(file, merged);
     }
 

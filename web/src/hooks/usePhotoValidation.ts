@@ -158,19 +158,24 @@ export function usePhotoValidation(params: UsePhotoValidationParams): UsePhotoVa
       const preferred = prefetchedExif && prefetchedExif.fileKey === fileKey ? prefetchedExif.exif : null;
       const preferredRaw = preferred?.dateTimeOriginalRaw ?? null;
       const preferredDate = preferred?.photoDate ? new Date(preferred.photoDate) : null;
-      const preferredOk = preferredDate && !Number.isNaN(preferredDate.getTime());
+      const preferredOk = !!(preferredDate && !Number.isNaN(preferredDate.getTime()));
 
-      // 업로드 화면의 exifr(extractExifData) 결과를 우선 — HEIC/일부 JPEG에서 exif-js가 실패하는 경우 보완
+      // extractExifData(exifr)로 이미 촬영 시각을 얻었으면 전체 파일을 다시 읽지 않는다.
+      if (preferredOk) {
+        if (cancelled) return;
+        setLoading(false);
+        setDateTimeOriginalRaw(preferredRaw);
+        setCapturedAt(preferredDate);
+        setStatus(statusFromCaptureDate(preferredDate, now()));
+        return;
+      }
+
       const exifJs = await readDateTimeOriginalWithExifJs(file);
-      const date =
-        (preferredOk ? preferredDate : null) ?? exifJs.date;
-      const raw = preferredRaw ?? exifJs.raw;
-
       if (cancelled) return;
       setLoading(false);
-      setDateTimeOriginalRaw(raw);
-      setCapturedAt(date);
-      setStatus(statusFromCaptureDate(date, now()));
+      setDateTimeOriginalRaw(exifJs.raw);
+      setCapturedAt(exifJs.date);
+      setStatus(statusFromCaptureDate(exifJs.date, now()));
     })();
 
     return () => {
