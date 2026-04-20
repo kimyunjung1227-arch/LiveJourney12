@@ -34,11 +34,13 @@ export type UsePhotoValidationResult = {
 };
 
 const HOURS_48_MS = 48 * 60 * 60 * 1000;
+const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
 
 function statusFromCaptureDate(date: Date | null, nowMs: number): PhotoStatus {
   if (!date || Number.isNaN(date.getTime())) return 'NONE';
   const diff = nowMs - date.getTime();
   if (!Number.isFinite(diff) || diff < 0) return 'NONE';
+  if (diff <= LIVE_WINDOW_MS) return 'LIVE';
   return diff <= HOURS_48_MS ? 'VERIFIED' : 'NONE';
 }
 
@@ -101,6 +103,7 @@ export function usePhotoValidation(params: UsePhotoValidationParams): UsePhotoVa
   useEffect(() => {
     if (isInAppCamera) {
       setLoading(false);
+      // 업로드 직후에는 현장 LIVE로 보이되, 저장/피드에서는 촬영시각 기준으로 자연스럽게 다운그레이드된다.
       setStatus('LIVE');
       setCapturedAt(new Date(now()));
       setDateTimeOriginalRaw(null);

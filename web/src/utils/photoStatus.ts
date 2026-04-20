@@ -19,10 +19,6 @@ function getExifBackedCaptureDate(post: any): Date | null {
 
 export function getPhotoStatusFromPost(post: any, nowMs = Date.now()): PhotoStatus {
   if (!post) return 'NONE';
-  if (post.isInAppCamera === true || post.is_in_app_camera === true) {
-    return 'LIVE';
-  }
-
   const exifCap = getExifBackedCaptureDate(post);
   if (exifCap) {
     const liveDiff = nowMs - exifCap.getTime();
@@ -42,6 +38,11 @@ export function getPhotoStatusFromPost(post: any, nowMs = Date.now()): PhotoStat
 
   const diff = nowMs - captured.getTime();
   if (!Number.isFinite(diff) || diff < 0) return 'NONE';
+  // ✅ 태그는 시간에 따라 자동으로 변해야 한다.
+  // - 촬영~현재 3시간 이내: 현장 LIVE
+  // - 3~48시간: 최근 인증
+  // - 48시간 이후: 태그 없음
+  if (diff <= LIVE_WINDOW_MS) return 'LIVE';
   return diff <= HOURS_48_MS ? 'VERIFIED' : 'NONE';
 }
 
