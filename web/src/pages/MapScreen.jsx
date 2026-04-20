@@ -14,6 +14,7 @@ const DEFAULT_CENTER = { lat: 37.5665, lng: 126.9780 };
 
 /** Live Journey 메인 컬러 (tailwind `primary`와 동일) */
 const PRIMARY_HEX = '#26C6DA';
+const PRIMARY_DARK = '#0891b2';
 
 const GEO_CACHE_KEY = '__lj_map_geo_cache_v3';
 
@@ -284,15 +285,23 @@ const chipClass = (active) =>
 
 const chipStyle = (active) => ({
   borderColor: active ? 'rgba(38,198,218,0.38)' : 'rgba(226,232,240,1)',
-  color: active ? '#0891b2' : '#334155',
+  color: active ? PRIMARY_DARK : '#334155',
 });
 
-const msIcon = (name, active = false) => (
+const iconColorForFilter = (key, active) => {
+  if (active) return PRIMARY_DARK;
+  if (key === 'bloom') return '#ec4899'; // pink
+  if (key === 'food') return '#f97316'; // orange
+  if (key === 'places') return '#6366f1'; // indigo
+  return '#64748b';
+};
+
+const msIcon = (name, opts = {}) => (
   <span
     className="material-symbols-outlined text-[18px] leading-none"
     style={{
       fontVariationSettings: "'wght' 300",
-      color: active ? '#0891b2' : '#64748b',
+      color: opts.color || '#64748b',
     }}
     aria-hidden
   >
@@ -315,7 +324,9 @@ const MapScreen = () => {
   const [sheetMode, setSheetMode] = useState('peek');
   const [sdkStatus, setSdkStatus] = useState({ ok: false, message: '' });
   const [query, setQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [selectedPostCard, setSelectedPostCard] = useState(null);
+  const [highlightedPostId, setHighlightedPostId] = useState(null);
 
   const [userPos, setUserPos] = useState(null);
   const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
@@ -409,6 +420,31 @@ const MapScreen = () => {
     [postsWithCoords, selectedFilters],
   );
 
+  const searchItems = useMemo(() => {
+    const map = new Map();
+    postsFiltered.forEach((p) => {
+      const label = String(p?.placeName || p?.location || p?.region || '').trim();
+      if (!label) return;
+      const key = label.toLowerCase();
+      const cur = map.get(key);
+      if (!cur) {
+        map.set(key, { key, label, post: p, count: 1 });
+      } else {
+        cur.count += 1;
+      }
+    });
+    return [...map.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  }, [postsFiltered]);
+
+  const searchResults = useMemo(() => {
+    const q = String(query || '').trim().toLowerCase();
+    const base = searchItems;
+    if (!q) return base.slice(0, 20);
+    return base
+      .filter((x) => x.key.includes(q) || x.label.toLowerCase().includes(q))
+      .slice(0, 20);
+  }, [query, searchItems]);
+
   const toggleFilter = useCallback((key) => {
     setSelectedFilters((prev) => {
       const arr = Array.isArray(prev) ? prev : [];
@@ -479,10 +515,30 @@ const MapScreen = () => {
     [scheduleViewportSync],
   );
 
+  const selectSearchResult = useCallback(
+    (item) => {
+      if (!item?.post) return;
+      setSearchOpen(false);
+      setSelectedPostCard(null);
+      setHighlightedPostId(String(item.post.id));
+      setSheetMode('peek');
+      panToPost(item.post);
+      try {
+        setTimeout(() => {
+          setHighlightedPostId((prev) => (prev === String(item.post.id) ? null : prev));
+        }, 4500);
+      } catch {
+        /* ignore */
+      }
+    },
+    [panToPost],
+  );
+
   const openPostCard = useCallback(
     (post) => {
       if (!post) return;
       setSelectedPostCard(post);
+      setHighlightedPostId(post?.id != null ? String(post.id) : null);
       setSheetMode('hidden');
       panToPost(post);
     },
@@ -626,10 +682,14 @@ const MapScreen = () => {
 
         const thumbRaw = p.thumbnail || (Array.isArray(p.images) ? p.images[0] : '');
         const thumb = escapeHtmlAttr(getDisplayImageUrl(thumbRaw));
+        const isHighlight = highlightedPostId && String(p.id) === String(highlightedPostId);
+        const ring = isHighlight
+          ? `box-shadow:0 2px 10px rgba(0,0,0,.18), 0 0 0 3px ${PRIMARY_HEX};border:1px solid rgba(255,255,255,.98);`
+          : 'box-shadow:0 2px 10px rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.95);';
 
         const wrap = document.createElement('div');
         wrap.innerHTML = `
-          <div class="lj-map-post-pin" style="width:52px;height:52px;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.18);cursor:pointer;border:1px solid rgba(255,255,255,.95);background:#f3f4f6;">
+          <div class="lj-map-post-pin" style="width:52px;height:52px;border-radius:10px;overflow:hidden;cursor:pointer;${ring}background:#f3f4f6;transform:${isHighlight ? 'translateY(-2px)' : 'translateY(0)'};transition:transform .15s ease;">
             ${
               thumb
                 ? `<img src="${thumb}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;"/>`
@@ -657,7 +717,7 @@ const MapScreen = () => {
     } catch (e) {
       logger.warn(t.warnOverlays, e?.message || e);
     }
-  }, [openPostCard, postsInViewport]);
+  }, [openPostCard, postsInViewport, highlightedPostId]);
 
   useEffect(() => {
     const map = kakaoMapRef.current;
@@ -699,6 +759,15 @@ const MapScreen = () => {
       e?.preventDefault?.();
       const q = String(query || '').trim();
       if (!q) return;
+      // 1) 현재 지도에 표시된 장소(핀) 목록에서 먼저 검색
+      const hit =
+        searchItems.find((x) => x.label === q) ||
+        searchItems.find((x) => x.key === q.toLowerCase()) ||
+        null;
+      if (hit) {
+        selectSearchResult(hit);
+        return;
+      }
       try {
         await ensureKakaoMapsReady();
         const found = await searchPlaceWithKakaoFirst(q);
@@ -712,7 +781,7 @@ const MapScreen = () => {
         logger.warn(t.warnSearch, err?.message || err);
       }
     },
-    [query],
+    [query, searchItems, selectSearchResult],
   );
 
   const requestMyLocationAndCenter = useCallback(() => {
@@ -778,10 +847,42 @@ const MapScreen = () => {
             <input
               value={query}
               onChange={(ev) => setQuery(ev.target.value)}
+              onFocus={() => setSearchOpen(true)}
+              onBlur={() => {
+                // 클릭 선택이 가능하도록 blur는 살짝 지연
+                setTimeout(() => setSearchOpen(false), 120);
+              }}
               type="text"
               placeholder={t.searchPlaceholder}
               className="w-full rounded-full bg-white py-3 pl-11 pr-4 text-sm shadow-sm transition focus:outline-none focus:ring-2 focus:ring-primary"
             />
+            {searchOpen && (
+              <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-[60] overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl">
+                <div className="max-h-[320px] overflow-y-auto p-2">
+                  {searchResults.length === 0 ? (
+                    <div className="px-3 py-3 text-xs text-gray-500">검색 결과가 없어요</div>
+                  ) : (
+                    searchResults.map((it) => (
+                      <button
+                        key={it.key}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => selectSearchResult(it)}
+                        className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left hover:bg-gray-50"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-gray-900">{it.label}</div>
+                          <div className="mt-0.5 text-[11px] text-gray-500">{`사진 ${it.count.toLocaleString()}개`}</div>
+                        </div>
+                        <div className="shrink-0 text-[11px] font-semibold" style={{ color: PRIMARY_DARK }}>
+                          이동
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </form>
 
           <button
@@ -802,9 +903,13 @@ const MapScreen = () => {
             type="button"
             onClick={() => navigate('/map/ask-situation')}
             className="inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-white px-3.5 py-2 text-sm font-semibold shadow-sm whitespace-nowrap"
-            style={{ borderColor: 'rgba(38,198,218,0.30)', color: '#0891b2' }}
+            style={{
+              borderColor: PRIMARY_HEX,
+              background: PRIMARY_HEX,
+              color: '#ffffff',
+            }}
           >
-            {msIcon('help', true)}
+            {msIcon('help', { color: '#ffffff' })}
             <span>{t.situationCta}</span>
           </button>
           <button
@@ -813,7 +918,7 @@ const MapScreen = () => {
             style={chipStyle(selectedFilters.includes('bloom'))}
             onClick={() => toggleFilter('bloom')}
           >
-            {msIcon('local_florist', selectedFilters.includes('bloom'))}
+            {msIcon('local_florist', { color: iconColorForFilter('bloom', selectedFilters.includes('bloom')) })}
             <span>{t.chipBloom}</span>
           </button>
           <button
@@ -822,7 +927,7 @@ const MapScreen = () => {
             style={chipStyle(selectedFilters.includes('food'))}
             onClick={() => toggleFilter('food')}
           >
-            {msIcon('restaurant', selectedFilters.includes('food'))}
+            {msIcon('restaurant', { color: iconColorForFilter('food', selectedFilters.includes('food')) })}
             <span>{t.chipFood}</span>
           </button>
           <button
@@ -831,7 +936,7 @@ const MapScreen = () => {
             style={chipStyle(selectedFilters.includes('places'))}
             onClick={() => toggleFilter('places')}
           >
-            {msIcon('place', selectedFilters.includes('places'))}
+            {msIcon('place', { color: iconColorForFilter('places', selectedFilters.includes('places')) })}
             <span>{t.chipPlaces}</span>
           </button>
         </div>
