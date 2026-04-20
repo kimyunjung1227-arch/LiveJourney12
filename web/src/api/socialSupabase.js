@@ -1,6 +1,5 @@
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
-import { sendNotificationToUser } from '../utils/notifications';
 import { setLikedPostLocalCache } from '../utils/socialInteractions';
 
 const isValidUuid = (v) =>
@@ -207,37 +206,7 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null, o
       } catch {}
     }
 
-    // 알림은 "좋아요가 새로 생성된 경우"에만 보내야 하지만,
-    // set_post_like는 inserted 여부를 주지 않는다.
-    // 안전하게: 좋아요가 true이고, 기존에 안 눌렀던 경우에만 보낸다(중복 알림 방지).
-    if (desired === true && likedBeforeClick !== true) {
-      const { data: postRow } = await supabase
-        .from('posts')
-        .select('user_id, images')
-        .eq('id', pid)
-        .maybeSingle();
-      const ownerId = postRow?.user_id ? String(postRow.user_id) : null;
-      if (ownerId && ownerId !== uid) {
-        const { name: actorName, avatar: actorAv } = await resolveActorDisplayForLike(uid, actorHint);
-        const imgs = postRow?.images;
-        const thumb =
-          Array.isArray(imgs) && imgs[0]
-            ? imgs[0]
-            : imgs && typeof imgs === 'string'
-              ? imgs
-              : null;
-        await sendNotificationToUser({
-          recipientUserId: ownerId,
-          actorUserId: uid,
-          actorUsername: actorName,
-          actorAvatar: actorAv,
-          postId: pid,
-          thumbnailUrl: thumb || null,
-          type: 'like',
-          message: `${actorName}님이 회원님이 올린 정보를 좋아합니다.`,
-        });
-      }
-    }
+    // ✅ 알림은 DB 트리거가 생성한다.
 
     return { success: true, isLiked, likesCount };
   } catch (e) {
@@ -287,32 +256,7 @@ export const addCommentSupabase = async ({ postId, userId, username, avatarUrl, 
       throw error;
     }
 
-    const { data: postRow } = await supabase
-      .from('posts')
-      .select('user_id, images')
-      .eq('id', pid)
-      .maybeSingle();
-    const ownerId = postRow?.user_id ? String(postRow.user_id) : null;
-    if (ownerId && ownerId !== uid) {
-      const actorName = String(username || '').trim() || '여행자';
-      const imgs = postRow?.images;
-      const thumb =
-        Array.isArray(imgs) && imgs[0]
-          ? imgs[0]
-          : imgs && typeof imgs === 'string'
-            ? imgs
-            : null;
-      await sendNotificationToUser({
-        recipientUserId: ownerId,
-        actorUserId: uid,
-        actorUsername: actorName,
-        actorAvatar: avatarUrl || null,
-        postId: pid,
-        thumbnailUrl: thumb || null,
-        type: 'comment',
-        message: `${actorName}님이 회원님이 올린 정보에 댓글을 남겼습니다.`,
-      });
-    }
+    // ✅ 알림은 DB 트리거가 생성한다.
 
     return { success: true, row: data };
   } catch (e) {

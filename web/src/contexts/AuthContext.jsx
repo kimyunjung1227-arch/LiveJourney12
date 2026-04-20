@@ -95,6 +95,45 @@ export const AuthProvider = ({ children }) => {
     }
   }, [appUser?.id]);
 
+  // ✅ 실시간 상호작용 알림(좋아요/댓글/팔로우) 반영: notifications 테이블 insert/update를 구독
+  // - 상대방이 보낸 알림이 DB에 들어오면 즉시 localStorage 캐시를 갱신하고 배지 카운트를 업데이트한다.
+  // - 정책/RLS에 따라 select 권한이 없으면 동기화가 실패할 수 있으니 best-effort로 처리한다.
+  useEffect(() => {
+    const uid = appUser?.id ? String(appUser.id) : '';
+    const isUuid = uid && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uid);
+    if (!isUuid) return undefined;
+
+    let alive = true;
+    const channel = supabase
+      .channel(`notifications:${uid}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications', filter: `recipient_user_id=eq.${uid}` },
+        async () => {
+          if (!alive) return;
+          try {
+            await syncNotificationsFromSupabase(uid);
+          } catch (e) {
+            logger.warn('notifications realtime sync 실패:', e?.message);
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR') {
+          logger.warn('notifications realtime 채널 에러');
+        }
+      });
+
+    return () => {
+      alive = false;
+      try {
+        supabase.removeChannel(channel);
+      } catch {
+        // ignore
+      }
+    };
+  }, [appUser?.id]);
+
   const loginWithProvider = async (provider) => {
     try {
       const providerLower = provider.toLowerCase();
