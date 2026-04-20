@@ -289,7 +289,6 @@ const chipStyle = (active) => ({
 });
 
 const iconColorForFilter = (key, active) => {
-  if (active) return PRIMARY_DARK;
   if (key === 'bloom') return '#ec4899'; // pink
   if (key === 'food') return '#f97316'; // orange
   if (key === 'places') return '#6366f1'; // indigo
@@ -316,6 +315,7 @@ const MapScreen = () => {
   const kakaoMapRef = useRef(null);
   const postOverlaysRef = useRef([]);
   const userOverlayRef = useRef(null);
+  const searchOverlayRef = useRef(null);
   const idleListenerRef = useRef(null);
   const sheetDragRef = useRef(null);
   const rafSyncRef = useRef(0);
@@ -327,6 +327,7 @@ const MapScreen = () => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [selectedPostCard, setSelectedPostCard] = useState(null);
   const [highlightedPostId, setHighlightedPostId] = useState(null);
+  const [searchedPlace, setSearchedPlace] = useState(null); // { lat, lng, label }
 
   const [userPos, setUserPos] = useState(null);
   const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
@@ -521,6 +522,11 @@ const MapScreen = () => {
       setSearchOpen(false);
       setSelectedPostCard(null);
       setHighlightedPostId(String(item.post.id));
+      setSearchedPlace({
+        lat: Number(item.post.__coords?.lat),
+        lng: Number(item.post.__coords?.lng),
+        label: String(item.label || '').trim() || String(item.post.placeName || item.post.location || item.post.region || '').trim() || String(query || '').trim(),
+      });
       setSheetMode('peek');
       panToPost(item.post);
       try {
@@ -531,7 +537,7 @@ const MapScreen = () => {
         /* ignore */
       }
     },
-    [panToPost],
+    [panToPost, query],
   );
 
   const openPostCard = useCallback(
@@ -772,17 +778,60 @@ const MapScreen = () => {
         await ensureKakaoMapsReady();
         const found = await searchPlaceWithKakaoFirst(q);
         if (found && Number.isFinite(found.lat) && Number.isFinite(found.lng)) {
+          setSearchedPlace({ lat: found.lat, lng: found.lng, label: q });
           setMapCenter({ lat: found.lat, lng: found.lng });
           return;
         }
         const fallback = getCoordinatesByLocation(q);
-        if (fallback) setMapCenter(fallback);
+        if (fallback) {
+          setSearchedPlace({ lat: fallback.lat, lng: fallback.lng, label: q });
+          setMapCenter(fallback);
+        }
       } catch (err) {
         logger.warn(t.warnSearch, err?.message || err);
       }
     },
     [query, searchItems, selectSearchResult],
   );
+
+  // 검색한 장소 전용 핀(오버레이)
+  useEffect(() => {
+    const map = kakaoMapRef.current;
+    if (!map || !window.kakao?.maps) return;
+    try {
+      if (searchOverlayRef.current) {
+        searchOverlayRef.current.setMap(null);
+        searchOverlayRef.current = null;
+      }
+      if (!searchedPlace || !Number.isFinite(Number(searchedPlace.lat)) || !Number.isFinite(Number(searchedPlace.lng))) return;
+
+      const kakao = window.kakao;
+      const wrap = document.createElement('div');
+      const label = escapeHtmlAttr(String(searchedPlace.label || '').trim());
+      wrap.innerHTML = `
+        <div style="position:relative;transform:translateY(-10px);">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+            <div style="max-width:220px;padding:6px 10px;border-radius:9999px;background:#ffffff;border:1px solid rgba(38,198,218,0.35);box-shadow:0 8px 20px rgba(15,23,42,0.10);font-size:12px;font-weight:700;color:${PRIMARY_DARK};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              ${label || '검색 위치'}
+            </div>
+            <div style="width:18px;height:18px;border-radius:9999px;background:${PRIMARY_HEX};box-shadow:0 10px 22px rgba(38,198,218,0.35);border:3px solid #ffffff;"></div>
+          </div>
+        </div>`;
+      const el = wrap.firstElementChild;
+      if (!el) return;
+      const overlay = new kakao.maps.CustomOverlay({
+        position: new kakao.maps.LatLng(searchedPlace.lat, searchedPlace.lng),
+        content: el,
+        yAnchor: 1,
+        xAnchor: 0.5,
+        zIndex: 6,
+      });
+      overlay.setMap(map);
+      searchOverlayRef.current = overlay;
+    } catch {
+      /* ignore */
+    }
+  }, [searchedPlace]);
 
   const requestMyLocationAndCenter = useCallback(() => {
     if (!navigator?.geolocation) {
@@ -820,6 +869,72 @@ const MapScreen = () => {
     <div className="relative w-full h-[100dvh] bg-gray-100 overflow-hidden font-sans">
       <div ref={mapRef} className="absolute inset-0 z-0" />
 
+      {searchOpen && (
+        <div
+          className="absolute inset-0 z-[70] bg-white/95 backdrop-blur-sm"
+          onMouseDown={() => setSearchOpen(false)}
+          role="dialog"
+          aria-label="검색"
+        >
+          <div className="mx-auto h-full w-full max-w-[414px] px-4 pt-12" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setSearchOpen(false)}
+                className="rounded-full bg-white p-2.5 shadow-sm transition hover:bg-gray-50"
+                aria-label="닫기"
+              >
+                <ArrowLeft className="h-5 w-5 text-gray-700" />
+              </button>
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                <input
+                  value={query}
+                  onChange={(ev) => setQuery(ev.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') onSearchSubmit(e);
+                  }}
+                  autoFocus
+                  type="text"
+                  placeholder={t.searchPlaceholder}
+                  className="w-full rounded-full bg-white py-3 pl-11 pr-4 text-sm shadow-sm transition focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="text-[12px] font-semibold text-gray-500">
+                {String(query || '').trim() ? '추천 결과' : '지도에 보이는 장소'}
+              </div>
+              <div className="mt-2 max-h-[calc(100dvh-140px)] overflow-y-auto rounded-2xl border border-gray-100 bg-white shadow-sm">
+                {searchResults.length === 0 ? (
+                  <div className="px-4 py-4 text-sm text-gray-500">검색 결과가 없어요</div>
+                ) : (
+                  <div className="divide-y divide-gray-100">
+                    {searchResults.map((it) => (
+                      <button
+                        key={it.key}
+                        type="button"
+                        onClick={() => selectSearchResult(it)}
+                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-gray-900">{it.label}</div>
+                          <div className="mt-0.5 text-[12px] text-gray-500">{`사진 ${it.count.toLocaleString()}개`}</div>
+                        </div>
+                        <div className="shrink-0 text-[12px] font-semibold" style={{ color: PRIMARY_DARK }}>
+                          이동
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {!sdkStatus.ok && (
         <div className="absolute inset-0 z-[5] flex items-center justify-center bg-white/70 px-6 text-center">
           <div className="max-w-md rounded-2xl border border-gray-100 bg-white p-5 shadow-md">
@@ -848,41 +963,10 @@ const MapScreen = () => {
               value={query}
               onChange={(ev) => setQuery(ev.target.value)}
               onFocus={() => setSearchOpen(true)}
-              onBlur={() => {
-                // 클릭 선택이 가능하도록 blur는 살짝 지연
-                setTimeout(() => setSearchOpen(false), 120);
-              }}
               type="text"
               placeholder={t.searchPlaceholder}
               className="w-full rounded-full bg-white py-3 pl-11 pr-4 text-sm shadow-sm transition focus:outline-none focus:ring-2 focus:ring-primary"
             />
-            {searchOpen && (
-              <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-[60] overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl">
-                <div className="max-h-[320px] overflow-y-auto p-2">
-                  {searchResults.length === 0 ? (
-                    <div className="px-3 py-3 text-xs text-gray-500">검색 결과가 없어요</div>
-                  ) : (
-                    searchResults.map((it) => (
-                      <button
-                        key={it.key}
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => selectSearchResult(it)}
-                        className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left hover:bg-gray-50"
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-semibold text-gray-900">{it.label}</div>
-                          <div className="mt-0.5 text-[11px] text-gray-500">{`사진 ${it.count.toLocaleString()}개`}</div>
-                        </div>
-                        <div className="shrink-0 text-[11px] font-semibold" style={{ color: PRIMARY_DARK }}>
-                          이동
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
           </form>
 
           <button
