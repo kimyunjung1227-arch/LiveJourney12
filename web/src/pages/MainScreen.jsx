@@ -757,7 +757,10 @@ const MainScreen = () => {
                             const weather = post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
                             const hasWeather = weather && (weather.icon || weather.temperature);
                             const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
-                            const commentCount = Array.isArray(post.comments) ? post.comments.length : 0;
+                            const commentCount = Math.max(
+                                0,
+                                Number(post.commentCount ?? post.commentsCount ?? (Array.isArray(post.comments) ? post.comments.length : 0)) || 0
+                            );
                             const status = getPhotoStatusFromPost(post);
                             const formatHotTag = (t) => {
                                 const raw = String(t || '').replace(/#/g, '').replace(/_/g, ' ').trim();

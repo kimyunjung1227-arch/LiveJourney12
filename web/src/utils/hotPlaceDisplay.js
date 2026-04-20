@@ -40,7 +40,10 @@ export function getLocationSubtitle(post, title) {
 /** 메인·더보기 공통 — 지금 N명이 보고 있어요 (좋아요·댓글 기반) */
 export function computeHotFeedViewingCount(post) {
     const likeCount = Number(post?.likes ?? post?.likeCount ?? 0) || 0;
-    const commentCount = Array.isArray(post?.comments) ? post.comments.length : 0;
+    const commentCount = Math.max(
+        0,
+        Number(post?.commentCount ?? post?.commentsCount ?? (Array.isArray(post?.comments) ? post.comments.length : 0)) || 0
+    );
     return Math.max(2, Math.min(99, (likeCount + commentCount * 2) % 35 + 6));
 }
 
@@ -134,7 +137,10 @@ export function getPhotoCategoryLabels(post, max = 4) {
 /** 이미지 좌상단 핫플 뱃지 (급상승 / 사람 많음 / 인기 / 실시간) */
 export function getHotCategoryLabel(post) {
     const likes = Number(post?.likes ?? post?.likeCount ?? 0) || 0;
-    const commentCount = Array.isArray(post?.comments) ? post.comments.length : 0;
+    const commentCount = Math.max(
+        0,
+        Number(post?.commentCount ?? post?.commentsCount ?? (Array.isArray(post?.comments) ? post.comments.length : 0)) || 0
+    );
     const tagStr = [...(Array.isArray(post?.reasonTags) ? post.reasonTags : []), ...(Array.isArray(post?.aiHotTags) ? post.aiHotTags : [])]
         .map((t) => String(t || ''))
         .join(' ');
@@ -188,7 +194,10 @@ export function getPhotoCaptionLine(post) {
 /** 이미지 우하단 분위기: 혼잡도 추정 (다른 화면 호환용) */
 export function getHotAtmosphere(post) {
     const likes = Number(post.likes ?? post.likeCount ?? 0) || 0;
-    const comments = Array.isArray(post.comments) ? post.comments.length : 0;
+    const comments = Math.max(
+        0,
+        Number(post?.commentCount ?? post?.commentsCount ?? (Array.isArray(post?.comments) ? post.comments.length : 0)) || 0
+    );
     const score = likes + comments * 3;
     return score >= 18 ? 'crowded' : 'relaxed';
 }

@@ -23,7 +23,10 @@ export function buildHotFeedCardProps(post, weatherByRegion = {}) {
     const weather = post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
     const hasWeather = weather && (weather.icon || weather.temperature);
     const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
-    const commentCount = Array.isArray(post.comments) ? post.comments.length : 0;
+    const commentCount = Math.max(
+        0,
+        Number(post.commentCount ?? post.commentsCount ?? (Array.isArray(post.comments) ? post.comments.length : 0)) || 0
+    );
     const photoCount = Math.max(1, Math.min(99, (likeCount + commentCount * 2) % 28 + 4));
     const viewingCount = computeHotFeedViewingCount(post);
     const avatars = getAvatarUrls(post);

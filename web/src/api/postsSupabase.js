@@ -354,6 +354,7 @@ const mapRowToPost = (row) => {
   const fromRow = Number(row.likes_count) || 0;
   const ov = getLikesOverride(row.id);
   const likesCount = ov ? ov.likesCount : fromRow;
+  const commentsCount = Math.max(0, Number(row.comments_count ?? row.commentsCount ?? 0) || 0);
   return {
     id: row.id,
     userId: uid,
@@ -387,7 +388,11 @@ const mapRowToPost = (row) => {
         : null,
     likes: likesCount,
     likeCount: likesCount,
+    // 목록/피드에서는 댓글 본문을 들고 다니지 않고, 서버 기준 카운트만 사용한다.
+    // 상세 화면에서만 post_comments 테이블을 조회해 실제 배열로 채운다.
     comments: Array.isArray(row.comments) ? row.comments : [],
+    commentCount: commentsCount,
+    commentsCount,
     category: row.category || null,
     categoryName: row.category_name || null,
     thumbnail: (Array.isArray(row.images) && row.images[0]) || row.images || null,

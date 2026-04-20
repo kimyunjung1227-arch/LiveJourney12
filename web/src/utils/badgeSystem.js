@@ -284,10 +284,10 @@ export const calculateUserStats = (posts = [], user = {}) => {
     consecutiveDays = Math.max(consecutiveDays, run);
   }
 
-  const totalComments = (posts || []).reduce(
-    (sum, p) => sum + (Array.isArray(p.comments) ? p.comments.length : 0),
-    0
-  );
+  const totalComments = (posts || []).reduce((sum, p) => {
+    const n = Number(p?.commentCount ?? p?.commentsCount ?? (Array.isArray(p?.comments) ? p.comments.length : 0)) || 0;
+    return sum + Math.max(0, n);
+  }, 0);
 
   // 명확히 측정 가능한 "행동" 기반 통계
   const gpsVerifiedCount = (posts || []).filter(hasGps).length;

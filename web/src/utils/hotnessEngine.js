@@ -190,7 +190,10 @@ export const rankHotspotPosts = (posts, options = {}) => {
   const withScore = list.map((post) => {
     const { hotness, time, conversion } = computeHotness(post, list, conversionMap, maxConversion);
     const likes = Number(post.likes ?? post.likeCount ?? 0) || 0;
-    const commentsCount = Array.isArray(post.comments) ? post.comments.length : 0;
+    const commentsCount = Math.max(
+      0,
+      Number(post.commentCount ?? post.commentsCount ?? (Array.isArray(post.comments) ? post.comments.length : 0)) || 0
+    );
     const conversionCount = getConversionCount(post.id);
     return { post, hotness, timeFreshness: time, conversion, likes, commentsCount, conversionCount };
   });
