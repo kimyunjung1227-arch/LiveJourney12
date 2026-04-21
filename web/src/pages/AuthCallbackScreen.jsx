@@ -11,6 +11,7 @@ const AuthCallbackScreen = () => {
   useEffect(() => {
     const handleCallback = async () => {
       try {
+        const code = searchParams.get('code');
         // Supabase OAuth 에러 파라미터 처리
         const errorCode = searchParams.get('error_code') || searchParams.get('error');
         const errorDescription = searchParams.get('error_description') || searchParams.get('error_message');
@@ -22,6 +23,29 @@ const AuthCallbackScreen = () => {
             navigate('/start', { replace: true });
           }, 3000);
           return;
+        }
+
+        if (!code) {
+          setError('로그인 코드가 없습니다. 다시 로그인해 주세요.');
+          setTimeout(() => {
+            navigate('/start', { replace: true });
+          }, 2500);
+          return;
+        }
+
+        // 같은 code로 중복 교환 시도 방지(뒤로가기/리렌더/경합 대비)
+        const exchangedKey = `lj_oauth_exchanged:${code}`;
+        try {
+          if (sessionStorage.getItem(exchangedKey) === '1') {
+            const { data } = await supabase.auth.getSession();
+            const uid = data?.session?.user?.id || null;
+            if (uid) {
+              navigate('/main', { replace: true });
+              return;
+            }
+          }
+        } catch {
+          // ignore
         }
 
         // PKCE(code) → session 교환
@@ -39,6 +63,12 @@ const AuthCallbackScreen = () => {
           return;
         }
 
+        try {
+          sessionStorage.setItem(exchangedKey, '1');
+        } catch {
+          // ignore
+        }
+
         // 기존 코드 호환을 위해 userUpdated 이벤트만 유지 (AuthContext는 onAuthStateChange로 갱신됨)
         try {
           window.dispatchEvent(new Event('userUpdated'));
@@ -54,7 +84,12 @@ const AuthCallbackScreen = () => {
           String(err?.message || '')
             .trim()
             .replace(/\+/g, ' ') || '로그인 처리 중 오류가 발생했습니다.';
-        setError(msg);
+        const lower = String(msg).toLowerCase();
+        const isPkce =
+          lower.includes('code verifier') ||
+          lower.includes('pkce') ||
+          lower.includes('invalid request');
+        setError(isPkce ? '로그인 흐름이 끊겼어요. 같은 도메인에서 다시 로그인해 주세요.' : msg);
         setTimeout(() => {
           navigate('/start', { replace: true });
         }, 3000);

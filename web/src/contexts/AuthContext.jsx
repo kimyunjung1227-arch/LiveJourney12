@@ -142,12 +142,17 @@ export const AuthProvider = ({ children }) => {
       const providerLower = provider.toLowerCase();
       logger.log(`🌐 Supabase OAuth 로그인 시작: ${providerLower}`);
 
+      const siteUrl =
+        (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_PUBLIC_SITE_URL
+          ? String(import.meta.env.VITE_PUBLIC_SITE_URL).trim()
+          : '') || 'https://livejourney.co.kr';
+
       await supabase.auth.signInWithOAuth({
         provider: providerLower,
         options: {
           // OAuth 콜백은 별도 라우트에서 code→session 교환을 처리한다.
           // (일부 환경에서 root로 리다이렉트되면 세션이 안정적으로 잡히기 전에 화면 전환이 일어나 로그인 화면으로 되돌아가는 문제가 발생할 수 있음)
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${siteUrl.replace(/\/+$/, '')}/auth/callback`,
         },
       });
     } catch (error) {

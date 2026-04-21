@@ -14,7 +14,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true,
+    // PKCE 콜백 교환은 /auth/callback에서만 단일 처리한다.
+    // (자동 처리 + 수동 교환이 겹치면 code/code_verifier 경합으로 400이 발생할 수 있음)
+    detectSessionInUrl: false,
   },
 });
 
