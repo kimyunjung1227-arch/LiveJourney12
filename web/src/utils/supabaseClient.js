@@ -14,7 +14,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true,
+    // OAuth 콜백은 /auth/callback에서 exchangeCodeForSession로만 처리 (PKCE 안정화)
+    detectSessionInUrl: false,
   },
 });
 

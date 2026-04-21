@@ -142,12 +142,15 @@ export const AuthProvider = ({ children }) => {
       const providerLower = provider.toLowerCase();
       logger.log(`🌐 Supabase OAuth 로그인 시작: ${providerLower}`);
 
+      // PKCE code_verifier는 "로그인 시작한 오리진"의 스토리지에 저장된다.
+      // 따라서 redirectTo는 항상 동일 오리진(특히 커스텀 도메인)으로 고정해야 안정적이다.
+      const redirectBase = 'https://livejourney.co.kr';
       await supabase.auth.signInWithOAuth({
         provider: providerLower,
         options: {
           // OAuth 콜백은 별도 라우트에서 code→session 교환을 처리한다.
           // (일부 환경에서 root로 리다이렉트되면 세션이 안정적으로 잡히기 전에 화면 전환이 일어나 로그인 화면으로 되돌아가는 문제가 발생할 수 있음)
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${redirectBase}/auth/callback`,
         },
       });
     } catch (error) {
