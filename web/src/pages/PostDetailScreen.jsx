@@ -92,6 +92,7 @@ const PostDetailScreen = () => {
   const mediaSwiperRef = useRef(null);
   const authorPostMenuRef = useRef(null);
   const shareMenuRef = useRef(null);
+  const likeBusyRef = useRef(false);
   const [showAuthorPostMenu, setShowAuthorPostMenu] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
 
@@ -380,29 +381,49 @@ const PostDetailScreen = () => {
     }
 
     const fallback = post.likes ?? post.likeCount ?? likeCount ?? 0;
+    const beforeSnap = getLikeSnapshot(post.id, user.id, fallback);
+
+    // 클릭은 되는데(요청은 감) 네트워크/DB 반영이 느려서 "안 눌린 것처럼" 보이는 문제를 막기 위해
+    // UUID 게시물도 optimistic UI를 먼저 적용하고, 실패하면 즉시 롤백한다.
+    if (likeBusyRef.current) return;
+    likeBusyRef.current = true;
+    const optimisticLiked = !beforeSnap.liked;
+    const optimisticCount = Math.max(0, Number(fallback || 0) + (optimisticLiked ? 1 : -1));
+    setLiked(optimisticLiked);
+    setLikeCount(optimisticCount);
+    setPost((p) => (p ? { ...p, likes: optimisticCount, likeCount: optimisticCount } : p));
+
+    if (!beforeSnap.liked && optimisticLiked) {
+      setShowHeartAnimation(true);
+      setTimeout(() => setShowHeartAnimation(false), 600);
+    }
+
     // UUID 게시물은 DB(post_likes)로 저장하여 기기 간 동기화
     const serverRes = await toggleLikeForPost({ postId: post.id, userId: user.id, baseLikesCount: Number(fallback) || 0 });
     if (serverRes?.success && typeof serverRes.likesCount === 'number') {
-      const before = getLikeSnapshot(post.id, user.id, fallback);
       setLiked(!!serverRes.isLiked);
       setLikeCount(serverRes.likesCount);
       setPost((p) => (p ? { ...p, likes: serverRes.likesCount, likeCount: serverRes.likesCount } : p));
-
-      if (!before.liked && !!serverRes.isLiked) {
-        setShowHeartAnimation(true);
-        setTimeout(() => setShowHeartAnimation(false), 600);
-      }
+      likeBusyRef.current = false;
       return;
     }
 
     // UUID 게시물인데 서버가 실패한 경우(세션 없음 등)는 로컬 토글로 fallback 하면 안 됨
     if (serverRes?.reason && serverRes.reason !== 'non_uuid') {
+      // optimistic 롤백
+      setLiked(!!beforeSnap.liked);
+      setLikeCount(Math.max(0, Number(beforeSnap.count ?? fallback ?? 0) || 0));
+      setPost((p) =>
+        (p ? { ...p, likes: Math.max(0, Number(beforeSnap.count ?? fallback ?? 0) || 0), likeCount: Math.max(0, Number(beforeSnap.count ?? fallback ?? 0) || 0) } : p)
+      );
+      likeBusyRef.current = false;
       alert(serverRes.reason === 'no_session' ? '로그인 세션이 없어요. 다시 로그인 후 시도해 주세요.' : '좋아요 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
       return;
     }
 
     // 로컬 게시물(비-UUID)
-    const before = getLikeSnapshot(post.id, user.id, fallback);
+    likeBusyRef.current = false;
+    const beforeLocal = getLikeSnapshot(post.id, user.id, fallback);
     const next = toggleLikeLocal(post.id, user.id, fallback);
     if (!next) return;
 
@@ -411,13 +432,13 @@ const PostDetailScreen = () => {
     setPost((p) => (p ? { ...p, likes: next.count, likeCount: next.count } : p));
 
     // 좋아요를 누를 때만 애니메이션 표시
-    if (!before.liked && next.liked) {
+    if (!beforeLocal.liked && next.liked) {
       setShowHeartAnimation(true);
       setTimeout(() => setShowHeartAnimation(false), 600);
     }
 
     // 타인 게시물에 좋아요 알림(로컬 알림)
-    if (!before.liked && next.liked && post.userId && String(post.userId) !== String(user.id)) {
+    if (!beforeLocal.liked && next.liked && post.userId && String(post.userId) !== String(user.id)) {
       const actorName = user.username || user.email?.split('@')[0] || '여행자';
       const thumbRaw = Array.isArray(post.images) && post.images[0] ? post.images[0] : (post.image || post.thumbnail || null);
       notifyLike(actorName, post.location || post.placeName || '게시물', {
