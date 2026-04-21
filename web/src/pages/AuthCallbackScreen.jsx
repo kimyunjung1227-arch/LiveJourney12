@@ -12,6 +12,40 @@ const AuthCallbackScreen = () => {
     const handleCallback = async () => {
       try {
         const code = searchParams.get('code');
+
+        // Implicit flow(hash) 지원: #access_token=...&refresh_token=...
+        // (일부 OAuth 설정/환경에서 code 대신 토큰이 fragment로 내려옴)
+        const hash = typeof window !== 'undefined' ? String(window.location.hash || '') : '';
+        const hashParams = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash);
+        const hashAccessToken = hashParams.get('access_token');
+        const hashRefreshToken = hashParams.get('refresh_token');
+        if (hashAccessToken && hashRefreshToken) {
+          const { data: sessionData, error: sessionErr } = await supabase.auth.setSession({
+            access_token: hashAccessToken,
+            refresh_token: hashRefreshToken,
+          });
+          if (sessionErr) throw sessionErr;
+
+          const uid = sessionData?.session?.user?.id || null;
+          if (!uid) {
+            setError('세션을 생성할 수 없습니다.');
+            setTimeout(() => {
+              navigate('/start', { replace: true });
+            }, 2500);
+            return;
+          }
+
+          try {
+            window.dispatchEvent(new Event('userUpdated'));
+          } catch {
+            // ignore
+          }
+
+          logger.log('✅ OAuth 세션 설정 완료(implicit):', { uid });
+          navigate('/main', { replace: true });
+          return;
+        }
+
         // Supabase OAuth 에러 파라미터 처리
         const errorCode = searchParams.get('error_code') || searchParams.get('error');
         const errorDescription = searchParams.get('error_description') || searchParams.get('error_message');
