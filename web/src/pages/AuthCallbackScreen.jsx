@@ -1,76 +1,68 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
 
 const AuthCallbackScreen = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { setUser } = useAuth();
   const [error, setError] = useState(null);
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // URL에서 토큰과 사용자 정보 가져오기
-        const token = searchParams.get('token');
-        const userJson = searchParams.get('user');
-        const errorMsg = searchParams.get('error');
-
-        if (errorMsg) {
-          logger.error('소셜 로그인 오류:', errorMsg);
-          setError(errorMsg);
+        // Supabase OAuth 에러 파라미터 처리
+        const errorCode = searchParams.get('error_code') || searchParams.get('error');
+        const errorDescription = searchParams.get('error_description') || searchParams.get('error_message');
+        if (errorCode || errorDescription) {
+          const msg = String(errorDescription || errorCode || '로그인에 실패했습니다.');
+          logger.error('Supabase OAuth 오류:', { errorCode, errorDescription });
+          setError(msg);
           setTimeout(() => {
-            navigate('/main', { replace: true });
+            navigate('/start', { replace: true });
           }, 3000);
           return;
         }
 
-        if (token && userJson) {
-          try {
-            const user = JSON.parse(decodeURIComponent(userJson));
-            
-            // 로컬 스토리지에 저장
-            localStorage.setItem('token', token);
-            localStorage.setItem('user', JSON.stringify(user));
-            
-            // Auth Context 업데이트
-            if (setUser) {
-              setUser(user);
-            }
-            
-            // 사용자 정보 업데이트 이벤트 발생
-            window.dispatchEvent(new Event('userUpdated'));
-            
-            logger.log('✅ 소셜 로그인 성공:', user);
-            
-            // 로그인 후 바로 메인으로
-            navigate('/main', { replace: true });
-          } catch (parseError) {
-            logger.error('사용자 정보 파싱 오류:', parseError);
-            setError('사용자 정보를 처리할 수 없습니다.');
-            setTimeout(() => {
-              navigate('/main', { replace: true });
-            }, 3000);
-          }
-        } else {
-          console.error('토큰 또는 사용자 정보가 없습니다');
-          setError('로그인 정보를 가져올 수 없습니다.');
+        // PKCE(code) → session 교환
+        // supabase-js는 detectSessionInUrl=true일 때 자동 처리도 하지만,
+        // 라우트 전환/초기 렌더 타이밍 이슈를 피하려고 콜백 라우트에서 명시적으로 교환한다.
+        const { data, error: exErr } = await supabase.auth.exchangeCodeForSession(window.location.href);
+        if (exErr) throw exErr;
+
+        const uid = data?.session?.user?.id || null;
+        if (!uid) {
+          setError('세션을 생성할 수 없습니다.');
           setTimeout(() => {
-            navigate('/main', { replace: true });
-          }, 3000);
+            navigate('/start', { replace: true });
+          }, 2500);
+          return;
         }
+
+        // 기존 코드 호환을 위해 userUpdated 이벤트만 유지 (AuthContext는 onAuthStateChange로 갱신됨)
+        try {
+          window.dispatchEvent(new Event('userUpdated'));
+        } catch {
+          // ignore
+        }
+
+        logger.log('✅ OAuth 세션 교환 완료:', { uid });
+        navigate('/main', { replace: true });
       } catch (err) {
-        logger.error('콜백 처리 오류:', err);
-        setError('로그인 처리 중 오류가 발생했습니다.');
+        logger.error('OAuth 콜백 처리 오류:', err);
+        const msg =
+          String(err?.message || '')
+            .trim()
+            .replace(/\+/g, ' ') || '로그인 처리 중 오류가 발생했습니다.';
+        setError(msg);
         setTimeout(() => {
-          navigate('/main', { replace: true });
+          navigate('/start', { replace: true });
         }, 3000);
       }
     };
 
     handleCallback();
-  }, [searchParams, navigate, setUser]);
+  }, [searchParams, navigate]);
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center bg-background-light dark:bg-background-dark p-6">

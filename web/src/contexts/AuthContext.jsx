@@ -142,7 +142,9 @@ export const AuthProvider = ({ children }) => {
       await supabase.auth.signInWithOAuth({
         provider: providerLower,
         options: {
-          redirectTo: window.location.origin,
+          // OAuth 콜백은 별도 라우트에서 code→session 교환을 처리한다.
+          // (일부 환경에서 root로 리다이렉트되면 세션이 안정적으로 잡히기 전에 화면 전환이 일어나 로그인 화면으로 되돌아가는 문제가 발생할 수 있음)
+          redirectTo: `${window.location.origin}/auth/callback`,
         },
       });
     } catch (error) {
