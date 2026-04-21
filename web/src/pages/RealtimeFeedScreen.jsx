@@ -36,7 +36,7 @@ const RealtimeFeedScreen = () => {
   useEffect(() => {
     const loadData = async () => {
       const localPosts = getUploadedPostsSafe();
-      const supabasePosts = await fetchPostsSupabase();
+      const supabasePosts = await fetchPostsSupabase(user?.id || null);
       const allPosts = getCombinedPosts(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
       const posts = filterActivePosts48(allPosts);
 
@@ -60,7 +60,7 @@ const RealtimeFeedScreen = () => {
       setRealtimeData(formattedWithRaw);
     };
     loadData();
-  }, [refreshKey]);
+  }, [refreshKey, user?.id]);
 
   useEffect(() => {
     const regions = new Set();
@@ -99,11 +99,22 @@ const RealtimeFeedScreen = () => {
 
   useEffect(() => {
     const onLike = (e) => {
-      const { postId, likesCount } = e.detail || {};
-      if (!postId || typeof likesCount !== 'number') return;
+      const { postId, likesCount, isLiked } = e.detail || {};
+      if (!postId) return;
       const id = String(postId);
       setRealtimeData((prev) =>
-        prev.map((p) => (p && String(p.id) === id ? { ...p, likes: likesCount, likeCount: likesCount } : p))
+        prev.map((p) => {
+          if (!p || String(p.id) !== id) return p;
+          const next = { ...p };
+          if (typeof likesCount === 'number') {
+            next.likes = likesCount;
+            next.likeCount = likesCount;
+          }
+          if (typeof isLiked === 'boolean') {
+            next.likedByMe = isLiked;
+          }
+          return next;
+        })
       );
     };
     const onComments = (e) => {

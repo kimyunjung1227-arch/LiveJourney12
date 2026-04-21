@@ -12,20 +12,17 @@ import { getCombinedPosts } from '../utils/mockData';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getDisplayImageUrl } from '../api/upload';
 import { getMapThumbnailUri } from '../utils/postMedia';
-import { getPostAccuracyCount, mergeLikedPostsFromServer } from '../utils/socialInteractions';
+import { getPostAccuracyCount } from '../utils/socialInteractions';
 import { rankHotspotPlaces } from '../utils/hotnessEngine';
-import { applyPostLikesCountFromServer } from '../api/postsSupabase';
 import { getWeatherByRegion } from '../api/weather';
 import { listPublishedMagazines } from '../utils/magazinesStore';
 import HotFeedCard from '../components/HotFeedCard';
 import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCardModel';
 import { buildPlaceStatsMap, selectPostsForPlaceStats, transformPostForHotFeed } from '../utils/hotFeedPostTransform';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchLikedPostIdsSupabase } from '../api/socialSupabase';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
-import { getLikeSnapshot, toggleLikeLocal } from '../utils/postLikesLocal';
 import { toggleLikeForPost } from '../utils/postLikeActions';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
 const MainScreen = () => {
@@ -113,7 +110,8 @@ const MainScreen = () => {
         const localPosts = getUploadedPostsSafe();
 
         // Supabase에서 실제 게시물 불러오기 (실패 시 빈 배열)
-        const supabasePosts = await fetchPostsSupabase();
+        // 로그인 사용자의 좋아요 상태(post.likedByMe)를 서버에서 함께 내려받는다.
+        const supabasePosts = await fetchPostsSupabase(user?.id || null);
 
         // Supabase + 로컬: 동일 id는 필드 병합(isInAppCamera·exifData 유지)
         const combined = combinePostsSupabaseAndLocal(supabasePosts, localPosts);
@@ -126,19 +124,6 @@ const MainScreen = () => {
         } catch (_) {}
         const combinedFiltered = combined.filter((p) => p && p.id && !deletedIds.has(String(p.id)));
         const allPosts = getCombinedPosts(combinedFiltered);
-
-        // 멀티계정: 현재 사용자 기준 좋아요 상태(post_likes)를 로컬 캐시에 반영
-        try {
-            const uid = user?.id ? String(user.id) : '';
-            const isUuid = uid && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uid);
-            if (isUuid) {
-                const ids = allPosts
-                    .map((p) => String(p.id))
-                    .filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
-                const likedIds = await fetchLikedPostIdsSupabase(uid, ids);
-                if (likedIds !== null) mergeLikedPostsFromServer(ids, likedIds, uid);
-            }
-        } catch (_) {}
 
         // 메인 피드 기준(24h 우선·부족 시 72h 보강) + 장소별 집계 → 실시간 핫플 좌상단 태그와 공유
         const posts = selectPostsForPlaceStats(allPosts);
@@ -435,23 +420,47 @@ const MainScreen = () => {
 
     const handleHotFeedLike = useCallback(async (e, post) => {
         e.stopPropagation();
-        const raw = Number(post.likes ?? post.likeCount ?? 0);
-        const baseLikes = Number.isFinite(raw) ? Math.max(0, raw) : 0;
         if (!user?.id) {
             alert('로그인 후 좋아요를 누를 수 있어요.');
             return;
         }
-        const res = await toggleLikeForPost({ postId: post.id, userId: user.id, baseLikesCount: baseLikes });
-        if (!res?.success) {
-            if (res?.reason && res.reason !== 'non_uuid') {
-                alert(res.reason === 'no_session' ? '로그인 세션이 없어요. 다시 로그인 후 시도해 주세요.' : '좋아요 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
-            }
+        const prevLiked = !!post.likedByMe;
+        const prevCount = Math.max(0, Number(post.likes ?? post.likeCount ?? 0) || 0);
+        const optimisticLiked = !prevLiked;
+        const optimisticCount = Math.max(0, prevCount + (optimisticLiked ? 1 : -1));
+
+        setCrowdedData((prev) =>
+            prev.map((p) =>
+                p && p.id === post.id
+                    ? { ...p, likes: optimisticCount, likeCount: optimisticCount, likedByMe: optimisticLiked }
+                    : p
+            )
+        );
+
+        const res = await toggleLikeForPost({ postId: post.id, userId: user.id, likedBefore: prevLiked });
+        if (res?.success) {
+            const finalLiked = !!res.isLiked;
+            const finalCount = typeof res.likesCount === 'number' ? res.likesCount : optimisticCount;
+            setCrowdedData((prev) =>
+                prev.map((p) =>
+                    p && p.id === post.id
+                        ? { ...p, likes: finalCount, likeCount: finalCount, likedByMe: finalLiked }
+                        : p
+                )
+            );
             return;
         }
-        if (typeof res.likesCount === 'number') {
-            setCrowdedData((prev) =>
-                prev.map((p) => (p && p.id === post.id ? { ...p, likes: res.likesCount, likeCount: res.likesCount } : p))
-            );
+
+        // 롤백
+        setCrowdedData((prev) =>
+            prev.map((p) =>
+                p && p.id === post.id
+                    ? { ...p, likes: prevCount, likeCount: prevCount, likedByMe: prevLiked }
+                    : p
+            )
+        );
+        if (res?.reason && res.reason !== 'non_uuid') {
+            alert(res.reason === 'no_session' ? '로그인 세션이 없어요. 다시 로그인 후 시도해 주세요.' : '좋아요 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
         }
     }, [user?.id]);
 
@@ -471,13 +480,24 @@ const MainScreen = () => {
         }
     }, [location.pathname, fetchPosts]);
 
-    // 상세에서 좋아요 반영 시 메인 목록의 해당 게시물 좋아요 수 동기화
+    // 상세/피드 등 다른 화면에서 좋아요 반영 시 메인 목록 동기화
     useEffect(() => {
         const onPostLikeUpdated = (e) => {
-            const { postId, likesCount } = e.detail || {};
-            if (!postId || typeof likesCount !== 'number') return;
+            const { postId, likesCount, isLiked } = e.detail || {};
+            if (!postId) return;
             const id = String(postId);
-            const updateLikes = (p) => (p && String(p.id) === id ? { ...p, likes: likesCount, likeCount: likesCount } : p);
+            const updateLikes = (p) => {
+                if (!p || String(p.id) !== id) return p;
+                const next = { ...p };
+                if (typeof likesCount === 'number') {
+                    next.likes = likesCount;
+                    next.likeCount = likesCount;
+                }
+                if (typeof isLiked === 'boolean') {
+                    next.likedByMe = isLiked;
+                }
+                return next;
+            };
             setRealtimeData((prev) => prev.map(updateLikes));
             setCrowdedData((prev) => prev.map(updateLikes));
             setRecommendedData((prev) => prev.map(updateLikes));

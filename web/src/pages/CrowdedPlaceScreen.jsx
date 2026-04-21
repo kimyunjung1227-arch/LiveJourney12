@@ -9,7 +9,6 @@ import { getDisplayImageUrl } from '../api/upload';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { rankHotspotPlaces } from '../utils/hotnessEngine';
 import { useAuth } from '../contexts/AuthContext';
-import { getLikeSnapshot, toggleLikeLocal } from '../utils/postLikesLocal';
 import { toggleLikeForPost } from '../utils/postLikeActions';
 import { getMapThumbnailUri } from '../utils/postMedia';
 import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCardModel';
@@ -152,27 +151,44 @@ const CrowdedPlaceScreen = () => {
             alert('로그인 후 좋아요를 누를 수 있어요.');
             return;
         }
-        const baseLikes = typeof post.likes === 'number'
-            ? post.likes
-            : (typeof post.likeCount === 'number' ? post.likeCount : 0);
-        const serverRes = await toggleLikeForPost({ postId: post.id, userId: user.id, baseLikesCount: baseLikes });
-        if (serverRes?.success && typeof serverRes.likesCount === 'number') {
+        const prevLiked = !!post.likedByMe;
+        const prevCount = Math.max(0, Number(post.likes ?? post.likeCount ?? 0) || 0);
+        const optimisticLiked = !prevLiked;
+        const optimisticCount = Math.max(0, prevCount + (optimisticLiked ? 1 : -1));
+
+        setCrowdedData((prev) =>
+            prev.map((p) =>
+                p && p.id === post.id
+                    ? { ...p, likes: optimisticCount, likeCount: optimisticCount, likedByMe: optimisticLiked }
+                    : p
+            )
+        );
+
+        const serverRes = await toggleLikeForPost({ postId: post.id, userId: user.id, likedBefore: prevLiked });
+        if (serverRes?.success) {
+            const finalLiked = !!serverRes.isLiked;
+            const finalCount = typeof serverRes.likesCount === 'number' ? serverRes.likesCount : optimisticCount;
             setCrowdedData((prev) =>
-                prev.map((p) => (p && p.id === post.id ? { ...p, likes: serverRes.likesCount, likeCount: serverRes.likesCount } : p))
+                prev.map((p) =>
+                    p && p.id === post.id
+                        ? { ...p, likes: finalCount, likeCount: finalCount, likedByMe: finalLiked }
+                        : p
+                )
             );
             return;
         }
 
+        // 롤백
+        setCrowdedData((prev) =>
+            prev.map((p) =>
+                p && p.id === post.id
+                    ? { ...p, likes: prevCount, likeCount: prevCount, likedByMe: prevLiked }
+                    : p
+            )
+        );
         if (serverRes?.reason && serverRes.reason !== 'non_uuid') {
             alert(serverRes.reason === 'no_session' ? '로그인 세션이 없어요. 다시 로그인 후 시도해 주세요.' : '좋아요 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
-            return;
         }
-
-        const result = toggleLikeLocal(post.id, user.id, baseLikes);
-        if (!result) return;
-        setCrowdedData((prev) =>
-            prev.map((p) => (p && p.id === post.id ? { ...p, likes: result.count, likeCount: result.count } : p))
-        );
     }, [user?.id]);
 
     useEffect(() => {
@@ -183,11 +199,22 @@ const CrowdedPlaceScreen = () => {
 
     useEffect(() => {
         const onLike = (e) => {
-            const { postId, likesCount } = e.detail || {};
-            if (!postId || typeof likesCount !== 'number') return;
+            const { postId, likesCount, isLiked } = e.detail || {};
+            if (!postId) return;
             const id = String(postId);
             setCrowdedData((prev) =>
-                prev.map((p) => (p && String(p.id) === id ? { ...p, likes: likesCount, likeCount: likesCount } : p))
+                prev.map((p) => {
+                    if (!p || String(p.id) !== id) return p;
+                    const next = { ...p };
+                    if (typeof likesCount === 'number') {
+                        next.likes = likesCount;
+                        next.likeCount = likesCount;
+                    }
+                    if (typeof isLiked === 'boolean') {
+                        next.likedByMe = isLiked;
+                    }
+                    return next;
+                })
             );
         };
         const onComments = (e) => {
@@ -209,7 +236,7 @@ const CrowdedPlaceScreen = () => {
     useEffect(() => {
         const loadData = async () => {
             const localPosts = getUploadedPostsSafe();
-            const supabasePosts = await fetchPostsSupabase();
+            const supabasePosts = await fetchPostsSupabase(user?.id || null);
             const allPosts = getCombinedPosts(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
             // 메인 실시간 핫플과 동일한 장소 집계 → 좌상단 핫 태그(reasonTags·급상승 등) 일치
             const postsForPlaceStats = selectPostsForPlaceStats(allPosts);
@@ -254,7 +281,7 @@ const CrowdedPlaceScreen = () => {
             setCrowdedData(repPosts.length > 0 ? repPosts : transformed.slice(0, 50));
         };
         loadData();
-    }, [refreshKey]);
+    }, [refreshKey, user?.id]);
 
     const filteredPosts = crowdedData;
 

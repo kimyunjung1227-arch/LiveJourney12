@@ -1,12 +1,11 @@
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
-import { setLikedPostLocalCache } from '../utils/socialInteractions';
 
 const isValidUuid = (v) =>
   typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
 
-// 좋아요/언좋아요 연타(중복 요청)로 409가 발생하는 케이스를 줄이기 위한 per-post mutex
-const likeMutex = new Map(); // key: `${userId}:${postId}` -> Promise
+// 좋아요/언좋아요 연타(중복 요청) 방어용 per-post mutex
+const likeMutex = new Map();
 async function withLikeLock(key, fn) {
   const prev = likeMutex.get(key) || Promise.resolve();
   let release;
@@ -17,210 +16,56 @@ async function withLikeLock(key, fn) {
     return await fn();
   } finally {
     release();
-    // 체인이 끝났다면 정리
     if (likeMutex.get(key) === next) likeMutex.delete(key);
   }
 }
 
-/** PostgREST insert 시 (post_id,user_id) 등 unique 충돌 */
-function isUniqueConflictError(err, depth = 0) {
-  if (!err || depth > 2) return false;
-  const status = Number(err.status ?? err.statusCode ?? err?.context?.response?.status ?? 0);
-  if (status === 409) return true;
-  const code = String(err.code || '');
-  if (code === '23505' || code === '409') return true;
-  const msg = String(err.message || err.msg || '').toLowerCase();
-  if (
-    msg.includes('duplicate') ||
-    msg.includes('unique constraint') ||
-    msg.includes('already exists') ||
-    msg.includes('violates unique') ||
-    msg.includes('conflict')
-  ) {
-    return true;
-  }
-  const det = String(err.details || err.hint || '').toLowerCase();
-  if (det.includes('duplicate') || det.includes('unique')) return true;
-  if (isUniqueConflictError(err.error, depth + 1)) return true;
-  if (isUniqueConflictError(err.cause, depth + 1)) return true;
-  return false;
-}
-
-/** @returns {string[]|null} 실패 시 null(로컬 likedPosts 캐시를 잘못 덮어쓰지 않음) */
-export const fetchLikedPostIdsSupabase = async (userId, postIds) => {
-  const uid = String(userId || '').trim();
-  if (!isValidUuid(uid)) return [];
-  const ids = (Array.isArray(postIds) ? postIds : []).map(String).filter(Boolean);
-  if (ids.length === 0) return [];
-  try {
-    const { data, error } = await supabase
-      .from('post_likes')
-      .select('post_id')
-      .eq('user_id', uid)
-      .in('post_id', ids);
-    if (error) throw error;
-    return (Array.isArray(data) ? data : []).map((r) => String(r.post_id));
-  } catch (e) {
-    logger.warn('fetchLikedPostIdsSupabase 실패:', e?.message);
-    return null;
-  }
-};
-
-export const isPostLikedSupabase = async (userId, postId) => {
-  const uid = String(userId || '').trim();
-  const pid = String(postId || '').trim();
-  if (!isValidUuid(uid) || !isValidUuid(pid)) return false;
-  try {
-    const { data, error } = await supabase
-      .from('post_likes')
-      .select('post_id')
-      .eq('user_id', uid)
-      .eq('post_id', pid)
-      .maybeSingle();
-    if (error) throw error;
-    return !!data;
-  } catch (e) {
-    logger.warn('isPostLikedSupabase 실패:', e?.message);
-    return false;
-  }
-};
-
-async function resolveActorDisplayForLike(uid, hint) {
-  if (hint?.username && String(hint.username).trim()) {
-    return { name: String(hint.username).trim(), avatar: hint.avatarUrl || null };
-  }
-  try {
-    const { data: row } = await supabase
-      .from('posts')
-      .select('author_username, author_avatar_url')
-      .eq('user_id', uid)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (row?.author_username) {
-      return { name: String(row.author_username), avatar: row.author_avatar_url || null };
-    }
-  } catch {
-    // ignore
-  }
-  return { name: '여행자', avatar: null };
-}
-
-async function fetchLikesCountFromLikesTable(postId) {
-  const pid = String(postId || '').trim();
-  if (!isValidUuid(pid)) return null;
-  try {
-    const { count, error } = await supabase
-      .from('post_likes')
-      .select('post_id', { count: 'exact', head: true })
-      .eq('post_id', pid);
-    if (error) throw error;
-    if (typeof count !== 'number') return null;
-    return Math.max(0, count);
-  } catch (e) {
-    logger.warn('fetchLikesCountFromLikesTable 실패:', e?.message);
-    return null;
-  }
-}
-
 /**
- * 좋아요 토글. `likedBeforeClick`은 클릭 직전 UI/캐시 상태(필수).
- * 서버는 `set_post_like` RPC로 멱등 처리.
+ * 좋아요 토글. 서버(`set_post_like` RPC)가 단일 진실.
+ * - 세션 검증 → RPC 호출 → 응답 그대로 반환
+ * - UI의 optimistic은 호출부(React state)에서 처리한다. 여기서는 캐시 안 씀.
  */
-export const togglePostLikeSupabase = async (userId, postId, actorHint = null, opts = {}) => {
+export const togglePostLikeSupabase = async (userId, postId, opts = {}) => {
   const uid = String(userId || '').trim();
   const pid = String(postId || '').trim();
   if (!isValidUuid(uid) || !isValidUuid(pid)) return { success: false, isLiked: false, likesCount: null };
-  const likedBeforeClick = opts.likedBeforeClick;
-  const baseLikesCount = Number.isFinite(Number(opts.baseLikesCount)) ? Math.max(0, Number(opts.baseLikesCount)) : null;
-  const lockKey = `${uid}:${pid}`;
-  return await withLikeLock(lockKey, async () => {
-    try {
-    // ✅ 세션이 없으면(auth.uid=null) RPC는 항상 {is_liked:false, likes_count:0}로 회귀할 수 있다.
-    // 이 경우는 "좋아요가 안 되는" 상태이므로 요청 자체를 막고 UI도 롤백시킨다.
+  const likedBeforeClick = opts.likedBeforeClick === true;
+  const desired = !likedBeforeClick;
+
+  return await withLikeLock(`${uid}:${pid}`, async () => {
     try {
       const { data: ses } = await supabase.auth.getSession();
       const sid = ses?.session?.user?.id ? String(ses.session.user.id) : null;
       if (!sid || sid !== uid) {
         logger.warn('togglePostLikeSupabase: 세션 없음/불일치', { sid, uid });
-        // 세션이 없으면 서버 write가 불가능. 여기서 실패를 명확히 반환해야 로컬 토글로 오염되지 않음.
-        return { success: false, isLiked: !!likedBeforeClick, likesCount: null, error: 'no_session' };
+        return { success: false, isLiked: likedBeforeClick, likesCount: null, error: 'no_session' };
       }
-    } catch (_) {
-      return { success: false, isLiked: !!likedBeforeClick, likesCount: null, error: 'no_session' };
-    }
 
-    const desired = likedBeforeClick === true ? false : true;
-    // optimistic
-    setLikedPostLocalCache(pid, desired);
-
-    // ✅ 최종값(좋아요 여부 + likes_count)을 서버에서 한 번에 받아온다.
-    const { data: rows, error: rpcErr } = await supabase.rpc('set_post_like', { p_post_id: pid, p_like: desired });
-    if (rpcErr) {
-      // RPC가 없거나 실패해도, 수동으로 post_likes를 맞추고 likes_count를 읽어온다.
-      logger.warn('set_post_like RPC 실패 → 수동 폴백 시도:', rpcErr?.message || rpcErr);
-      try {
-        if (desired) {
-          const { error: insErr } = await supabase.from('post_likes').insert({ user_id: uid, post_id: pid });
-          if (insErr && !isUniqueConflictError(insErr)) throw insErr;
-        } else {
-          const { error: delErr } = await supabase.from('post_likes').delete().eq('user_id', uid).eq('post_id', pid);
-          if (delErr) throw delErr;
-        }
-        // likes_count 트리거가 없거나 반영이 느려도 0으로 되돌아가지 않게
-        // post_likes를 직접 count해서 최종값을 만든다.
-        let likesCount = await fetchLikesCountFromLikesTable(pid);
-        // RLS/반영지연으로 count가 0/NULL로 보이는 경우를 방지: 클라이언트가 알고 있는 base값을 우선 사용
-        if ((likesCount == null || likesCount === 0) && baseLikesCount != null) {
-          const delta = (desired ? 1 : 0) - (likedBeforeClick === true ? 1 : 0);
-          likesCount = Math.max(0, baseLikesCount + delta);
-        }
-        // 확정 liked 캐시 갱신
-        setLikedPostLocalCache(pid, desired);
-        if (likesCount != null) {
-          try {
-            window.dispatchEvent(new CustomEvent('postLikeUpdated', { detail: { postId: pid, likesCount } }));
-          } catch {}
-        }
-        return { success: true, isLiked: desired, likesCount };
-      } catch (fallbackErr) {
-        // 서버 write가 실패했으면 optimistic을 롤백하고 실패로 반환
-        logger.warn('좋아요 수동 폴백 실패:', fallbackErr?.message || fallbackErr);
-        try {
-          setLikedPostLocalCache(pid, !!likedBeforeClick);
-        } catch {}
-        return { success: false, isLiked: !!likedBeforeClick, likesCount: null, error: 'server_write_failed' };
+      const { data: rows, error: rpcErr } = await supabase.rpc('set_post_like', {
+        p_post_id: pid,
+        p_like: desired,
+      });
+      if (rpcErr) {
+        logger.warn('set_post_like RPC 실패:', rpcErr?.message || rpcErr);
+        return { success: false, isLiked: likedBeforeClick, likesCount: null, error: 'server_write_failed' };
       }
-    }
-    const row = Array.isArray(rows) ? rows[0] : rows;
-    const isLiked = row?.is_liked != null ? !!row.is_liked : desired;
-    let likesCount = row?.likes_count != null ? Math.max(0, Number(row.likes_count) || 0) : null;
-    if (likesCount == null || likesCount === 0) {
-      const fromLikes = await fetchLikesCountFromLikesTable(pid);
-      if (typeof fromLikes === 'number') likesCount = fromLikes;
-    }
-    if ((likesCount == null || likesCount === 0) && baseLikesCount != null) {
-      const delta = (isLiked ? 1 : 0) - (likedBeforeClick === true ? 1 : 0);
-      likesCount = Math.max(0, baseLikesCount + delta);
-    }
-    setLikedPostLocalCache(pid, isLiked);
-    if (likesCount != null) {
+
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      const isLiked = row?.is_liked != null ? !!row.is_liked : desired;
+      const likesCount = row?.likes_count != null ? Math.max(0, Number(row.likes_count) || 0) : null;
+
+      // 화면 간 동기화: 다른 피드/상세가 같은 postId를 들고 있으면 업데이트
       try {
-        window.dispatchEvent(new CustomEvent('postLikeUpdated', { detail: { postId: pid, likesCount } }));
+        window.dispatchEvent(
+          new CustomEvent('postLikeUpdated', { detail: { postId: pid, isLiked, likesCount } })
+        );
       } catch {}
+
+      return { success: true, isLiked, likesCount };
+    } catch (e) {
+      logger.warn('togglePostLikeSupabase 예외:', e?.message);
+      return { success: false, isLiked: likedBeforeClick, likesCount: null, error: 'unknown' };
     }
-
-    // ✅ 알림은 DB 트리거가 생성한다.
-
-    return { success: true, isLiked, likesCount };
-  } catch (e) {
-    logger.warn('togglePostLikeSupabase 실패:', e?.message, e?.code || e?.status || '');
-    // 예외면 optimistic 롤백
-    try {
-      setLikedPostLocalCache(pid, !!likedBeforeClick);
-    } catch {}
-    return { success: false, isLiked: !!likedBeforeClick, likesCount: null, error: 'unknown' };
-  }
   });
 };
 

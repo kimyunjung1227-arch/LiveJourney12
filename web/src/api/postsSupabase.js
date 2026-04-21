@@ -2,39 +2,6 @@ import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
 import { fetchCommentsForPostSupabase } from './socialSupabase';
 
-const POST_LIKES_OVERRIDE_KEY = 'postLikesOverride_v1';
-const readLikesOverrideMap = () => {
-  try {
-    const s = localStorage.getItem(POST_LIKES_OVERRIDE_KEY);
-    return s ? JSON.parse(s) : {};
-  } catch {
-    return {};
-  }
-};
-const writeLikesOverrideMap = (map) => {
-  try {
-    localStorage.setItem(POST_LIKES_OVERRIDE_KEY, JSON.stringify(map || {}));
-  } catch {
-    /* ignore */
-  }
-};
-const setLikesOverride = (postId, likesCount) => {
-  if (!postId) return;
-  const map = readLikesOverrideMap();
-  map[String(postId)] = { likesCount: Number(likesCount) || 0, updatedAt: Date.now() };
-  writeLikesOverrideMap(map);
-};
-const getLikesOverride = (postId) => {
-  if (!postId) return null;
-  const map = readLikesOverrideMap();
-  const v = map[String(postId)];
-  if (!v || typeof v !== 'object') return null;
-  const updatedAt = Number(v.updatedAt) || 0;
-  // 서버 반영 지연/재진입 롤백 방지용: 짧은 시간(10분)만 로컬 override 유지
-  if (!updatedAt || Date.now() - updatedAt > 10 * 60 * 1000) return null;
-  return { likesCount: Number(v.likesCount) || 0, updatedAt };
-};
-
 // blob: URL은 새로고침 시 사라지므로 Supabase에는 https URL만 저장
 const onlyPersistentUrls = (arr) => {
   if (!Array.isArray(arr)) return [];
@@ -263,98 +230,43 @@ export const deletePostSupabase = async (postId) => {
   }
 };
 
-// Supabase 게시물 좋아요 수 갱신 (토글 시 호출)
-export const updatePostLikesSupabase = async (postId, delta) => {
-  if (!postId || typeof postId !== 'string') return { success: false };
-  const trimmed = postId.trim();
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
-  if (!isUuid) return { success: false };
+/**
+ * 주어진 post IDs 중 현재 사용자가 좋아요한 것들의 Set 반환.
+ * - 로그인 안 했거나 유효 UUID가 아니면 빈 Set.
+ * - 서버가 단일 진실: post_likes 테이블을 그대로 조회.
+ */
+export const fetchLikedPostIdsSupabase = async (postIds, userId) => {
+  const uid = String(userId || '').trim();
+  if (!isValidUuid(uid)) return new Set();
+  const ids = Array.from(
+    new Set((Array.isArray(postIds) ? postIds : []).map((x) => String(x || '').trim()).filter(isValidUuid))
+  );
+  if (ids.length === 0) return new Set();
   try {
-    const { data: row, error: fetchErr } = await supabase
-      .from('posts')
-      .select('likes_count')
-      .eq('id', trimmed)
-      .single();
-    if (fetchErr || row == null) {
-      logger.warn('updatePostLikesSupabase: fetch 실패', fetchErr?.message);
-      return { success: false };
-    }
-    const current = Number(row.likes_count) || 0;
-    const newCount = Math.max(0, current + delta);
-    const { error: updateErr } = await supabase
-      .from('posts')
-      .update({ likes_count: newCount })
-      .eq('id', trimmed);
-    if (updateErr) {
-      logger.warn('updatePostLikesSupabase: update 실패', updateErr.message);
-      return { success: false };
-    }
-    // 재진입 시 0으로 롤백되는 케이스 방지: 로컬 override도 함께 저장
-    setLikesOverride(trimmed, newCount);
-    // 화면 간 동기화 이벤트
-    try {
-      window.dispatchEvent(new CustomEvent('postLikeUpdated', { detail: { postId: trimmed, likesCount: newCount } }));
-    } catch {}
-    return { success: true, likesCount: newCount };
+    const { data, error } = await supabase
+      .from('post_likes')
+      .select('post_id')
+      .eq('user_id', uid)
+      .in('post_id', ids);
+    if (error || !Array.isArray(data)) return new Set();
+    return new Set(data.map((r) => String(r.post_id)));
   } catch (e) {
-    logger.warn('updatePostLikesSupabase 예외:', e?.message);
-    return { success: false };
-  }
-};
-
-/** post_likes 트리거 반영 후 DB의 likes_count만 조회 (피드 좋아요 숫자 동기화) */
-export const fetchPostLikesCountSupabase = async (postId) => {
-  const trimmed = String(postId || '').trim();
-  if (!isValidUuid(trimmed)) return null;
-  try {
-    const { data, error } = await supabase.from('posts').select('likes_count').eq('id', trimmed).maybeSingle();
-    if (error || data == null) return null;
-    return Math.max(0, Number(data.likes_count) || 0);
-  } catch (e) {
-    logger.warn('fetchPostLikesCountSupabase:', e?.message);
-    return null;
-  }
-};
-
-/** 트리거 반영 지연 대비: likes_count를 몇 번 재시도해서 가져옴 */
-export const fetchPostLikesCountSupabaseWithRetry = async (postId, opts = {}) => {
-  const attempts = Math.max(1, Number(opts.attempts ?? 4) || 4);
-  const delayMs = Math.max(0, Number(opts.delayMs ?? 250) || 250);
-  for (let i = 0; i < attempts; i++) {
-    const n = await fetchPostLikesCountSupabase(postId);
-    if (n != null) return n;
-    if (i < attempts - 1 && delayMs > 0) {
-      // eslint-disable-next-line no-await-in-loop
-      await new Promise((r) => setTimeout(r, delayMs));
-    }
-  }
-  return null;
-};
-
-/** 서버 숫자를 로컬 override + postLikeUpdated로 반영 (목록·상세 동기화) */
-export const applyPostLikesCountFromServer = (postId, likesCount) => {
-  if (!postId) return;
-  const n = Math.max(0, Number(likesCount) || 0);
-  setLikesOverride(String(postId), n);
-  try {
-    window.dispatchEvent(new CustomEvent('postLikeUpdated', { detail: { postId: String(postId), likesCount: n } }));
-  } catch {
-    /* ignore */
+    logger.warn('fetchLikedPostIdsSupabase:', e?.message);
+    return new Set();
   }
 };
 
 // Supabase에서 단일 게시물 조회 (상세 화면 진입 시 최신 좋아요·미디어 반영용)
-const mapRowToPost = (row) => {
+const mapRowToPost = (row, opts = {}) => {
   if (!row) return null;
   const uid = row.user_id;
   const userObj =
     uid != null
       ? { id: uid, username: row.author_username || null, profileImage: row.author_avatar_url || null }
       : uid;
-  const fromRow = Number(row.likes_count) || 0;
-  const ov = getLikesOverride(row.id);
-  const likesCount = ov ? ov.likesCount : fromRow;
+  const likesCount = Number(row.likes_count) || 0;
   const commentsCount = Math.max(0, Number(row.comments_count ?? row.commentsCount ?? 0) || 0);
+  const likedByMe = opts.likedByMe === true;
   return {
     id: row.id,
     userId: uid,
@@ -388,6 +300,7 @@ const mapRowToPost = (row) => {
         : null,
     likes: likesCount,
     likeCount: likesCount,
+    likedByMe,
     // 목록/피드에서는 댓글 본문을 들고 다니지 않고, 서버 기준 카운트만 사용한다.
     // 상세 화면에서만 post_comments 테이블을 조회해 실제 배열로 채운다.
     comments: Array.isArray(row.comments) ? row.comments : [],
@@ -400,7 +313,7 @@ const mapRowToPost = (row) => {
   };
 };
 
-export const fetchPostByIdSupabase = async (postId) => {
+export const fetchPostByIdSupabase = async (postId, currentUserId = null) => {
   if (!postId || typeof postId !== 'string') return null;
   const trimmed = postId.trim();
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
@@ -412,7 +325,8 @@ export const fetchPostByIdSupabase = async (postId) => {
       .eq('id', trimmed)
       .single();
     if (error || !data) return null;
-    const mapped = mapRowToPost(data);
+    const likedSet = await fetchLikedPostIdsSupabase([trimmed], currentUserId);
+    const mapped = mapRowToPost(data, { likedByMe: likedSet.has(trimmed) });
     const liveComments = await fetchCommentsForPostSupabase(trimmed);
     const fromTable = Array.isArray(liveComments) && liveComments.length > 0
       ? liveComments.map((c) => ({
@@ -454,7 +368,7 @@ export const updateCommentsInPostSupabase = async (postId, commentsArray) => {
 };
 
 // Supabase에서 특정 사용자(user_id)가 올린 게시물만 조회 (프로필 기록용, 로그아웃 후 재로그인해도 유지)
-export const fetchPostsByUserIdSupabase = async (userId) => {
+export const fetchPostsByUserIdSupabase = async (userId, currentUserId = null) => {
   if (!userId || typeof userId !== 'string') return [];
   const trimmed = userId.trim();
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
@@ -469,7 +383,9 @@ export const fetchPostsByUserIdSupabase = async (userId) => {
     if (error) throw error;
     if (!data) return [];
 
-    return data.map(mapRowToPost).filter(Boolean);
+    const ids = data.map((r) => r.id).filter(Boolean);
+    const likedSet = await fetchLikedPostIdsSupabase(ids, currentUserId);
+    return data.map((r) => mapRowToPost(r, { likedByMe: likedSet.has(String(r.id)) })).filter(Boolean);
   } catch (error) {
     logger.warn('Supabase fetchPostsByUserId 실패:', error?.message);
     return [];
@@ -490,7 +406,7 @@ export const getMergedMyPostsForStats = async (userId) => {
 };
 
 // Supabase에서 게시물 목록 읽기
-export const fetchPostsSupabase = async () => {
+export const fetchPostsSupabase = async (currentUserId = null) => {
   try {
     const { data, error } = await supabase
       .from('posts')
@@ -501,7 +417,9 @@ export const fetchPostsSupabase = async () => {
 
     if (!data) return [];
 
-    return data.map(mapRowToPost).filter(Boolean);
+    const ids = data.map((r) => r.id).filter(Boolean);
+    const likedSet = await fetchLikedPostIdsSupabase(ids, currentUserId);
+    return data.map((r) => mapRowToPost(r, { likedByMe: likedSet.has(String(r.id)) })).filter(Boolean);
   } catch (error) {
     logger.warn('Supabase fetchPosts 실패 (localStorage fallback 사용):', error);
     return [];
