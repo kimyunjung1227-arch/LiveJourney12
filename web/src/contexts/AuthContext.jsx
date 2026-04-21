@@ -3,6 +3,7 @@ import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
 import { syncEarnedBadgesFromSupabase } from '../utils/badgeSystem';
 import { syncNotificationsFromSupabase } from '../utils/notifications';
+import { syncFollowingFromSupabase } from '../utils/followSystem';
 
 const AuthContext = createContext(null);
 
@@ -92,6 +93,8 @@ export const AuthProvider = ({ children }) => {
     if (appUser?.id) {
       syncEarnedBadgesFromSupabase(appUser.id);
       void syncNotificationsFromSupabase(appUser.id);
+      // 팔로우 목록도 DB 기준으로 동기화(멀티기기 일관성)
+      void syncFollowingFromSupabase(appUser.id);
     }
   }, [appUser?.id]);
 

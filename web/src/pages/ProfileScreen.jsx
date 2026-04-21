@@ -17,6 +17,7 @@ import { getDisplayImageUrl } from '../api/upload';
 import api from '../api/axios';
 import { cleanLegacyUploadedPosts, getUploadedPostsSafe } from '../utils/localStorageManager';
 import { deletePostSupabase, fetchPostsByUserIdSupabase, fetchPostsSupabase } from '../api/postsSupabase';
+import { isPostLiked } from '../utils/socialInteractions';
 import {
   resolveUserDisplayFromPosts,
   getCachedFollowProfile,
@@ -1840,8 +1841,7 @@ const ProfileScreen = () => {
                       {/* 사진 그리드 (작은 썸네일) */}
                       <div className="grid grid-cols-4 gap-2">
                         {posts.map((post, index) => {
-                          const likedPosts = JSON.parse(localStorage.getItem('likedPosts') || '{}');
-                          const isLiked = likedPosts[post.id] || false;
+                          const isLiked = isPostLiked(post.id);
                           const likeCount = post.likes || post.likeCount || 0;
                           const allPosts = myPosts;
                           const currentIndex = allPosts.findIndex(p => p.id === post.id);

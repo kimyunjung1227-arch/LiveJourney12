@@ -26,6 +26,7 @@ import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { getLikeSnapshot, toggleLikeLocal } from '../utils/postLikesLocal';
+import { toggleLikeForPost } from '../utils/postLikeActions';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
 const MainScreen = () => {
     const navigate = useNavigate();
@@ -135,7 +136,7 @@ const MainScreen = () => {
                     .map((p) => String(p.id))
                     .filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
                 const likedIds = await fetchLikedPostIdsSupabase(uid, ids);
-                if (likedIds !== null) mergeLikedPostsFromServer(ids, likedIds);
+                if (likedIds !== null) mergeLikedPostsFromServer(ids, likedIds, uid);
             }
         } catch (_) {}
 
@@ -432,7 +433,7 @@ const MainScreen = () => {
         return () => clearInterval(id);
     }, [hotFeedPost?.id]);
 
-    const handleHotFeedLike = useCallback((e, post) => {
+    const handleHotFeedLike = useCallback(async (e, post) => {
         e.stopPropagation();
         const raw = Number(post.likes ?? post.likeCount ?? 0);
         const baseLikes = Number.isFinite(raw) ? Math.max(0, raw) : 0;
@@ -440,11 +441,13 @@ const MainScreen = () => {
             alert('로그인 후 좋아요를 누를 수 있어요.');
             return;
         }
-        const next = toggleLikeLocal(post.id, user.id, baseLikes);
-        if (!next) return;
-        setCrowdedData((prev) =>
-            prev.map((p) => (p && p.id === post.id ? { ...p, likes: next.count, likeCount: next.count } : p))
-        );
+        const res = await toggleLikeForPost({ postId: post.id, userId: user.id, baseLikesCount: baseLikes });
+        if (!res?.success) return;
+        if (typeof res.likesCount === 'number') {
+            setCrowdedData((prev) =>
+                prev.map((p) => (p && p.id === post.id ? { ...p, likes: res.likesCount, likeCount: res.likesCount } : p))
+            );
+        }
     }, [user?.id]);
 
     useEffect(() => {

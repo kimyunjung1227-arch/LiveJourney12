@@ -28,6 +28,7 @@ import { buildMediaItemsFromPost } from '../utils/postMedia';
 import { tagTranslations } from '../utils/tagTranslations';
 import { getCategoryChipsFromPost } from '../utils/travelCategories';
 import { getLikeSnapshot, toggleLikeLocal } from '../utils/postLikesLocal';
+import { toggleLikeForPost } from '../utils/postLikeActions';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
 import {
   addCommentSupabase,
@@ -371,7 +372,7 @@ const PostDetailScreen = () => {
   }, [post?.id]);
 
   // 좋아요 처리 (완전 새 로컬 토글 + 카운트)
-  const handleLike = useCallback(() => {
+  const handleLike = useCallback(async () => {
     if (!post?.id) return;
     if (!user?.id) {
       alert('로그인 후 좋아요를 누를 수 있어요.');
@@ -379,6 +380,22 @@ const PostDetailScreen = () => {
     }
 
     const fallback = post.likes ?? post.likeCount ?? likeCount ?? 0;
+    // UUID 게시물은 DB(post_likes)로 저장하여 기기 간 동기화
+    const serverRes = await toggleLikeForPost({ postId: post.id, userId: user.id, baseLikesCount: Number(fallback) || 0 });
+    if (serverRes?.success && typeof serverRes.likesCount === 'number') {
+      const before = getLikeSnapshot(post.id, user.id, fallback);
+      setLiked(!!serverRes.isLiked);
+      setLikeCount(serverRes.likesCount);
+      setPost((p) => (p ? { ...p, likes: serverRes.likesCount, likeCount: serverRes.likesCount } : p));
+
+      if (!before.liked && !!serverRes.isLiked) {
+        setShowHeartAnimation(true);
+        setTimeout(() => setShowHeartAnimation(false), 600);
+      }
+      return;
+    }
+
+    // 로컬 게시물(비-UUID)
     const before = getLikeSnapshot(post.id, user.id, fallback);
     const next = toggleLikeLocal(post.id, user.id, fallback);
     if (!next) return;

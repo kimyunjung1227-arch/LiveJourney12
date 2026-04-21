@@ -21,6 +21,7 @@ import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { getTimeAgo } from '../utils/timeUtils';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
+import { isPostLiked } from '../utils/socialInteractions';
 
 const RegionDetailScreen = () => {
   const navigate = useNavigate();
@@ -481,8 +482,7 @@ const RegionDetailScreen = () => {
                     {realtimePhotos.map((photo, idx) => {
                       const weather = photo.weather || null;
                       const hasWeather = weather && (weather.icon || weather.temperature);
-                      const likedPosts = JSON.parse(localStorage.getItem('likedPosts') || '{}');
-                      const isLiked = likedPosts[photo.id] || false;
+                      const isLiked = isPostLiked(photo.id);
                       const likeCount = photo.likes || photo.likeCount || 0;
                       const gridCover = getGridCoverDisplay(photo, getDisplayImageUrl);
                       const status = getPhotoStatusFromPost(photo);

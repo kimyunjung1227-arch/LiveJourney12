@@ -4,22 +4,30 @@
  */
 
 import { logger } from './logger';
-import { followSupabase, isFollowingSupabase, unfollowSupabase } from '../api/socialSupabase';
+import { fetchFollowingIdsSupabase, followSupabase, isFollowingSupabase, unfollowSupabase } from '../api/socialSupabase';
 
 const STORAGE_KEY = 'follows_v1';
 
-const getRaw = () => {
+const isValidUuid = (v) =>
+  typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
+
+const keyForUser = (userId) => {
+  const uid = userId ? String(userId).trim() : '';
+  return isValidUuid(uid) ? `follows_v2:${uid}` : STORAGE_KEY;
+};
+
+const getRaw = (userId = null) => {
   try {
-    const s = localStorage.getItem(STORAGE_KEY);
+    const s = localStorage.getItem(keyForUser(userId));
     return s ? JSON.parse(s) : [];
   } catch {
     return [];
   }
 };
 
-const setRaw = (arr) => {
+const setRaw = (arr, userId = null) => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+    localStorage.setItem(keyForUser(userId), JSON.stringify(arr));
     window.dispatchEvent(new CustomEvent('followsUpdated'));
   } catch (e) {
     logger.warn('followSystem setRaw:', e);
@@ -49,10 +57,10 @@ export const follow = (targetUserId) => {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t);
   if (isUuid) {
     // 로컬 캐시도 즉시 갱신(버튼 상태/배지)
-    const arr = getRaw();
+    const arr = getRaw(me);
     if (!arr.some((x) => String(x.followerId) === me && String(x.followingId) === t)) {
       arr.push({ followerId: me, followingId: t });
-      setRaw(arr);
+      setRaw(arr, me);
     }
     followSupabase(me, t).then(async (res) => {
       window.dispatchEvent(new CustomEvent('followsUpdated'));
@@ -62,12 +70,12 @@ export const follow = (targetUserId) => {
     return { success: true, isFollowing: true };
   }
 
-  const arr = getRaw();
+  const arr = getRaw(me);
   if (arr.some((x) => String(x.followerId) === me && String(x.followingId) === t)) {
     return { success: true, isFollowing: true };
   }
   arr.push({ followerId: me, followingId: t });
-  setRaw(arr);
+  setRaw(arr, me);
   return { success: true, isFollowing: true };
 };
 
@@ -81,20 +89,20 @@ export const unfollow = (targetUserId) => {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t);
   if (isUuid) {
     // 로컬 캐시도 즉시 갱신
-    const nextLocal = getRaw().filter(
+    const nextLocal = getRaw(me).filter(
       (x) => !(String(x.followerId) === me && String(x.followingId) === t)
     );
-    setRaw(nextLocal);
+    setRaw(nextLocal, me);
     unfollowSupabase(me, t).then(() => {
       window.dispatchEvent(new CustomEvent('followsUpdated'));
     });
     return { success: true, isFollowing: false };
   }
 
-  const arr = getRaw().filter(
+  const arr = getRaw(me).filter(
     (x) => !(String(x.followerId) === me && String(x.followingId) === t)
   );
-  setRaw(arr);
+  setRaw(arr, me);
   return { success: true, isFollowing: false };
 };
 
@@ -120,12 +128,12 @@ export const isFollowing = (followerId, followingId) => {
     // sync API가 아니라서 캐시 없이 best-effort(버튼 UI는 이후 이벤트로 갱신됨)
     // 기본은 로컬값을 사용하되, 없으면 false.
     // 화면에서 필요 시 별도 로딩로직(프로필 화면 등)에서 보정 가능.
-    return getRaw().some(
+    return getRaw(fid).some(
       (x) => String(x.followerId) === fid && String(x.followingId) === t
     );
   }
 
-  return getRaw().some(
+  return getRaw(fid).some(
     (x) => String(x.followerId) === fid && String(x.followingId) === t
   );
 };
@@ -160,3 +168,17 @@ export const getFollowingIds = (userId) => {
 
 /** 현재 로그인 사용자 id (없으면 null) */
 export { getCurrentUserId };
+
+/**
+ * 멀티기기 동기화: DB(follows) → 로컬 캐시로 가져와서 버튼/목록을 일관되게 만든다.
+ * (실패해도 기존 로컬 상태 유지)
+ */
+export const syncFollowingFromSupabase = async (userId) => {
+  const uid = userId ? String(userId).trim() : '';
+  if (!isValidUuid(uid)) return { success: false };
+  const ids = await fetchFollowingIdsSupabase(uid);
+  if (!Array.isArray(ids)) return { success: false };
+  const rows = ids.map((followingId) => ({ followerId: uid, followingId: String(followingId) }));
+  setRaw(rows, uid);
+  return { success: true, count: rows.length };
+};

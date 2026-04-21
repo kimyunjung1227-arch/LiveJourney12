@@ -8,6 +8,7 @@ import { getCategoryChipsFromPost } from '../utils/travelCategories';
 import { getTimeAgo } from '../utils/timeUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { getLikeSnapshot, toggleLikeLocal } from '../utils/postLikesLocal';
+import { toggleLikeForPost } from '../utils/postLikeActions';
 import 'swiper/css';
 import 'swiper/css/pagination';
 
@@ -160,7 +161,7 @@ export default function RecommendedPlaceFeedScreen() {
     return () => window.removeEventListener('postLikeUpdated', onLike);
   }, []);
 
-  const handleFeedLike = useCallback((e, post) => {
+  const handleFeedLike = useCallback(async (e, post) => {
     e.preventDefault();
     e.stopPropagation();
     if (!user?.id) {
@@ -168,6 +169,17 @@ export default function RecommendedPlaceFeedScreen() {
       return;
     }
     const baseLikes = Number(post.likes ?? post.likeCount ?? 0) || 0;
+    const serverRes = await toggleLikeForPost({ postId: post.id, userId: user.id, baseLikesCount: baseLikes });
+    if (serverRes?.success && typeof serverRes.likesCount === 'number') {
+      setFeedPosts((prev) =>
+        prev.map((p) =>
+          p && String(p.id) === String(post.id) ? { ...p, likes: serverRes.likesCount, likeCount: serverRes.likesCount } : p
+        )
+      );
+      return;
+    }
+
+    // 로컬 게시물(비-UUID)은 기존 로컬 토글 유지
     const next = toggleLikeLocal(post.id, user.id, baseLikes);
     if (!next) return;
     setFeedPosts((prev) =>

@@ -10,6 +10,7 @@ import { fetchPostsSupabase } from '../api/postsSupabase';
 import { rankHotspotPlaces } from '../utils/hotnessEngine';
 import { useAuth } from '../contexts/AuthContext';
 import { getLikeSnapshot, toggleLikeLocal } from '../utils/postLikesLocal';
+import { toggleLikeForPost } from '../utils/postLikeActions';
 import { getMapThumbnailUri } from '../utils/postMedia';
 import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCardModel';
 import { buildPlaceStatsMap, selectPostsForPlaceStats, transformPostForHotFeed } from '../utils/hotFeedPostTransform';
@@ -145,7 +146,7 @@ const CrowdedPlaceScreen = () => {
         };
     }, [crowdedRegionsKey, weatherByRegion]);
 
-    const handleHotFeedLike = useCallback((e, post) => {
+    const handleHotFeedLike = useCallback(async (e, post) => {
         e.stopPropagation();
         if (!user?.id) {
             alert('로그인 후 좋아요를 누를 수 있어요.');
@@ -154,6 +155,14 @@ const CrowdedPlaceScreen = () => {
         const baseLikes = typeof post.likes === 'number'
             ? post.likes
             : (typeof post.likeCount === 'number' ? post.likeCount : 0);
+        const serverRes = await toggleLikeForPost({ postId: post.id, userId: user.id, baseLikesCount: baseLikes });
+        if (serverRes?.success && typeof serverRes.likesCount === 'number') {
+            setCrowdedData((prev) =>
+                prev.map((p) => (p && p.id === post.id ? { ...p, likes: serverRes.likesCount, likeCount: serverRes.likesCount } : p))
+            );
+            return;
+        }
+
         const result = toggleLikeLocal(post.id, user.id, baseLikes);
         if (!result) return;
         setCrowdedData((prev) =>

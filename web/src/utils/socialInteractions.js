@@ -35,6 +35,30 @@ const writeJson = (key, value) => {
   }
 };
 
+const getCurrentUserIdFromStorage = () => {
+  try {
+    const u = localStorage.getItem('user');
+    if (!u) return null;
+    const o = JSON.parse(u);
+    return o?.id ? String(o.id) : null;
+  } catch {
+    return null;
+  }
+};
+
+const isValidUuid = (v) =>
+  typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
+
+const likedPostsKeyForUser = (userId) => {
+  const uid = userId ? String(userId).trim() : '';
+  return isValidUuid(uid) ? `likedPosts_v2:${uid}` : 'likedPosts';
+};
+
+const likedPostsPendingKeyForUser = (userId) => {
+  const uid = userId ? String(userId).trim() : '';
+  return isValidUuid(uid) ? `${LIKED_POSTS_PENDING_KEY}:v2:${uid}` : LIKED_POSTS_PENDING_KEY;
+};
+
 /**
  * isPostLiked()가 읽는 likedPosts 캐시 갱신 — Supabase post_likes 토글 직후 호출 필수
  */
@@ -42,14 +66,17 @@ export const setLikedPostLocalCache = (postId, isLiked) => {
   try {
     const id = String(postId || '');
     if (!id) return;
-    const likes = readJson('likedPosts', {});
+    const uid = getCurrentUserIdFromStorage();
+    const likesKey = likedPostsKeyForUser(uid);
+    const pendingKey = likedPostsPendingKeyForUser(uid);
+    const likes = readJson(likesKey, {});
     likes[id] = !!isLiked;
-    writeJson('likedPosts', likes);
+    writeJson(likesKey, likes);
 
     // 상호작용 기반 pending 표시
-    const pending = readJson(LIKED_POSTS_PENDING_KEY, {});
+    const pending = readJson(pendingKey, {});
     pending[id] = !!isLiked;
-    writeJson(LIKED_POSTS_PENDING_KEY, pending);
+    writeJson(pendingKey, pending);
 
     window.dispatchEvent(new CustomEvent('likedPostsCacheUpdated', { detail: { postId: id, liked: !!isLiked } }));
   } catch {
@@ -62,10 +89,13 @@ export const setLikedPostLocalCache = (postId, isLiked) => {
  * @param {string[]} queriedPostIds - 이번에 서버와 맞출 UUID 게시물 id 목록
  * @param {string[]} likedIdsFromServer - 현재 사용자가 좋아요한 id 목록
  */
-export const mergeLikedPostsFromServer = (queriedPostIds, likedIdsFromServer) => {
+export const mergeLikedPostsFromServer = (queriedPostIds, likedIdsFromServer, userId = null) => {
   try {
-    const prev = readJson('likedPosts', {});
-    const pending = readJson(LIKED_POSTS_PENDING_KEY, {});
+    const uid = userId ? String(userId) : getCurrentUserIdFromStorage();
+    const likesKey = likedPostsKeyForUser(uid);
+    const pendingKey = likedPostsPendingKeyForUser(uid);
+    const prev = readJson(likesKey, {});
+    const pending = readJson(pendingKey, {});
     const likedSet = new Set((likedIdsFromServer || []).map((x) => String(x)));
     // 기존 UUID 좋아요 캐시를 지우지 말고(피드에 없다고 삭제하면 "추적이 안됨"으로 보임),
     // 이번에 조회한 ID만 서버 기준으로 덮어쓴다.
@@ -90,8 +120,8 @@ export const mergeLikedPostsFromServer = (queriedPostIds, likedIdsFromServer) =>
       // 서버가 아직 따라오지 않은 상태면, 상호작용 결과를 유지(초기화 방지)
       next[id] = pendingDesired;
     });
-    writeJson('likedPosts', next);
-    writeJson(LIKED_POSTS_PENDING_KEY, pending);
+    writeJson(likesKey, next);
+    writeJson(pendingKey, pending);
     window.dispatchEvent(new CustomEvent('postLikesSynced', { detail: { count: likedIdsFromServer?.length || 0 } }));
   } catch {
     /* ignore */
@@ -277,8 +307,16 @@ export const toggleLike = (postId, currentLikes) => {
 
 // 좋아요 여부 확인
 export const isPostLiked = (postId) => {
-  const likes = JSON.parse(localStorage.getItem('likedPosts') || '{}');
-  return likes[postId] || false;
+  const uid = getCurrentUserIdFromStorage();
+  const likesKey = likedPostsKeyForUser(uid);
+  const likes = readJson(likesKey, {});
+  return !!likes[String(postId)];
+};
+
+export const isPostLikedForUser = (postId, userId) => {
+  const likesKey = likedPostsKeyForUser(userId);
+  const likes = readJson(likesKey, {});
+  return !!likes[String(postId)];
 };
 
 // 댓글 추가

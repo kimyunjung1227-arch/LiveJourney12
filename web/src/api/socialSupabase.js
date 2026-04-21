@@ -347,3 +347,39 @@ export const unfollowSupabase = async (followerId, followingId) => {
   }
 };
 
+export const fetchFollowingIdsSupabase = async (userId) => {
+  const uid = String(userId || '').trim();
+  if (!isValidUuid(uid)) return [];
+  try {
+    const { data, error } = await supabase
+      .from('follows')
+      .select('following_id')
+      .eq('follower_id', uid);
+    if (error) throw error;
+    return (Array.isArray(data) ? data : [])
+      .map((r) => (r?.following_id ? String(r.following_id) : null))
+      .filter(Boolean);
+  } catch (e) {
+    logger.warn('fetchFollowingIdsSupabase 실패:', e?.message);
+    return null;
+  }
+};
+
+export const fetchFollowerIdsSupabase = async (userId) => {
+  const uid = String(userId || '').trim();
+  if (!isValidUuid(uid)) return [];
+  try {
+    const { data, error } = await supabase
+      .from('follows')
+      .select('follower_id')
+      .eq('following_id', uid);
+    if (error) throw error;
+    return (Array.isArray(data) ? data : [])
+      .map((r) => (r?.follower_id ? String(r.follower_id) : null))
+      .filter(Boolean);
+  } catch (e) {
+    logger.warn('fetchFollowerIdsSupabase 실패:', e?.message);
+    return null;
+  }
+};
+
