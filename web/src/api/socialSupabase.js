@@ -324,7 +324,10 @@ export const followSupabase = async (followerId, followingId) => {
   const tid = String(followingId || '').trim();
   if (!isValidUuid(fid) || !isValidUuid(tid) || fid === tid) return { success: false };
   try {
-    const { error } = await supabase.from('follows').insert({ follower_id: fid, following_id: tid });
+    // 409(Conflict) 노이즈를 없애기 위해 insert 대신 upsert(중복 무시) 사용
+    const { error } = await supabase
+      .from('follows')
+      .upsert({ follower_id: fid, following_id: tid }, { onConflict: 'follower_id,following_id', ignoreDuplicates: true });
     if (error) {
       if (isUniqueConflictError(error)) return { success: true };
       throw error;

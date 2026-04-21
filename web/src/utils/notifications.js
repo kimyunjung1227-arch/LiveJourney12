@@ -211,7 +211,12 @@ export const addNotification = (notification) => {
     newNotification.iconBg = newNotification.iconBg || typeConfig.iconBg;
     newNotification.iconColor = newNotification.iconColor || typeConfig.iconColor;
 
-    if (isValidUuid(uid) && recipient && String(recipient) === String(uid)) {
+    const isSelf = isValidUuid(uid) && recipient && String(recipient) === String(uid);
+    // 팔로우 시작(follow_started)은 "내 행동에 대한 안내" 성격이라 서버 동기화가 필요 없고,
+    // DB 트리거 알림(상대방 수신)과 섞이면 409/중복 노이즈가 날 수 있어 로컬만 사용한다.
+    const isLocalOnlyFollowStarted = newNotification.type === 'follow' && newNotification.kind === 'follow_started';
+
+    if (isSelf && !isLocalOnlyFollowStarted) {
       void (async () => {
         const payload = buildInsertPayloadForSelf(newNotification, uid);
         const res = await insertNotificationSupabase(payload);
