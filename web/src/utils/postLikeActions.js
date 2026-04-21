@@ -1,4 +1,5 @@
 import { togglePostLikeSupabase } from '../api/socialSupabase';
+import { applyPostLikesCountFromServer, fetchPostLikesCountSupabaseWithRetry } from '../api/postsSupabase';
 import { isPostLikedForUser, setLikedPostLocalCache } from './socialInteractions';
 
 const isValidUuid = (v) =>
@@ -35,8 +36,17 @@ export async function toggleLikeForPost({ postId, userId, baseLikesCount = 0 }) 
     } catch {
       // ignore
     }
+    return { success: true, isLiked: !!res.isLiked, likesCount: res.likesCount };
   }
 
-  return { success: true, isLiked: !!res.isLiked, likesCount: res.likesCount ?? null };
+  // likesCount를 못 받았더라도(일시적인 트리거 반영 지연/응답 누락),
+  // 서버의 posts.likes_count를 재시도 조회해서 최종 숫자를 맞춘다.
+  const fromServer = await fetchPostLikesCountSupabaseWithRetry(pid, { attempts: 5, delayMs: 250 });
+  if (typeof fromServer === 'number') {
+    applyPostLikesCountFromServer(pid, fromServer);
+    return { success: true, isLiked: !!res.isLiked, likesCount: fromServer };
+  }
+
+  return { success: true, isLiked: !!res.isLiked, likesCount: null };
 }
 
