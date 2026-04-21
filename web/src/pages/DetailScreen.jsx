@@ -5,7 +5,6 @@ import { filterRecentPosts, filterActivePosts48, getTimeAgo } from '../utils/tim
 import { logger } from '../utils/logger';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
-import { isPostLiked } from '../utils/socialInteractions';
 
 const DetailScreen = () => {
   const navigate = useNavigate();
@@ -464,7 +463,7 @@ const DetailScreen = () => {
           ) : (
             <div className="grid grid-cols-2 gap-4 p-4">
               {displayedItems.map((item) => {
-                const isLiked = isPostLiked(item.id);
+                const isLiked = !!item.likedByMe;
                 const likeCount = item.likes || item.likesCount || 0;
 
                 return (

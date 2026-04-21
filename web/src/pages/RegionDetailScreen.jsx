@@ -21,10 +21,11 @@ import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { getTimeAgo } from '../utils/timeUtils';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
-import { isPostLiked } from '../utils/socialInteractions';
+import { useAuth } from '../contexts/AuthContext';
 
 const RegionDetailScreen = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { regionName: regionNameParam } = useParams();
   const location = useLocation();
   const decodedName = regionNameParam ? decodeURIComponent(regionNameParam) : '';
@@ -65,7 +66,7 @@ const RegionDetailScreen = () => {
   // 지역 데이터 로드 (useCallback) — Supabase + 로컬 병합 후 사용자 업로드 사진 연동
   const loadRegionData = useCallback(async () => {
     const localPosts = getUploadedPostsSafe();
-    const supabasePosts = await fetchPostsSupabase();
+    const supabasePosts = await fetchPostsSupabase(user?.id || null);
     const combinedPosts = getCombinedPosts(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
 
     // 7일 이내 게시물 필터링
@@ -174,7 +175,7 @@ const RegionDetailScreen = () => {
     logger.log('📊 지역 게시물 로드:', {
       total: dedupedPosts.length
     });
-  }, [canonicalRegionName, region.name, timeToMinutes, selectedLandmarks, focusLocation]);
+  }, [canonicalRegionName, region.name, timeToMinutes, selectedLandmarks, focusLocation, user?.id]);
 
   // 필터에 따른 게시물 필터링 및 표시
   useEffect(() => {
@@ -287,15 +288,23 @@ const RegionDetailScreen = () => {
   // 좋아요 변경 이벤트 수신해서 지역 상세 화면에서도 즉시 반영
   useEffect(() => {
     const onPostLikeUpdated = (e) => {
-      const { postId, likesCount } = e.detail || {};
-      if (!postId || typeof likesCount !== 'number') return;
+      const { postId, likesCount, isLiked } = e.detail || {};
+      if (!postId) return;
       const id = String(postId);
-      setAllRegionPosts((prev) =>
-        prev.map((p) => (p && String(p.id) === id ? { ...p, likes: likesCount, likeCount: likesCount } : p))
-      );
-      setRealtimePhotos((prev) =>
-        prev.map((p) => (p && String(p.id) === id ? { ...p, likes: likesCount, likeCount: likesCount } : p))
-      );
+      const merge = (p) => {
+        if (!p || String(p.id) !== id) return p;
+        const next = { ...p };
+        if (typeof likesCount === 'number') {
+          next.likes = likesCount;
+          next.likeCount = likesCount;
+        }
+        if (typeof isLiked === 'boolean') {
+          next.likedByMe = isLiked;
+        }
+        return next;
+      };
+      setAllRegionPosts((prev) => prev.map(merge));
+      setRealtimePhotos((prev) => prev.map(merge));
     };
     window.addEventListener('postLikeUpdated', onPostLikeUpdated);
     return () => window.removeEventListener('postLikeUpdated', onPostLikeUpdated);
@@ -482,7 +491,7 @@ const RegionDetailScreen = () => {
                     {realtimePhotos.map((photo, idx) => {
                       const weather = photo.weather || null;
                       const hasWeather = weather && (weather.icon || weather.temperature);
-                      const isLiked = isPostLiked(photo.id);
+                      const isLiked = !!photo.likedByMe;
                       const likeCount = photo.likes || photo.likeCount || 0;
                       const gridCover = getGridCoverDisplay(photo, getDisplayImageUrl);
                       const status = getPhotoStatusFromPost(photo);

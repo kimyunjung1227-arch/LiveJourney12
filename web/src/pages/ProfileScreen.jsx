@@ -17,7 +17,6 @@ import { getDisplayImageUrl } from '../api/upload';
 import api from '../api/axios';
 import { cleanLegacyUploadedPosts, getUploadedPostsSafe } from '../utils/localStorageManager';
 import { deletePostSupabase, fetchPostsByUserIdSupabase, fetchPostsSupabase } from '../api/postsSupabase';
-import { isPostLiked } from '../utils/socialInteractions';
 import {
   resolveUserDisplayFromPosts,
   getCachedFollowProfile,
@@ -369,7 +368,7 @@ const ProfileScreen = () => {
     const ids = Array.isArray(followListIds) ? followListIds : [];
     (async () => {
       try {
-        const remote = await fetchPostsSupabase();
+        const remote = await fetchPostsSupabase(authUser?.id || null);
         if (cancelled) return;
         const byId = new Map();
         local.forEach((p) => {
@@ -382,7 +381,7 @@ const ProfileScreen = () => {
           const has = [...byId.values()].some((p) => getPostUserId(p) === String(uid));
           if (!has) {
             try {
-              const up = await fetchPostsByUserIdSupabase(uid);
+              const up = await fetchPostsByUserIdSupabase(uid, authUser?.id || null);
               if (cancelled) return;
               (up || []).forEach((p) => {
                 if (p?.id && !byId.has(p.id)) byId.set(p.id, p);
@@ -448,7 +447,7 @@ const ProfileScreen = () => {
 
     const loadMergedMyPosts = async () => {
       const fromSupabase = userId
-        ? await fetchPostsByUserIdSupabase(userId)
+        ? await fetchPostsByUserIdSupabase(userId, authUser?.id || null)
         : [];
       const byId = new Map();
       fromSupabase.forEach(p => byId.set(p.id, { ...p }));
@@ -494,7 +493,7 @@ const ProfileScreen = () => {
             post.user;
           return postUserId === userId;
         });
-        const fromSupabase = userId ? await fetchPostsByUserIdSupabase(userId) : [];
+        const fromSupabase = userId ? await fetchPostsByUserIdSupabase(userId, authUser?.id || null) : [];
         const byId = new Map();
         fromSupabase.forEach(p => byId.set(p.id, { ...p }));
         updatedLocalUserPosts.forEach(p => { if (!byId.has(p.id)) byId.set(p.id, { ...p }); });
@@ -1841,7 +1840,7 @@ const ProfileScreen = () => {
                       {/* 사진 그리드 (작은 썸네일) */}
                       <div className="grid grid-cols-4 gap-2">
                         {posts.map((post, index) => {
-                          const isLiked = isPostLiked(post.id);
+                          const isLiked = !!post.likedByMe;
                           const likeCount = post.likes || post.likeCount || 0;
                           const allPosts = myPosts;
                           const currentIndex = allPosts.findIndex(p => p.id === post.id);

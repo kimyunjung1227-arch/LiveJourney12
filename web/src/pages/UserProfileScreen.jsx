@@ -227,7 +227,7 @@ const UserProfileScreen = () => {
 
       // 1) Supabase: 해당 user_id(UUID) 게시물만 (경량)
       try {
-        let supabasePosts = await fetchPostsByUserIdSupabase(userId);
+        let supabasePosts = await fetchPostsByUserIdSupabase(userId, currentUser?.id || null);
         if ((!supabasePosts || supabasePosts.length === 0) && /^[0-9a-f-]{36}$/i.test(String(userId).trim())) {
           try {
             supabasePosts = await getMergedMyPostsForStats(userId);
@@ -313,7 +313,7 @@ const UserProfileScreen = () => {
     const ids = Array.isArray(followListIds) ? followListIds : [];
     (async () => {
       try {
-        const remote = await fetchPostsSupabase();
+        const remote = await fetchPostsSupabase(currentUser?.id || null);
         if (cancelled) return;
         const byId = new Map();
         local.forEach((p) => {

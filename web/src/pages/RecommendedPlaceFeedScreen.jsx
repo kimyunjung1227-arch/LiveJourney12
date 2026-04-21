@@ -7,7 +7,6 @@ import { getDisplayImageUrl } from '../api/upload';
 import { getCategoryChipsFromPost } from '../utils/travelCategories';
 import { getTimeAgo } from '../utils/timeUtils';
 import { useAuth } from '../contexts/AuthContext';
-import { getLikeSnapshot, toggleLikeLocal } from '../utils/postLikesLocal';
 import { toggleLikeForPost } from '../utils/postLikeActions';
 import 'swiper/css';
 import 'swiper/css/pagination';
@@ -150,11 +149,22 @@ export default function RecommendedPlaceFeedScreen() {
 
   useEffect(() => {
     const onLike = (e) => {
-      const { postId, likesCount } = e.detail || {};
-      if (!postId || typeof likesCount !== 'number') return;
+      const { postId, likesCount, isLiked } = e.detail || {};
+      if (!postId) return;
       const id = String(postId);
       setFeedPosts((prev) =>
-        prev.map((p) => (p && String(p.id) === id ? { ...p, likes: likesCount, likeCount: likesCount } : p))
+        prev.map((p) => {
+          if (!p || String(p.id) !== id) return p;
+          const next = { ...p };
+          if (typeof likesCount === 'number') {
+            next.likes = likesCount;
+            next.likeCount = likesCount;
+          }
+          if (typeof isLiked === 'boolean') {
+            next.likedByMe = isLiked;
+          }
+          return next;
+        })
       );
     };
     window.addEventListener('postLikeUpdated', onLike);
@@ -168,30 +178,45 @@ export default function RecommendedPlaceFeedScreen() {
       alert('로그인 후 좋아요를 누를 수 있어요.');
       return;
     }
-    const baseLikes = Number(post.likes ?? post.likeCount ?? 0) || 0;
-    const serverRes = await toggleLikeForPost({ postId: post.id, userId: user.id, baseLikesCount: baseLikes });
-    if (serverRes?.success && typeof serverRes.likesCount === 'number') {
+    const prevLiked = !!post.likedByMe;
+    const prevCount = Math.max(0, Number(post.likes ?? post.likeCount ?? 0) || 0);
+    const optimisticLiked = !prevLiked;
+    const optimisticCount = Math.max(0, prevCount + (optimisticLiked ? 1 : -1));
+
+    // optimistic
+    setFeedPosts((prev) =>
+      prev.map((p) =>
+        p && String(p.id) === String(post.id)
+          ? { ...p, likes: optimisticCount, likeCount: optimisticCount, likedByMe: optimisticLiked }
+          : p
+      )
+    );
+
+    const serverRes = await toggleLikeForPost({ postId: post.id, userId: user.id, likedBefore: prevLiked });
+    if (serverRes?.success) {
+      const finalLiked = !!serverRes.isLiked;
+      const finalCount = typeof serverRes.likesCount === 'number' ? serverRes.likesCount : optimisticCount;
       setFeedPosts((prev) =>
         prev.map((p) =>
-          p && String(p.id) === String(post.id) ? { ...p, likes: serverRes.likesCount, likeCount: serverRes.likesCount } : p
+          p && String(p.id) === String(post.id)
+            ? { ...p, likes: finalCount, likeCount: finalCount, likedByMe: finalLiked }
+            : p
         )
       );
       return;
     }
 
-    if (serverRes?.reason && serverRes.reason !== 'non_uuid') {
-      alert(serverRes.reason === 'no_session' ? '로그인 세션이 없어요. 다시 로그인 후 시도해 주세요.' : '좋아요 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
-      return;
-    }
-
-    // 로컬 게시물(비-UUID)은 기존 로컬 토글 유지
-    const next = toggleLikeLocal(post.id, user.id, baseLikes);
-    if (!next) return;
+    // 롤백
     setFeedPosts((prev) =>
       prev.map((p) =>
-        p && String(p.id) === String(post.id) ? { ...p, likes: next.count, likeCount: next.count } : p
+        p && String(p.id) === String(post.id)
+          ? { ...p, likes: prevCount, likeCount: prevCount, likedByMe: prevLiked }
+          : p
       )
     );
+    if (serverRes?.reason && serverRes.reason !== 'non_uuid') {
+      alert(serverRes.reason === 'no_session' ? '로그인 세션이 없어요. 다시 로그인 후 시도해 주세요.' : '좋아요 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
+    }
   }, [user?.id]);
 
   const toggleExpand = (id) => {
@@ -257,7 +282,7 @@ export default function RecommendedPlaceFeedScreen() {
             const avatarSrc = derived.avatarSrc || displayUserAvatarSrc(post.user ?? post.author);
             const isOpen = !!expanded[post.id];
             const longBody = !!derived.longBody;
-            const liked = getLikeSnapshot(post.id, user?.id || null, likes).liked;
+            const liked = !!post.likedByMe;
 
             return (
               <article
