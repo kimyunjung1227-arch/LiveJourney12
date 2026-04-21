@@ -324,14 +324,14 @@ export const followSupabase = async (followerId, followingId) => {
   const tid = String(followingId || '').trim();
   if (!isValidUuid(fid) || !isValidUuid(tid) || fid === tid) return { success: false };
   try {
-    // 409(Conflict) 노이즈를 없애기 위해 insert 대신 upsert(중복 무시) 사용
-    const { error } = await supabase
-      .from('follows')
-      .upsert({ follower_id: fid, following_id: tid }, { onConflict: 'follower_id,following_id', ignoreDuplicates: true });
-    if (error) {
-      if (isUniqueConflictError(error)) return { success: true };
-      throw error;
-    }
+    // ✅ 409(Conflict) 노이즈 제거: REST upsert 대신 RPC로 멱등 처리(항상 200)
+    const { data: ses } = await supabase.auth.getSession();
+    const sid = ses?.session?.user?.id ? String(ses.session.user.id) : null;
+    if (!sid || sid !== fid) return { success: false };
+
+    const { data, error } = await supabase.rpc('set_follow', { p_following_id: tid, p_follow: true });
+    if (error) throw error;
+    if (data === false) return { success: false };
     return { success: true };
   } catch (e) {
     logger.warn('followSupabase 실패:', e?.message);
@@ -344,8 +344,13 @@ export const unfollowSupabase = async (followerId, followingId) => {
   const tid = String(followingId || '').trim();
   if (!isValidUuid(fid) || !isValidUuid(tid) || fid === tid) return { success: false };
   try {
-    const { error } = await supabase.from('follows').delete().eq('follower_id', fid).eq('following_id', tid);
+    const { data: ses } = await supabase.auth.getSession();
+    const sid = ses?.session?.user?.id ? String(ses.session.user.id) : null;
+    if (!sid || sid !== fid) return { success: false };
+
+    const { data, error } = await supabase.rpc('set_follow', { p_following_id: tid, p_follow: false });
     if (error) throw error;
+    if (data === false) return { success: false };
     return { success: true };
   } catch (e) {
     logger.warn('unfollowSupabase 실패:', e?.message);
