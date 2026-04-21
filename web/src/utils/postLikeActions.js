@@ -19,7 +19,9 @@ export async function toggleLikeForPost({ postId, userId, baseLikesCount = 0 }) 
 
   const likedBefore = isPostLikedForUser(pid, uid);
   const res = await togglePostLikeSupabase(uid, pid, null, { likedBeforeClick: likedBefore, baseLikesCount });
-  if (!res || !res.success) return { success: false };
+  if (!res || !res.success) {
+    return { success: false, reason: res?.error || 'server_failed', error: res?.error || null };
+  }
 
   // 캐시(좋아요 상태) 반영
   if (typeof res.isLiked === 'boolean') {

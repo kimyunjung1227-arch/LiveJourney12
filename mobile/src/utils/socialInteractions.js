@@ -5,10 +5,52 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { checkNewBadges, awardBadge, calculateUserStats } from './badgeSystem';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 // 좋아요 토글
 export const toggleLike = async (postId) => {
   try {
+    // ✅ Supabase가 설정돼 있으면 서버 기준으로 토글 (웹/모바일 카운트 통일)
+    if (isSupabaseConfigured() && supabase) {
+      const pid = String(postId || '').trim();
+      if (!pid) return { isLiked: false, newCount: 0 };
+
+      // 세션 사용자
+      const { data: ses } = await supabase.auth.getSession();
+      const uid = ses?.session?.user?.id ? String(ses.session.user.id) : null;
+      if (!uid) {
+        // 로그인 안 된 상태면 좋아요 불가(서버 정책상 authenticated 필요)
+        return { isLiked: false, newCount: 0, error: 'no_session' };
+      }
+
+      // 현재 좋아요 여부 확인
+      const { data: likedRow } = await supabase
+        .from('post_likes')
+        .select('post_id')
+        .eq('user_id', uid)
+        .eq('post_id', pid)
+        .maybeSingle();
+      const likedBefore = !!likedRow;
+      const desired = !likedBefore;
+
+      // RPC로 멱등 처리 + likes_count 반환
+      const { data: rpcRows, error: rpcErr } = await supabase.rpc('set_post_like', { p_post_id: pid, p_like: desired });
+      if (rpcErr) throw rpcErr;
+      const row = Array.isArray(rpcRows) ? rpcRows[0] : rpcRows;
+      const isLiked = row?.is_liked != null ? !!row.is_liked : desired;
+      const likesCount = row?.likes_count != null ? Math.max(0, Number(row.likes_count) || 0) : 0;
+
+      // 로컬 캐시(즉시 UI 반영/오프라인 대비)
+      try {
+        const likesJson = await AsyncStorage.getItem('likedPosts');
+        const likes = likesJson ? JSON.parse(likesJson) : {};
+        likes[pid] = isLiked;
+        await AsyncStorage.setItem('likedPosts', JSON.stringify(likes));
+      } catch (_) {}
+
+      return { isLiked, newCount: likesCount };
+    }
+
     const likesJson = await AsyncStorage.getItem('likedPosts');
     const likes = likesJson ? JSON.parse(likesJson) : {};
     const isLiked = likes[postId] || false;
@@ -134,6 +176,22 @@ export const toggleLike = async (postId) => {
 // 좋아요 여부 확인
 export const isPostLiked = async (postId) => {
   try {
+    if (isSupabaseConfigured() && supabase) {
+      const pid = String(postId || '').trim();
+      if (!pid) return false;
+      const { data: ses } = await supabase.auth.getSession();
+      const uid = ses?.session?.user?.id ? String(ses.session.user.id) : null;
+      if (!uid) return false;
+      const { data, error } = await supabase
+        .from('post_likes')
+        .select('post_id')
+        .eq('user_id', uid)
+        .eq('post_id', pid)
+        .maybeSingle();
+      if (error) return false;
+      return !!data;
+    }
+
     const likesJson = await AsyncStorage.getItem('likedPosts');
     const likes = likesJson ? JSON.parse(likesJson) : {};
     return likes[postId] || false;
@@ -146,6 +204,27 @@ export const isPostLiked = async (postId) => {
 // 댓글 추가
 export const addComment = async (postId, comment, username = '익명', userId = null) => {
   try {
+    // ✅ Supabase가 설정돼 있으면 post_comments 테이블에 저장 (서버가 comments_count/알림 처리)
+    if (isSupabaseConfigured() && supabase) {
+      const pid = String(postId || '').trim();
+      if (!pid || !String(comment || '').trim()) return { success: false };
+      const { data: ses } = await supabase.auth.getSession();
+      const uid = ses?.session?.user?.id ? String(ses.session.user.id) : null;
+      if (!uid) return { success: false, error: 'no_session' };
+
+      const payload = {
+        post_id: pid,
+        user_id: uid,
+        username: String(username || '').trim() || null,
+        avatar_url: null,
+        content: String(comment).trim(),
+        created_at: new Date().toISOString(),
+      };
+      const { data, error } = await supabase.from('post_comments').insert(payload).select('*').single();
+      if (error) throw error;
+      return { success: true, comment: data };
+    }
+
     const postsJson = await AsyncStorage.getItem('uploadedPosts');
     const posts = postsJson ? JSON.parse(postsJson) : [];
     

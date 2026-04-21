@@ -163,6 +163,11 @@ const CrowdedPlaceScreen = () => {
             return;
         }
 
+        if (serverRes?.reason && serverRes.reason !== 'non_uuid') {
+            alert(serverRes.reason === 'no_session' ? '로그인 세션이 없어요. 다시 로그인 후 시도해 주세요.' : '좋아요 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
+            return;
+        }
+
         const result = toggleLikeLocal(post.id, user.id, baseLikes);
         if (!result) return;
         setCrowdedData((prev) =>

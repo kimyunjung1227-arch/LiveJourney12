@@ -395,6 +395,12 @@ const PostDetailScreen = () => {
       return;
     }
 
+    // UUID 게시물인데 서버가 실패한 경우(세션 없음 등)는 로컬 토글로 fallback 하면 안 됨
+    if (serverRes?.reason && serverRes.reason !== 'non_uuid') {
+      alert(serverRes.reason === 'no_session' ? '로그인 세션이 없어요. 다시 로그인 후 시도해 주세요.' : '좋아요 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
+      return;
+    }
+
     // 로컬 게시물(비-UUID)
     const before = getLikeSnapshot(post.id, user.id, fallback);
     const next = toggleLikeLocal(post.id, user.id, fallback);

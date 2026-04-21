@@ -143,6 +143,7 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null, o
       const sid = ses?.session?.user?.id ? String(ses.session.user.id) : null;
       if (!sid || sid !== uid) {
         logger.warn('togglePostLikeSupabase: 세션 없음/불일치', { sid, uid });
+        // 세션이 없으면 서버 write가 불가능. 여기서 실패를 명확히 반환해야 로컬 토글로 오염되지 않음.
         return { success: false, isLiked: !!likedBeforeClick, likesCount: null, error: 'no_session' };
       }
     } catch (_) {
@@ -183,9 +184,12 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null, o
         }
         return { success: true, isLiked: desired, likesCount };
       } catch (fallbackErr) {
-        // 서버가 안 되면 일단 optimistic 유지(초기화 방지)
-        logger.warn('좋아요 수동 폴백 실패(optimistic 유지):', fallbackErr?.message || fallbackErr);
-        return { success: true, isLiked: desired, likesCount: null };
+        // 서버 write가 실패했으면 optimistic을 롤백하고 실패로 반환
+        logger.warn('좋아요 수동 폴백 실패:', fallbackErr?.message || fallbackErr);
+        try {
+          setLikedPostLocalCache(pid, !!likedBeforeClick);
+        } catch {}
+        return { success: false, isLiked: !!likedBeforeClick, likesCount: null, error: 'server_write_failed' };
       }
     }
     const row = Array.isArray(rows) ? rows[0] : rows;
@@ -210,13 +214,12 @@ export const togglePostLikeSupabase = async (userId, postId, actorHint = null, o
 
     return { success: true, isLiked, likesCount };
   } catch (e) {
-    logger.warn('togglePostLikeSupabase 실패(초기화 방지):', e?.message, e?.code || e?.status || '');
-    // 초기화 방지: 예외가 나도 클릭 의도대로 로컬 상태를 유지
-    const desired = likedBeforeClick === true ? false : true;
+    logger.warn('togglePostLikeSupabase 실패:', e?.message, e?.code || e?.status || '');
+    // 예외면 optimistic 롤백
     try {
-      setLikedPostLocalCache(pid, desired);
+      setLikedPostLocalCache(pid, !!likedBeforeClick);
     } catch {}
-    return { success: true, isLiked: desired, likesCount: null };
+    return { success: false, isLiked: !!likedBeforeClick, likesCount: null, error: 'unknown' };
   }
   });
 };

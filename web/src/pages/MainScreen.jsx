@@ -442,7 +442,12 @@ const MainScreen = () => {
             return;
         }
         const res = await toggleLikeForPost({ postId: post.id, userId: user.id, baseLikesCount: baseLikes });
-        if (!res?.success) return;
+        if (!res?.success) {
+            if (res?.reason && res.reason !== 'non_uuid') {
+                alert(res.reason === 'no_session' ? '로그인 세션이 없어요. 다시 로그인 후 시도해 주세요.' : '좋아요 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
+            }
+            return;
+        }
         if (typeof res.likesCount === 'number') {
             setCrowdedData((prev) =>
                 prev.map((p) => (p && p.id === post.id ? { ...p, likes: res.likesCount, likeCount: res.likesCount } : p))

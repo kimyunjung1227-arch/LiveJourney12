@@ -31,6 +31,7 @@ import { gainExp } from '../utils/levelSystem';
 import { checkNewBadges, awardBadge, calculateUserStats } from '../utils/badgeSystem';
 import { getBadgeCongratulationMessage, getBadgeDifficultyEffects } from '../utils/badgeMessages';
 import { ScreenLayout, ScreenContent, ScreenHeader, ScreenBody } from '../components/ScreenLayout';
+import { createPostSupabase } from '../api/postsSupabase';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -546,8 +547,8 @@ const UploadScreen = () => {
       const userJson = await AsyncStorage.getItem('user');
       const savedUser = userJson ? JSON.parse(userJson) : {};
       const currentUser = user || savedUser;
-      const username = currentUser?.username || currentUser?.email?.split('@')[0] || '모사모';
-      const currentUserId = currentUser?.id || savedUser?.id || 'test_user_001';
+      const username = currentUser?.username || currentUser?.email?.split('@')[0] || '여행자';
+      const currentUserId = currentUser?.id || savedUser?.id || null;
       
       console.log('📸 게시물 저장 정보:', {
         userId: currentUserId,
@@ -558,16 +559,33 @@ const UploadScreen = () => {
       
       // 지역 정보 추출 (첫 번째 단어를 지역으로 사용)
       const region = formData.location?.split(' ')[0] || '기타';
+
+      setUploadProgress(70);
+
+      // ✅ Supabase에 업로드(이미지 → Storage 업로드 후 public URL 저장, posts row 생성)
+      let created = null;
+      try {
+        created = await createPostSupabase({
+          user: { id: currentUserId, username },
+          formData: {
+            ...formData,
+            detailedLocation: formData.detailedLocation || formData.location,
+            placeName: formData.placeName || formData.location,
+          },
+        });
+      } catch (e) {
+        console.warn('Supabase 업로드 실패(로컬 저장은 계속):', e?.message || e);
+      }
       
       // localStorage/AsyncStorage에는 이미지를 저장하지 않음 (용량 문제)
       // 메타데이터만 저장하고, 이미지는 서버에서 불러옴
       const uploadedPost = {
-        id: `local-${Date.now()}`,
+        id: created?.id || `local-${Date.now()}`,
         userId: currentUserId,
-        images: [], // 이미지 데이터 저장 안 함
-        videos: [], // 비디오 데이터 저장 안 함
-        imageCount: formData.images.length, // 이미지 개수만 저장
-        videoCount: formData.videos.length, // 비디오 개수만 저장
+        images: Array.isArray(created?.images) ? created.images : [], // Supabase 업로드 성공 시 URL 저장
+        videos: Array.isArray(created?.videos) ? created.videos : [],
+        imageCount: Array.isArray(created?.images) ? created.images.length : formData.images.length,
+        videoCount: Array.isArray(created?.videos) ? created.videos.length : formData.videos.length,
         location: formData.location,
         tags: formData.tags,
         note: formData.note,

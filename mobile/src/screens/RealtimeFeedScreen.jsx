@@ -18,6 +18,7 @@ import { ScreenLayout, ScreenContent, ScreenHeader, ScreenBody } from '../compon
 import { isPostLiked } from '../utils/socialInteractions';
 import { guessWeatherRegionKey, getWeatherByRegion } from '../utils/weatherApi';
 import { buildMediaItemsFromPost, getMapThumbnailUri } from '../utils/postMedia';
+import { fetchPostsSupabase } from '../api/postsSupabase';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const LAYOUT_MAX_WIDTH = 428;
@@ -101,8 +102,33 @@ const RealtimeFeedScreen = () => {
 
     const loadAllData = useCallback(async () => {
         try {
-            const postsJson = await AsyncStorage.getItem('uploadedPosts');
-            let posts = postsJson ? JSON.parse(postsJson) : [];
+            let posts = [];
+            try {
+                const rows = await fetchPostsSupabase();
+                posts = rows.map((row) => ({
+                    id: row.id,
+                    userId: row.user_id,
+                    images: Array.isArray(row.images) ? row.images : (row.images ? [row.images] : []),
+                    videos: Array.isArray(row.videos) ? row.videos : (row.videos ? [row.videos] : []),
+                    location: row.location,
+                    detailedLocation: row.detailed_location || row.place_name || row.location,
+                    placeName: row.place_name,
+                    note: row.content,
+                    content: row.content,
+                    tags: row.tags || [],
+                    likes: Number(row.likes_count) || 0,
+                    likeCount: Number(row.likes_count) || 0,
+                    commentsCount: Number(row.comments_count) || 0,
+                    weather: row.weather || null,
+                    timestamp: row.created_at,
+                    createdAt: row.created_at,
+                }));
+            } catch (e) {
+                // Supabase가 없거나 실패하면 기존 로컬 스토리지로 폴백
+                const postsJson = await AsyncStorage.getItem('uploadedPosts');
+                posts = postsJson ? JSON.parse(postsJson) : [];
+            }
+
             posts = filterRecentPosts(posts, 2);
 
             const uniqueUserIds = new Set();

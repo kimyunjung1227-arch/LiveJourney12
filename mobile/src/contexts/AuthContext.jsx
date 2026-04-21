@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/axios';
+import { supabase, isSupabaseConfigured } from '../utils/supabaseClient';
 
 const AuthContext = createContext();
 
@@ -17,9 +18,27 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // AsyncStorage에서 사용자 정보 로드
+    // AsyncStorage에서 사용자 정보 로드 (Supabase 세션 우선)
     const loadUser = async () => {
       try {
+        if (isSupabaseConfigured() && supabase) {
+          const { data } = await supabase.auth.getSession();
+          const sUser = data?.session?.user;
+          if (sUser) {
+            const profile = {
+              id: sUser.id,
+              email: sUser.email,
+              username:
+                (sUser.user_metadata && (sUser.user_metadata.username || sUser.user_metadata.full_name)) ||
+                (sUser.email ? sUser.email.split('@')[0] : '여행자'),
+            };
+            await AsyncStorage.setItem('user', JSON.stringify(profile));
+            setUser(profile);
+            setLoading(false);
+            return;
+          }
+        }
+
         const token = await AsyncStorage.getItem('token');
         const savedUser = await AsyncStorage.getItem('user');
 
@@ -38,6 +57,28 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
+      // Supabase Auth 우선
+      if (isSupabaseConfigured() && supabase) {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: String(email || '').trim(),
+          password: String(password || ''),
+        });
+        if (error) throw error;
+        const sUser = data?.user;
+        if (!sUser) throw new Error('no_user');
+        const profile = {
+          id: sUser.id,
+          email: sUser.email,
+          username:
+            (sUser.user_metadata && (sUser.user_metadata.username || sUser.user_metadata.full_name)) ||
+            (sUser.email ? sUser.email.split('@')[0] : '여행자'),
+        };
+        await AsyncStorage.setItem('token', 'supabase');
+        await AsyncStorage.setItem('user', JSON.stringify(profile));
+        setUser(profile);
+        return { success: true };
+      }
+
       const response = await api.post('/users/login', { email, password });
       const { token, user } = response.data;
 
@@ -83,6 +124,31 @@ export const AuthProvider = ({ children }) => {
 
   const signup = async (email, password, username) => {
     try {
+      // Supabase Auth 우선
+      if (isSupabaseConfigured() && supabase) {
+        const { data, error } = await supabase.auth.signUp({
+          email: String(email || '').trim(),
+          password: String(password || ''),
+          options: {
+            data: { username: String(username || '').trim() || undefined },
+          },
+        });
+        if (error) throw error;
+        const sUser = data?.user;
+        // 이메일 확인을 켠 프로젝트면 세션이 아직 없을 수 있음. 그래도 user 저장은 해둔다.
+        const profile = sUser
+          ? {
+              id: sUser.id,
+              email: sUser.email,
+              username: String(username || '').trim() || (sUser.email ? sUser.email.split('@')[0] : '여행자'),
+            }
+          : { id: null, email: String(email || '').trim(), username: String(username || '').trim() || '여행자' };
+        await AsyncStorage.setItem('token', 'supabase');
+        await AsyncStorage.setItem('user', JSON.stringify(profile));
+        setUser(profile?.id ? profile : null);
+        return { success: true };
+      }
+
       const response = await api.post('/users/signup', { email, password, username });
       const { token, user } = response.data;
 
@@ -150,6 +216,12 @@ export const AuthProvider = ({ children }) => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
     try {
+      if (isSupabaseConfigured() && supabase) {
+        try {
+          await supabase.auth.signOut();
+        } catch (_) {}
+      }
+
       // AsyncStorage 완전 삭제
       await AsyncStorage.clear();
       console.log('✅ AsyncStorage 완전 삭제 완료!');
@@ -168,6 +240,15 @@ export const AuthProvider = ({ children }) => {
     setUser(updatedUser);
     try {
       await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+      if (isSupabaseConfigured() && supabase && updatedUser?.id) {
+        // best-effort: user_metadata 업데이트(웹/모바일 표시명 통일용)
+        const desired = String(updatedUser?.username || '').trim();
+        if (desired) {
+          try {
+            await supabase.auth.updateUser({ data: { username: desired } });
+          } catch (_) {}
+        }
+      }
     } catch (error) {
       console.error('사용자 정보 업데이트 실패:', error);
     }
@@ -187,6 +268,57 @@ export const AuthProvider = ({ children }) => {
       const testerEmail = 'tester@livejourney.com';
       const testerPassword = 'tester123';
       const testerUsername = '테스터';
+
+      // ✅ Supabase가 설정돼 있으면 Supabase Auth로 테스터 계정 로그인(웹/모바일 uid 통일)
+      if (isSupabaseConfigured() && supabase) {
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: testerEmail,
+            password: testerPassword,
+          });
+          if (error) throw error;
+          const sUser = data?.user;
+          if (!sUser) throw new Error('no_user');
+          const profile = {
+            id: sUser.id,
+            email: sUser.email,
+            username:
+              (sUser.user_metadata && (sUser.user_metadata.username || sUser.user_metadata.full_name)) ||
+              testerUsername,
+          };
+          await AsyncStorage.setItem('token', 'supabase');
+          await AsyncStorage.setItem('user', JSON.stringify(profile));
+          setUser(profile);
+          return { success: true };
+        } catch (e) {
+          // 없으면 가입 후 로그인 시도
+          try {
+            await supabase.auth.signUp({
+              email: testerEmail,
+              password: testerPassword,
+              options: { data: { username: testerUsername } },
+            });
+          } catch (_) {}
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: testerEmail,
+            password: testerPassword,
+          });
+          if (error) throw error;
+          const sUser = data?.user;
+          if (!sUser) throw new Error('no_user');
+          const profile = {
+            id: sUser.id,
+            email: sUser.email,
+            username:
+              (sUser.user_metadata && (sUser.user_metadata.username || sUser.user_metadata.full_name)) ||
+              testerUsername,
+          };
+          await AsyncStorage.setItem('token', 'supabase');
+          await AsyncStorage.setItem('user', JSON.stringify(profile));
+          setUser(profile);
+          return { success: true };
+        }
+      }
 
       // 먼저 실제 API 시도
       try {
