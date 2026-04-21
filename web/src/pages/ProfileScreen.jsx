@@ -107,7 +107,7 @@ const mergeProfileUser = (authUser, savedUser) => {
 const ProfileScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user: authUser, logout, isAuthenticated } = useAuth();
+  const { user: authUser, logout, isAuthenticated, loginWithProvider, authLoading } = useAuth();
   const [user, setUser] = useState(null);
   const [myPosts, setMyPosts] = useState([]);
   const myPostsRef = useRef(myPosts);
@@ -1361,21 +1361,10 @@ const ProfileScreen = () => {
     setLoginError('');
 
     try {
-      const origin = getBackendOrigin();
       const providerLower = provider.toLowerCase();
-      let authEndpoint = '';
-
-      if (providerLower === 'kakao') {
-        authEndpoint = `${origin}/api/auth/kakao`;
-      } else if (providerLower === 'naver') {
-        authEndpoint = `${origin}/api/auth/naver`;
-      } else if (providerLower === 'google') {
-        authEndpoint = `${origin}/api/auth/google`;
-      } else {
-        throw new Error('지원하지 않는 소셜 로그인 제공자입니다.');
-      }
-
-      window.location.href = authEndpoint;
+      if (!loginWithProvider) throw new Error('로그인 기능을 불러올 수 없습니다.');
+      await loginWithProvider(providerLower);
+      // Supabase가 redirect 처리하므로 여기서는 별도 처리 없음
     } catch (error) {
       logger.error('소셜 로그인 실패:', error);
       setLoginError(`${provider} 로그인에 실패했습니다.`);
@@ -1416,7 +1405,7 @@ const ProfileScreen = () => {
                 {/* 카카오 로그인 - 카카오톡 느낌의 말풍선 + TALK 로고 */}
                 <button
                   onClick={() => handleSocialLogin('Kakao')}
-                  disabled={loginLoading}
+                  disabled={loginLoading || authLoading}
                   className="flex cursor-pointer items-center justify-center gap-3 rounded-full h-12 px-6 bg-[#FEE500] text-[#000000] text-sm font-bold tracking-tight hover:bg-[#fdd835] active:bg-[#fbc02d] transition-all shadow-md disabled:opacity-50 w-full max-w-sm"
                   style={{ touchAction: 'manipulation' }}
                 >
@@ -1451,7 +1440,7 @@ const ProfileScreen = () => {
                 {/* 구글 로그인 */}
                 <button
                   onClick={() => handleSocialLogin('Google')}
-                  disabled={loginLoading}
+                  disabled={loginLoading || authLoading}
                   className="flex cursor-pointer items-center justify-center gap-3 rounded-full h-12 px-6 bg-white dark:bg-gray-900 text-[#1F1F1F] dark:text-white text-sm font-semibold tracking-tight border border-zinc-300 dark:border-zinc-600 hover:bg-zinc-50 dark:hover:bg-gray-800 active:bg-zinc-100 transition-all shadow-sm disabled:opacity-50 w-full max-w-sm"
                   style={{ touchAction: 'manipulation' }}
                 >
