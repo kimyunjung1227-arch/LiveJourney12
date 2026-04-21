@@ -11,7 +11,6 @@ const AuthCallbackScreen = () => {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        const code = searchParams.get('code');
         // Supabase OAuth 에러 파라미터 처리
         const errorCode = searchParams.get('error_code') || searchParams.get('error');
         const errorDescription = searchParams.get('error_description') || searchParams.get('error_message');
@@ -22,14 +21,6 @@ const AuthCallbackScreen = () => {
           setTimeout(() => {
             navigate('/start', { replace: true });
           }, 3000);
-          return;
-        }
-
-        if (!code) {
-          setError('로그인 코드가 없습니다. 다시 로그인해 주세요.');
-          setTimeout(() => {
-            navigate('/start', { replace: true });
-          }, 2500);
           return;
         }
 
@@ -63,13 +54,7 @@ const AuthCallbackScreen = () => {
           String(err?.message || '')
             .trim()
             .replace(/\+/g, ' ') || '로그인 처리 중 오류가 발생했습니다.';
-        // PKCE verifier가 없으면(도메인 바뀜/스토리지 초기화/새 탭) 반드시 재로그인이 필요
-        const lower = msg.toLowerCase();
-        const isPkce =
-          lower.includes('code verifier') ||
-          lower.includes('pkce') ||
-          lower.includes('invalid request');
-        setError(isPkce ? '로그인 흐름이 끊겼어요. 같은 도메인에서 다시 로그인해 주세요.' : msg);
+        setError(msg);
         setTimeout(() => {
           navigate('/start', { replace: true });
         }, 3000);
