@@ -159,7 +159,8 @@ export const syncFollowingFromSupabase = async (userId) => {
   const set = getSet(followingCache, uid);
   set.clear();
   ids.filter(Boolean).map(String).forEach((id) => set.add(String(id)));
-  window.dispatchEvent(new CustomEvent('followsUpdated'));
+  // ⚠️ 주의: 여기서 followsUpdated를 emit하면,
+  // (listener → syncFollowingFromSupabase → emit → listener …) 무한 루프가 발생할 수 있다.
   return { success: true, count: set.size };
 };
 
@@ -172,7 +173,7 @@ export const syncFollowersFromSupabase = async (userId) => {
   const set = getSet(followerCache, uid);
   set.clear();
   ids.filter(Boolean).map(String).forEach((id) => set.add(String(id)));
-  window.dispatchEvent(new CustomEvent('followsUpdated'));
+  // ⚠️ 주의: sync 계열에서 followsUpdated를 emit하면 무한 루프/과도한 네트워크 호출 원인이 된다.
   return { success: true, count: set.size };
 };
 
