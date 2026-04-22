@@ -19,25 +19,7 @@ import { getBadgeDisplayNameFromName } from '../utils/badgeSystem';
 const isValidUuid = (v) =>
   typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
 
-const FRIEND_NEWS_READ_KEY = 'friendNewsRead_v1';
-const FRIEND_NEWS_LAST_SEEN_KEY = 'friendNewsLastSeen_v1';
-
-const readJson = (key, fallback) => {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-const writeJson = (key, value) => {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* ignore */
-  }
-};
+// 서버 운영 전환: localStorage 제거 → 친구소식 읽음 상태는 Supabase(friend_news_state)로만 동기화
 
 const typeMeta = {
   badge: { icon: 'military_tech', bg: 'bg-zinc-100 dark:bg-zinc-800' },
@@ -118,16 +100,7 @@ const NotificationsScreen = () => {
           : {};
 
       if (isValidUuid(uid)) {
-        if (lastSeen === 0) {
-          const localLast = Number(readJson(FRIEND_NEWS_LAST_SEEN_KEY, {})?.[uid] || 0);
-          if (localLast > 0) {
-            lastSeen = localLast;
-            void upsertFriendNewsStateSupabase(uid, { last_seen_ms: lastSeen, read_map: readMap });
-          }
-        }
-      } else {
-        lastSeen = Number(readJson(FRIEND_NEWS_LAST_SEEN_KEY, {})?.[uid] || 0);
-        readMap = readJson(FRIEND_NEWS_READ_KEY, {});
+        // localStorage 기반 폴백 제거 (Supabase 상태만 사용)
       }
 
       friendNewsStateRef.current = { read_map: readMap, last_seen_ms: lastSeen };
@@ -208,15 +181,6 @@ const NotificationsScreen = () => {
         const nextLast = now;
         friendNewsStateRef.current = { read_map: nextRead, last_seen_ms: nextLast };
         void upsertFriendNewsStateSupabase(uid, { read_map: nextRead, last_seen_ms: nextLast });
-      } else {
-        const readMap = readJson(FRIEND_NEWS_READ_KEY, {});
-        readMap[id] = true;
-        writeJson(FRIEND_NEWS_READ_KEY, readMap);
-        if (uid) {
-          const last = readJson(FRIEND_NEWS_LAST_SEEN_KEY, {});
-          last[uid] = now;
-          writeJson(FRIEND_NEWS_LAST_SEEN_KEY, last);
-        }
       }
       setFriendNews((prev) => prev.map((x) => (x.id === notification.id ? { ...x, read: true, __new: false } : x)));
     }
@@ -257,17 +221,6 @@ const NotificationsScreen = () => {
         });
         friendNewsStateRef.current = { read_map: nextRead, last_seen_ms: now };
         void upsertFriendNewsStateSupabase(uid, { read_map: nextRead, last_seen_ms: now });
-      } else {
-        const readMap = readJson(FRIEND_NEWS_READ_KEY, {});
-        friendNews.forEach((n) => {
-          readMap[String(n.id)] = true;
-        });
-        writeJson(FRIEND_NEWS_READ_KEY, readMap);
-        if (uid) {
-          const last = readJson(FRIEND_NEWS_LAST_SEEN_KEY, {});
-          last[uid] = now;
-          writeJson(FRIEND_NEWS_LAST_SEEN_KEY, last);
-        }
       }
       setFriendNews((prev) => prev.map((x) => ({ ...x, read: true, __new: false })));
     } else {

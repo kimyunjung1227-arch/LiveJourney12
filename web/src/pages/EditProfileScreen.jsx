@@ -9,8 +9,7 @@ const EditProfileScreen = () => {
   const navigate = useNavigate();
   const { user, updateUser } = useAuth();
 
-  // localStorage에서 현재 사용자 정보 가져오기
-  const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const savedUser = user || {};
 
   const [formData, setFormData] = useState({
     username: savedUser?.username || user?.username || '',
@@ -136,8 +135,7 @@ const EditProfileScreen = () => {
     }
 
     try {
-      // localStorage에서 현재 사용자 정보 가져오기
-      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const currentUser = user || {};
 
       // 업데이트된 사용자 정보 (닉네임은 trim된 값 사용)
       const updatedUser = {
@@ -147,9 +145,6 @@ const EditProfileScreen = () => {
         bio: formData.bio.trim(),
         profileImage: profileImage, // 프로필 이미지 저장! ✨
       };
-
-      // localStorage에 저장
-      localStorage.setItem('user', JSON.stringify(updatedUser));
 
       // AuthContext 업데이트
       if (updateUser) {

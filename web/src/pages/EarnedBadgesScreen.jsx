@@ -45,41 +45,16 @@ const EarnedBadgesScreen = () => {
 
   const setRepresentativeBadge = useCallback((badge) => {
     if (!badge) return;
-    const uid = authUser?.id;
-    if (uid) {
-      try {
-        localStorage.setItem(`representativeBadge_${uid}`, JSON.stringify(badge));
-      } catch {
-        /* ignore */
-      }
-    }
-    try {
-      localStorage.setItem('representativeBadge', JSON.stringify(badge));
-    } catch {
-      /* ignore */
-    }
-    try {
-      const saved = JSON.parse(localStorage.getItem('user') || '{}');
-      if (saved && typeof saved === 'object') {
-        localStorage.setItem('user', JSON.stringify({ ...saved, representativeBadge: badge }));
-      }
-    } catch {
-      /* ignore */
-    }
+    // 서버 운영 전환: 대표 뱃지는 Supabase(user_badges / profile) 기준으로만 유지
+    void badge;
   }, [authUser?.id]);
 
   const sortedBadges = useMemo(() => sortBadges(badges), [badges]);
 
   const loadLocalPostsForUser = useCallback((uid) => {
     try {
-      const uploaded = JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('uploadedPosts') || '[]' : '[]');
-      const localPosts = (uploaded || []).filter((p) => getPostUserId(p) === String(uid));
-      const byId = new Map();
-      localPosts.forEach((p) => {
-        const id = p?.id || p?._id;
-        if (id) byId.set(String(id), p);
-      });
-      return [...byId.values()].sort((a, b) => (b.timestamp || b.createdAt || 0) - (a.timestamp || a.createdAt || 0));
+      void uid;
+      return [];
     } catch {
       return [];
     }
@@ -107,11 +82,10 @@ const EarnedBadgesScreen = () => {
         }
 
         if (isSelf) {
-          const saved = JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('user') || '{}' : '{}');
-          const name = saved?.username || authUser?.username || '나';
+          const name = authUser?.username || '나';
           setScreenTitle(name ? `${name}님의 라이브뱃지` : '내 라이브뱃지');
           setProfileName(name || '나');
-          setProfileImage(saved?.profileImage || authUser?.profileImage || null);
+          setProfileImage(authUser?.profileImage || null);
         } else {
           const hint = location.state?.profileHint || null;
           const name = hint?.username || '사용자';

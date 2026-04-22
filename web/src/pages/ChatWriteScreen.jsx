@@ -85,10 +85,7 @@ const ChatWriteScreen = () => {
         { id: 1, sender: '시스템', text: `${title.trim()} 채팅방에 오신 걸 환영해요!`, time: '방금', isMine: false },
       ],
     };
-    const saved = JSON.parse(localStorage.getItem('chatRooms_v2') || '[]');
-    const list = Array.isArray(saved) ? saved : [];
-    const next = [newChat, ...list];
-    localStorage.setItem('chatRooms_v2', JSON.stringify(next));
+    // 서버 운영 전환: localStorage 제거 (채팅방 임시 저장 비활성화)
     navigate('/chat');
   };
 

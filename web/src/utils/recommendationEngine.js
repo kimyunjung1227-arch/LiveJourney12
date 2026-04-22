@@ -823,10 +823,8 @@ const mergeFilterWeights = (config) => {
 
 export const loadLiveJourneyFilterConfig = () => {
   try {
-    if (typeof localStorage === 'undefined') return { ...DEFAULT_LIVEJOURNEY_FILTER_CONFIG };
-    const raw = localStorage.getItem('lj_recommendation_filter_config');
-    if (!raw) return { ...DEFAULT_LIVEJOURNEY_FILTER_CONFIG };
-    return { ...DEFAULT_LIVEJOURNEY_FILTER_CONFIG, ...JSON.parse(raw) };
+    // 서버 운영 전환: localStorage 제거 → 기본 설정만 사용
+    return { ...DEFAULT_LIVEJOURNEY_FILTER_CONFIG };
   } catch {
     return { ...DEFAULT_LIVEJOURNEY_FILTER_CONFIG };
   }
@@ -1486,28 +1484,9 @@ export const getRecommendationTypesForUi = () => {
   const baseIds = new Set(RECOMMENDATION_TYPES.map((t) => t.id));
   const defaults = RECOMMENDATION_TYPES.map((t, i) => ({ ...t, enabled: true, order: i }));
   try {
-    if (typeof localStorage === 'undefined') return defaults;
-    const raw = localStorage.getItem(LS_KEY_RECOMMENDED_FILTER_UI);
-    if (!raw) return defaults;
-    const parsed = JSON.parse(raw);
-    const items = Array.isArray(parsed?.items) ? parsed.items : [];
-    const byId = new Map(
-      items.filter((x) => x && baseIds.has(x.id)).map((x) => [x.id, x])
-    );
-    const merged = defaults.map((d, i) => {
-      const o = byId.get(d.id);
-      if (!o) return { ...d, enabled: true, order: i };
-      return {
-        ...d,
-        name: typeof o.name === 'string' && o.name.trim() ? o.name.trim() : d.name,
-        icon: typeof o.icon === 'string' ? o.icon : d.icon,
-        description: typeof o.description === 'string' ? o.description : d.description,
-        enabled: o.enabled !== false,
-        order: typeof o.order === 'number' && !Number.isNaN(o.order) ? o.order : i,
-      };
-    });
-    merged.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    return merged;
+    // 서버 운영 전환: localStorage 기반 커스터마이징 제거 → 기본값만 사용
+    void baseIds;
+    return defaults;
   } catch {
     return defaults;
   }
@@ -1515,16 +1494,12 @@ export const getRecommendationTypesForUi = () => {
 
 export const saveRecommendedFilterUi = (items) => {
   try {
-    if (typeof localStorage === 'undefined') return;
-    localStorage.setItem(LS_KEY_RECOMMENDED_FILTER_UI, JSON.stringify({ items }));
     window.dispatchEvent(new CustomEvent('recommendedFilterUiUpdated'));
   } catch (_) {}
 };
 
 export const resetRecommendedFilterUi = () => {
   try {
-    if (typeof localStorage === 'undefined') return;
-    localStorage.removeItem(LS_KEY_RECOMMENDED_FILTER_UI);
     window.dispatchEvent(new CustomEvent('recommendedFilterUiUpdated'));
   } catch (_) {}
 };

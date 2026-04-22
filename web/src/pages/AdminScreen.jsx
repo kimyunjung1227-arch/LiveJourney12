@@ -50,22 +50,7 @@ const AdminScreen = () => {
     if (success) {
       setPosts((prev) => prev.filter((p) => p && String(p.id) !== idStr));
       setDeleteConfirm((prev) => ({ ...prev, postId: null }));
-      // DB에서 삭제됐으므로 앱에서도 완전 제거: localStorage에서 제거
-      try {
-        const uploaded = getUploadedPostsSafe();
-        const filtered = uploaded.filter((p) => p && String(p.id) !== idStr);
-        if (filtered.length !== uploaded.length) {
-          localStorage.setItem('uploadedPosts', JSON.stringify(filtered));
-        }
-      } catch (_) {}
-      // 메인 재진입 시에도 제외되도록 sessionStorage에 기록
-      try {
-        const key = 'adminDeletedPostIds';
-        const raw = sessionStorage.getItem(key) || '[]';
-        const ids = JSON.parse(raw);
-        if (!ids.includes(idStr)) ids.push(idStr);
-        sessionStorage.setItem(key, JSON.stringify(ids));
-      } catch (_) {}
+      // 서버 운영 전환: local/session storage 제거
       window.dispatchEvent(new CustomEvent('adminDeletedPost', { detail: { postId: idStr } }));
     } else {
       const msg = hint ? `${error}\n\n${hint}` : error || '게시물 삭제에 실패했습니다.';

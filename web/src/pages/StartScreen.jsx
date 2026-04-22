@@ -11,21 +11,9 @@ const StartScreen = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // 로그아웃 후 돌아온 경우 또는 Welcome 화면에서 온 경우는 로그인 화면 표시
-    const justLoggedOut = sessionStorage.getItem('justLoggedOut');
-    const showLoginScreen = sessionStorage.getItem('showLoginScreen');
-
-    // 로그인 화면을 보려는 의도가 있으면 자동 리다이렉트 안함
-    if (isAuthenticated && !justLoggedOut && !showLoginScreen) {
+    // 서버 운영 전환: sessionStorage 플래그 제거
+    if (isAuthenticated) {
       navigate('/main', { replace: true });
-    }
-
-    // 플래그 제거
-    if (justLoggedOut) {
-      sessionStorage.removeItem('justLoggedOut');
-    }
-    if (showLoginScreen) {
-      sessionStorage.removeItem('showLoginScreen');
     }
   }, [isAuthenticated, navigate]);
 

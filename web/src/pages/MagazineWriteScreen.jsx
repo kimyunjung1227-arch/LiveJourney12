@@ -221,23 +221,7 @@ const MagazineWriteScreen = () => {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const d = JSON.parse(raw);
-      if (d?.title) setTitle(String(d.title));
-      if (Array.isArray(d?.sections) && d.sections.length > 0) {
-        setSections(
-          d.sections.map((s) =>
-            createEmptySection({
-              moodTitle: s?.moodTitle,
-              locationTitle: s?.locationTitle,
-              locationInfo: s?.locationInfo,
-              description: s?.description,
-              around: s?.around,
-            })
-          )
-        );
-      }
+      // 서버 운영 전환: localStorage draft 복원 제거
     } catch (_) {
       // ignore
     }
@@ -299,8 +283,8 @@ const MagazineWriteScreen = () => {
 
   const saveDraft = useCallback(() => {
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ title, sections, savedAt: Date.now() }));
-      alert('임시저장되었습니다.');
+      // 서버 운영 전환: localStorage draft 저장 제거
+      alert('임시저장 기능은 비활성화되었습니다.');
     } catch (_) {
       alert('임시저장에 실패했습니다.');
     }
@@ -373,7 +357,7 @@ const MagazineWriteScreen = () => {
       }
 
       try {
-        localStorage.removeItem(DRAFT_KEY);
+        // 서버 운영 전환: localStorage 제거
       } catch (_) {}
       navigate(`/magazine/${res.magazine.id}`, { replace: true, state: { magazine: res.magazine } });
     },

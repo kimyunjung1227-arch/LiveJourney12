@@ -13,11 +13,9 @@ import PostThumbnail from '../components/PostThumbnail';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import BackButton from '../components/BackButton';
 import { normalizeRegionName } from '../utils/regionNames';
-import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { getPostUserId, resolveUserDisplayFromPosts } from '../utils/userProfileHints';
 import { getCurrentUserId, getFollowingIds, syncFollowingFromSupabase, toggleFollow, isFollowing } from '../utils/followSystem';
 import { getBadgeDisplayName } from '../utils/badgeSystem';
-import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
 // 해시태그 파싱: #동백꽃 #바다 #힐링 → ['동백꽃','바다','힐링']
 const parseHashtags = (q) => {
@@ -538,22 +536,8 @@ const SearchScreen = () => {
 
   const getRepresentativeBadgeForUserId = useCallback((uid) => {
     if (!uid) return null;
-    try {
-      const raw = localStorage.getItem(`representativeBadge_${uid}`) || null;
-      if (!raw) return null;
-      const b = JSON.parse(raw);
-      if (!b || typeof b !== 'object') return null;
-      const name = String(b.name || '').trim();
-      if (!name) return null;
-      return {
-        name,
-        displayName: b.displayName || null,
-        icon: b.icon || '🏆',
-        region: b.region || null,
-      };
-    } catch {
-      return null;
-    }
+    // 서버 운영 전환: 로컬 캐시 제거(대표 뱃지는 user/profile 데이터에서만 노출)
+    return null;
   }, []);
 
   const toggleFollowForTraveler = useCallback((e, traveler) => {
@@ -612,24 +596,10 @@ const SearchScreen = () => {
   }, []);
 
   const incrementSearchCount = useCallback((term = '') => {
-    const n = parseInt(localStorage.getItem('searchCount') || '0', 10) + 1;
-    localStorage.setItem('searchCount', String(n));
-    setSearchCount(n);
-
-    // 검색 이벤트 저장 (핫플 의도 신호용)
+    setSearchCount((prev) => prev + 1);
     if (term) {
       const entry = { term: String(term).trim().toLowerCase(), ts: Date.now() };
-      try {
-        const raw = JSON.parse(localStorage.getItem('searchEvents') || '[]');
-        const base = Array.isArray(raw) ? raw : [];
-        const next = [entry, ...base].slice(0, 500);
-        localStorage.setItem('searchEvents', JSON.stringify(next));
-        setSearchEvents(next);
-      } catch {
-        const next = [entry];
-        localStorage.setItem('searchEvents', JSON.stringify(next));
-        setSearchEvents(next);
-      }
+      setSearchEvents((prev) => [entry, ...(Array.isArray(prev) ? prev : [])].slice(0, 500));
     }
   }, []);
 
@@ -700,7 +670,6 @@ const SearchScreen = () => {
       const targetRegion = matchedRegions[0];
       const updated = recentSearches.includes(targetRegion.name) ? recentSearches : [targetRegion.name, ...recentSearches.slice(0, 3)];
       setRecentSearches(updated);
-      localStorage.setItem('recentSearches', JSON.stringify(updated));
       {
         const rn = normalizeRegionName(targetRegion.name);
         navigate(`/region/${encodeURIComponent(rn)}`, { state: { region: { name: rn } } });
@@ -743,7 +712,6 @@ const SearchScreen = () => {
       ? recentSearches
       : [regionName, ...recentSearches.slice(0, 3)];
     setRecentSearches(updatedRecentSearches);
-    localStorage.setItem('recentSearches', JSON.stringify(updatedRecentSearches));
 
     {
       const rn = normalizeRegionName(regionName);
@@ -788,7 +756,6 @@ const SearchScreen = () => {
   const handleClearRecentSearches = useCallback(() => {
     if (window.confirm('최근 검색어를 모두 삭제하시겠습니까?')) {
       setRecentSearches([]);
-      localStorage.removeItem('recentSearches');
     }
   }, []);
 
@@ -801,7 +768,6 @@ const SearchScreen = () => {
 
     const updatedSearches = recentSearches.filter(search => search !== searchToDelete);
     setRecentSearches(updatedSearches);
-    localStorage.setItem('recentSearches', JSON.stringify(updatedSearches));
   }, [recentSearches]);
 
   const handleRegionClick = useCallback((regionName) => {
@@ -837,33 +803,11 @@ const SearchScreen = () => {
   // 전체 게시물 (Supabase + 로컬), 최근 검색어, 검색 횟수 로드
   useEffect(() => {
     const loadAllPosts = async () => {
-      const localPosts = getUploadedPostsSafe();
       const supabasePosts = await fetchPostsSupabase();
-      const combined = getCombinedPosts(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
-      setAllPosts(filterActivePosts48(combined));
+      setAllPosts(filterActivePosts48(getCombinedPosts(supabasePosts)));
     };
 
     loadAllPosts();
-
-    const savedRecentSearches = localStorage.getItem('recentSearches');
-    if (savedRecentSearches) {
-      try {
-        setRecentSearches(JSON.parse(savedRecentSearches));
-      } catch (e) {
-        logger.error('최근 검색어 로드 실패:', e);
-      }
-    }
-    setSearchCount(parseInt(localStorage.getItem('searchCount') || '0', 10));
-
-    // 검색 이벤트(검색어 기록) 로드
-    try {
-      const rawEvents = JSON.parse(localStorage.getItem('searchEvents') || '[]');
-      if (Array.isArray(rawEvents)) {
-        setSearchEvents(rawEvents);
-      }
-    } catch (e) {
-      logger.error('검색 이벤트 로드 실패:', e);
-    }
 
     const handlePostsUpdate = () => {
       setTimeout(loadAllPosts, 200);

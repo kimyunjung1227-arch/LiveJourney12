@@ -22,9 +22,7 @@ import { buildPlaceStatsMap, selectPostsForPlaceStats, transformPostForHotFeed }
 import { useAuth } from '../contexts/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
-import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { toggleLikeForPost } from '../utils/postLikeActions';
-import { getUploadedPostsSafe } from '../utils/localStorageManager';
 const MainScreen = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -107,23 +105,11 @@ const MainScreen = () => {
     }, [realtimeData, crowdedData, recommendedData]);
 
     const loadMockData = useCallback(async () => {
-        const localPosts = getUploadedPostsSafe();
-
         // Supabase에서 실제 게시물 불러오기 (실패 시 빈 배열)
         // 로그인 사용자의 좋아요 상태(post.likedByMe)를 서버에서 함께 내려받는다.
         const supabasePosts = await fetchPostsSupabase(user?.id || null);
 
-        // Supabase + 로컬: 동일 id는 필드 병합(isInAppCamera·exifData 유지)
-        const combined = combinePostsSupabaseAndLocal(supabasePosts, localPosts);
-        // 관리자가 삭제한 게시물은 제외 (다른 탭에서 삭제했거나 이벤트를 놓친 경우)
-        let deletedIds = new Set();
-        try {
-            const raw = sessionStorage.getItem('adminDeletedPostIds') || '[]';
-            deletedIds = new Set(JSON.parse(raw));
-            sessionStorage.removeItem('adminDeletedPostIds');
-        } catch (_) {}
-        const combinedFiltered = combined.filter((p) => p && p.id && !deletedIds.has(String(p.id)));
-        const allPosts = getCombinedPosts(combinedFiltered);
+        const allPosts = getCombinedPosts(supabasePosts);
 
         // 메인 피드 기준(24h 우선·부족 시 72h 보강) + 장소별 집계 → 실시간 핫플 좌상단 태그와 공유
         const posts = selectPostsForPlaceStats(allPosts);

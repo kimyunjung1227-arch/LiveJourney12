@@ -141,10 +141,7 @@ const ProfileScreen = () => {
   useEffect(() => {
     refreshTrustScore();
     const handler = () => {
-      const token = localStorage.getItem('token');
-      if (token && !token.startsWith('mock_token')) {
-        api.get('/auth/me').then(() => {}).catch(() => refreshTrustScore());
-      }
+      // 서버 운영 전환: localStorage 토큰 의존 제거
       refreshTrustScore();
     };
     window.addEventListener('trustIndexUpdated', handler);
@@ -190,7 +187,7 @@ const ProfileScreen = () => {
   useEffect(() => {
     if (activeTab === 'savedRoutes') {
       try {
-        const routes = JSON.parse(localStorage.getItem('savedRoutes') || '[]');
+        const routes = [];
         setSavedRoutes(routes);
         if (routes.length > 0) {
           setSelectedSavedRoute((prev) =>
@@ -209,7 +206,7 @@ const ProfileScreen = () => {
   const handleStorageUpdate = useCallback(() => {
     if (activeTab === 'savedRoutes') {
       try {
-        const routes = JSON.parse(localStorage.getItem('savedRoutes') || '[]');
+        const routes = [];
         setSavedRoutes(routes);
         if (routes.length > 0) {
           setSelectedSavedRoute((prev) =>
@@ -252,16 +249,14 @@ const ProfileScreen = () => {
   const GEO_CACHE_KEY = 'lj_geo_cache_v1';
   const readGeoCache = () => {
     try {
-      const raw = localStorage.getItem(GEO_CACHE_KEY);
-      const parsed = raw ? JSON.parse(raw) : {};
-      return parsed && typeof parsed === 'object' ? parsed : {};
+      return {};
     } catch {
       return {};
     }
   };
   const writeGeoCache = (map) => {
     try {
-      localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(map));
+      void map;
     } catch {
       /* ignore */
     }
@@ -414,9 +409,7 @@ const ProfileScreen = () => {
   // 모든 Hook을 먼저 선언한 후 useEffect 실행
   useEffect(() => {
     if (!isAuthenticated) return;
-    // localStorage에서 사용자 정보 로드
-    const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
-    const userData = mergeProfileUser(authUser, savedUser);
+    const userData = mergeProfileUser(authUser, {});
     if (userData && Object.keys(userData).length > 0) {
       setUser(userData);
     }
@@ -427,10 +420,7 @@ const ProfileScreen = () => {
     logger.log('🏆 프로필 화면 - 획득한 뱃지(초기):', badges.length);
 
     // 대표 뱃지 로드 (반드시 획득한 뱃지 중에서 선택)
-    let savedRepBadgeJson = userId
-      ? localStorage.getItem(`representativeBadge_${userId}`) || localStorage.getItem('representativeBadge')
-      : localStorage.getItem('representativeBadge');
-
+    let savedRepBadgeJson = null;
     let repBadge = null;
     if (savedRepBadgeJson) {
       try {
@@ -534,7 +524,7 @@ const ProfileScreen = () => {
 
     // 뱃지 업데이트 이벤트 리스너
     const handleBadgeUpdate = () => {
-      const uid = (authUser || JSON.parse(localStorage.getItem('user') || '{}'))?.id;
+      const uid = (authUser)?.id;
       if (!uid) return;
       const posts = myPostsRef.current?.length ? myPostsRef.current : null;
       const updatedBadges = getEarnedBadgesForUser(String(uid), posts);
@@ -544,8 +534,7 @@ const ProfileScreen = () => {
 
     // 사용자 정보 업데이트 이벤트 리스너
     const handleUserUpdate = () => {
-      const updatedUser = JSON.parse(localStorage.getItem('user') || '{}');
-      const userData = mergeProfileUser(authUser, updatedUser);
+      const userData = mergeProfileUser(authUser, {});
       if (userData && Object.keys(userData).length > 0) {
         setUser(userData);
       }
@@ -1087,9 +1076,6 @@ const ProfileScreen = () => {
   }, [activeTab, filteredPosts, initMap, selectedDate]);
 
   const handleLogout = () => {
-    // 로그아웃 플래그 설정
-    sessionStorage.setItem('justLoggedOut', 'true');
-
     // 로그아웃 처리
     logout();
 
@@ -1162,10 +1148,9 @@ const ProfileScreen = () => {
       logger.warn('Supabase 게시물 삭제 중 일부 실패:', e);
     }
 
-    // localStorage에서 선택된 사진 삭제
+    // 서버 운영 전환: localStorage 저장 제거 (메모리 캐시만 갱신)
     const allPosts = getUploadedPostsSafe();
     const filteredPosts = allPosts.filter(post => !selectedPhotos.includes(post.id));
-    localStorage.setItem('uploadedPosts', JSON.stringify(filteredPosts));
 
     // 내 게시물 목록 업데이트
     const userId = user?.id || authUser?.id;
@@ -1337,17 +1322,13 @@ const ProfileScreen = () => {
   const selectRepresentativeBadge = (badge) => {
     const currentUser = user || authUser;
     const userId = currentUser?.id;
-    if (userId) {
-      localStorage.setItem(`representativeBadge_${userId}`, JSON.stringify(badge));
-    }
-    localStorage.setItem('representativeBadge', JSON.stringify(badge)); // 호환성 유지
+    void userId;
     setRepresentativeBadge(badge);
     setShowBadgeSelector(false);
 
     // user 정보 업데이트
     if (currentUser) {
       const updatedUser = { ...currentUser, representativeBadge: badge };
-      localStorage.setItem('user', JSON.stringify(updatedUser));
       setUser(updatedUser);
     }
 
@@ -1358,15 +1339,11 @@ const ProfileScreen = () => {
   const removeRepresentativeBadge = () => {
     const currentUser = user || authUser;
     const userId = currentUser?.id;
-    if (userId) {
-      localStorage.removeItem(`representativeBadge_${userId}`);
-    }
-    localStorage.removeItem('representativeBadge'); // 호환성 유지
+    void userId;
     setRepresentativeBadge(null);
 
     if (currentUser) {
       const updatedUser = { ...currentUser, representativeBadge: null };
-      localStorage.setItem('user', JSON.stringify(updatedUser));
       setUser(updatedUser);
     }
 
@@ -2260,7 +2237,6 @@ const ProfileScreen = () => {
               const deleteRoute = (routeId) => {
                 if (!confirm('이 경로를 삭제하시겠습니까?')) return;
                 const updated = savedRoutes.filter((r) => r.id !== routeId);
-                localStorage.setItem('savedRoutes', JSON.stringify(updated));
                 setSavedRoutes(updated);
                 if (updated.length === 0) {
                   setSelectedSavedRoute(null);
@@ -2446,12 +2422,8 @@ const ProfileScreen = () => {
                     };
 
                     const getRepBadge = (uid) => {
-                      try {
-                        const j = localStorage.getItem(`representativeBadge_${uid}`);
-                        return j ? JSON.parse(j) : null;
-                      } catch {
-                        return null;
-                      }
+                      void uid;
+                      return null;
                     };
 
                     return followListIds.map((uid) => {

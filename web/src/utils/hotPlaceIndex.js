@@ -249,7 +249,7 @@ export const computeHotPlaces = (posts, searchEvents, options = {}) => {
 
 export const loadSearchEvents = (maxAgeMinutes = 60 * 24) => {
   try {
-    const raw = JSON.parse(localStorage.getItem('searchEvents') || '[]');
+    const raw = [];
     const now = Date.now();
     return raw.filter(e => e?.ts && (now - e.ts) <= maxAgeMinutes * 60 * 1000);
   } catch {

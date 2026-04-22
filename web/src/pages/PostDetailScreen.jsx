@@ -27,7 +27,6 @@ import { buildMediaItemsFromPost } from '../utils/postMedia';
 import { tagTranslations } from '../utils/tagTranslations';
 import { getCategoryChipsFromPost } from '../utils/travelCategories';
 import { toggleLikeForPost } from '../utils/postLikeActions';
-import { getUploadedPostsSafe } from '../utils/localStorageManager';
 import {
   addCommentSupabase,
   deleteCommentSupabase,
@@ -35,6 +34,9 @@ import {
   updateCommentSupabase,
 } from '../api/socialSupabase';
 import 'swiper/css';
+
+// 서버 운영 전환: 로컬 저장소 없이 세션 내 신고만 기록
+const reportedPostIds = new Set();
 
 const PostDetailScreen = () => {
   const navigate = useNavigate();
@@ -478,31 +480,10 @@ const PostDetailScreen = () => {
         }
       }
     } else {
-      const uploadedPosts = getUploadedPostsSafe();
-      const existsInStorage = uploadedPosts.some((p) => p.id === post.id);
-      if (existsInStorage) {
-        const newComments = addComment(post.id, text, username, userId);
-        if (Array.isArray(newComments) && newComments.length > 0) {
-          setComments(newComments);
-          setCommentsCacheForPost(post.id, newComments);
-        } else {
-          const merged = mergeCommentsWithCache(post.id, [...comments, newComment]);
-          setComments(merged);
-          setCommentsCacheForPost(post.id, merged);
-        }
-        if (user?.id && post.userId && String(post.userId) !== String(user.id)) {
-          notifyComment(username, post.location || post.placeName || '', text, {
-            recipientUserId: post.userId,
-            postId: post.id,
-            actorUserId: user.id,
-            actorAvatar: user?.profileImage || null,
-          });
-        }
-      } else {
-        const merged = mergeCommentsWithCache(post.id, [...comments, newComment]);
-        setComments(merged);
-        setCommentsCacheForPost(post.id, merged);
-      }
+      // 서버 운영 전환: 로컬 게시물(비 UUID) 댓글 저장 제거 → 화면 캐시만 반영
+      const merged = mergeCommentsWithCache(post.id, [...comments, newComment]);
+      setComments(merged);
+      setCommentsCacheForPost(post.id, merged);
     }
 
     setCommentText('');
@@ -590,11 +571,8 @@ const PostDetailScreen = () => {
     if (!post?.id) return;
     if (!window.confirm('이 게시물을 신고하시겠습니까?')) return;
     try {
-      const key = 'reportedPosts_v1';
-      const raw = JSON.parse(localStorage.getItem(key) || '[]');
       const idStr = String(post.id);
-      if (!raw.includes(idStr)) raw.push(idStr);
-      localStorage.setItem(key, JSON.stringify(raw));
+      reportedPostIds.add(idStr);
       alert('신고가 접수되었습니다. 검토 후 조치하겠습니다.');
     } catch {
       alert('처리 중 오류가 발생했습니다.');
@@ -609,23 +587,9 @@ const PostDetailScreen = () => {
     if (isUuid) {
       const res = await deletePostSupabase(idStr);
       if (!res?.success) {
-        // 서버 삭제가 막혀도(정책/RLS 등) 사용자는 "내 화면에서" 우선 제거되길 원함.
-        // 메인/피드에서는 sessionStorage의 adminDeletedPostIds를 함께 필터링하고 있어 즉시 숨김이 가능하다.
-        try {
-          const key = 'adminDeletedPostIds';
-          const raw = sessionStorage.getItem(key) || '[]';
-          const arr = Array.isArray(JSON.parse(raw)) ? JSON.parse(raw) : [];
-          arr.push(idStr);
-          sessionStorage.setItem(key, JSON.stringify(Array.from(new Set(arr.map(String)))));
-        } catch (_) {}
-        alert((res?.error || '삭제에 실패했습니다.') + '\n\n(화면에서는 숨김 처리되었어요. 서버 정책/RLS 설정을 확인해 주세요.)');
+        alert((res?.error || '삭제에 실패했습니다.') + '\n\n(서버 정책/RLS 설정을 확인해 주세요.)');
       }
     }
-    try {
-      const uploaded = getUploadedPostsSafe();
-      const filtered = uploaded.filter((p) => p && String(p.id) !== idStr);
-      localStorage.setItem('uploadedPosts', JSON.stringify(filtered));
-    } catch (_) {}
     window.dispatchEvent(new Event('postsUpdated'));
     navigate(-1);
   }, [post, isPostAuthor, navigate]);
@@ -875,22 +839,8 @@ const PostDetailScreen = () => {
       setUserBadges(badges);
 
       let repBadge = null;
-      const repBadgeJson = localStorage.getItem(`representativeBadge_${postUserId}`);
-      if (repBadgeJson) {
-        try {
-          repBadge = JSON.parse(repBadgeJson);
-        } catch {
-          repBadge = null;
-        }
-      }
       if (!repBadge && badges.length > 0) {
         repBadge = badges[0];
-        try {
-          const saved = JSON.parse(localStorage.getItem('user') || '{}');
-          if (saved?.id && String(saved.id) === String(postUserId)) {
-            localStorage.setItem(`representativeBadge_${postUserId}`, JSON.stringify(repBadge));
-          }
-        } catch (_) { /* ignore */ }
       }
       if (!repBadge) {
         const fallbackBadgeName =
@@ -1688,21 +1638,12 @@ const PostDetailScreen = () => {
                     const resolved = (() => {
                       const uid = commentAuthorId != null ? String(commentAuthorId) : '';
                       const cached = uid ? getCachedFollowProfile(uid) : null;
-                      let savedMe = null;
-                      try {
-                        const saved = JSON.parse(localStorage.getItem('user') || '{}');
-                        if (saved?.id != null && uid && String(saved.id) === uid) savedMe = saved;
-                      } catch {
-                        // ignore
-                      }
                       const displayName =
-                        (savedMe?.username || null) ??
                         (cached?.username || null) ??
                         comment.user?.username ??
                         (typeof comment.user === 'string' ? comment.user : null) ??
                         '유저';
                       const displayAvatar =
-                        (savedMe?.profileImage && savedMe.profileImage !== 'default' ? savedMe.profileImage : null) ??
                         (cached?.profileImage ?? null) ??
                         (comment.avatar || null);
                       return { displayName, displayAvatar };

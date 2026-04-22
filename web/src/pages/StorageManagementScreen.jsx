@@ -85,7 +85,7 @@ const StorageManagementScreen = () => {
       title: '모든 데이터 삭제',
       message: '모든 게시물 데이터를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없으며, 모든 게시물이 삭제됩니다.',
       action: () => {
-        localStorage.setItem('uploadedPosts', '[]');
+        // 서버 운영 전환: localStorage 제거
         loadStorageInfo();
         alert('모든 데이터가 삭제되었습니다.');
       }

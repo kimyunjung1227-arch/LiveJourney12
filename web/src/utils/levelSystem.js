@@ -48,25 +48,8 @@ export const getLevelTitle = (level) => {
 
 function calculateTotalExp() {
   try {
-    const postsJson = localStorage.getItem('uploadedPosts');
-    const posts = postsJson ? JSON.parse(postsJson) : [];
-    const userJson = localStorage.getItem('user');
-    const currentUser = userJson ? JSON.parse(userJson) : {};
-    const currentUserId = currentUser?.id ? String(currentUser.id) : null;
-
-    const userPosts = posts.filter((post) => {
-      const postUserId = post.userId || (typeof post.user === 'object' ? post.user?.id : post.user);
-      if (currentUserId && postUserId) return String(postUserId) === currentUserId;
-      return (post.id && String(post.id).startsWith('local-')) || String(post.id).startsWith('uploaded-');
-    });
-
-    let totalExp = 0;
-    totalExp += userPosts.length * (EXP_REWARDS['사진 업로드'] || 50);
-    totalExp += userPosts.reduce((sum, p) => sum + (p.likes || 0), 0) * (EXP_REWARDS['좋아요 받기'] || 5);
-    totalExp += userPosts.reduce((sum, p) => sum + (p.qnaList?.length || 0) + (p.comments?.length || 0), 0) * (EXP_REWARDS['댓글 받기'] || 10);
-    const regions = [...new Set(userPosts.map((p) => (p.location || '').split(' ')[0]).filter(Boolean))];
-    totalExp += regions.length * (EXP_REWARDS['지역 방문'] || 20);
-    return totalExp;
+    // 서버 운영 전환: localStorage 기반 경험치 계산 제거
+    return 0;
   } catch (e) {
     return 0;
   }

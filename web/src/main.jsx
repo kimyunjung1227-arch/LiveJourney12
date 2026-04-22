@@ -128,12 +128,10 @@ const initApp = () => {
   logger.log('✅ 앱 렌더링 완료');
 
   setTimeout(() => {
-    const user = localStorage.getItem('user');
-    if (user) {
-      requestNotificationPermission().then((ok) => {
-        if (ok) logger.log('✅ 브라우저 알림 권한 허용됨');
-      });
-    }
+    // 서버 운영 전환: localStorage 확인 없이 권한 요청은 best-effort로 수행
+    requestNotificationPermission().then((ok) => {
+      if (ok) logger.log('✅ 브라우저 알림 권한 허용됨');
+    });
   }, 2000);
 };
 

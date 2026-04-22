@@ -406,9 +406,11 @@ export const uploadVideo = async (file) => {
     const data = response.data;
     return { success: true, url: data.url || data.videoUrl, ...data };
   } catch (error) {
-    logger.warn('동영상 백엔드 없음 - Blob URL 사용');
-    const blobUrl = URL.createObjectURL(file);
-    return { success: true, url: blobUrl, isTemporary: true };
+    // ⚠️ 동영상은 blob: fallback을 "성공"으로 취급하면 DB에 영구 URL이 저장되지 않아
+    // 업로드 후 피드/상세에서 동영상이 사라진 것처럼 보입니다(onlyPersistentUrls 필터).
+    // 따라서 최종 저장이 불가능한 경우는 실패로 반환해 화면에서 재시도/에러 처리를 하게 합니다.
+    logger.warn('동영상 업로드 실패: Supabase/백엔드 모두 실패', error?.message || error);
+    return { success: false, error };
   }
 };
 

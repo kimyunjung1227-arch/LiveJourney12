@@ -34,9 +34,7 @@ const MagazineListScreen = () => {
       );
       let deletedIds = new Set();
       try {
-        const raw = sessionStorage.getItem('adminDeletedPostIds') || '[]';
-        deletedIds = new Set(JSON.parse(raw));
-        sessionStorage.removeItem('adminDeletedPostIds');
+        // 서버 운영 전환: sessionStorage 제거
       } catch (_) {}
       const combinedFiltered = Array.from(byId.values()).filter(
         (p) => p && p.id && !deletedIds.has(String(p.id))

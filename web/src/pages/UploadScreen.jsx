@@ -1,15 +1,13 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation, useMatch } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
-import { createPost } from '../api/posts';
 import { uploadImage, uploadVideo, getDisplayImageUrl } from '../api/upload';
 import { useAuth } from '../contexts/AuthContext';
 import { notifyBadge } from '../utils/notifications';
-import { safeSetItem, logLocalStorageStatus, getUploadedPostsSafe } from '../utils/localStorageManager';
 import { checkNewBadges, awardBadge, calculateUserStats } from '../utils/badgeSystem';
 import { analyzeImageForTags } from '../utils/aiImageAnalyzer';
 import { getWeatherByRegion } from '../api/weather';
-import { createPostSupabase, getMergedMyPostsForStats, fetchPostByIdSupabase, updatePostSupabase } from '../api/postsSupabase';
+import { createPostSupabase, fetchPostByIdSupabase, updatePostSupabase, fetchPostsByUserIdSupabase } from '../api/postsSupabase';
 import { getCurrentTimestamp, getTimeAgo } from '../utils/timeUtils';
 import { getBadgeCongratulationMessage, getBadgeDifficultyEffects } from '../utils/badgeMessages';
 import { logger } from '../utils/logger';
@@ -21,6 +19,9 @@ import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import StatusBadge from '../components/StatusBadge';
 import { usePhotoValidation } from '../hooks/usePhotoValidation';
 import { useExifConsent } from '../contexts/ExifConsentContext';
+
+// localStorage/sessionStorage 없이 "세션 중 1회만" 업로드 가이드 표시
+let uploadGuideConfirmedThisSession = false;
 
 /** 지역 + 세부 장소 → "대구 송해공원" 한 줄 */
 function combineLocationParts(region, place) {
@@ -344,20 +345,6 @@ const UploadScreen = () => {
           post = await fetchPostByIdSupabase(idStr);
         } catch (_) {}
       }
-      if (!post) {
-        try {
-          const localPosts = getUploadedPostsSafe();
-          post = localPosts.find(
-            (p) =>
-              p &&
-              (p.id === idStr ||
-                p.id === `uploaded-${idStr}` ||
-                p.id === `realtime-${idStr}` ||
-                p.id === `crowded-${idStr}` ||
-                p.id === `recommend-${idStr}`)
-          );
-        } catch (_) {}
-      }
       if (cancelled || !post) {
         if (!cancelled) navigate('/main', { replace: true });
         return;
@@ -415,41 +402,23 @@ const UploadScreen = () => {
     if (editingPostId) return;
     if (location?.state?.fromUploadGuide) return;
     try {
-      const seen = sessionStorage.getItem('uploadGuideConfirmedThisSession');
-      if (seen === '1') return;
+      if (uploadGuideConfirmedThisSession) return;
+      uploadGuideConfirmedThisSession = true;
       navigate('/upload/guide', { replace: true, state: { returnTo: '/upload' } });
     } catch (_) {
+      uploadGuideConfirmedThisSession = true;
       navigate('/upload/guide', { replace: true, state: { returnTo: '/upload' } });
     }
   }, [editingPostId, location?.state, navigate]);
 
   // 업로드 가이드는 한 번 보고 나면 5번 업로드 동안은 다시 나오지 않도록 제어
   useEffect(() => {
-    try {
-      if (editingPostId) {
-        setShowUploadGuide(false);
-        return;
-      }
-      const neverShow = localStorage.getItem('uploadGuideNeverShow');
-      if (neverShow === '1') {
-        setShowUploadGuide(false);
-        return;
-      }
-
-      const raw = localStorage.getItem('uploadGuideSeenCount');
-      const count = raw ? parseInt(raw, 10) : 0;
-      // 0, 6, 12... 번째 진입에서만 보여주기 위해 6으로 나눈 나머지 확인
-      if (Number.isNaN(count) || count % 6 === 0) {
-        setShowUploadGuide(true);
-        const next = Number.isNaN(count) ? 1 : count + 1;
-        localStorage.setItem('uploadGuideSeenCount', String(next));
-      } else {
-        setShowUploadGuide(false);
-      }
-    } catch (e) {
-      logger.warn('업로드 가이드 카운트 처리 중 오류 (무시):', e);
-      setShowUploadGuide(true);
+    if (editingPostId) {
+      setShowUploadGuide(false);
+      return;
     }
+    // 서버 운영 전환: localStorage 기반 "다시 보지 않기/카운트" 로직 제거
+    setShowUploadGuide(true);
   }, [logger, editingPostId]);
 
   const getCurrentLocation = useCallback(async () => {
@@ -1171,12 +1140,15 @@ const UploadScreen = () => {
     logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     try {
-      const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
-      const currentUser = user || savedUser;
-      const currentUserId = currentUser?.id || savedUser?.id || 'test_user_001';
+      const currentUser = user || null;
+      const currentUserId = currentUser?.id ? String(currentUser.id) : '';
+      if (!currentUserId) {
+        logger.warn('뱃지 체크: 로그인 사용자 없음');
+        return false;
+      }
 
-      // Supabase+로컬 병합으로 내 게시물 로드 (로그아웃 후 재로그인해도 활동 쌓임)
-      const myPosts = await getMergedMyPostsForStats(currentUserId);
+      // 서버 운영 전환: localStorage 병합 제거, Supabase 기준으로만 내 게시물 로드
+      const myPosts = await fetchPostsByUserIdSupabase(currentUserId, currentUserId);
       logger.log(`📊 사용자 통계 계산 중... (총 ${myPosts.length}개 게시물)`);
 
       const stats = calculateUserStats(myPosts, currentUser);
@@ -1328,6 +1300,10 @@ const UploadScreen = () => {
             finalVideos.push(preview);
           }
         }
+        if (finalVideos.some((u) => typeof u === 'string' && u.startsWith('blob:'))) {
+          alert('동영상 업로드에 실패했습니다. 네트워크/스토리지 설정을 확인한 뒤 다시 시도해 주세요.');
+          return;
+        }
         setUploadProgress(70);
         const tagPayload = dedupeHashtags(finalTags)
           .map((t) => t.replace(/^#+/, '').trim())
@@ -1355,35 +1331,9 @@ const UploadScreen = () => {
           window.dispatchEvent(new Event('postsUpdated'));
           navigate(`/post/${postIdStr}`, { replace: true, state: fresh ? { post: fresh } : undefined });
         } else {
-          const uploaded = getUploadedPostsSafe();
-          const idx = uploaded.findIndex((p) => p.id === editingPostId);
-          if (idx === -1) {
-            alert('게시물을 찾을 수 없습니다.');
-            return;
-          }
-          const prev = uploaded[idx];
-          const merged = {
-            ...prev,
-            images: finalImages,
-            videos: finalVideos,
-            note: formData.note.trim(),
-            content: formData.note.trim(),
-            location: combinedLocation.trim(),
-            detailedLocation: combinedLocation.trim(),
-            placeName: combinedLocation.trim(),
-            region,
-            tags: finalTags,
-            category: formData.aiCategory,
-            categories: Array.isArray(formData.aiCategories) ? formData.aiCategories : [formData.aiCategory],
-            categoryName: formData.aiCategoryName,
-            thumbnail: finalImages.length > 0 ? finalImages[0] : prev.thumbnail,
-            imageCount: finalImages.length,
-            videoCount: finalVideos.length
-          };
-          uploaded[idx] = merged;
-          localStorage.setItem('uploadedPosts', JSON.stringify(uploaded));
-          window.dispatchEvent(new Event('postsUpdated'));
-          navigate(`/post/${postIdStr}`, { replace: true, state: { post: merged } });
+          alert('이 게시물은 서버에 저장된 게시물이 아니어서 편집할 수 없습니다.');
+          navigate('/main', { replace: true });
+          return;
         }
       } catch (err) {
         logger.error('게시물 수정 저장 실패:', err);
@@ -1465,6 +1415,12 @@ const UploadScreen = () => {
           }
         });
         uploadedVideoUrls.push(...results.filter(Boolean));
+        if (uploadedVideoUrls.length < formData.videoFiles.length || uploadedVideoUrls.some((u) => typeof u === 'string' && u.startsWith('blob:'))) {
+          alert('동영상 업로드에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+          setUploading(false);
+          setUploadProgress(0);
+          return;
+        }
       } else {
         uploadedVideoUrls.push(...formData.videos);
       }
@@ -1504,40 +1460,9 @@ const UploadScreen = () => {
         return `${dateLabel} ${note}`;
       };
 
-      const postData = {
-        images: uploadedImageUrls.length > 0 ? uploadedImageUrls : formData.images,
-        videos: uploadedVideoUrls.length > 0 ? uploadedVideoUrls : formData.videos,
-        content: withDateInDescription(formData.note, formData.photoDate ? new Date(formData.photoDate).getTime() : Date.now()),
-        location: {
-          name: formData.verifiedLocation || combinedLocation,
-          lat: coordinates?.lat ?? null,
-          lon: coordinates?.lng ?? null,
-          region: normalizeRegionName(formData.locationRegion || combinedLocation.split(' ')[0] || '지역'),
-          country: '대한민국'
-        },
-        tags: finalTags.map((tag) => String(tag).replace(/^#+/, '').trim()).filter(Boolean),
-        isRealtime: true,
-        photoDate: formData.photoDate || (isInAppCamera ? new Date().toISOString() : null),
-        isInAppCamera: !!isInAppCamera,
-        exifData: formData.exifData ? {
-          photoDate: formData.exifData.photoDate,
-          gpsCoordinates: formData.exifData.gpsCoordinates,
-          cameraMake: formData.exifData.cameraMake,
-          cameraModel: formData.exifData.cameraModel
-        } : null // EXIF 메타데이터
-      };
-
       setUploadProgress(80);
 
-      // 더 이상 백엔드 REST API(createPost)는 호출하지 않고,
-      // Supabase + localStorage 기준으로만 저장합니다.
-
-      const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
-      const currentUser = user || savedUser;
-      const username = currentUser?.username || currentUser?.email?.split('@')[0] || '모사모';
-      const currentUserId = currentUser?.id || savedUser?.id || 'test_user_001';
-
-      const backendPost = null;
+      // 서버 운영 전환: localStorage 기반 사용자/게시물 저장 로직 제거, Supabase만 사용
 
           // 이미지 URL 확인 및 설정
           const finalImages = uploadedImageUrls.length > 0
@@ -1599,83 +1524,58 @@ const UploadScreen = () => {
 
           const descriptionWithDate = withDateInDescription(formData.note, photoTimestamp);
 
-          const uploadedPost = {
-            id: backendPost?._id || backendPost?.id || `backend-${Date.now()}`,
-            userId: currentUserId,
+          if (!user?.id) {
+            alert('로그인이 필요합니다. 로그인 후 다시 업로드해 주세요.');
+            setUploading(false);
+            setUploadProgress(0);
+            return;
+          }
+
+          const sanitizedPost = {
+            userId: user.id,
+            user: {
+              id: user.id,
+              username: user.username || user.email?.split('@')?.[0] || null,
+              profileImage: user.profileImage || null,
+            },
             images: finalImages,
             videos: finalVideos,
             location: combinedLocation,
+            detailedLocation: formData.verifiedLocation || combinedLocation,
+            placeName: combinedLocation,
+            region,
             tags: Array.isArray(finalTags) ? finalTags : [],
             note: descriptionWithDate,
             content: descriptionWithDate,
             timestamp: photoTimestamp,
-            createdAt: backendPost?.createdAt || getCurrentTimestamp(),
+            createdAt: getCurrentTimestamp(),
             photoDate: resolvedPhotoDate,
             isInAppCamera: !!isInAppCamera,
-            timeLabel: getTimeAgo(new Date(photoTimestamp)),
-            user: {
-              id: currentUserId,
-              username,
-              profileImage: currentUser?.profileImage || null
-            },
-            likes: backendPost?.likesCount || 0,
-            isNew: true,
-            isLocal: false,
             category: aiCategory,
             categories: Array.isArray(formData.aiCategories) ? formData.aiCategories : [aiCategory],
             categoryName: aiCategoryName,
             coordinates: coordinates || null,
-            detailedLocation: formData.verifiedLocation || combinedLocation,
-            placeName: combinedLocation,
-            region: region, // 지역 정보 추가
             weather: weatherAtUpload,
             weatherSnapshot: weatherAtUpload,
-            exifData: formData.exifData ? {
-              photoDate: formData.exifData.photoDate,
-              gpsCoordinates: formData.exifData.gpsCoordinates,
-              cameraMake: formData.exifData.cameraMake,
-              cameraModel: formData.exifData.cameraModel
-            } : null, // EXIF 메타데이터 (신뢰할 수 있는 정보)
-            verifiedLocation: formData.verifiedLocation || null // EXIF에서 검증된 위치
+            exifData: formData.exifData
+              ? {
+                  photoDate: formData.exifData.photoDate,
+                  gpsCoordinates: formData.exifData.gpsCoordinates,
+                  cameraMake: formData.exifData.cameraMake,
+                  cameraModel: formData.exifData.cameraModel,
+                }
+              : null,
+            verifiedLocation: formData.verifiedLocation || null,
           };
 
-          // localStorage에도 이미지/동영상 URL 저장 (표시용; 서버 또는 blob URL)
-          const sanitizedPost = {
-            ...uploadedPost,
-            images: finalImages,
-            videos: finalVideos,
-            imageCount: finalImages.length,
-            videoCount: finalVideos.length,
-            thumbnail: finalImages.length > 0 ? finalImages[0] : null
-          };
-
-          logger.log('💾 localStorage 저장 (이미지 제외):', {
-            게시물ID: sanitizedPost.id,
-            이미지수: sanitizedPost.imageCount,
-            비디오수: sanitizedPost.videoCount,
-            썸네일: sanitizedPost.thumbnail ? '있음' : '없음'
-          });
-
-          const existingPosts = getUploadedPostsSafe();
-          const updatedPosts = [sanitizedPost, ...existingPosts];
-
-          // JSON 문자열 크기 확인
-          const jsonString = JSON.stringify(updatedPosts);
-          const jsonSizeMB = (jsonString.length / (1024 * 1024)).toFixed(2);
-          logger.log(`📊 저장할 데이터 크기: ${jsonSizeMB} MB (이미지 제외)`);
-
-          const saveResult = safeSetItem('uploadedPosts', jsonString);
-
-          if (!saveResult.success) {
-            logger.error('❌ localStorage 저장 실패:', saveResult);
-            logger.log('💡 게시물은 서버에 업로드되었습니다.');
-          } else {
-            logger.log('✅ 백엔드 업로드 성공 및 localStorage 저장 완료:', {
-              저장된게시물수: updatedPosts.length,
-              새게시물ID: sanitizedPost.id,
-              이미지수: sanitizedPost.imageCount,
-              비디오수: sanitizedPost.videoCount
-            });
+          // Supabase에 게시물 저장 (이미지/동영상은 https URL만 저장됨)
+          const result = await createPostSupabase(sanitizedPost);
+          if (!result?.success || !result?.post?.id) {
+            logger.warn('Supabase 게시물 저장 실패:', result?.error, result?.code);
+            alert('게시물 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+            setUploading(false);
+            setUploadProgress(0);
+            return;
           }
 
           try {
@@ -1688,56 +1588,6 @@ const UploadScreen = () => {
           } catch (_) {}
 
           window.dispatchEvent(new Event('postsUpdated'));
-
-          // Supabase에 게시물 저장 (https URL만 저장, blob URL 제외)
-          let supabaseSaved = false;
-          try {
-            const result = await createPostSupabase(sanitizedPost);
-            if (result?.success) {
-              supabaseSaved = true;
-              const supabasePostId = result.post?.id;
-              logger.log('✅ Supabase 게시물 저장 완료:', { supabasePostId });
-              // localStorage에 저장된 게시물 id를 Supabase id로 갱신 (삭제 시 Supabase에서도 삭제하기 위함)
-              if (supabasePostId) {
-                try {
-                  const current = getUploadedPostsSafe();
-                  const idx = current.findIndex((p) => p.id === sanitizedPost.id);
-                  if (idx !== -1) {
-                    current[idx].id = supabasePostId;
-                    localStorage.setItem('uploadedPosts', JSON.stringify(current));
-                  }
-                } catch (_) {}
-                window.dispatchEvent(new Event('postsUpdated'));
-              }
-            } else {
-              logger.warn('Supabase 게시물 저장 실패:', result?.error, result?.code);
-              if (result?.error === 'user_id_not_null') {
-                const sql = 'ALTER TABLE posts ALTER COLUMN user_id DROP NOT NULL;';
-                logger.warn('💡 해결: Supabase SQL Editor에서 실행 →', sql);
-                alert(
-                  'Supabase에 저장하려면 한 번만 설정해 주세요.\n\n' +
-                  '1. Supabase 대시보드 → SQL Editor → New query\n' +
-                  '2. 아래 문장 붙여넣고 Run\n\n' +
-                  sql
-                );
-              }
-              if (result?.error === 'rls_forbidden') {
-                logger.warn('💡 해결: posts 테이블 RLS 정책 확인 →', result?.hint);
-                alert(
-                  'Supabase 게시물 저장이 거부되었습니다.\n\n' +
-                  '해결: Supabase 대시보드 → SQL Editor → New query\n' +
-                  '프로젝트 내 web/supabase-setup.sql 파일 내용을 붙여넣고 Run 하세요.'
-                );
-              }
-            }
-          } catch (err) {
-            logger.warn('Supabase 게시물 저장 중 예외:', err);
-          }
-          if (!supabaseSaved) {
-            logger.warn('💡 게시물은 이 기기 localStorage에만 저장되었습니다. Supabase RLS 또는 user_id 컬럼(nullable)을 확인해 주세요.');
-          } else if (supabaseSaved && supabaseImageCount === 0 && (finalImages.length > 0 || finalVideos.length > 0)) {
-            logger.warn('💡 게시물은 저장됐으나 사진/동영상이 서버에 올라가지 않았습니다. Supabase Storage 버킷(post-images) 및 정책을 확인하세요.');
-          }
 
           setUploadProgress(100);
           setShowSuccessModal(true);
@@ -1754,15 +1604,6 @@ const UploadScreen = () => {
           // 데이터 저장 완료 후 뱃지 체크 (더 긴 지연 시간)
           setTimeout(() => {
             logger.debug('Badge check timer running');
-
-            // localStorage 저장 확인
-            const verifyPosts = getUploadedPostsSafe();
-            const verifyPost = verifyPosts.find(p => p.id === uploadedPost.id);
-            logger.debug('🔍 저장 확인 (백엔드):', {
-              저장된게시물수: verifyPosts.length,
-              새게시물존재: !!verifyPost,
-              새게시물이미지: verifyPost?.images?.length || 0
-            });
 
             // 사진 업로드 시 레벨 상승 (실제 업로드만)
             // 경험치 시스템 제거됨
@@ -1833,9 +1674,6 @@ const UploadScreen = () => {
           className="fixed inset-0 z-[300] flex items-center justify-center px-4"
           style={{ backgroundColor: 'rgba(15,23,42,0.45)' }}
           onClick={() => {
-            if (dontShowGuideAgain) {
-              localStorage.setItem('uploadGuideNeverShow', '1');
-            }
             setShowUploadGuide(false);
           }}
         >
@@ -1856,9 +1694,6 @@ const UploadScreen = () => {
               <button
                 type="button"
                 onClick={() => {
-                  if (dontShowGuideAgain) {
-                    localStorage.setItem('uploadGuideNeverShow', '1');
-                  }
                   setShowUploadGuide(false);
                 }}
                 className="flex items-center justify-center w-8 h-8 rounded-full text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700"
@@ -1950,9 +1785,6 @@ const UploadScreen = () => {
             <button
               type="button"
               onClick={() => {
-                if (dontShowGuideAgain) {
-                  localStorage.setItem('uploadGuideNeverShow', '1');
-                }
                 setShowUploadGuide(false);
               }}
               className="w-full py-3.5 text-sm font-semibold text-primary hover:bg-primary/5 border-t border-gray-100 dark:border-gray-800 transition-colors"
@@ -1962,9 +1794,6 @@ const UploadScreen = () => {
             <button
               type="button"
               onClick={() => {
-                if (dontShowGuideAgain) {
-                  localStorage.setItem('uploadGuideNeverShow', '1');
-                }
                 setShowUploadGuide(false);
                 navigate('/upload/guide');
               }}

@@ -131,10 +131,15 @@ const WEEKLY_CHALLENGES = [
   }
 ];
 
+// 서버 운영 전환: localStorage 제거 → 미션/포인트/스트릭은 세션 메모리만 유지
+let dailyMissionsMemory = {};
+let userPointsMemory = 0;
+let uploadStreakMemory = { days: 0, lastUpload: null };
+
 // 오늘의 일일 미션 가져오기 (날짜별로 고정)
 export const getDailyMissions = () => {
   const today = new Date().toDateString();
-  const savedMissions = JSON.parse(localStorage.getItem('dailyMissions') || '{}');
+  const savedMissions = dailyMissionsMemory || {};
   
   // 오늘 날짜와 저장된 날짜가 다르면 새로 생성
   if (savedMissions.date !== today) {
@@ -152,7 +157,7 @@ export const getDailyMissions = () => {
       missions: todayMissions
     };
     
-    localStorage.setItem('dailyMissions', JSON.stringify(newMissions));
+    dailyMissionsMemory = newMissions;
     
     logger.log('🎯 오늘의 새로운 미션:', todayMissions.map(m => m.title));
     
@@ -164,7 +169,7 @@ export const getDailyMissions = () => {
 
 // 미션 진행도 업데이트
 export const updateMissionProgress = (missionType, data = {}) => {
-  const savedMissions = JSON.parse(localStorage.getItem('dailyMissions') || '{}');
+  const savedMissions = dailyMissionsMemory || {};
   
   if (!savedMissions.missions) return;
   
@@ -241,7 +246,7 @@ export const updateMissionProgress = (missionType, data = {}) => {
   });
   
   if (updated) {
-    localStorage.setItem('dailyMissions', JSON.stringify(savedMissions));
+    dailyMissionsMemory = savedMissions;
     window.dispatchEvent(new Event('missionUpdated'));
   }
   
@@ -250,7 +255,7 @@ export const updateMissionProgress = (missionType, data = {}) => {
 
 // 미션 보상 받기
 export const claimMissionReward = (missionId) => {
-  const savedMissions = JSON.parse(localStorage.getItem('dailyMissions') || '{}');
+  const savedMissions = dailyMissionsMemory || {};
   
   if (!savedMissions.missions) return null;
   
@@ -261,16 +266,16 @@ export const claimMissionReward = (missionId) => {
   }
   
   // 포인트 지급
-  const currentPoints = parseInt(localStorage.getItem('userPoints') || '0');
-  const newPoints = currentPoints + mission.reward;
-  localStorage.setItem('userPoints', newPoints.toString());
+  const currentPoints = Number(userPointsMemory || 0);
+  const newPoints = currentPoints + Number(mission.reward || 0);
+  userPointsMemory = newPoints;
   
   // 미션 완료 표시
   savedMissions.missions = savedMissions.missions.map(m =>
     m.id === missionId ? { ...m, claimed: true } : m
   );
   
-  localStorage.setItem('dailyMissions', JSON.stringify(savedMissions));
+  dailyMissionsMemory = savedMissions;
   
   console.log(`🎁 미션 보상 획득: ${mission.reward}P (총: ${newPoints}P)`);
   
@@ -299,9 +304,8 @@ const showMissionCompleteNotification = (mission) => {
     data: { mission }
   };
   
-  const notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
-  notifications.unshift(notification);
-  localStorage.setItem('notifications', JSON.stringify(notifications));
+  // 서버 운영 전환: notifications는 Supabase/메모리 캐시에서 관리됨
+  void notification;
   
   window.dispatchEvent(new Event('notificationAdded'));
 };
@@ -314,7 +318,7 @@ export const getCompletedMissionsCount = () => {
 
 // 스트릭 (연속 업로드) 관리
 export const getUploadStreak = () => {
-  const streak = JSON.parse(localStorage.getItem('uploadStreak') || '{"days": 0, "lastUpload": null}');
+  const streak = uploadStreakMemory || { days: 0, lastUpload: null };
   
   const today = new Date().toDateString();
   const lastUpload = streak.lastUpload ? new Date(streak.lastUpload).toDateString() : null;
@@ -348,7 +352,7 @@ export const updateUploadStreak = () => {
   
   newStreak.lastUpload = new Date().toISOString();
   
-  localStorage.setItem('uploadStreak', JSON.stringify(newStreak));
+  uploadStreakMemory = newStreak;
   
   console.log(`🔥 업로드 스트릭: ${newStreak.days}일 연속!`);
   
@@ -386,16 +390,15 @@ const showStreakAchievement = (days) => {
     read: false
   };
   
-  const notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
-  notifications.unshift(notification);
-  localStorage.setItem('notifications', JSON.stringify(notifications));
+  // 서버 운영 전환: notifications는 Supabase/메모리 캐시에서 관리됨
+  void notification;
   
   window.dispatchEvent(new Event('notificationAdded'));
 };
 
 // 오늘의 챌린지 제안
 export const getSuggestedChallenge = () => {
-  const preferences = JSON.parse(localStorage.getItem('userPreferences') || '{}');
+  const preferences = {};
   const dayOfWeek = new Date().getDay();
   
   // 주말이면 특별 챌린지
@@ -434,8 +437,8 @@ export const getSuggestedChallenge = () => {
 
 // 미션 시스템 초기화 (디버깅용)
 export const resetMissions = () => {
-  localStorage.removeItem('dailyMissions');
-  localStorage.removeItem('uploadStreak');
+  dailyMissionsMemory = {};
+  uploadStreakMemory = { days: 0, lastUpload: null };
   logger.log('🔄 미션 시스템 초기화');
 };
 

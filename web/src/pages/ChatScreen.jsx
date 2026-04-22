@@ -24,13 +24,7 @@ const ChatScreen = () => {
   const handleSend = () => {
     const text = message.trim();
     if (!text) return;
-    try {
-      const prev = JSON.parse(localStorage.getItem('magazineAskDrafts') || '[]');
-      const next = Array.isArray(prev)
-        ? [{ at: new Date().toISOString(), place: ask?.placeTitle || '', text }, ...prev].slice(0, 20)
-        : [{ at: new Date().toISOString(), place: ask?.placeTitle || '', text }];
-      localStorage.setItem('magazineAskDrafts', JSON.stringify(next));
-    } catch (_) {}
+    // 서버 운영 전환: localStorage 제거 (draft 저장 비활성화)
     alert('문의 내용이 접수되었습니다. 곧 채팅으로 연결될 예정이에요.');
     navigate('/main', { replace: true });
   };

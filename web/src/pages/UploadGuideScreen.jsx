@@ -110,7 +110,7 @@ const UploadGuideScreen = () => {
                 type="button"
                 onClick={() => {
                   try {
-                    sessionStorage.setItem('uploadGuideConfirmedThisSession', '1');
+                    // 서버 운영 전환: sessionStorage 제거
                   } catch (_) {}
                   navigate(returnTo, { replace: true, state: { fromUploadGuide: true } });
                 }}

@@ -1,38 +1,18 @@
 /**
- * 댓글 입력 직후 새로고침/리로드에도 복원되도록 게시물별 로컬 캐시를 유지합니다.
- * - 서버(Supabase/API) 댓글이 있으면 서버를 우선하고, 캐시에만 있는 항목을 id 기준으로 병합합니다.
+ * (서버 운영 전환) localStorage 제거
+ * - 서버 댓글이 있으면 서버를 우선하고, 세션 메모리 캐시에만 있는 항목을 id 기준으로 병합합니다.
  */
-const CACHE_KEY = 'postCommentsCacheV1';
-
-const readAll = () => {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-};
-
-const writeAll = (obj) => {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(obj));
-  } catch {
-    /* ignore */
-  }
-};
+const cache = {};
 
 export const getCommentsCacheForPost = (postId) => {
   if (!postId) return [];
-  const all = readAll();
-  const list = all[String(postId)];
+  const list = cache[String(postId)];
   return Array.isArray(list) ? list : [];
 };
 
 export const setCommentsCacheForPost = (postId, comments) => {
   if (!postId || !Array.isArray(comments)) return;
-  const all = readAll();
-  all[String(postId)] = comments;
-  writeAll(all);
+  cache[String(postId)] = comments;
 };
 
 export const mergeCommentsWithCache = (postId, serverComments) => {

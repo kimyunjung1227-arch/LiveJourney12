@@ -3,8 +3,10 @@
  * 피드를 본 후 '길찾기'·'전화하기' 등 행동을 기록
  */
 
-const STORAGE_KEY = 'hotspotConversionEvents';
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+// 서버 운영 전환: localStorage 제거 → 세션 메모리만 사용
+let conversionEventsMemory = [];
 
 export const CONVERSION_TYPES = {
   MAP: 'map',
@@ -13,19 +15,14 @@ export const CONVERSION_TYPES = {
 };
 
 const loadEvents = () => {
-  try {
-    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    const now = Date.now();
-    return raw.filter((e) => e?.postId && e?.ts && now - e.ts < MAX_AGE_MS);
-  } catch {
-    return [];
-  }
+  const now = Date.now();
+  conversionEventsMemory = (Array.isArray(conversionEventsMemory) ? conversionEventsMemory : [])
+    .filter((e) => e?.postId && e?.ts && now - e.ts < MAX_AGE_MS);
+  return conversionEventsMemory;
 };
 
 const saveEvents = (events) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(events.slice(-500)));
-  } catch (_) {}
+  conversionEventsMemory = (Array.isArray(events) ? events : []).slice(-500);
 };
 
 /**

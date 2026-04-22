@@ -24,6 +24,9 @@ const EDGE_FN_NAME = 'analyze-tags';
 const EDGE_FN_COOLDOWN_KEY = 'aiTags_edgeCooldownUntil';
 const EDGE_FN_COOLDOWN_MS = 10 * 60 * 1000; // 10분
 
+// 서버 운영 전환: localStorage 제거 → 세션 메모리만 사용
+let edgeCooldownUntilMemory = 0;
+
 /** 이미지를 AI 분석용으로 리사이즈·압축 (Edge Function 502 방지, 최대한 호출 가능 크기로 맞춤) */
 const resizeImageForAI = (file) => {
   return new Promise((resolve) => {
@@ -118,29 +121,16 @@ const fileToBase64 = (file) =>
 const nowMs = () => Date.now();
 
 const getEdgeCooldownUntil = () => {
-  try {
-    const raw = localStorage.getItem(EDGE_FN_COOLDOWN_KEY);
-    const until = raw ? Number(raw) : 0;
-    return Number.isFinite(until) ? until : 0;
-  } catch {
-    return 0;
-  }
+  const until = Number(edgeCooldownUntilMemory) || 0;
+  return Number.isFinite(until) ? until : 0;
 };
 
 const setEdgeCooldown = () => {
-  try {
-    localStorage.setItem(EDGE_FN_COOLDOWN_KEY, String(nowMs() + EDGE_FN_COOLDOWN_MS));
-  } catch {
-    // ignore storage failures
-  }
+  edgeCooldownUntilMemory = nowMs() + EDGE_FN_COOLDOWN_MS;
 };
 
 const clearEdgeCooldown = () => {
-  try {
-    localStorage.removeItem(EDGE_FN_COOLDOWN_KEY);
-  } catch {
-    // ignore storage failures
-  }
+  edgeCooldownUntilMemory = 0;
 };
 
 /**

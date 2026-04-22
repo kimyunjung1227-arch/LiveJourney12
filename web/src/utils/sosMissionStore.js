@@ -1,16 +1,19 @@
 const SOS_MISSIONS_KEY = 'sosMissions_v2';
 
+// 서버 운영 전환: localStorage 제거 → 세션 메모리만 사용
+let sosMissionsMemory = [];
+
 export const getSOSMissions = () => {
   try {
-    const raw = JSON.parse(localStorage.getItem(SOS_MISSIONS_KEY) || '[]');
-    return Array.isArray(raw) ? raw : [];
+    void SOS_MISSIONS_KEY;
+    return Array.isArray(sosMissionsMemory) ? sosMissionsMemory : [];
   } catch {
     return [];
   }
 };
 
 export const saveSOSMissions = (missions) => {
-  localStorage.setItem(SOS_MISSIONS_KEY, JSON.stringify(Array.isArray(missions) ? missions : []));
+  sosMissionsMemory = Array.isArray(missions) ? missions : [];
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('sosMissionUpdated'));
 };
 

@@ -1,14 +1,8 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import ExifConsentModal from '../components/ExifConsentModal';
 
-const STORAGE_KEY = 'lj_exif_consent_v1';
-
+// 서버 운영 전환: localStorage 제거 → 세션 내에서만 유지
 function readStoredConsent() {
-  try {
-    const v = localStorage.getItem(STORAGE_KEY);
-    if (v === 'granted') return 'granted';
-    if (v === 'declined') return 'declined';
-  } catch (_) {}
   return null;
 }
 
@@ -19,17 +13,11 @@ export function ExifConsentProvider({ children }) {
   const [modalOpen, setModalOpen] = useState(() => readStoredConsent() === null);
 
   const grant = useCallback(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, 'granted');
-    } catch (_) {}
     setConsent('granted');
     setModalOpen(false);
   }, []);
 
   const decline = useCallback(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, 'declined');
-    } catch (_) {}
     setConsent('declined');
     setModalOpen(false);
   }, []);

@@ -1,6 +1,6 @@
 /**
  * 데모용 Mock 업로드 데이터 생성
- * AI 자동 분류 시스템 시연용
+ * (서버 운영 전환) localStorage 제거 → mock 데이터 저장/복원 기능 비활성화
  */
 
 // 샘플 이미지 URL (Unsplash 무료 이미지 - 한국 배경)
@@ -629,20 +629,12 @@ export const generateMockUploadsForRegion = (region, count = 20) => {
  * @param {number} totalCount - 전체 생성할 게시물 수
  */
 export const seedMockData = (totalCount = 100) => {
-  // 기존 데이터가 이미 있으면 생성하지 않음
-  const existingPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-  if (existingPosts.length > 0) {
-    console.log(`✅ 기존 데이터가 이미 있습니다 (${existingPosts.length}개). 추가 생성하지 않습니다.`);
-    return {
-      total: existingPosts.length,
-      bloom: existingPosts.filter(p => p.category === 'bloom').length,
-      landmark: existingPosts.filter(p => p.category === 'landmark').length,
-      food: existingPosts.filter(p => p.category === 'food').length,
-      regions: [...new Set(existingPosts.map(p => p.location))].length
-    };
-  }
+  // 서버 운영 전환: localStorage 저장 기능 제거
+  void totalCount;
+  console.log('🌱 Mock 데이터 seed 기능은 비활성화되었습니다.');
+  return { total: 0, bloom: 0, landmark: 0, food: 0, regions: 0 };
   
-  console.log('🌱 Mock 데이터 생성 시작 (각 지역 최소 5개 보장)...');
+  // 아래 로직은 더 이상 사용하지 않음
   
   const mockPosts = [];
   const minPerRegion = 5; // 각 지역 최소 사진 개수 (30개에서 5개로 감소)
@@ -960,46 +952,8 @@ export const seedMockData = (totalCount = 100) => {
     mockPosts.push(post);
   }
   
-  // 기존 데이터와 병합 (이미 위에서 체크했으므로 기존 데이터는 없음)
-  // 하지만 안전을 위해 다시 확인
-  const existingPostsCheck = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-  const allPosts = [...mockPosts, ...existingPostsCheck];
-  
-  // localStorage에 저장 (용량 체크)
-  try {
-    const dataString = JSON.stringify(allPosts);
-    // 대략적인 크기 체크 (5MB 제한)
-    if (dataString.length > 5 * 1024 * 1024) {
-      console.warn('⚠️ 데이터가 너무 큽니다. 최신 1000개만 저장합니다.');
-      // 최신 1000개만 저장
-      const limitedPosts = allPosts.slice(0, 1000).sort((a, b) => {
-        const timeA = new Date(a.timestamp || a.createdAt || 0).getTime();
-        const timeB = new Date(b.timestamp || b.createdAt || 0).getTime();
-        return timeB - timeA;
-      });
-      localStorage.setItem('uploadedPosts', JSON.stringify(limitedPosts));
-    } else {
-      localStorage.setItem('uploadedPosts', dataString);
-    }
-  } catch (error) {
-    console.error('❌ localStorage 저장 실패:', error);
-    // 최신 500개만 저장 시도
-    try {
-      const limitedPosts = allPosts.slice(0, 500).sort((a, b) => {
-        const timeA = new Date(a.timestamp || a.createdAt || 0).getTime();
-        const timeB = new Date(b.timestamp || b.createdAt || 0).getTime();
-        return timeB - timeA;
-      });
-      localStorage.setItem('uploadedPosts', JSON.stringify(limitedPosts));
-      console.log('✅ 최신 500개만 저장했습니다.');
-    } catch (e) {
-      console.error('❌ 저장 실패:', e);
-      // 마지막 시도: 기존 데이터 유지
-      if (existingPosts.length > 0) {
-        console.log('⚠️ 기존 데이터를 유지합니다.');
-      }
-    }
-  }
+  // 서버 운영 전환: localStorage 저장 제거 → 생성만 하고 반환
+  const allPosts = [...mockPosts];
   
   // 통계 출력
   const stats = {
@@ -1025,15 +979,15 @@ export const seedMockData = (totalCount = 100) => {
  * Mock 데이터 초기화 (모두 삭제)
  */
 export const clearMockData = () => {
-  localStorage.removeItem('uploadedPosts');
-  console.log('🗑️ Mock 데이터가 삭제되었습니다.');
+  // 서버 운영 전환: localStorage 제거 → no-op
+  console.log('🗑️ Mock 데이터 삭제 기능은 비활성화되었습니다.');
 };
 
 /**
  * 카테고리별 통계 확인
  */
 export const getMockDataStats = () => {
-  const posts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+  const posts = [];
   
   const stats = {
     total: posts.length,

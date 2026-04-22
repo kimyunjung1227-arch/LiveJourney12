@@ -2,31 +2,13 @@
 // 앱을 완전히 처음 설치한 상태로 되돌립니다
 
 export const clearAllStorage = () => {
-  // 업로드된 게시물 제거
-  localStorage.removeItem('uploadedPosts');
-  
-  // 알림 제거
-  localStorage.removeItem('notifications');
-  
-  // 기타 캐시된 데이터 제거
-  localStorage.removeItem('recentSearches');
-  
-  // logger 사용하지 않음 (이 파일은 수동 초기화 스크립트)
-  // console.log('✅ 스토리지가 초기화되었습니다 - 완전히 새로운 앱처럼!');
+  // 서버 운영 전환: localStorage 사용 제거 → no-op
 };
 
-// 앱 시작시 초기화 (개발 모드에서만, 최초 1회)
-// 주석 처리: 사용자가 업로드한 데이터를 유지하기 위해
-// if (!sessionStorage.getItem('app_initialized')) {
-//   clearAllStorage();
-//   sessionStorage.setItem('app_initialized', 'true');
-//   console.log('🎉 LiveJourney를 처음 시작합니다!');
-// }
+// 앱 시작시 초기화 (현재 비활성)
 
 // 수동 초기화가 필요할 때만 사용
 // 브라우저 콘솔에서: import('./utils/clearStorage').then(m => m.clearAllStorage())
-// logger 사용하지 않음 (이 파일은 초기화 스크립트)
-// console.log('💡 데이터를 초기화하려면 브라우저 콘솔에서 localStorage.clear() 실행');
 
 
 

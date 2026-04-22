@@ -4,12 +4,15 @@
  */
 import { logger } from './logger';
 
+// 서버 운영 전환: localStorage 제거 → 세션 메모리만 사용
+let interestPlacesMemory = [];
+
 /**
  * 관심 지역/장소 추가/제거
  */
 export const toggleInterestPlace = (place) => {
   try {
-    const interests = JSON.parse(localStorage.getItem('interestPlaces') || '[]');
+    const interests = Array.isArray(interestPlacesMemory) ? [...interestPlacesMemory] : [];
     const placeName = typeof place === 'string' ? place : (place.name || place.location);
     const index = interests.findIndex(p => p.name === placeName);
     
@@ -33,7 +36,7 @@ export const toggleInterestPlace = (place) => {
       logger.log(`⭐ 관심 지역/장소 추가: ${placeName}`);
     }
     
-    localStorage.setItem('interestPlaces', JSON.stringify(interests));
+    interestPlacesMemory = interests;
     
     // 이벤트 발생
     window.dispatchEvent(new CustomEvent('interestPlaceChanged', { 
@@ -52,7 +55,7 @@ export const toggleInterestPlace = (place) => {
  */
 export const isInterestPlace = (placeName) => {
   try {
-    const interests = JSON.parse(localStorage.getItem('interestPlaces') || '[]');
+    const interests = Array.isArray(interestPlacesMemory) ? interestPlacesMemory : [];
     return interests.some(p => 
       p.name === placeName || 
       p.location === placeName ||
@@ -70,7 +73,7 @@ export const isInterestPlace = (placeName) => {
  */
 export const getInterestPlaces = () => {
   try {
-    return JSON.parse(localStorage.getItem('interestPlaces') || '[]');
+    return Array.isArray(interestPlacesMemory) ? interestPlacesMemory : [];
   } catch (error) {
     logger.error('관심 목록 조회 오류:', error);
     return [];

@@ -8,8 +8,7 @@ const SosAlertBanner = () => {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [dismissedSosIds, setDismissedSosIds] = useState(() => {
     try {
-      const saved = localStorage.getItem('dismissedSosIds_v1');
-      return saved ? JSON.parse(saved) : [];
+      return [];
     } catch (error) {
       return [];
     }
@@ -32,8 +31,7 @@ const SosAlertBanner = () => {
 
   const loadSosRequests = useCallback(() => {
     try {
-      const sosJson = localStorage.getItem('sosRequests_v1');
-      const sosRequests = sosJson ? JSON.parse(sosJson) : [];
+      const sosRequests = [];
       if (!currentLocation) {
         setNearbySosRequests([]);
         return;
@@ -82,11 +80,6 @@ const SosAlertBanner = () => {
     setDismissedSosIds((prev) => {
       if (prev.includes(id)) return prev;
       const next = [...prev, id];
-      try {
-        localStorage.setItem('dismissedSosIds_v1', JSON.stringify(next));
-      } catch {
-        // ignore
-      }
       return next;
     });
   };

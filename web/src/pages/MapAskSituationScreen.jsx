@@ -97,19 +97,7 @@ export default function MapAskSituationScreen() {
   const submit = () => {
     const q = text.trim();
     if (!q) return;
-    try {
-      const prev = JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) || '[]' : '[]');
-      const next = Array.isArray(prev) ? prev : [];
-      next.unshift({
-        id: String(Date.now()),
-        location: picked ? { lat: picked.lat, lng: picked.lng, name: picked.name || null } : null,
-        body: q,
-        createdAt: new Date().toISOString(),
-      });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next.slice(0, 50)));
-    } catch {
-      /* ignore */
-    }
+    // 서버 운영 전환: localStorage 제거 (문의 draft 저장 비활성화)
     navigate(-1);
   };
 

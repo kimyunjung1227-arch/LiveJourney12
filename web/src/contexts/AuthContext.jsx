@@ -3,7 +3,7 @@ import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
 import { syncEarnedBadgesFromSupabase } from '../utils/badgeSystem';
 import { syncNotificationsFromSupabase } from '../utils/notifications';
-import { syncFollowingFromSupabase } from '../utils/followSystem';
+import { setCurrentUserId as setFollowSystemCurrentUserId, syncFollowingFromSupabase } from '../utils/followSystem';
 
 const AuthContext = createContext(null);
 
@@ -18,14 +18,7 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [supabaseUser, setSupabaseUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [localUserOverride, setLocalUserOverride] = useState(() => {
-    try {
-      const s = localStorage.getItem('user');
-      return s ? JSON.parse(s) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [localUserOverride, setLocalUserOverride] = useState(null);
 
   // Supabase 세션 초기화 + 상태 구독
   useEffect(() => {
@@ -79,22 +72,18 @@ export const AuthProvider = ({ children }) => {
     };
   }, [supabaseUser, localUserOverride]);
 
-  // localStorage 에 user 저장 (기존 코드와 호환을 위해)
-  useEffect(() => {
-    if (appUser) {
-      localStorage.setItem('user', JSON.stringify(appUser));
-    } else {
-      localStorage.removeItem('user');
-    }
-  }, [appUser]);
+  // 서버 운영 전환: localStorage에 user 저장/복원 로직 제거
 
   // 로그인 시 Supabase에서 뱃지·알림 동기화 (동일 계정이면 기기 간 동일 목록)
   useEffect(() => {
     if (appUser?.id) {
+      setFollowSystemCurrentUserId(appUser.id);
       syncEarnedBadgesFromSupabase(appUser.id);
       void syncNotificationsFromSupabase(appUser.id);
       // 팔로우 목록도 DB 기준으로 동기화(멀티기기 일관성)
       void syncFollowingFromSupabase(appUser.id);
+    } else {
+      setFollowSystemCurrentUserId(null);
     }
   }, [appUser?.id]);
 
@@ -172,43 +161,11 @@ export const AuthProvider = ({ children }) => {
     logger.log('🚪 로그아웃 - 앱 초기화 시작');
     logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    // 기존 로직과 동일하게 localStorage/sessionStorage 초기화하되,
-    // 뱃지 정보는 로그아웃 후에도 유지되도록 예외 처리
-    const preservedKeys = ['earnedBadges'];
-    const preservedValues = {};
-    preservedKeys.forEach((key) => {
-      try {
-        const value = localStorage.getItem(key);
-        if (value !== null) {
-          preservedValues[key] = value;
-        }
-      } catch {
-        // ignore
-      }
-    });
-
-    localStorage.clear();
-
-    Object.entries(preservedValues).forEach(([key, value]) => {
-      try {
-        localStorage.setItem(key, value);
-      } catch {
-        // ignore
-      }
-    });
-
-    sessionStorage.clear();
-    sessionStorage.setItem('justLoggedOut', 'true');
-    logger.log('✅ 스토리지 초기화 완료');
+    logger.log('✅ 로그아웃 완료');
   };
 
   const updateUser = useCallback(async (userObj) => {
     if (!userObj || typeof userObj !== 'object') return;
-    try {
-      localStorage.setItem('user', JSON.stringify(userObj));
-    } catch {
-      /* ignore */
-    }
     setLocalUserOverride(userObj);
 
     // 로그인 사용자면 Supabase 메타데이터도 best-effort로 갱신(가능한 경우만)
@@ -232,8 +189,6 @@ export const AuthProvider = ({ children }) => {
       setSupabaseUser(null);
       return;
     }
-    // Supabase User와 구조가 다르지만, 최소한 localStorage 용도로만 저장
-    localStorage.setItem('user', JSON.stringify(userObj));
     setLocalUserOverride(userObj);
   };
 

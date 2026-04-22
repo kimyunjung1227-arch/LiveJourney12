@@ -163,16 +163,8 @@ const UserProfileScreen = () => {
     });
 
     const isOwnProfile = currentUser && String(userId) === String(currentUser.id);
-    const repBadgeJson = localStorage.getItem(`representativeBadge_${userId}`);
-    if (repBadgeJson) {
-      try {
-        setRepresentativeBadge(JSON.parse(repBadgeJson));
-      } catch {
-        setRepresentativeBadge(null);
-      }
-    } else {
-      setRepresentativeBadge(null);
-    }
+    const repBadgeJson = null;
+    setRepresentativeBadge(null);
 
     // 해당 사용자의 게시물: Supabase(다른 사용자 사진 포함) + localStorage + 기존 API
     const getPostUserId = (post) => {
@@ -200,9 +192,7 @@ const UserProfileScreen = () => {
             const idx = userId ? (userId.toString().split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % badges.length) : 0;
             const pick = badges[idx];
             if (isOwnProfile && pick) {
-              try {
-                localStorage.setItem(`representativeBadge_${userId}`, JSON.stringify(pick));
-              } catch (_) { /* ignore */ }
+              // 서버 운영 전환: localStorage 제거
             }
             return pick;
           });
@@ -1270,12 +1260,8 @@ const UserProfileScreen = () => {
                       return { username, profileImage };
                     };
                     const getRepBadge = (uid) => {
-                      try {
-                        const j = localStorage.getItem(`representativeBadge_${uid}`);
-                        return j ? JSON.parse(j) : null;
-                      } catch {
-                        return null;
-                      }
+                      void uid;
+                      return null;
                     };
                     return followListIds.map((uid) => {
                       const { username, profileImage } = resolveUserInfo(uid);

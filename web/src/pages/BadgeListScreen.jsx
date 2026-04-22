@@ -15,11 +15,7 @@ const BadgeListScreen = () => {
     console.log('🔄 뱃지 목록 로드 시작');
     
     // 사용자 통계 계산
-    const uploadedPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-    const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
-    const currentUserId = savedUser?.id || 'test_user_001';
-    const myPosts = uploadedPosts.filter(p => p.userId === currentUserId);
-    const stats = calculateUserStats(myPosts, savedUser);
+    const stats = calculateUserStats([], {});
     
     const allBadges = getAvailableBadges(stats);
     const earned = getEarnedBadges();

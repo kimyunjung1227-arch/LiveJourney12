@@ -50,8 +50,8 @@ const MockDataLoader = () => {
   }, []);
 
   useEffect(() => {
-    const existingPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-    console.log(`📊 현재 게시물: ${existingPosts.length}개`);
+    const existingPosts = [];
+    console.log('📊 현재 게시물: (server mode)');
     
     // 프로덕션(배포) 환경에서는 첫 접속 시 데모용 Mock 데이터 자동 생성
     if (import.meta.env.MODE === 'production' && existingPosts.length === 0) {

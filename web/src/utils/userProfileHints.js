@@ -2,24 +2,8 @@
  * 게시물 배열·로컬 캐시에서 userId에 해당하는 표시용 이름·프로필 이미지 추론
  */
 
-const CACHE_KEY = 'followProfileHint_v1';
-
-const readCacheMap = () => {
-  try {
-    const s = localStorage.getItem(CACHE_KEY);
-    return s ? JSON.parse(s) : {};
-  } catch {
-    return {};
-  }
-};
-
-const writeCacheMap = (map) => {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(map));
-  } catch {
-    /* ignore */
-  }
-};
+// 서버 운영 전환: localStorage 제거 → 세션 메모리 캐시
+const cacheMap = {};
 
 export const getPostUserId = (post) => {
   if (!post) return '';
@@ -60,8 +44,7 @@ export const resolveUserDisplayFromPosts = (userId, posts) => {
 
 export const getCachedFollowProfile = (userId) => {
   if (!userId) return null;
-  const map = readCacheMap();
-  const v = map[String(userId)];
+  const v = cacheMap[String(userId)];
   if (!v || typeof v !== 'object') return null;
   return {
     username: v.username || null,
@@ -71,10 +54,8 @@ export const getCachedFollowProfile = (userId) => {
 
 export const setCachedFollowProfile = (userId, { username, profileImage } = {}) => {
   if (!userId) return;
-  const map = readCacheMap();
-  map[String(userId)] = {
-    username: username != null ? username : map[String(userId)]?.username,
-    profileImage: profileImage !== undefined ? profileImage : map[String(userId)]?.profileImage,
+  cacheMap[String(userId)] = {
+    username: username != null ? username : cacheMap[String(userId)]?.username,
+    profileImage: profileImage !== undefined ? profileImage : cacheMap[String(userId)]?.profileImage,
   };
-  writeCacheMap(map);
 };

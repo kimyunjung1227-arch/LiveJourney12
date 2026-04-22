@@ -9,6 +9,9 @@ import { getTrustRawScore } from './trustIndex';
 import { fetchUserBadgesSupabase, saveUserBadgeSupabase } from '../api/userBadgesSupabase';
 import { normalizeRegionName } from './regionNames';
 
+// 서버 운영 전환: localStorage 제거 → 세션 메모리 캐시만 유지
+let earnedBadgesCache = [];
+
 /** [지역명] 뱃지일 때 표시명 반환. 그 외는 name 그대로 */
 export const getBadgeDisplayName = (badge) => {
   if (badge?.displayName) return String(badge.displayName);
@@ -541,7 +544,7 @@ export const checkNewBadges = (stats) => {
   logger.log('🎖️ 새 뱃지 확인 시작');
   
   try {
-    const earnedBadges = JSON.parse(localStorage.getItem('earnedBadges') || '[]');
+    const earnedBadges = Array.isArray(earnedBadgesCache) ? earnedBadgesCache : [];
     const earnedBadgeNames = earnedBadges.map(b => b.name);
     
     const newBadges = [];
@@ -586,7 +589,7 @@ export const awardBadge = (badge, opts = {}) => {
   logger.log(`🎁 뱃지 획득 처리 시작: ${badge.name}`);
 
   try {
-    const earnedBadges = JSON.parse(localStorage.getItem('earnedBadges') || '[]');
+    const earnedBadges = Array.isArray(earnedBadgesCache) ? [...earnedBadgesCache] : [];
 
     if (earnedBadges.some((b) => b.name === badge.name)) {
       logger.warn(`⚠️ 이미 획득한 뱃지: ${badge.name}`);
@@ -614,27 +617,13 @@ export const awardBadge = (badge, opts = {}) => {
     earnedBadges.push(newBadge);
 
     // Supabase에 저장 (userId 있으면 → 재로그인 시에도 유지)
-    const userId = opts?.userId || (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('user') || '{}')?.id);
+    const userId = opts?.userId || null;
     if (userId) {
       saveUserBadgeSupabase(userId, newBadge).catch(() => {});
     }
 
-    // localStorage 저장
-    try {
-      localStorage.setItem('earnedBadges', JSON.stringify(earnedBadges));
-      logger.log(`✅ 뱃지 저장 완료: ${badge.name} (${badge.category} 카테고리)`);
-
-      const verify = JSON.parse(localStorage.getItem('earnedBadges') || '[]');
-      if (verify.some(b => b.name === badge.name)) {
-        logger.log(`✅ 뱃지 저장 확인됨: ${badge.name}`);
-      } else {
-        logger.error(`❌ 뱃지 저장 실패: ${badge.name}`);
-        return false;
-      }
-    } catch (saveError) {
-      logger.error(`❌ localStorage 저장 오류:`, saveError);
-      return false;
-    }
+    earnedBadgesCache = earnedBadges;
+    logger.log(`✅ 뱃지 저장 완료(메모리): ${badge.name} (${badge.category} 카테고리)`);
 
     window.dispatchEvent(new CustomEvent('badgeEarned', { detail: newBadge }));
     window.dispatchEvent(new Event('badgeProgressUpdated'));
@@ -666,7 +655,7 @@ export const syncEarnedBadgesFromSupabase = async (userId) => {
         };
       })
       .filter((b) => b?.name && String(b.name).startsWith(DYNAMIC_BADGE_PREFIX));
-    localStorage.setItem('earnedBadges', JSON.stringify(earned));
+    earnedBadgesCache = earned;
     logger.log('✅ Supabase 뱃지 동기화:', earned.length, '개');
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('badgeProgressUpdated'));
@@ -681,11 +670,7 @@ export const syncEarnedBadgesFromSupabase = async (userId) => {
  */
 export const getEarnedBadges = () => {
   try {
-    // "미획득 확인" 같은 UX를 없애기 위해, 과거 seenBadges는 더 이상 사용하지 않음
-    try { localStorage.removeItem('seenBadges'); } catch (_) {}
-
-    const raw = JSON.parse(localStorage.getItem('earnedBadges') || '[]');
-    const list = (Array.isArray(raw) ? raw : [])
+    const list = (Array.isArray(earnedBadgesCache) ? earnedBadgesCache : [])
       .filter((b) => b?.name && String(b.name).startsWith(DYNAMIC_BADGE_PREFIX))
       .map((b) => {
         const hydrated = hydrateBadgeFromName(b.name);
@@ -767,28 +752,13 @@ export const getEarnedBadgesFromStats = (stats) => {
  */
 export const getEarnedBadgesForUser = (userId, posts = null) => {
   try {
-    const saved = typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('user') || '{}') : {};
-    const selfId = saved?.id;
-    const isSelf = selfId != null && String(selfId) === String(userId);
-
     if (posts && Array.isArray(posts)) {
       const stats = calculateUserStats(posts, { id: userId });
       const fromStats = getEarnedBadgesFromStats(stats);
-      if (isSelf) {
-        const fromStorage = getEarnedBadgesForDisplay();
-        const byName = new Map();
-        fromStats.forEach((b) => byName.set(b.name, { ...b }));
-        fromStorage.forEach((b) => {
-          const cur = byName.get(b.name);
-          byName.set(b.name, cur ? { ...cur, ...b, earnedAt: b.earnedAt || cur.earnedAt, region: b.region || cur.region } : b);
-        });
-        return [...byName.values()];
-      }
       return fromStats;
     }
 
-    if (isSelf) return getEarnedBadgesForDisplay();
-    return [];
+    return getEarnedBadgesForDisplay();
   } catch (e) {
     logger.warn('getEarnedBadgesForUser:', e?.message);
     return [];

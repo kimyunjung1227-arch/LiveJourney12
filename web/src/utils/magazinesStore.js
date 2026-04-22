@@ -12,8 +12,12 @@ const safeParse = (raw) => {
   }
 };
 
-const readLocal = () => safeParse(localStorage.getItem(STORAGE_KEY));
-const writeLocal = (arr) => localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.isArray(arr) ? arr : []));
+// 서버 운영 전환: localStorage 제거 → 세션 메모리 폴백
+let magazinesMemory = [];
+const readLocal = () => (Array.isArray(magazinesMemory) ? magazinesMemory : []);
+const writeLocal = (arr) => {
+  magazinesMemory = Array.isArray(arr) ? arr : [];
+};
 
 const normalizeSections = (raw) => {
   if (Array.isArray(raw)) return raw;

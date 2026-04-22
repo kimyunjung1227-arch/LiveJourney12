@@ -59,13 +59,8 @@ export const verifyAISituation = (post) => {
 export const getTrustWeight = (post) => {
   const accuracyCount = getPostAccuracyCount(post?.id);
   let authorScore = 0.5;
-  try {
-    const currentUser = typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('user') || '{}') : {};
-    const uid = post?.userId ?? post?.user?.id ?? post?.user;
-    if (uid && currentUser?.id && String(uid) === String(currentUser.id)) {
-      authorScore = Math.min(1, 0.3 + (getTrustRawScore() || 0) / 52000);
-    }
-  } catch (_) {}
+  // 서버 운영 전환: localStorage 기반 self 판별 제거
+  void post;
   const postTrust = Math.min(1, 0.5 + (accuracyCount || 0) * 0.05);
   return authorScore * 0.4 + postTrust * 0.6;
 };

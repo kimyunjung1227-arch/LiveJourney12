@@ -15,6 +15,15 @@ const TRUST_PENALTY_KEY = 'trustPenalty';
 const TRUST_LAST_ACTIVE_KEY = 'trustLastActive';
 const COMPASS_SCORE_CACHE_KEY = 'compassScoreCache';
 
+// 서버 운영 전환: localStorage 제거 → 세션 메모리 캐시
+const memory = {
+  userAccuracyMarks: {}, // userId -> { [postId]: true }
+  postAccuracyCount: {}, // postId -> count
+  trustPenalty: {}, // userId -> number
+  trustLastActive: {}, // userId -> ts
+  compassScoreCache: {}, // userId -> { score, ts }
+};
+
 /** 가중치 (검증 점수 w2 강조) */
 const WEIGHTS = { w1: 1, w2: 3, w3: 0.5, w4: 2 };
 
@@ -81,13 +90,8 @@ const computeFreshnessBonus = (myPosts) => {
  * P (Penalty): 허위 신고·중복·조작 시 감점 (현재는 0, 추후 연동)
  */
 const computePenalty = (userId) => {
-  try {
-    const key = userId ? `trustPenalty_${userId}` : TRUST_PENALTY_KEY;
-    const raw = localStorage.getItem(key);
-    return Number(raw) || 0;
-  } catch {
-    return 0;
-  }
+  const uid = userId ? String(userId) : '';
+  return Number(memory.trustPenalty[uid]) || 0;
 };
 
 /**
@@ -97,18 +101,16 @@ const computePenalty = (userId) => {
  */
 export const getCompassScore = (userId = null, postsOverride = null) => {
   try {
-    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-    const targetUserId = userId != null ? String(userId) : (currentUser?.id ? String(currentUser.id) : null);
+    const targetUserId = userId != null ? String(userId) : null;
     if (!targetUserId) return 0;
 
     let myPosts;
     if (Array.isArray(postsOverride) && postsOverride.length >= 0) {
       myPosts = postsOverride.filter((p) => getPostAuthorId(p) === targetUserId);
     } else {
-      const posts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-      myPosts = posts.filter((p) => getPostAuthorId(p) === targetUserId);
+      myPosts = [];
     }
-    const counts = JSON.parse(localStorage.getItem(POST_ACCURACY_COUNT_KEY) || '{}');
+    const counts = memory.postAccuracyCount || {};
 
     const A = computeActivityIndex(myPosts);
     const V = computeValidationIndex(myPosts, counts);
@@ -130,8 +132,8 @@ export const getCompassScore = (userId = null, postsOverride = null) => {
  */
 const applyDecay = (rawScore, userId) => {
   try {
-    const key = userId ? `trustLastActive_${userId}` : TRUST_LAST_ACTIVE_KEY;
-    const lastActive = localStorage.getItem(key);
+    const uid = userId ? String(userId) : '';
+    const lastActive = memory.trustLastActive[uid];
     if (!lastActive || rawScore <= 0) return rawScore;
     const months = (Date.now() - new Date(lastActive).getTime()) / (30 * 24 * 60 * 60 * 1000);
     if (months < 1) return rawScore;
@@ -148,8 +150,7 @@ const applyDecay = (rawScore, userId) => {
  */
 export const getTrustRawScore = (userId = null, postsOverride = null) => {
   const raw = getCompassScore(userId, postsOverride);
-  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-  const targetUserId = userId != null ? String(userId) : (currentUser?.id ? String(currentUser.id) : null);
+  const targetUserId = userId != null ? String(userId) : null;
   return applyDecay(raw, targetUserId);
 };
 
@@ -172,18 +173,16 @@ export const TRUST_GRADES = [
  */
 export const getTrustCounts = (userId = null, postsOverride = null) => {
   try {
-    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-    const targetUserId = userId != null ? String(userId) : (currentUser?.id ? String(currentUser.id) : null);
+    const targetUserId = userId != null ? String(userId) : null;
     if (!targetUserId) return { gpsAuthCount: 0, totalAccuracy: 0 };
 
     let myPosts;
     if (Array.isArray(postsOverride) && postsOverride.length >= 0) {
       myPosts = postsOverride.filter((p) => getPostAuthorId(p) === targetUserId);
     } else {
-      const posts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-      myPosts = posts.filter((p) => getPostAuthorId(p) === targetUserId);
+      myPosts = [];
     }
-    const counts = JSON.parse(localStorage.getItem(POST_ACCURACY_COUNT_KEY) || '{}');
+    const counts = memory.postAccuracyCount || {};
 
     const gpsAuthCount = myPosts.filter(hasLocationAuth).length;
     const totalAccuracy = myPosts.reduce((sum, p) => sum + (Number(counts[p.id]) || 0), 0);
@@ -282,13 +281,11 @@ export const getTrustBadgeIdForScore = (rawScore) => {
  */
 export const getCompassScoreBreakdown = (userId = null) => {
   try {
-    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-    const targetUserId = userId != null ? String(userId) : (currentUser?.id ? String(currentUser.id) : null);
+    const targetUserId = userId != null ? String(userId) : null;
     if (!targetUserId) return { A: 0, V: 0, R: 0, P: 0, CS: 0 };
 
-    const posts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-    const counts = JSON.parse(localStorage.getItem(POST_ACCURACY_COUNT_KEY) || '{}');
-    const myPosts = posts.filter((p) => getPostAuthorId(p) === targetUserId);
+    const myPosts = [];
+    const counts = memory.postAccuracyCount || {};
 
     const A = computeActivityIndex(myPosts);
     const V = computeValidationIndex(myPosts, counts);

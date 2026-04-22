@@ -27,16 +27,15 @@ const getSet = (map, userId) => {
   return map.get(uid);
 };
 
-const getCurrentUserId = () => {
-  try {
-    const u = localStorage.getItem('user');
-    if (!u) return null;
-    const o = JSON.parse(u);
-    return o?.id ? String(o.id) : null;
-  } catch {
-    return null;
-  }
+let currentUserId = null;
+
+/** AuthContext 등에서 현재 로그인 사용자 id를 주입 */
+export const setCurrentUserId = (uid) => {
+  const s = uid != null ? String(uid).trim() : '';
+  currentUserId = s || null;
 };
+
+const getCurrentUserId = () => currentUserId;
 
 /** 특정 사용자를 팔로우 */
 export const follow = (targetUserId) => {
@@ -179,7 +178,7 @@ export const syncFollowersFromSupabase = async (userId) => {
 
 /** 버튼/카운트 정확도 우선: 서버 단일 조회 */
 export const isFollowingRemote = async (followerId, followingId) => {
-  const fid = String(followerId || getCurrentUserId() || '').trim();
+  const fid = String(followerId || '').trim();
   const tid = String(followingId || '').trim();
   if (!isValidUuid(fid) || !isValidUuid(tid)) return false;
   const ok = await isFollowingSupabase(fid, tid);

@@ -3,6 +3,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
 
+// 서버 운영 전환: sessionStorage 없이 "한 세션 내 중복 교환"만 방지
+const exchangedCodes = new Set();
+
 const AuthCallbackScreen = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -68,18 +71,13 @@ const AuthCallbackScreen = () => {
         }
 
         // 같은 code로 중복 교환 시도 방지(뒤로가기/리렌더/경합 대비)
-        const exchangedKey = `lj_oauth_exchanged:${code}`;
-        try {
-          if (sessionStorage.getItem(exchangedKey) === '1') {
-            const { data } = await supabase.auth.getSession();
-            const uid = data?.session?.user?.id || null;
-            if (uid) {
-              navigate('/main', { replace: true });
-              return;
-            }
+        if (exchangedCodes.has(code)) {
+          const { data } = await supabase.auth.getSession();
+          const uid = data?.session?.user?.id || null;
+          if (uid) {
+            navigate('/main', { replace: true });
+            return;
           }
-        } catch {
-          // ignore
         }
 
         // PKCE(code) → session 교환
@@ -97,11 +95,7 @@ const AuthCallbackScreen = () => {
           return;
         }
 
-        try {
-          sessionStorage.setItem(exchangedKey, '1');
-        } catch {
-          // ignore
-        }
+        exchangedCodes.add(code);
 
         // 기존 코드 호환을 위해 userUpdated 이벤트만 유지 (AuthContext는 onAuthStateChange로 갱신됨)
         try {

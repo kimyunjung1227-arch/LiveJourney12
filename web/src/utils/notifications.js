@@ -13,7 +13,7 @@ import {
 const isValidUuid = (v) =>
   typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
 
-const NOTIFICATIONS_KEY = 'notifications';
+let notificationsCache = [];
 
 // 알림 타입별 기본 설정
 const NOTIFICATION_TYPES = {
@@ -51,24 +51,12 @@ const NOTIFICATION_TYPES = {
 
 // 알림 목록 가져오기 (저장소 전체)
 export const getNotifications = () => {
-  try {
-    const notifications = localStorage.getItem(NOTIFICATIONS_KEY);
-    return notifications ? JSON.parse(notifications) : [];
-  } catch (error) {
-    logger.error('알림 불러오기 실패:', error);
-    return [];
-  }
+  return Array.isArray(notificationsCache) ? notificationsCache : [];
 };
 
 const getCurrentUserIdFromStorage = () => {
-  try {
-    const u = localStorage.getItem('user');
-    if (!u) return null;
-    const o = JSON.parse(u);
-    return o?.id ? String(o.id) : null;
-  } catch {
-    return null;
-  }
+  // localStorage 제거: AuthContext의 user를 직접 사용하도록 전환
+  return null;
 };
 
 /** 알림 수신자 식별용 — AuthContext보다 먼저 쓸 때 동일 규칙으로 id 조회 */
@@ -184,11 +172,7 @@ export const syncNotificationsFromSupabase = async (userId) => {
 
   const capped = mapped.slice(0, 100);
 
-  try {
-    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(capped));
-  } catch {
-    // ignore
-  }
+  notificationsCache = capped;
   window.dispatchEvent(new Event('notificationUpdate'));
   window.dispatchEvent(new Event('notificationCountChanged'));
   return capped;
@@ -249,15 +233,9 @@ export const addNotification = (notification) => {
         if (res?.success) {
           await syncNotificationsFromSupabase(uid);
         } else {
-          try {
-            const notifications = getNotifications();
-            notifications.unshift(newNotification);
-            localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications.slice(0, 100)));
-            window.dispatchEvent(new Event('notificationUpdate'));
-            window.dispatchEvent(new Event('notificationCountChanged'));
-          } catch (e) {
-            logger.error('알림 로컬 폴백 실패:', e);
-          }
+          notificationsCache = [newNotification, ...(getNotifications() || [])].slice(0, 100);
+          window.dispatchEvent(new Event('notificationUpdate'));
+          window.dispatchEvent(new Event('notificationCountChanged'));
         }
       })();
       logger.log('✅ 알림(Supabase 동기화 요청):', newNotification.message || newNotification.title);
@@ -266,7 +244,7 @@ export const addNotification = (notification) => {
 
     const notifications = getNotifications();
     notifications.unshift(newNotification);
-    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications.slice(0, 100)));
+    notificationsCache = notifications.slice(0, 100);
     window.dispatchEvent(new Event('notificationUpdate'));
     window.dispatchEvent(new Event('notificationCountChanged'));
     logger.log('✅ 알림 추가(로컬):', newNotification.message || newNotification.title);
@@ -284,7 +262,7 @@ export const markNotificationAsRead = (notificationId) => {
     const updated = notifications.map(n =>
       n.id === notificationId ? { ...n, read: true } : n
     );
-    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(updated));
+    notificationsCache = updated;
 
     // 알림 카운트 업데이트 이벤트 발생
     window.dispatchEvent(new Event('notificationUpdate'));
@@ -306,7 +284,7 @@ export const markAllNotificationsAsRead = () => {
     const all = getNotifications();
     const visibleIds = new Set(getNotificationsForCurrentUser().map((n) => n.id));
     const updated = all.map((n) => (visibleIds.has(n.id) ? { ...n, read: true } : n));
-    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(updated));
+    notificationsCache = updated;
 
     window.dispatchEvent(new Event('notificationUpdate'));
     window.dispatchEvent(new Event('notificationCountChanged'));
@@ -326,7 +304,7 @@ export const deleteNotification = (notificationId) => {
   try {
     const notifications = getNotifications();
     const filtered = notifications.filter(n => n.id !== notificationId);
-    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(filtered));
+    notificationsCache = filtered;
 
     // 알림 카운트 업데이트 이벤트 발생
     window.dispatchEvent(new Event('notificationUpdate'));
@@ -361,7 +339,7 @@ export const clearAllNotifications = () => {
         await syncNotificationsFromSupabase(uid);
       });
     } else {
-      localStorage.removeItem(NOTIFICATIONS_KEY);
+      notificationsCache = [];
       window.dispatchEvent(new Event('notificationUpdate'));
       window.dispatchEvent(new Event('notificationCountChanged'));
     }

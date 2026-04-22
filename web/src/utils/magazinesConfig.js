@@ -1,7 +1,7 @@
 // 여행 매거진 구성 설정
 // 태그/키워드 기반으로 사용자 피드를 큐레이션하는 주제형 매거진.
 
-const STORAGE_KEY = 'magazine_topics';
+// 서버 운영 전환: localStorage 제거 → 기본 토픽만 사용
 
 const DEFAULT_TOPICS = [
   {
@@ -18,13 +18,7 @@ const DEFAULT_TOPICS = [
 
 export const loadMagazineTopics = () => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_TOPICS;
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return DEFAULT_TOPICS;
-    // 관리자가 모두 삭제한 경우에는 빈 배열을 그대로 반환
-    if (parsed.length === 0) return [];
-    return parsed;
+    return DEFAULT_TOPICS;
   } catch {
     return DEFAULT_TOPICS;
   }
@@ -33,7 +27,6 @@ export const loadMagazineTopics = () => {
 export const saveMagazineTopics = (topics) => {
   try {
     if (!Array.isArray(topics)) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(topics));
     try {
       window.dispatchEvent(new Event('magazineTopicsUpdated'));
     } catch {
