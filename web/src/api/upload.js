@@ -486,6 +486,14 @@ export const uploadVideo = async (file) => {
   if (supabaseResult.success && supabaseResult.url) {
     return supabaseResult;
   }
+  // 배포 환경에서는 기존 백엔드(/upload/video)가 없으므로 404 폴백을 하지 않는다.
+  // 로컬 개발에서만 백엔드 폴백 허용.
+  const isLocal =
+    typeof window !== 'undefined' &&
+    (window.location?.hostname === 'localhost' || window.location?.hostname === '127.0.0.1');
+  if (!isLocal) {
+    return supabaseResult;
+  }
   try {
     const formData = new FormData();
     formData.append('video', file);
