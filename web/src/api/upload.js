@@ -134,28 +134,44 @@ function applySupabaseImageResize(absoluteUrl, opts) {
 
 /** @param {{ hero?: boolean, maxWidth?: number, quality?: number }} [opts] */
 export const getDisplayImageUrl = (url, opts) => {
-  if (url == null) return '';
-  const raw = typeof url === 'string' ? url : (url.url || url.src || url.href || '');
-  if (!raw || typeof raw !== 'string') return '';
+  if (url == null) return PLACEHOLDER_IMAGE;
+  let raw = typeof url === 'string' ? url : (url.url || url.src || url.href || '');
+  if (!raw || typeof raw !== 'string') return PLACEHOLDER_IMAGE;
   const trimmed = raw.trim();
-  if (!trimmed) return '';
-  // blob: URL은 새로고침 후 사라질 수 있지만, 업로드 직후 "동영상/이미지 즉시 표시"에는 필요하다.
-  // 기본은 placeholder로 안전하게 막되, 호출부에서 opts.allowBlob=true면 그대로 허용한다.
-  if (trimmed.startsWith('blob:')) return opts?.allowBlob ? trimmed : PLACEHOLDER_IMAGE;
+  if (!trimmed) return PLACEHOLDER_IMAGE;
 
-  let resolved;
-  const fromBucket = resolveSupabaseBucketRelativePath(trimmed);
-  if (fromBucket) {
-    resolved = upgradeSupabaseHttpToHttps(fromBucket);
-  } else if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    resolved = upgradeSupabaseHttpToHttps(trimmed);
-  } else if (trimmed.startsWith('/')) {
-    resolved = `${UPLOAD_ORIGIN}${trimmed}`;
-  } else {
-    resolved = trimmed;
+  // 일부 레거시 데이터: 문자열로 JSON({ url })이 저장된 케이스 복원
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      const extracted = typeof parsed === 'string' ? parsed : (parsed?.url || parsed?.src || parsed?.href || '');
+      if (typeof extracted === 'string' && extracted.trim()) {
+        raw = extracted;
+      }
+    } catch {
+      /* ignore */
+    }
   }
 
-  return applySupabaseImageResize(resolved, opts);
+  const reTrimmed = String(raw || '').trim();
+  if (!reTrimmed) return PLACEHOLDER_IMAGE;
+  // blob: URL은 새로고침 후 사라질 수 있지만, 업로드 직후 "동영상/이미지 즉시 표시"에는 필요하다.
+  // 기본은 placeholder로 안전하게 막되, 호출부에서 opts.allowBlob=true면 그대로 허용한다.
+  if (reTrimmed.startsWith('blob:')) return opts?.allowBlob ? reTrimmed : PLACEHOLDER_IMAGE;
+
+  let resolved;
+  const fromBucket = resolveSupabaseBucketRelativePath(reTrimmed);
+  if (fromBucket) {
+    resolved = upgradeSupabaseHttpToHttps(fromBucket);
+  } else if (reTrimmed.startsWith('http://') || reTrimmed.startsWith('https://')) {
+    resolved = upgradeSupabaseHttpToHttps(reTrimmed);
+  } else if (reTrimmed.startsWith('/')) {
+    resolved = `${UPLOAD_ORIGIN}${reTrimmed}`;
+  } else {
+    resolved = reTrimmed;
+  }
+
+  return applySupabaseImageResize(resolved, opts) || PLACEHOLDER_IMAGE;
 };
 
 // 이미지를 Base64로 변환

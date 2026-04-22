@@ -83,8 +83,8 @@ function App() {
   const basename = import.meta.env.PROD ? import.meta.env.BASE_URL : undefined;
 
   return (
-    <ExifConsentProvider>
     <AuthProvider>
+    <ExifConsentProvider>
       <Router basename={basename}>
         <RootSeo />
         <div className="app-container">
@@ -264,8 +264,8 @@ function App() {
           </div>
         </div>
       </Router>
-    </AuthProvider>
     </ExifConsentProvider>
+    </AuthProvider>
   )
 }
 

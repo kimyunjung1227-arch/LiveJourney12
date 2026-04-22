@@ -194,6 +194,8 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     user: appUser,
+    // ExifConsent 등에서 user_metadata를 읽기 위한 원본 user도 노출 (권한 판단에는 사용 금지)
+    supabaseUser: supabaseUser,
     authLoading,
     loginWithProvider,
     logout,
