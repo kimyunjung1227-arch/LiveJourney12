@@ -299,8 +299,17 @@ const uploadImageToSupabase = async (file, retry = false) => {
       await new Promise((r) => setTimeout(r, 500));
       return uploadImageToSupabase(file, true);
     }
-    logger.warn('Supabase Storage 이미지 업로드 실패 (백엔드/Blob fallback):', error?.message);
-    return { success: false, error };
+    logger.warn('Supabase Storage 이미지 업로드 실패:', {
+      message: error?.message,
+      status: error?.statusCode || error?.status,
+      name: error?.name,
+    });
+    return {
+      success: false,
+      error,
+      message: error?.message || 'Supabase Storage 이미지 업로드 실패',
+      status: error?.statusCode || error?.status,
+    };
   }
 };
 
@@ -390,8 +399,17 @@ const uploadVideoToSupabase = async (file) => {
     }
     throw new Error('No public URL');
   } catch (e) {
-    logger.warn('Supabase 동영상 업로드 실패:', e);
-    return { success: false };
+    logger.warn('Supabase 동영상 업로드 실패:', {
+      message: e?.message,
+      status: e?.statusCode || e?.status,
+      name: e?.name,
+    });
+    return {
+      success: false,
+      error: e,
+      message: e?.message || 'Supabase Storage 동영상 업로드 실패',
+      status: e?.statusCode || e?.status,
+    };
   }
 };
 

@@ -1387,13 +1387,17 @@ const UploadScreen = () => {
 
       // 이미지 업로드 (병렬)
       if (formData.imageFiles.length > 0) {
+        const imageErrors = [];
         const results = await mapWithConcurrency(formData.imageFiles, 3, async (file, i) => {
           try {
             const r = await uploadImage(file);
             bumpProgress();
-            return r?.success && r.url ? r.url : '';
-          } catch {
+            if (r?.success && r.url) return r.url;
+            imageErrors.push(r?.message || r?.error?.message || '사진 업로드 실패');
+            return '';
+          } catch (e) {
             bumpProgress();
+            imageErrors.push(e?.message || '사진 업로드 실패');
             return '';
           }
         });
@@ -1402,7 +1406,8 @@ const UploadScreen = () => {
           uploadedImageUrls.length < formData.imageFiles.length ||
           uploadedImageUrls.some((u) => typeof u === 'string' && u.startsWith('blob:'))
         ) {
-          alert('사진 업로드에 실패했습니다. 네트워크/스토리지 설정을 확인한 뒤 다시 시도해 주세요.');
+          const detail = imageErrors.find(Boolean);
+          alert(`사진 업로드에 실패했습니다.\n\n${detail ? `원인: ${detail}\n\n` : ''}네트워크/스토리지 설정을 확인한 뒤 다시 시도해 주세요.`);
           setUploading(false);
           setUploadProgress(0);
           return;
@@ -1510,7 +1515,7 @@ const UploadScreen = () => {
           // EXIF·앱 내 촬영 기준 촬영 시각 (없으면 업로드 시각)
           const photoTimestamp = resolvedPhotoDate
             ? new Date(resolvedPhotoDate).getTime()
-            : (backendPost?.createdAt ? new Date(backendPost.createdAt).getTime() : Date.now());
+            : Date.now();
 
           // 업로드 시점의 날씨 정보 가져오기
           let weatherAtUpload = null;
