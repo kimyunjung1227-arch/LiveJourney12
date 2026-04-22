@@ -326,22 +326,10 @@ export const uploadImage = async (file) => {
     });
     return response.data;
   } catch (error) {
-    // Supabase / 백엔드 모두 실패 시 마지막 fallback: Blob URL
-    logger.log('⚠️ 이미지 업로드 실패 - Blob URL fallback 사용');
-    logger.warn('💡 이미지가 서버(Supabase/백엔드)에 업로드되지 않았습니다. 네트워크 또는 설정을 확인해주세요.');
-
-    const blobUrl = URL.createObjectURL(safeFile);
-
-    return {
-      success: true,
-      url: blobUrl,
-      isTemporary: true,
-      analysis: {
-        category: 'general',
-        categoryName: '일반',
-        labels: []
-      }
-    };
+    // 이미지도 blob: fallback을 성공으로 취급하면 "업로드가 된 것처럼" 보이지만
+    // 실제로는 서버에 저장되지 않아 새로고침/피드에서 사라집니다.
+    logger.warn('이미지 업로드 실패: Supabase/백엔드 모두 실패', error?.message || error);
+    return { success: false, error };
   }
 };
 

@@ -1391,13 +1391,22 @@ const UploadScreen = () => {
           try {
             const r = await uploadImage(file);
             bumpProgress();
-            return r?.success && r.url ? r.url : (formData.images[i] || '');
+            return r?.success && r.url ? r.url : '';
           } catch {
             bumpProgress();
-            return formData.images[i] || '';
+            return '';
           }
         });
         uploadedImageUrls.push(...results.filter(Boolean));
+        if (
+          uploadedImageUrls.length < formData.imageFiles.length ||
+          uploadedImageUrls.some((u) => typeof u === 'string' && u.startsWith('blob:'))
+        ) {
+          alert('사진 업로드에 실패했습니다. 네트워크/스토리지 설정을 확인한 뒤 다시 시도해 주세요.');
+          setUploading(false);
+          setUploadProgress(0);
+          return;
+        }
       } else {
         uploadedImageUrls.push(...formData.images);
       }
