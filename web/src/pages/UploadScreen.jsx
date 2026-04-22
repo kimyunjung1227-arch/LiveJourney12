@@ -939,7 +939,8 @@ const UploadScreen = () => {
     }
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'image/*,video/*';
+    // 모바일 브라우저에서 MIME 인식·EXIF 유지에 유리하도록 구체적인 이미지 타입 포함 (HEIC 등)
+    input.accept = 'image/jpeg,image/png,image/webp,image/heic,image/heif,image/gif,image/bmp,image/tiff,video/*';
     input.multiple = true;
     input.onchange = handleImageSelect;
     input.click();
@@ -1023,7 +1024,7 @@ const UploadScreen = () => {
   const openGalleryFromCamera = useCallback(() => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'image/*,video/*';
+    input.accept = 'image/jpeg,image/png,image/webp,image/heic,image/heif,image/gif,image/bmp,image/tiff,video/*';
     input.multiple = true;
     input.onchange = handleImageSelect;
     input.click();

@@ -19,6 +19,130 @@ function isLikelyRasterImageFile(file) {
   return false;
 }
 
+/** 핸드폰 브라우저(Safari/Chrome)에서 EXIF 경로를 따로 탐 — 데스크톱과 동일 로직도 유지 */
+function isTouchMobileWeb() {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  const coarse =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(pointer: coarse)').matches;
+  return coarse || /iPhone|iPad|iPod|Android.*Mobile|Mobile.*Safari/i.test(ua);
+}
+
+function inferImageMimeFromName(name) {
+  const n = String(name || '').toLowerCase();
+  if (/\.jpe?g$/i.test(n)) return 'image/jpeg';
+  if (/\.png$/i.test(n)) return 'image/png';
+  if (/\.webp$/i.test(n)) return 'image/webp';
+  if (/\.gif$/i.test(n)) return 'image/gif';
+  if (/\.heic$/i.test(n)) return 'image/heic';
+  if (/\.heif$/i.test(n)) return 'image/heif';
+  if (/\.bmp$/i.test(n)) return 'image/bmp';
+  if (/\.tiff?$/i.test(n)) return 'image/tiff';
+  return '';
+}
+
+/**
+ * 모바일에서 type 이 비거나 octet-stream 인 경우가 많아 exifr 가 EXIF 를 못 읽는 문제 완화
+ * @param {File|Blob} file
+ * @returns {File}
+ */
+function ensureTypedImageFileForExif(file) {
+  if (!file || !(file instanceof Blob)) return file;
+  const name = 'name' in file && typeof file.name === 'string' ? file.name : 'image.jpg';
+  const t = String(file.type || '').toLowerCase();
+  const inferred = inferImageMimeFromName(name);
+  const looksWrong =
+    !t.startsWith('image/') ||
+    t === 'application/octet-stream' ||
+    t === '' ||
+    t === 'binary/octet-stream';
+  const lm =
+    'lastModified' in file && typeof file.lastModified === 'number' ? file.lastModified : Date.now();
+  if (!looksWrong) {
+    return file instanceof File ? file : new File([file], name, { type: t, lastModified: lm });
+  }
+  const mime = inferred || 'image/jpeg';
+  return new File([file], name, { type: mime, lastModified: lm });
+}
+
+function rationalToNumber(x) {
+  if (x == null) return null;
+  if (typeof x === 'number') return Number.isFinite(x) ? x : null;
+  if (Array.isArray(x) && x.length >= 2) {
+    const a = Number(x[0]);
+    const b = Number(x[1]);
+    if (Number.isFinite(a) && Number.isFinite(b) && b !== 0) return a / b;
+  }
+  return toFiniteNumber(x);
+}
+
+/**
+ * 도/분/초 배열 또는 유리수 배열 → 십진도 (북위·동경 기준 양수, 남위·서경은 ref 로 음수 처리)
+ */
+function dmsTripleToDecimal(parts, ref, isLatitude) {
+  if (!Array.isArray(parts) || parts.length < 3) return null;
+  const d = rationalToNumber(parts[0]);
+  const m = rationalToNumber(parts[1]);
+  const s = rationalToNumber(parts[2]);
+  if (![d, m, s].every((x) => x != null && Number.isFinite(x))) return null;
+  let dec = Math.abs(d) + Math.abs(m) / 60 + Math.abs(s) / 3600;
+  const refUp = String(ref || '').toUpperCase();
+  const neg = refUp === 'S' || refUp === 'W';
+  if (neg) dec = -dec;
+  const limit = isLatitude ? 90 : 180;
+  if (Math.abs(dec) > limit) return null;
+  return dec;
+}
+
+function coerceOneGpsCoord(raw, ref, isLatitude) {
+  const direct = toFiniteNumber(raw);
+  if (direct != null) {
+    const limit = isLatitude ? 90 : 180;
+    if (Math.abs(direct) <= limit) return direct;
+  }
+  if (Array.isArray(raw) && raw.length >= 3) {
+    return dmsTripleToDecimal(raw, ref, isLatitude);
+  }
+  return null;
+}
+
+/**
+ * exifr 출력(십진도·DMS 배열·latitude/longitude 별칭)을 한 번에 처리
+ * @param {Record<string, unknown>|null} exif
+ * @returns {{ lat: number, lng: number } | null}
+ */
+function normalizeGpsFromExif(exif) {
+  if (!exif || typeof exif !== 'object') return null;
+  let lat = exif.GPSLatitude;
+  let lng = exif.GPSLongitude;
+  const latRef = exif.GPSLatitudeRef;
+  const lngRef = exif.GPSLongitudeRef;
+
+  if (lat == null && typeof exif.latitude === 'number') lat = exif.latitude;
+  if (lng == null && typeof exif.longitude === 'number') lng = exif.longitude;
+
+  let la = coerceOneGpsCoord(lat, latRef, true);
+  let ln = coerceOneGpsCoord(lng, lngRef, false);
+
+  if (la != null && ln != null) {
+    return { lat: la, lng: ln };
+  }
+  return null;
+}
+
+/** 날짜·GPS·카메라 정보 중 하나라도 있으면 유의미 */
+function hasUsefulExifPayload(data) {
+  return !!(
+    data &&
+    (resolveCaptureDate(data) ||
+      normalizeGpsFromExif(data) ||
+      data.Make ||
+      data.Model)
+  );
+}
+
 /** @param {unknown} v */
 function toFiniteNumber(v) {
   if (v == null || v === '') return null;
@@ -143,20 +267,6 @@ async function enrichWithXmpIptc(file, existing) {
   }
 }
 
-/**
- * exifr가 반환한 위도/경도를 십진도 숫자로 통일
- * @param {unknown} lat
- * @param {unknown} lng
- * @returns {{ lat: number, lng: number } | null}
- */
-function normalizeGps(lat, lng) {
-  const la = toFiniteNumber(lat);
-  const ln = toFiniteNumber(lng);
-  if (la == null || ln == null) return null;
-  if (Math.abs(la) > 90 || Math.abs(ln) > 180) return null;
-  return { lat: la, lng: ln };
-}
-
 const EXIF_PICK = [
   'DateTimeOriginal',
   'CreateDate',
@@ -170,12 +280,16 @@ const EXIF_PICK = [
   'OffsetTimeOriginal',
   'GPSLatitude',
   'GPSLongitude',
+  'GPSLatitudeRef',
+  'GPSLongitudeRef',
   'GPSAltitude',
   'Make',
   'Model',
   'Orientation',
   'ImageWidth',
   'ImageHeight',
+  'latitude',
+  'longitude',
 ];
 
 const BASE_PARSE_OPTS = {
@@ -204,52 +318,84 @@ export const extractExifData = async (file, options = {}) => {
       return null;
     }
 
+    const typedFile = ensureTypedImageFileForExif(file);
+    const mobile = isTouchMobileWeb();
+    const MAX_FULL_PARSE_BYTES = 45 * 1024 * 1024;
+    /** 작은 파일은 한 번에 버퍼를 읽어 파싱하는 편이 모바일 Safari 에서 더 안정적·빠름 */
+    const MOBILE_SMALL_FULL_PARSE_BYTES = 6 * 1024 * 1024;
+
+    let cachedFullBuffer = null;
+    const getFullArrayBuffer = async () => {
+      if (cachedFullBuffer) return cachedFullBuffer;
+      if (typedFile.size > MAX_FULL_PARSE_BYTES) return null;
+      cachedFullBuffer = await typedFile.arrayBuffer();
+      return cachedFullBuffer;
+    };
+
+    const parseOptsFull = { ...BASE_PARSE_OPTS, firstChunk: false };
+    const parseOptsFirstChunk = {
+      ...BASE_PARSE_OPTS,
+      firstChunk: true,
+      firstChunkSize: mobile ? 2 * 1024 * 1024 : 1024 * 1024,
+    };
+
     let exifData = null;
-    try {
-      exifData = await exifr.parse(file, {
-        ...BASE_PARSE_OPTS,
-        firstChunk: true,
-        /** 일부 JPEG는 메타데이터 블록이 뒤쪽에 있을 수 있어 1차 청크를 넉넉히 */
-        firstChunkSize: 1024 * 1024,
-      });
-    } catch (e) {
-      logger.debug('EXIF firstChunk 파싱 실패, 전체 파일로 재시도:', e);
-    }
 
-    const hasUseful =
-      exifData &&
-      (resolveCaptureDate(exifData) ||
-        normalizeGps(exifData.GPSLatitude, exifData.GPSLongitude) ||
-        exifData.Make ||
-        exifData.Model);
-
-    if (!hasUseful) {
+    // 1) 모바일 + 소용량: 전체 파일을 한 번에 파싱 (앞쪽 청크만으로는 못 잡는 메타·HEIC 등)
+    if (mobile && typedFile.size > 0 && typedFile.size <= MOBILE_SMALL_FULL_PARSE_BYTES) {
       try {
-        exifData = await exifr.parse(file, {
-          ...BASE_PARSE_OPTS,
-          firstChunk: false,
-        });
-      } catch (e2) {
-        logger.warn('EXIF 전체 파싱 실패:', e2);
-        exifData = null;
+        const ab = await getFullArrayBuffer();
+        if (ab) {
+          exifData = await exifr.parse(ab, parseOptsFull);
+        }
+      } catch (e) {
+        logger.debug('EXIF 모바일 소용량 전체 파싱 실패:', e);
       }
     }
 
-    if (!exifData) {
+    // 2) 앞쪽 청크만으로 빠르게 시도 (대용량 메모리 절약)
+    if (!hasUsefulExifPayload(exifData)) {
+      try {
+        const chunkTry = await exifr.parse(typedFile, parseOptsFirstChunk);
+        if (hasUsefulExifPayload(chunkTry)) {
+          exifData = chunkTry;
+        } else if (!exifData) {
+          exifData = chunkTry;
+        }
+      } catch (e) {
+        logger.debug('EXIF firstChunk 파싱 실패:', e);
+      }
+    }
+
+    // 3) 유효 메타가 없으면 전체 파일 파싱 (상한 내)
+    if (!hasUsefulExifPayload(exifData) && typedFile.size <= MAX_FULL_PARSE_BYTES) {
+      try {
+        const ab = await getFullArrayBuffer();
+        if (ab) {
+          exifData = await exifr.parse(ab, parseOptsFull);
+        }
+      } catch (e2) {
+        logger.warn('EXIF 전체 파싱 실패:', e2);
+        if (!exifData) exifData = null;
+      }
+    }
+
+    if (!exifData || !hasUsefulExifPayload(exifData)) {
       logger.debug('EXIF 데이터 없음');
       return null;
     }
 
     let merged = exifData;
     const dateBefore = resolveCaptureDate(merged);
-    // GPS만 없고 촬영 시각은 이미 있으면 XMP/IPTC 전체 재파싱은 비용 대비 이득이 작아 생략한다.
-    if (!dateBefore) {
-      merged = await enrichWithXmpIptc(file, merged);
+    let gpsBefore = normalizeGpsFromExif(merged);
+    const needsXmp = !dateBefore || !gpsBefore;
+    if (needsXmp) {
+      merged = await enrichWithXmpIptc(typedFile, merged);
     }
 
     const photoDateObj = resolveCaptureDate(merged);
 
-    let gpsCoordinates = normalizeGps(merged.GPSLatitude, merged.GPSLongitude);
+    let gpsCoordinates = normalizeGpsFromExif(merged);
 
     logger.debug('📸 EXIF 데이터 추출 성공:', {
       hasDate: !!photoDateObj,
@@ -275,8 +421,12 @@ export const extractExifData = async (file, options = {}) => {
       dateTimeOriginalRaw,
 
       gpsCoordinates,
-      gpsLatitude: gpsCoordinates ? gpsCoordinates.lat : toFiniteNumber(merged.GPSLatitude),
-      gpsLongitude: gpsCoordinates ? gpsCoordinates.lng : toFiniteNumber(merged.GPSLongitude),
+      gpsLatitude: gpsCoordinates
+        ? gpsCoordinates.lat
+        : coerceOneGpsCoord(merged.GPSLatitude, merged.GPSLatitudeRef, true),
+      gpsLongitude: gpsCoordinates
+        ? gpsCoordinates.lng
+        : coerceOneGpsCoord(merged.GPSLongitude, merged.GPSLongitudeRef, false),
       gpsAltitude: toFiniteNumber(merged.GPSAltitude),
 
       cameraMake: merged.Make || null,
