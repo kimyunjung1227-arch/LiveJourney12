@@ -10,7 +10,7 @@ import {
   markNotificationAsRead,
   deleteNotification,
 } from '../utils/notifications';
-import { follow, unfollow, isFollowing, getFollowingIds } from '../utils/followSystem';
+import { follow, unfollow, isFollowing, getFollowingIds, syncFollowingFromSupabase } from '../utils/followSystem';
 import { getDisplayImageUrl } from '../api/upload';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { fetchFriendNewsStateSupabase, upsertFriendNewsStateSupabase } from '../api/friendNewsSupabase';
@@ -98,6 +98,7 @@ const NotificationsScreen = () => {
         friendNewsStateRef.current = { read_map: {}, last_seen_ms: 0 };
         return;
       }
+      await syncFollowingFromSupabase(uid);
       const followingIds = getFollowingIds(uid);
       if (!Array.isArray(followingIds) || followingIds.length === 0) {
         setFriendNews([]);

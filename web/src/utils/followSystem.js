@@ -1,37 +1,30 @@
 /**
- * 팔로우 시스템 유틸리티 (localStorage)
- * follows_v1: [ { followerId, followingId }, ... ]
+ * 팔로우 시스템 유틸리티 (Supabase 단일 진실)
+ * - localStorage 기반 팔로우 캐시는 사용하지 않는다.
+ * - UI 반응성(버튼 토글)을 위해 메모리 캐시만 사용하며, 원본 데이터는 Supabase `follows` 테이블/RPC에서 조회한다.
  */
 
 import { logger } from './logger';
-import { fetchFollowingIdsSupabase, followSupabase, isFollowingSupabase, unfollowSupabase } from '../api/socialSupabase';
-
-const STORAGE_KEY = 'follows_v1';
+import {
+  fetchFollowerIdsSupabase,
+  fetchFollowingIdsSupabase,
+  followSupabase,
+  isFollowingSupabase,
+  unfollowSupabase,
+} from '../api/socialSupabase';
 
 const isValidUuid = (v) =>
   typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
 
-const keyForUser = (userId) => {
-  const uid = userId ? String(userId).trim() : '';
-  return isValidUuid(uid) ? `follows_v2:${uid}` : STORAGE_KEY;
-};
+// in-memory caches (per-session only)
+const followingCache = new Map(); // userId -> Set(followingId)
+const followerCache = new Map(); // userId -> Set(followerId)
 
-const getRaw = (userId = null) => {
-  try {
-    const s = localStorage.getItem(keyForUser(userId));
-    return s ? JSON.parse(s) : [];
-  } catch {
-    return [];
-  }
-};
-
-const setRaw = (arr, userId = null) => {
-  try {
-    localStorage.setItem(keyForUser(userId), JSON.stringify(arr));
-    window.dispatchEvent(new CustomEvent('followsUpdated'));
-  } catch (e) {
-    logger.warn('followSystem setRaw:', e);
-  }
+const getSet = (map, userId) => {
+  const uid = String(userId || '').trim();
+  if (!uid) return new Set();
+  if (!map.has(uid)) map.set(uid, new Set());
+  return map.get(uid);
 };
 
 const getCurrentUserId = () => {
@@ -49,33 +42,28 @@ const getCurrentUserId = () => {
 export const follow = (targetUserId) => {
   const me = getCurrentUserId();
   if (!me) return { success: false, isFollowing: false };
-  const t = String(targetUserId);
+  const t = String(targetUserId || '').trim();
   if (me === t) return { success: false, isFollowing: false };
 
-  // Supabase UUID면 DB 기반 동기화(멀티계정)
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(me) &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t);
-  if (isUuid) {
-    // 로컬 캐시도 즉시 갱신(버튼 상태/배지)
-    const arr = getRaw(me);
-    if (!arr.some((x) => String(x.followerId) === me && String(x.followingId) === t)) {
-      arr.push({ followerId: me, followingId: t });
-      setRaw(arr, me);
+  // optimistic: memory cache only
+  try {
+    if (isValidUuid(me) && isValidUuid(t)) {
+      getSet(followingCache, me).add(t);
+      getSet(followerCache, t).add(me);
     }
-    followSupabase(me, t).then(async (res) => {
-      window.dispatchEvent(new CustomEvent('followsUpdated'));
-      if (!res?.success) return;
-      // ✅ 팔로우 알림은 DB 트리거가 생성한다.
-    });
-    return { success: true, isFollowing: true };
-  }
+  } catch (_) {}
 
-  const arr = getRaw(me);
-  if (arr.some((x) => String(x.followerId) === me && String(x.followingId) === t)) {
-    return { success: true, isFollowing: true };
-  }
-  arr.push({ followerId: me, followingId: t });
-  setRaw(arr, me);
+  followSupabase(me, t).then((res) => {
+    if (!res?.success) {
+      // rollback optimistic
+      try {
+        getSet(followingCache, me).delete(t);
+        getSet(followerCache, t).delete(me);
+      } catch (_) {}
+    }
+    window.dispatchEvent(new CustomEvent('followsUpdated'));
+  });
+
   return { success: true, isFollowing: true };
 };
 
@@ -83,26 +71,27 @@ export const follow = (targetUserId) => {
 export const unfollow = (targetUserId) => {
   const me = getCurrentUserId();
   if (!me) return { success: false, isFollowing: false };
-  const t = String(targetUserId);
+  const t = String(targetUserId || '').trim();
 
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(me) &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t);
-  if (isUuid) {
-    // 로컬 캐시도 즉시 갱신
-    const nextLocal = getRaw(me).filter(
-      (x) => !(String(x.followerId) === me && String(x.followingId) === t)
-    );
-    setRaw(nextLocal, me);
-    unfollowSupabase(me, t).then(() => {
-      window.dispatchEvent(new CustomEvent('followsUpdated'));
-    });
-    return { success: true, isFollowing: false };
-  }
+  // optimistic: memory cache only
+  try {
+    if (isValidUuid(me) && isValidUuid(t)) {
+      getSet(followingCache, me).delete(t);
+      getSet(followerCache, t).delete(me);
+    }
+  } catch (_) {}
 
-  const arr = getRaw(me).filter(
-    (x) => !(String(x.followerId) === me && String(x.followingId) === t)
-  );
-  setRaw(arr, me);
+  unfollowSupabase(me, t).then((res) => {
+    if (!res?.success) {
+      // rollback optimistic
+      try {
+        getSet(followingCache, me).add(t);
+        getSet(followerCache, t).add(me);
+      } catch (_) {}
+    }
+    window.dispatchEvent(new CustomEvent('followsUpdated'));
+  });
+
   return { success: true, isFollowing: false };
 };
 
@@ -120,65 +109,89 @@ export const toggleFollow = (targetUserId) => {
 export const isFollowing = (followerId, followingId) => {
   const fid = followerId ? String(followerId) : getCurrentUserId();
   if (!fid || !followingId) return false;
-  const t = String(followingId);
-
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fid) &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t);
-  if (isUuid) {
-    // sync API가 아니라서 캐시 없이 best-effort(버튼 UI는 이후 이벤트로 갱신됨)
-    // 기본은 로컬값을 사용하되, 없으면 false.
-    // 화면에서 필요 시 별도 로딩로직(프로필 화면 등)에서 보정 가능.
-    return getRaw(fid).some(
-      (x) => String(x.followerId) === fid && String(x.followingId) === t
-    );
-  }
-
-  return getRaw(fid).some(
-    (x) => String(x.followerId) === fid && String(x.followingId) === t
-  );
+  const t = String(followingId).trim();
+  if (!isValidUuid(String(fid).trim()) || !isValidUuid(t)) return false;
+  return getSet(followingCache, fid).has(t);
 };
 
 /** userId를 팔로우하는 사람 수 */
 export const getFollowerCount = (userId) => {
   if (!userId) return 0;
-  const t = String(userId);
-  return getRaw().filter((x) => String(x.followingId) === t).length;
+  const t = String(userId).trim();
+  if (!isValidUuid(t)) return 0;
+  return getSet(followerCache, t).size;
 };
 
 /** userId가 팔로우하는 사람 수 */
 export const getFollowingCount = (userId) => {
   if (!userId) return 0;
-  const t = String(userId);
-  return getRaw().filter((x) => String(x.followerId) === t).length;
+  const t = String(userId).trim();
+  if (!isValidUuid(t)) return 0;
+  return getSet(followingCache, t).size;
 };
 
 /** userId를 팔로우하는 사람 ID 목록 (팔로워) */
 export const getFollowerIds = (userId) => {
   if (!userId) return [];
-  const t = String(userId);
-  return [...new Set(getRaw().filter((x) => String(x.followingId) === t).map((x) => String(x.followerId)))];
+  const t = String(userId).trim();
+  if (!isValidUuid(t)) return [];
+  return Array.from(getSet(followerCache, t));
 };
 
 /** userId가 팔로우하는 사람 ID 목록 (팔로잉) */
 export const getFollowingIds = (userId) => {
   if (!userId) return [];
-  const t = String(userId);
-  return [...new Set(getRaw().filter((x) => String(x.followerId) === t).map((x) => String(x.followingId)))];
+  const t = String(userId).trim();
+  if (!isValidUuid(t)) return [];
+  return Array.from(getSet(followingCache, t));
 };
 
 /** 현재 로그인 사용자 id (없으면 null) */
 export { getCurrentUserId };
 
 /**
- * 멀티기기 동기화: DB(follows) → 로컬 캐시로 가져와서 버튼/목록을 일관되게 만든다.
- * (실패해도 기존 로컬 상태 유지)
+ * 동기화: DB(follows) → 메모리 캐시
  */
 export const syncFollowingFromSupabase = async (userId) => {
   const uid = userId ? String(userId).trim() : '';
   if (!isValidUuid(uid)) return { success: false };
   const ids = await fetchFollowingIdsSupabase(uid);
   if (!Array.isArray(ids)) return { success: false };
-  const rows = ids.map((followingId) => ({ followerId: uid, followingId: String(followingId) }));
-  setRaw(rows, uid);
-  return { success: true, count: rows.length };
+  const set = getSet(followingCache, uid);
+  set.clear();
+  ids.filter(Boolean).map(String).forEach((id) => set.add(String(id)));
+  window.dispatchEvent(new CustomEvent('followsUpdated'));
+  return { success: true, count: set.size };
+};
+
+/** DB(follows) → 메모리 캐시: 팔로워 목록 */
+export const syncFollowersFromSupabase = async (userId) => {
+  const uid = userId ? String(userId).trim() : '';
+  if (!isValidUuid(uid)) return { success: false };
+  const ids = await fetchFollowerIdsSupabase(uid);
+  if (!Array.isArray(ids)) return { success: false };
+  const set = getSet(followerCache, uid);
+  set.clear();
+  ids.filter(Boolean).map(String).forEach((id) => set.add(String(id)));
+  window.dispatchEvent(new CustomEvent('followsUpdated'));
+  return { success: true, count: set.size };
+};
+
+/** 버튼/카운트 정확도 우선: 서버 단일 조회 */
+export const isFollowingRemote = async (followerId, followingId) => {
+  const fid = String(followerId || getCurrentUserId() || '').trim();
+  const tid = String(followingId || '').trim();
+  if (!isValidUuid(fid) || !isValidUuid(tid)) return false;
+  const ok = await isFollowingSupabase(fid, tid);
+  // best-effort 캐시 보정
+  try {
+    if (ok) {
+      getSet(followingCache, fid).add(tid);
+      getSet(followerCache, tid).add(fid);
+    } else {
+      getSet(followingCache, fid).delete(tid);
+      getSet(followerCache, tid).delete(fid);
+    }
+  } catch (_) {}
+  return ok;
 };

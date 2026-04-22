@@ -10,7 +10,17 @@ import { getEarnedBadgesForUser, getBadgeDisplayName } from '../utils/badgeSyste
 import ProfileInjangSection from '../components/ProfileInjangSection';
 import { getTrustScore, getTrustRawScore, getTrustGrade, TRUST_GRADES } from '../utils/trustIndex';
 import { getCoordinatesByLocation } from '../utils/regionLocationMapping';
-import { follow, unfollow, isFollowing, getFollowerCount, getFollowingCount, getFollowerIds, getFollowingIds } from '../utils/followSystem';
+import {
+  follow,
+  unfollow,
+  isFollowing,
+  getFollowerCount,
+  getFollowingCount,
+  getFollowerIds,
+  getFollowingIds,
+  syncFollowersFromSupabase,
+  syncFollowingFromSupabase,
+} from '../utils/followSystem';
 import { logger } from '../utils/logger';
 import { getBackendOrigin } from '../utils/apiBase';
 import { getDisplayImageUrl } from '../api/upload';
@@ -561,13 +571,24 @@ const ProfileScreen = () => {
     const u = authUser || user;
     const uid = u?.id;
     if (!isAuthenticated || !uid) return;
-    const load = () => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        await Promise.all([syncFollowersFromSupabase(uid), syncFollowingFromSupabase(uid)]);
+      } catch {
+        /* ignore */
+      }
+      if (cancelled) return;
       setFollowerCount(getFollowerCount(uid));
       setFollowingCount(getFollowingCount(uid));
     };
-    load();
-    window.addEventListener('followsUpdated', load);
-    return () => window.removeEventListener('followsUpdated', load);
+    void load();
+    const onFollows = () => void load();
+    window.addEventListener('followsUpdated', onFollows);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('followsUpdated', onFollows);
+    };
   }, [isAuthenticated, authUser, user?.id]);
 
   // 날짜 / 날씨 필터 적용
@@ -1600,9 +1621,13 @@ const ProfileScreen = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     const uid = (authUser || user)?.id;
-                    if (uid) { setFollowListIds(getFollowerIds(uid)); setFollowListType('follower'); setShowFollowListModal(true); }
+                    if (!uid) return;
+                    await syncFollowersFromSupabase(uid);
+                    setFollowListIds(getFollowerIds(uid));
+                    setFollowListType('follower');
+                    setShowFollowListModal(true);
                   }}
                   className="flex flex-col items-start"
                 >
@@ -1611,9 +1636,13 @@ const ProfileScreen = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     const uid = (authUser || user)?.id;
-                    if (uid) { setFollowListIds(getFollowingIds(uid)); setFollowListType('following'); setShowFollowListModal(true); }
+                    if (!uid) return;
+                    await syncFollowingFromSupabase(uid);
+                    setFollowListIds(getFollowingIds(uid));
+                    setFollowListType('following');
+                    setShowFollowListModal(true);
                   }}
                   className="flex flex-col items-start"
                 >

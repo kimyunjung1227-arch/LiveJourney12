@@ -15,6 +15,9 @@ import {
   getFollowingCount,
   getFollowerIds,
   getFollowingIds,
+  syncFollowersFromSupabase,
+  syncFollowingFromSupabase,
+  isFollowingRemote,
 } from '../utils/followSystem';
 import { notifyFollowReceived, notifyFollowingStarted } from '../utils/notifications';
 import { logger } from '../utils/logger';
@@ -295,14 +298,30 @@ const UserProfileScreen = () => {
   // 팔로우 / 팔로워·팔로잉 수 로드 및 followsUpdated 구독
   useEffect(() => {
     if (!userId) return;
-    const load = () => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        await Promise.all([syncFollowersFromSupabase(userId), syncFollowingFromSupabase(userId)]);
+      } catch {
+        /* ignore */
+      }
+      if (cancelled) return;
       setFollowerCount(getFollowerCount(userId));
       setFollowingCount(getFollowingCount(userId));
-      setIsFollow(isFollowing(null, userId));
+      try {
+        const ok = await isFollowingRemote(null, userId);
+        if (!cancelled) setIsFollow(ok);
+      } catch {
+        if (!cancelled) setIsFollow(isFollowing(null, userId));
+      }
     };
-    load();
-    window.addEventListener('followsUpdated', load);
-    return () => window.removeEventListener('followsUpdated', load);
+    void load();
+    const onFollows = () => void load();
+    window.addEventListener('followsUpdated', onFollows);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('followsUpdated', onFollows);
+    };
   }, [userId]);
 
   useEffect(() => {
@@ -713,12 +732,12 @@ const UserProfileScreen = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (userId) {
-                      setFollowListIds(getFollowerIds(userId));
-                      setFollowListType('follower');
-                      setShowFollowListModal(true);
-                    }
+                  onClick={async () => {
+                    if (!userId) return;
+                    await syncFollowersFromSupabase(userId);
+                    setFollowListIds(getFollowerIds(userId));
+                    setFollowListType('follower');
+                    setShowFollowListModal(true);
                   }}
                   className="flex flex-col items-start"
                 >
@@ -727,12 +746,12 @@ const UserProfileScreen = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (userId) {
-                      setFollowListIds(getFollowingIds(userId));
-                      setFollowListType('following');
-                      setShowFollowListModal(true);
-                    }
+                  onClick={async () => {
+                    if (!userId) return;
+                    await syncFollowingFromSupabase(userId);
+                    setFollowListIds(getFollowingIds(userId));
+                    setFollowListType('following');
+                    setShowFollowListModal(true);
                   }}
                   className="flex flex-col items-start"
                 >

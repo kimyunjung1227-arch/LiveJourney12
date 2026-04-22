@@ -15,7 +15,7 @@ import BackButton from '../components/BackButton';
 import { normalizeRegionName } from '../utils/regionNames';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { getPostUserId, resolveUserDisplayFromPosts } from '../utils/userProfileHints';
-import { getCurrentUserId, getFollowingIds, toggleFollow, isFollowing } from '../utils/followSystem';
+import { getCurrentUserId, getFollowingIds, syncFollowingFromSupabase, toggleFollow, isFollowing } from '../utils/followSystem';
 import { getBadgeDisplayName } from '../utils/badgeSystem';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
@@ -399,9 +399,27 @@ const SearchScreen = () => {
     return id ? String(id) : '';
   }, []);
 
-  const followingIds = useMemo(() => {
-    if (!myUserId) return [];
-    return getFollowingIds(myUserId).filter(Boolean).map(String);
+  const [followingIds, setFollowingIds] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!myUserId) {
+        setFollowingIds([]);
+        return;
+      }
+      try {
+        await syncFollowingFromSupabase(myUserId);
+      } catch {
+        /* ignore */
+      }
+      if (cancelled) return;
+      setFollowingIds(getFollowingIds(myUserId).filter(Boolean).map(String));
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
   }, [myUserId, followsVersion]);
 
   useEffect(() => {
