@@ -322,7 +322,8 @@ export const extractExifData = async (file, options = {}) => {
     const mobile = isTouchMobileWeb();
     const MAX_FULL_PARSE_BYTES = 45 * 1024 * 1024;
     /** 작은 파일은 한 번에 버퍼를 읽어 파싱하는 편이 모바일 Safari 에서 더 안정적·빠름 */
-    const MOBILE_SMALL_FULL_PARSE_BYTES = 6 * 1024 * 1024;
+    /** 고해상도 폰 사진 EXIF 블록이 크거나 뒤쪽에 붙는 경우까지 한 번에 읽기 */
+    const MOBILE_SMALL_FULL_PARSE_BYTES = 12 * 1024 * 1024;
 
     let cachedFullBuffer = null;
     const getFullArrayBuffer = async () => {

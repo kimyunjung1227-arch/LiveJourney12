@@ -321,6 +321,8 @@ const NotificationsScreen = () => {
       const raw = n.badge || '';
       const display = n.badgeDisplayName || (raw ? getBadgeDisplayNameFromName(raw) : '');
       if (display) return `"${display}" 뱃지를 획득했습니다!`;
+      if (n.message) return n.message;
+      return '뱃지를 획득했습니다';
     }
     if (n.message) return n.message;
     return n.title || '알림';

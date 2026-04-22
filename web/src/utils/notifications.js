@@ -15,6 +15,14 @@ const isValidUuid = (v) =>
 
 let notificationsCache = [];
 
+/** AuthProvider와 동기화 — 로그인 시 UUID 주입해야 뱃지 등 알림이 DB에 저장되고 동기화 후에도 목록에 남음 */
+let notificationsCurrentUserId = null;
+
+export const setNotificationsCurrentUserId = (uid) => {
+  const s = uid != null ? String(uid).trim() : '';
+  notificationsCurrentUserId = isValidUuid(s) ? s : null;
+};
+
 // 알림 타입별 기본 설정
 const NOTIFICATION_TYPES = {
   badge: {
@@ -54,10 +62,7 @@ export const getNotifications = () => {
   return Array.isArray(notificationsCache) ? notificationsCache : [];
 };
 
-const getCurrentUserIdFromStorage = () => {
-  // localStorage 제거: AuthContext의 user를 직접 사용하도록 전환
-  return null;
-};
+const getCurrentUserIdFromStorage = () => notificationsCurrentUserId;
 
 /** 알림 수신자 식별용 — AuthContext보다 먼저 쓸 때 동일 규칙으로 id 조회 */
 export const getNotificationStoredUserId = () => getCurrentUserIdFromStorage();
@@ -140,6 +145,12 @@ export const syncNotificationsFromSupabase = async (userId) => {
           badgeDisplayName = badgeDisplayName || badgeName;
         }
       }
+      // 3) 따옴표 패턴 실패 시 본문에서 표시명 추출 (서버 저장 포맷 차이 대비)
+      if (!badgeDisplayName && m.includes('뱃지')) {
+        const stripped = m.replace(/\s*뱃지를\s*획득했습니다[!！]?\s*$/u, '').trim();
+        const candidate = stripped.replace(/^["「『]|["」』]$/g, '').trim();
+        if (candidate) badgeDisplayName = candidate;
+      }
     }
     return {
       id: String(r.id),
@@ -214,6 +225,10 @@ export const addNotification = (notification) => {
       time: getTimeAgo(new Date()),
       timestamp: new Date().toISOString(),
       ...notification,
+      recipientUserId:
+        notification.recipientUserId != null && String(notification.recipientUserId).trim()
+          ? String(notification.recipientUserId).trim()
+          : uid || null,
     };
 
     const typeConfig = NOTIFICATION_TYPES[notification.type] || NOTIFICATION_TYPES.system;
