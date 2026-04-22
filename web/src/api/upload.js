@@ -427,13 +427,35 @@ const uploadVideoToSupabase = async (file) => {
   try {
     if (!supabase) throw new Error('Supabase not initialized');
     await ensureSupabaseSession();
-    const ext = safeExtFromName(file?.name, 'mp4');
+    // 모바일(iOS/Android)에서 File.type이 비거나, Blob이 들어오는 케이스 방어
+    let safeFile = file;
+    try {
+      if (typeof safeFile === 'string' && safeFile.startsWith('blob:')) {
+        const blob = await (await fetch(safeFile)).blob();
+        safeFile = new File([blob], `video.${blob.type?.includes('/') ? blob.type.split('/')[1] : 'mp4'}`, { type: blob.type || 'video/mp4' });
+      } else if (safeFile && typeof safeFile === 'object' && !(safeFile instanceof File) && safeFile instanceof Blob) {
+        safeFile = new File([safeFile], `video.${safeFile.type?.includes('/') ? safeFile.type.split('/')[1] : 'mp4'}`, { type: safeFile.type || 'video/mp4' });
+      }
+    } catch {
+      // ignore; fall back to original
+    }
+
+    const ext = safeExtFromName(safeFile?.name, 'mp4');
+    const typeLower = String(safeFile?.type || '').toLowerCase();
+    const inferredType =
+      typeLower.startsWith('video/')
+        ? typeLower
+        : (ext === 'mov' || ext === 'qt') ? 'video/quicktime'
+          : ext === 'webm' ? 'video/webm'
+            : ext === 'm4v' ? 'video/x-m4v'
+              : ext === '3gp' || ext === '3gpp' ? 'video/3gpp'
+                : 'video/mp4';
     const fileName = `videos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
     await withRetry(async () => {
       const { error: uploadError } = await supabase.storage
         .from(SUPABASE_IMAGE_BUCKET)
-        .upload(fileName, file, { cacheControl: '3600', upsert: false, contentType: file.type || 'video/mp4' });
+        .upload(fileName, safeFile, { cacheControl: '3600', upsert: false, contentType: inferredType });
       if (uploadError) throw uploadError;
     }, { tries: 3, baseDelayMs: 550 });
 

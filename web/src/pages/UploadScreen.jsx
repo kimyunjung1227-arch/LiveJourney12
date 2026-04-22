@@ -20,8 +20,7 @@ import StatusBadge from '../components/StatusBadge';
 import { usePhotoValidation } from '../hooks/usePhotoValidation';
 import { useExifConsent } from '../contexts/ExifConsentContext';
 
-// localStorage/sessionStorage 없이 "세션 중 1회만" 업로드 가이드 표시
-let uploadGuideConfirmedThisSession = false;
+// 업로드 가이드는 별도 화면(`/upload/guide`)에서만 노출
 
 /** 지역 + 세부 장소 → "대구 송해공원" 한 줄 */
 function combineLocationParts(region, place) {
@@ -60,8 +59,9 @@ const UploadScreen = () => {
   const [cameraTorchOn, setCameraTorchOn] = useState(false);
   const [cameraTorchSupported, setCameraTorchSupported] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  // 업로드 가이드는 별도 화면(`/upload/guide`)만 유지하고,
+  // 업로드 화면에서는 팝업/강제 이동을 하지 않는다.
   const [showUploadGuide, setShowUploadGuide] = useState(false);
-  const [dontShowGuideAgain, setDontShowGuideAgain] = useState(false);
   const [formData, setFormData] = useState({
     images: [],
     imageFiles: [],
@@ -397,29 +397,10 @@ const UploadScreen = () => {
     };
   }, [editingPostId, navigate]);
 
-  // 신규 업로드 진입 시: 가이드를 먼저 보고 업로드하도록 유도 (편집 화면은 제외)
+  // 업로드 화면에서는 가이드 팝업을 절대 띄우지 않음
   useEffect(() => {
-    if (editingPostId) return;
-    if (location?.state?.fromUploadGuide) return;
-    try {
-      if (uploadGuideConfirmedThisSession) return;
-      uploadGuideConfirmedThisSession = true;
-      navigate('/upload/guide', { replace: true, state: { returnTo: '/upload' } });
-    } catch (_) {
-      uploadGuideConfirmedThisSession = true;
-      navigate('/upload/guide', { replace: true, state: { returnTo: '/upload' } });
-    }
-  }, [editingPostId, location?.state, navigate]);
-
-  // 업로드 가이드는 한 번 보고 나면 5번 업로드 동안은 다시 나오지 않도록 제어
-  useEffect(() => {
-    if (editingPostId) {
-      setShowUploadGuide(false);
-      return;
-    }
-    // 서버 운영 전환: localStorage 기반 "다시 보지 않기/카운트" 로직 제거
-    setShowUploadGuide(true);
-  }, [logger, editingPostId]);
+    setShowUploadGuide(false);
+  }, []);
 
   const getCurrentLocation = useCallback(async () => {
     if (!navigator.geolocation) return;
@@ -871,8 +852,17 @@ const UploadScreen = () => {
       const imageFiles = [];
       const videoFiles = [];
 
+      const isVideoFile = (file) => {
+        const t = String(file?.type || '').toLowerCase();
+        if (t.startsWith('video/')) return true;
+        // 모바일(특히 iOS Safari)에서 type이 비는 케이스 방어: 확장자로 판단
+        const name = String(file?.name || '').toLowerCase().trim();
+        const ext = name.includes('.') ? name.split('.').pop() : '';
+        return ['mp4', 'mov', 'm4v', 'webm', '3gp', '3gpp', '3g2', 'mkv'].includes(String(ext || ''));
+      };
+
       for (const file of files) {
-        const isVideo = file.type.startsWith('video/');
+        const isVideo = isVideoFile(file);
         const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_SIZE;
 
         if (file.size > maxSize) {
@@ -1696,142 +1686,7 @@ const UploadScreen = () => {
 
   return (
     <>
-      {/* 업로드 가이드 팝업 */}
-      {showUploadGuide && (
-        <div
-          className="fixed inset-0 z-[300] flex items-center justify-center px-4"
-          style={{ backgroundColor: 'rgba(15,23,42,0.45)' }}
-          onClick={() => {
-            setShowUploadGuide(false);
-          }}
-        >
-          <div
-            className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
-            style={{ maxHeight: '90vh' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-5 pt-4 pb-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-bold text-gray-900 dark:text-white">
-                  업로드 가이드
-                </h2>
-                <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
-                  이렇게 올려주시면 다른 여행자에게 가장 도움이 돼요
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowUploadGuide(false);
-                }}
-                className="flex items-center justify-center w-8 h-8 rounded-full text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700"
-              >
-                <span className="material-symbols-outlined text-base">close</span>
-              </button>
-            </div>
-
-            <div className="px-5 py-3 space-y-3 overflow-y-auto text-left">
-              {/* 무보정 원본 */}
-              <div className="rounded-xl bg-gray-50 dark:bg-gray-800/70 px-3 py-2.5">
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <p className="text-xs font-semibold text-gray-900 dark:text-white">
-                    무보정 원본
-                  </p>
-                  <span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-semibold">
-                    필터는 잠시 넣어두세요
-                  </span>
-                </div>
-                <p className="text-[11px] leading-snug text-gray-600 dark:text-gray-300">
-                  실제 색감이 다른 여행자의 선택을 돕습니다. 보정 없는 리얼함이 라이브저니의 힘입니다.
-                </p>
-              </div>
-
-              {/* 현장 밀도 */}
-              <div className="rounded-xl bg-gray-50 dark:bg-gray-800/70 px-3 py-2.5">
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <p className="text-xs font-semibold text-gray-900 dark:text-white">
-                    현장 밀도
-                  </p>
-                  <span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-semibold">
-                    풍경과 인파를 함께
-                  </span>
-                </div>
-                <p className="text-[11px] leading-snug text-gray-600 dark:text-gray-300">
-                  예쁜 풍경만 찍기보다 지금 사람들이 얼마나 있는지 슬쩍 보여주세요. 혼잡도가 가장 궁금한 정보니까요!
-                </p>
-              </div>
-
-              {/* 팩트 체크 */}
-              <div className="rounded-xl bg-gray-50 dark:bg-gray-800/70 px-3 py-2.5">
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <p className="text-xs font-semibold text-gray-900 dark:text-white">
-                    팩트 체크
-                  </p>
-                  <span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-semibold">
-                    디테일을 포착하세요
-                  </span>
-                </div>
-                <p className="text-[11px] leading-snug text-gray-600 dark:text-gray-300">
-                  주변의 온도계 전광판, 현재 줄 서 있는 모습, 안내 표지판 등 팩트를 보여주는 사진이 가장 좋습니다.
-                </p>
-              </div>
-
-              {/* 오늘의 착장 */}
-              <div className="rounded-xl bg-gray-50 dark:bg-gray-800/70 px-3 py-2.5">
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <p className="text-xs font-semibold text-gray-900 dark:text-white">
-                    오늘의 착장
-                  </p>
-                  <span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-semibold">
-                    OOTD가 곧 날씨 정보
-                  </span>
-                </div>
-                <p className="text-[11px] leading-snug text-gray-600 dark:text-gray-300">
-                  지금 입고 계신 옷차림이 잘 보이는 사진인가요? &quot;지금 이 옷이면 충분해!&quot;라는 확신을 줄 수 있으면
-                  최고예요.
-                </p>
-              </div>
-
-              {/* 다시 보지 않기 */}
-              <div className="mt-2 flex items-center gap-2 px-1">
-                <input
-                  id="upload-guide-dont-show"
-                  type="checkbox"
-                  checked={dontShowGuideAgain}
-                  onChange={(e) => setDontShowGuideAgain(e.target.checked)}
-                  className="h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <label
-                  htmlFor="upload-guide-dont-show"
-                  className="text-[11px] text-gray-500 dark:text-gray-400 select-none"
-                >
-                  이 기기에서 다시 보지 않기
-                </label>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setShowUploadGuide(false);
-              }}
-              className="w-full py-3.5 text-sm font-semibold text-primary hover:bg-primary/5 border-t border-gray-100 dark:border-gray-800 transition-colors"
-            >
-              알겠어요
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowUploadGuide(false);
-                navigate('/upload/guide');
-              }}
-              className="w-full py-3.5 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 border-t border-gray-100 dark:border-gray-800 transition-colors"
-            >
-              전체 가이드 보기
-            </button>
-          </div>
-        </div>
-      )}
+      {/* 업로드 가이드 팝업 제거: 가이드는 `/upload/guide` 화면 하나만 사용 */}
 
       <div className="phone-screen" style={{
         background: '#ffffff',
