@@ -14,24 +14,36 @@ function safeExtFromUri(uri, fallback = 'jpg') {
   return ext;
 }
 
-async function uploadUriToStorage({ uri, userId, prefix }) {
+function mimeFromExt(ext) {
+  const e = String(ext || '').toLowerCase();
+  if (e === 'mp4' || e === 'm4v') return 'video/mp4';
+  if (e === 'mov' || e === 'qt') return 'video/quicktime';
+  if (e === 'webm') return 'video/webm';
+  if (e === '3gp' || e === '3gpp') return 'video/3gpp';
+  return '';
+}
+
+async function uploadUriToStorage({ uri, userId, prefix, fallbackExt = 'jpg' }) {
   if (!isSupabaseConfigured() || !supabase) throw new Error('supabase_not_configured');
   const cleanUri = String(uri || '').trim();
   if (!cleanUri) throw new Error('no_uri');
 
-  const ext = safeExtFromUri(cleanUri, 'jpg');
+  const ext = safeExtFromUri(cleanUri, fallbackExt);
   const uid = isValidUuid(String(userId || '')) ? String(userId).trim() : 'anon';
   const path = `${prefix}/${uid}/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`;
 
   const resp = await fetch(cleanUri);
   const blob = await resp.blob();
 
+  const videoHint = mimeFromExt(ext);
+  const contentType = blob?.type || videoHint || (fallbackExt === 'jpg' ? 'image/jpeg' : undefined);
+
   const { error: upErr } = await supabase
     .storage
     .from(POST_IMAGES_BUCKET)
     .upload(path, blob, {
       upsert: false,
-      contentType: blob?.type || undefined,
+      contentType: contentType || undefined,
     });
   if (upErr) throw upErr;
 
@@ -54,21 +66,27 @@ export async function createPostSupabase({ user, formData }) {
   const imageUris = Array.isArray(formData?.images) ? formData.images : [];
   const videoUris = Array.isArray(formData?.videos) ? formData.videos : [];
 
-  // MVP: 이미지 업로드 우선. 비디오는 path만 저장(추후 확장)
-  const uploadedImages = [];
-  for (const uri of imageUris) {
-    // eslint-disable-next-line no-await-in-loop
-    const url = await uploadUriToStorage({ uri, userId: uid, prefix: 'uploads' });
-    if (url) uploadedImages.push(url);
-  }
+  const uploadOne = async (uri, prefix, fallbackExt) => {
+    try {
+      return await uploadUriToStorage({ uri, userId: uid, prefix, fallbackExt });
+    } catch (e) {
+      console.warn('Storage 업로드 실패:', prefix, e?.message || e);
+      return null;
+    }
+  };
+
+  const [uploadedImages, uploadedVideos] = await Promise.all([
+    Promise.all(imageUris.map((uri) => uploadOne(uri, 'uploads', 'jpg'))),
+    Promise.all(videoUris.map((uri) => uploadOne(uri, 'videos', 'mp4'))),
+  ]);
 
   const payload = {
     user_id: uid,
     author_username: username,
     author_avatar_url: null,
     content: String(formData?.note || '').trim(),
-    images: uploadedImages, // jsonb(array)로 들어감
-    videos: videoUris.length ? videoUris : [], // 일단 그대로 저장(대부분 로컬 uri라 다른 기기에서는 안 보임)
+    images: uploadedImages.filter(Boolean),
+    videos: uploadedVideos.filter(Boolean),
     location: formData?.location ? String(formData.location) : null,
     detailed_location: formData?.detailedLocation ? String(formData.detailedLocation) : (formData?.location ? String(formData.location) : null),
     place_name: formData?.placeName ? String(formData.placeName) : null,

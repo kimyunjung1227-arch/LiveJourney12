@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate, useLocation, useMatch } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { uploadImage, uploadVideo, getDisplayImageUrl } from '../api/upload';
-import { compressVideoForUpload } from '../utils/videoCompressClient';
+import { compressVideoForUpload, isClientVideoCompressEnabled } from '../utils/videoCompressClient';
 import { useAuth } from '../contexts/AuthContext';
 import { notifyBadge } from '../utils/notifications';
 import { checkNewBadges, awardBadge, calculateUserStats } from '../utils/badgeSystem';
@@ -1279,7 +1279,15 @@ const UploadScreen = () => {
             const file = formData.videoFiles[videoFileIdx];
             videoFileIdx += 1;
             try {
-              const uploadResult = await uploadVideo(file);
+              let toUpload = file;
+              if (isClientVideoCompressEnabled()) {
+                try {
+                  toUpload = await compressVideoForUpload(file);
+                } catch (ce) {
+                  logger.warn('동영상 압축 스킵(편집):', ce?.message || ce);
+                }
+              }
+              const uploadResult = await uploadVideo(toUpload);
               if (uploadResult.success && uploadResult.url) {
                 finalVideos.push(uploadResult.url);
               } else {
@@ -1353,8 +1361,9 @@ const UploadScreen = () => {
 
       const nImages = formData.imageFiles.length;
       const nVideos = formData.videoFiles.length;
-      /** 이미지 1단위 + 동영상마다 (압축 1 + 업로드 1) — 진행률을 균등 분배 */
-      const progressUnits = Math.max(1, nImages + nVideos * 2);
+      const compressOn = isClientVideoCompressEnabled();
+      /** 이미지 1단위 + 동영상마다 업로드 1 (옵션 재인코딩 켠 경우만 압축 1 추가) */
+      const progressUnits = Math.max(1, nImages + nVideos * (compressOn ? 2 : 1));
       let completedUnits = 0;
       const paintProgress = () => {
         setUploadProgress(10 + (completedUnits / progressUnits) * 78);
@@ -1411,7 +1420,7 @@ const UploadScreen = () => {
         uploadedImageUrls.push(...formData.images);
       }
 
-      // 동영상: 클라이언트 압축(큰 파일·모바일) 후 업로드 — 순차 처리로 메모리·진행률 안정화
+      // 동영상: 기본은 원본 업로드(재인코딩 없음). VITE_VIDEO_COMPRESS=true 일 때만 FFmpeg 후 업로드
       if (formData.videoFiles.length > 0) {
         const videoErrors = [];
         const results = [];
@@ -1419,22 +1428,25 @@ const UploadScreen = () => {
           const file = formData.videoFiles[vi];
           try {
             let toUpload = file;
-            try {
-              toUpload = await compressVideoForUpload(file, {
-                onProgress: (p) => {
-                  const frac = typeof p === 'number' ? Math.min(1, Math.max(0, p)) : 0;
-                  setUploadProgress(10 + ((completedUnits + frac) / progressUnits) * 78);
-                },
-              });
-            } catch (ce) {
-              logger.warn('동영상 압축 스킵:', ce?.message || ce);
+            if (compressOn) {
+              try {
+                toUpload = await compressVideoForUpload(file, {
+                  onProgress: (p) => {
+                    const frac = typeof p === 'number' ? Math.min(1, Math.max(0, p)) : 0;
+                    setUploadProgress(10 + ((completedUnits + frac) / progressUnits) * 78);
+                  },
+                });
+              } catch (ce) {
+                logger.warn('동영상 압축 스킵:', ce?.message || ce);
+              }
+              completedUnits += 1;
+              paintProgress();
             }
-            completedUnits += 1;
-            paintProgress();
             const r = await uploadVideo(toUpload, {
               onUploadProgress: (ratio) => {
                 const t = typeof ratio === 'number' ? Math.min(1, Math.max(0, ratio)) : 0;
-                setUploadProgress(10 + ((completedUnits - 1 + t) / progressUnits) * 78);
+                const base = compressOn ? completedUnits - 1 + t : completedUnits + t;
+                setUploadProgress(10 + (base / progressUnits) * 78);
               },
             });
             completedUnits += 1;

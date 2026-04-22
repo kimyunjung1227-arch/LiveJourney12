@@ -31,7 +31,44 @@ function isProbablyMobile() {
 }
 
 /**
+ * 클라이언트 FFmpeg 재인코딩 사용 여부
+ * - 기본 OFF: 원본 업로드 → 인코딩 대기 없음, 화질=촬영·파일 그대로(용량만큼 업로드 시간 증가 가능)
+ * - `VITE_VIDEO_COMPRESS=true` 로 켠 경우에만 압축(Storage 한도·느린 망 대비)
+ * - `VITE_DISABLE_VIDEO_COMPRESS=true` 이면 강제 OFF (구 설정 호환)
+ */
+export function isClientVideoCompressEnabled() {
+  if (typeof import.meta === 'undefined') return false;
+  if (String(import.meta.env?.VITE_DISABLE_VIDEO_COMPRESS || '').trim() === 'true') return false;
+  return String(import.meta.env?.VITE_VIDEO_COMPRESS || '').trim() === 'true';
+}
+
+/** VITE_VIDEO_COMPRESS 켰을 때만 사용: 화질 우선(원본에 가깝게), 용량·인코딩 시간은 preset·CRF로 절충 */
+function pickEncodeProfileNearOriginal(mobile) {
+  const hw =
+    typeof navigator !== 'undefined' && typeof navigator.hardwareConcurrency === 'number'
+      ? navigator.hardwareConcurrency
+      : 4;
+  const lowPowerMobile = mobile && hw <= 4;
+
+  if (mobile) {
+    return {
+      maxW: lowPowerMobile ? 960 : 1280,
+      crf: lowPowerMobile ? '23' : '22',
+      preset: 'fast',
+      audioK: 128,
+    };
+  }
+  return {
+    maxW: 1920,
+    crf: '20',
+    preset: 'fast',
+    audioK: 160,
+  };
+}
+
+/**
  * 업로드 전 동영상을 H.264/AAC MP4로 줄입니다 (용량·Storage 한도 회피).
+ * 기본적으로 호출되어도 `isClientVideoCompressEnabled()` 가 false면 즉시 원본 반환(인코딩 없음).
  * 실패 시 원본 파일을 그대로 반환합니다.
  *
  * @param {File|Blob} file
@@ -42,15 +79,15 @@ export async function compressVideoForUpload(file, opts = {}) {
   const { onProgress, signal } = opts;
   if (!file || !(file instanceof Blob)) return file;
 
-  const disable =
-    typeof import.meta !== 'undefined' &&
-    String(import.meta.env?.VITE_DISABLE_VIDEO_COMPRESS || '').trim() === 'true';
-  if (disable) return file instanceof File ? file : new File([file], 'video.mp4', { type: 'video/mp4' });
+  if (!isClientVideoCompressEnabled()) {
+    return file instanceof File ? file : new File([file], 'video.mp4', { type: 'video/mp4' });
+  }
 
   const mobile = isProbablyMobile();
   const size = Number(file.size) || 0;
-  // 너무 작으면 스킵 (인코딩 비용만 듦)
-  if (size > 0 && size < 2.5 * 1024 * 1024) return file instanceof File ? file : new File([file], 'video.mp4', { type: 'video/mp4' });
+  // 너무 작으면 스킵 (인코딩 비용만 듦). 모바일은 업로드 단축을 위해 더 작은 파일부터도 재인코딩
+  const minBytes = mobile ? 1.0 * 1024 * 1024 : 2.5 * 1024 * 1024;
+  if (size > 0 && size < minBytes) return file instanceof File ? file : new File([file], 'video.mp4', { type: 'video/mp4' });
   // 모바일이거나 8MB 초과일 때만 시도
   if (!mobile && size > 0 && size < 8 * 1024 * 1024) return file instanceof File ? file : new File([file], 'video.mp4', { type: 'video/mp4' });
   // 극대용량은 wasm 메모리 한계 → 원본 시도(실패 시 사용자 안내는 업로드 쪽)
@@ -85,24 +122,24 @@ export async function compressVideoForUpload(file, opts = {}) {
   try {
     await ffmpeg.writeFile(inputName, await fetchFile(file));
 
-    const maxW = mobile ? 854 : 1280;
-    const crf = mobile ? '30' : '27';
+    const profile = pickEncodeProfileNearOriginal(mobile);
+    const audioRate = `${profile.audioK}k`;
 
     const args = [
       '-i',
       inputName,
       '-vf',
-      `scale='min(${maxW},iw)':-2`,
+      `scale='min(${profile.maxW},iw)':-2`,
       '-c:v',
       'libx264',
       '-preset',
-      'veryfast',
+      profile.preset,
       '-crf',
-      crf,
+      profile.crf,
       '-c:a',
       'aac',
       '-b:a',
-      '96k',
+      audioRate,
       '-ac',
       '2',
       '-movflags',

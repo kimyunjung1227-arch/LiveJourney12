@@ -291,6 +291,10 @@ const UploadScreen = () => {
           quality: 0.8,
           allowsMultipleSelection: false,
           exif: false,
+          // 갤러리/촬영 영상 용량을 낮춰 업로드 시간 단축 (플랫폼별로 무시될 수 있음)
+          ...(ImagePicker.VideoQuality != null
+            ? { videoQuality: ImagePicker.VideoQuality.Medium }
+            : {}),
         });
         
         handleImageSelect(result);
@@ -307,6 +311,9 @@ const UploadScreen = () => {
       quality: 0.8,
       allowsMultipleSelection: true,
       exif: false,
+      ...(ImagePicker.VideoQuality != null
+        ? { videoQuality: ImagePicker.VideoQuality.Medium }
+        : {}),
     });
 
         handleImageSelect(result);
