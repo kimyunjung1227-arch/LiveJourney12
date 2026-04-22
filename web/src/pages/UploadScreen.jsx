@@ -1411,45 +1411,60 @@ const UploadScreen = () => {
 
       const totalFiles = formData.imageFiles.length + formData.videoFiles.length;
       let uploadedCount = 0;
+      const bumpProgress = () => {
+        uploadedCount += 1;
+        const denom = Math.max(1, totalFiles);
+        setUploadProgress(20 + (uploadedCount * 40 / denom));
+      };
 
-      // 이미지 업로드
-      if (formData.imageFiles.length > 0) {
-        for (let i = 0; i < formData.imageFiles.length; i++) {
-          const file = formData.imageFiles[i];
-          uploadedCount++;
-          setUploadProgress(20 + (uploadedCount * 40 / totalFiles));
-
-          try {
-            const uploadResult = await uploadImage(file);
-            if (uploadResult.success && uploadResult.url) {
-              uploadedImageUrls.push(uploadResult.url);
-            }
-          } catch (uploadError) {
-            uploadedImageUrls.push(formData.images[i]);
+      // 업로드가 오래 걸리는 원인 중 하나가 "순차 업로드"라서,
+      // 여기서는 이미지/동영상을 제한 병렬(기본 3개 동시)로 올려 체감 시간을 줄인다.
+      const mapWithConcurrency = async (items, limit, mapper) => {
+        const arr = Array.isArray(items) ? items : [];
+        const out = new Array(arr.length);
+        let idx = 0;
+        const worker = async () => {
+          while (idx < arr.length) {
+            const cur = idx++;
+            // eslint-disable-next-line no-await-in-loop
+            out[cur] = await mapper(arr[cur], cur);
           }
-        }
+        };
+        const n = Math.max(1, Math.min(limit || 3, arr.length || 1));
+        await Promise.all(new Array(n).fill(0).map(() => worker()));
+        return out;
+      };
+
+      // 이미지 업로드 (병렬)
+      if (formData.imageFiles.length > 0) {
+        const results = await mapWithConcurrency(formData.imageFiles, 3, async (file, i) => {
+          try {
+            const r = await uploadImage(file);
+            bumpProgress();
+            return r?.success && r.url ? r.url : (formData.images[i] || '');
+          } catch {
+            bumpProgress();
+            return formData.images[i] || '';
+          }
+        });
+        uploadedImageUrls.push(...results.filter(Boolean));
       } else {
         uploadedImageUrls.push(...formData.images);
       }
 
-      // 동영상 업로드 (uploadVideo 사용)
+      // 동영상 업로드 (병렬, 기본 2개 동시)
       if (formData.videoFiles.length > 0) {
-        for (let i = 0; i < formData.videoFiles.length; i++) {
-          const file = formData.videoFiles[i];
-          uploadedCount++;
-          setUploadProgress(20 + (uploadedCount * 40 / totalFiles));
-
+        const results = await mapWithConcurrency(formData.videoFiles, 2, async (file, i) => {
           try {
-            const uploadResult = await uploadVideo(file);
-            if (uploadResult.success && uploadResult.url) {
-              uploadedVideoUrls.push(uploadResult.url);
-            } else {
-              uploadedVideoUrls.push(formData.videos[i]);
-            }
-          } catch (uploadError) {
-            uploadedVideoUrls.push(formData.videos[i]);
+            const r = await uploadVideo(file);
+            bumpProgress();
+            return r?.success && r.url ? r.url : (formData.videos[i] || '');
+          } catch {
+            bumpProgress();
+            return formData.videos[i] || '';
           }
-        }
+        });
+        uploadedVideoUrls.push(...results.filter(Boolean));
       } else {
         uploadedVideoUrls.push(...formData.videos);
       }

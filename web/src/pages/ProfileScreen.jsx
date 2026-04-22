@@ -1908,7 +1908,7 @@ const ProfileScreen = () => {
                               >
                                 {post.videos && post.videos.length > 0 ? (
                                   <video
-                                    src={getDisplayImageUrl(post.videos[0])}
+                                    src={getDisplayImageUrl(post.videos[0], { allowBlob: true })}
                                     className="w-full h-full object-cover"
                                     muted
                                     loop
@@ -2011,7 +2011,7 @@ const ProfileScreen = () => {
                         >
                           {post.videos && post.videos.length > 0 ? (
                             <video
-                              src={getDisplayImageUrl(post.videos[0])}
+                                src={getDisplayImageUrl(post.videos[0], { allowBlob: true })}
                               className="w-full h-full object-cover"
                               muted
                               loop

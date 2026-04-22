@@ -129,6 +129,30 @@ export const syncNotificationsFromSupabase = async (userId) => {
     else if (typ === 'follow' && actorId) link = `/user/${actorId}`;
     else if (typ === 'badge') link = '/profile';
     const typeConfig = NOTIFICATION_TYPES[typ] || NOTIFICATION_TYPES.system;
+    const msg = r.message || '';
+
+    // badge 알림: DB에는 badge_name 컬럼이 없으므로 message에서 최대한 복원해서 표시명 안정화
+    let badgeName = null;
+    let badgeDisplayName = null;
+    if (typ === 'badge') {
+      const m = String(msg || '');
+      // 1) dyn:... 토큰이 있으면 우선 (성장형 뱃지 저장키)
+      const dyn = m.match(/(dyn:[^\s"']+)/);
+      if (dyn && dyn[1]) {
+        badgeName = String(dyn[1]).trim();
+      } else {
+        // 2) `"뱃지명"` 패턴
+        const q = m.match(/"([^"]+)"/);
+        if (q && q[1]) badgeDisplayName = String(q[1]).trim();
+      }
+      if (badgeName) {
+        try {
+          badgeDisplayName = getBadgeDisplayNameFromName(badgeName);
+        } catch {
+          badgeDisplayName = badgeDisplayName || badgeName;
+        }
+      }
+    }
     return {
       id: String(r.id),
       read: !!r.read,
@@ -136,13 +160,15 @@ export const syncNotificationsFromSupabase = async (userId) => {
       timestamp: r.created_at || new Date().toISOString(),
       type: typ,
       title: '',
-      message: r.message || '',
+      message: msg,
       actorUsername: r.actor_username || null,
       actorAvatar: r.actor_avatar_url || null,
       actorUserId: actorId,
       thumbnailUrl: r.thumbnail_url || null,
       postId: r.post_id ? String(r.post_id) : null,
       recipientUserId: r.recipient_user_id ? String(r.recipient_user_id) : null,
+      badge: badgeName,
+      badgeDisplayName: badgeDisplayName,
       kind:
         typ === 'follow'
           ? String(r.message || '').includes('회원님을')

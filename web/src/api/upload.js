@@ -139,7 +139,9 @@ export const getDisplayImageUrl = (url, opts) => {
   if (!raw || typeof raw !== 'string') return '';
   const trimmed = raw.trim();
   if (!trimmed) return '';
-  if (trimmed.startsWith('blob:')) return PLACEHOLDER_IMAGE;
+  // blob: URL은 새로고침 후 사라질 수 있지만, 업로드 직후 "동영상/이미지 즉시 표시"에는 필요하다.
+  // 기본은 placeholder로 안전하게 막되, 호출부에서 opts.allowBlob=true면 그대로 허용한다.
+  if (trimmed.startsWith('blob:')) return opts?.allowBlob ? trimmed : PLACEHOLDER_IMAGE;
 
   let resolved;
   const fromBucket = resolveSupabaseBucketRelativePath(trimmed);

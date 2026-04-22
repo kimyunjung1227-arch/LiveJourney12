@@ -39,7 +39,10 @@ const getPlaceKeyRaw = (post) =>
   String(post?.placeName || post?.detailedLocation || post?.location || '알 수 없는 장소').trim();
 
 const getPlaceImage = (post) =>
-  getDisplayImageUrl(post?.images?.[0] || post?.thumbnail || post?.image || post?.imageUrl || post?.videos?.[0] || '');
+  getDisplayImageUrl(
+    post?.images?.[0] || post?.thumbnail || post?.image || post?.imageUrl || post?.videos?.[0] || '',
+    { allowBlob: true },
+  );
 
 // 장소 타입 추론 (카페/맛집/포토존/액티비티/기타)
 const inferPlaceKind = (post) => {

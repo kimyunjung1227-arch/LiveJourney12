@@ -220,7 +220,11 @@ const MainScreen = () => {
         const locLower = uniqueLocs.map((x) => x.toLowerCase());
         const coverByLocLower = new Map(locLower.map((l) => [l, { ts: -1, raw: '' }]));
 
-        const hasMedia = (p) => (Array.isArray(p?.images) && p.images.length > 0) || p?.image || p?.thumbnail;
+        const hasMedia = (p) =>
+            (Array.isArray(p?.images) && p.images.length > 0) ||
+            (Array.isArray(p?.videos) && p.videos.length > 0) ||
+            p?.image ||
+            p?.thumbnail;
         posts.forEach((p) => {
             if (!hasMedia(p)) return;
             const loc = String(p?.location || '').toLowerCase();
@@ -773,14 +777,16 @@ const MainScreen = () => {
                             let firstVideo = null;
                             if (post.videos) {
                                 if (Array.isArray(post.videos) && post.videos.length > 0) {
-                                    firstVideo = getDisplayImageUrl(post.videos[0]);
+                                    firstVideo = getDisplayImageUrl(post.videos[0], { allowBlob: true });
                                 } else if (typeof post.videos === 'string' && post.videos.trim()) {
-                                    firstVideo = getDisplayImageUrl(post.videos);
+                                    firstVideo = getDisplayImageUrl(post.videos, { allowBlob: true });
                                 }
                             }
                             
                             // 동영상이 없을 때만 이미지 사용
-                            const firstImage = firstVideo ? null : getDisplayImageUrl(Array.isArray(post.images) && post.images.length > 0 ? post.images[0] : (post.image || post.thumbnail || ''));
+                            const firstImage = firstVideo
+                                ? null
+                                : getDisplayImageUrl(Array.isArray(post.images) && post.images.length > 0 ? post.images[0] : (post.image || post.thumbnail || ''));
                             const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
                             const weather = post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
                             const hasWeather = weather && (weather.icon || weather.temperature);

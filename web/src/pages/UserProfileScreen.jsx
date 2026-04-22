@@ -944,7 +944,7 @@ const UserProfileScreen = () => {
                               <div className="aspect-square relative overflow-hidden rounded-md mb-1">
                                 {post.videos && post.videos.length > 0 ? (
                                   <video
-                                    src={getDisplayImageUrl(post.videos[0])}
+                                    src={getDisplayImageUrl(post.videos[0], { allowBlob: true })}
                                     className="w-full h-full object-cover"
                                     muted
                                     loop
@@ -1001,7 +1001,7 @@ const UserProfileScreen = () => {
                         <div className="aspect-square relative overflow-hidden rounded-md mb-1">
                           {post.videos && post.videos.length > 0 ? (
                             <video
-                              src={getDisplayImageUrl(post.videos[0])}
+                              src={getDisplayImageUrl(post.videos[0], { allowBlob: true })}
                               className="w-full h-full object-cover"
                               muted
                               loop
@@ -1503,7 +1503,7 @@ const UserProfileScreen = () => {
               }}>
                 {selectedPost.post.videos && selectedPost.post.videos.length > 0 ? (
                   <video
-                    src={getDisplayImageUrl(selectedPost.post.videos[0])}
+                    src={getDisplayImageUrl(selectedPost.post.videos[0], { allowBlob: true })}
                     controls
                     muted
                     playsInline

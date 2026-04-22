@@ -609,8 +609,16 @@ const PostDetailScreen = () => {
     if (isUuid) {
       const res = await deletePostSupabase(idStr);
       if (!res?.success) {
-        alert(res?.error || '삭제에 실패했습니다. 다시 시도해 주세요.');
-        return;
+        // 서버 삭제가 막혀도(정책/RLS 등) 사용자는 "내 화면에서" 우선 제거되길 원함.
+        // 메인/피드에서는 sessionStorage의 adminDeletedPostIds를 함께 필터링하고 있어 즉시 숨김이 가능하다.
+        try {
+          const key = 'adminDeletedPostIds';
+          const raw = sessionStorage.getItem(key) || '[]';
+          const arr = Array.isArray(JSON.parse(raw)) ? JSON.parse(raw) : [];
+          arr.push(idStr);
+          sessionStorage.setItem(key, JSON.stringify(Array.from(new Set(arr.map(String)))));
+        } catch (_) {}
+        alert((res?.error || '삭제에 실패했습니다.') + '\n\n(화면에서는 숨김 처리되었어요. 서버 정책/RLS 설정을 확인해 주세요.)');
       }
     }
     try {
