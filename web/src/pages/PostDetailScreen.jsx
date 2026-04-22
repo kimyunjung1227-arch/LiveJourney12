@@ -494,6 +494,8 @@ const PostDetailScreen = () => {
           notifyComment(username, post.location || post.placeName || '', text, {
             recipientUserId: post.userId,
             postId: post.id,
+            actorUserId: user.id,
+            actorAvatar: user?.profileImage || null,
           });
         }
       } else {

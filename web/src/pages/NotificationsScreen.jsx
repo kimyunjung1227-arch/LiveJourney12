@@ -227,6 +227,19 @@ const NotificationsScreen = () => {
       navigate('/map');
       return;
     }
+    // 좋아요/댓글 등 상호작용 알림은 "게시물"이 아니라 "상호작용한 사용자" 프로필로 이동
+    if (tab !== 'friends' && (notification.type === 'like' || notification.type === 'comment' || notification.type === 'follow')) {
+      const actorId = String(notification.actorUserId || '').trim();
+      if (actorId) {
+        const selfId = String(user?.id || getNotificationStoredUserId() || '').trim();
+        if (selfId && actorId === selfId) {
+          navigate('/profile');
+        } else {
+          navigate(`/user/${encodeURIComponent(actorId)}`);
+        }
+        return;
+      }
+    }
     if (notification.link) navigate(notification.link);
   };
 

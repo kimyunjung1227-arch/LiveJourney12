@@ -58,6 +58,8 @@ export const addComment = (postId, comment, username = '익명', userId = null) 
       notifyComment(username, targetPosts[postIndex]?.location || targetPosts[postIndex]?.placeName || '', comment, {
         recipientUserId: postAuthorId,
         postId,
+        actorUserId: userId,
+        actorAvatar: currentUser?.profileImage && currentUser.profileImage !== 'default' ? currentUser.profileImage : null,
       });
     }
   } catch (_) {}

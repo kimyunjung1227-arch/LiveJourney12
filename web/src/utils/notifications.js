@@ -420,7 +420,10 @@ export const notifyComment = (username, postLocation, comment, opts = {}) => {
     message: `${username}님이 회원님이 올린 정보에 댓글을 남겼습니다`,
     subMessage: preview || postLocation || '',
     actorUsername: username,
+    actorAvatar: opts.actorAvatar || null,
+    actorUserId: opts.actorUserId ? String(opts.actorUserId) : null,
     recipientUserId: opts.recipientUserId ? String(opts.recipientUserId) : null,
+    thumbnailUrl: opts.thumbnailUrl || null,
     postId: opts.postId || null,
     link: opts.postId ? `/post/${opts.postId}` : '/main'
   });
