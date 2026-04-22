@@ -59,9 +59,7 @@ const UploadScreen = () => {
   const [cameraTorchOn, setCameraTorchOn] = useState(false);
   const [cameraTorchSupported, setCameraTorchSupported] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  // 업로드 가이드는 별도 화면(`/upload/guide`)만 유지하고,
-  // 업로드 화면에서는 팝업/강제 이동을 하지 않는다.
-  const [showUploadGuide, setShowUploadGuide] = useState(false);
+  // 업로드 가이드는 `/upload/guide` 화면에서만 노출 (업로드 화면에는 버튼/팝업 없음)
   const [formData, setFormData] = useState({
     images: [],
     imageFiles: [],
@@ -397,10 +395,7 @@ const UploadScreen = () => {
     };
   }, [editingPostId, navigate]);
 
-  // 업로드 화면에서는 가이드 팝업을 절대 띄우지 않음
-  useEffect(() => {
-    setShowUploadGuide(false);
-  }, []);
+  // (가이드 팝업/버튼 제거됨)
 
   const getCurrentLocation = useCallback(async () => {
     if (!navigator.geolocation) return;
@@ -1751,18 +1746,11 @@ const UploadScreen = () => {
           minHeight: 0
         }}>
           <div className="pt-4 space-y-5">
-            {/* 사진 / 동영상 + 업로드 가이드 버튼 한 줄 */}
+            {/* 사진 / 동영상 */}
             <div className="flex items-center justify-between px-1 mb-1">
               <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
                 사진 / 동영상
               </h3>
-              <button
-                type="button"
-                onClick={() => navigate('/upload/guide')}
-                className="inline-flex items-center gap-1 rounded-full border border-gray-200 dark:border-gray-700 px-2.5 py-1 text-[11px] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-              >
-                <span>업로드 가이드</span>
-              </button>
             </div>
 
             {/* 사진 / 동영상 선택 — 단일 큰 박스 */}
