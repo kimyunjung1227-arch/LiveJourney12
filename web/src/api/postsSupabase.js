@@ -2,10 +2,19 @@ import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
 import { fetchCommentsForPostSupabase } from './socialSupabase';
 
-// blob: URL은 새로고침 시 사라지므로 Supabase에는 https URL만 저장
+// blob: URL은 새로고침 시 사라지므로 Supabase에는 영구 URL만 저장
 const onlyPersistentUrls = (arr) => {
   if (!Array.isArray(arr)) return [];
-  return arr.filter((url) => typeof url === 'string' && url.trim().startsWith('https://'));
+  return arr
+    .filter((url) => typeof url === 'string' && url.trim())
+    .map((url) => {
+      const t = url.trim();
+      if (t.startsWith('http://') && /\.supabase\.co/i.test(t)) {
+        return t.replace(/^http:/i, 'https:');
+      }
+      return t;
+    })
+    .filter((url) => url.startsWith('https://'));
 };
 
 const isValidUuid = (v) =>
@@ -308,7 +317,13 @@ const mapRowToPost = (row, opts = {}) => {
     commentsCount,
     category: row.category || null,
     categoryName: row.category_name || null,
-    thumbnail: (Array.isArray(row.images) && row.images[0]) || row.images || null,
+    // 동영상만 있는 게시물에서 row.images 가 [] 일 때 || row.images 가 빈 배열이라 truthy여서
+    // thumbnail 이 [] 로 내려가 캐러셀/썸네일 로직이 깨지지 않도록 첫 문자열 URL만 사용
+    thumbnail: (() => {
+      const imgs = Array.isArray(row.images) ? row.images : [];
+      const first = imgs.find((x) => typeof x === 'string' && x.trim());
+      return first || null;
+    })(),
     weather: row.weather || null,
   };
 };

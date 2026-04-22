@@ -427,13 +427,13 @@ const uploadVideoToSupabase = async (file) => {
   try {
     if (!supabase) throw new Error('Supabase not initialized');
     await ensureSupabaseSession();
-    // 업로드 전 서버 상한 방어 (모바일에서 특히 자주 발생)
-    const MAX_VIDEO_BYTES = 45 * 1024 * 1024; // 45MB
+    // 업로드 전 클라이언트 상한 (Supabase 프로젝트 Storage 한도와 맞추세요)
+    const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100MB
     if (file?.size && Number(file.size) > MAX_VIDEO_BYTES) {
       return {
         success: false,
         error: new Error('maximum_allowed_size_exceeded'),
-        message: '동영상 파일이 너무 큽니다. (최대 45MB)',
+        message: '동영상 파일이 너무 큽니다. (최대 100MB)',
         status: 413,
       };
     }
@@ -481,7 +481,7 @@ const uploadVideoToSupabase = async (file) => {
       return {
         success: false,
         error: e,
-        message: '동영상 파일이 너무 큽니다. (최대 45MB)',
+        message: '동영상 파일이 너무 큽니다. (프로젝트 Storage 한도 초과)',
         status: 413,
       };
     }
@@ -499,18 +499,16 @@ const uploadVideoToSupabase = async (file) => {
   }
 };
 
-// 단일 동영상 업로드 (Supabase 우선, 백엔드 없으면 Blob URL)
+// 단일 동영상 업로드 — Supabase Storage만 사용 (존재하지 않는 /upload/video 호출로 404 나지 않게 함)
 export const uploadVideo = async (file) => {
   const supabaseResult = await uploadVideoToSupabase(file);
   if (supabaseResult.success && supabaseResult.url) {
     return supabaseResult;
   }
-  // 배포 환경에서는 기존 백엔드(/upload/video)가 없으므로 404 폴백을 하지 않는다.
-  // 로컬 개발에서만 백엔드 폴백 허용.
-  const isLocal =
-    typeof window !== 'undefined' &&
-    (window.location?.hostname === 'localhost' || window.location?.hostname === '127.0.0.1');
-  if (!isLocal) {
+  const useLegacyBackend =
+    typeof import.meta !== 'undefined' &&
+    String(import.meta.env?.VITE_UPLOAD_VIDEO_BACKEND || '').trim() === 'true';
+  if (!useLegacyBackend) {
     return supabaseResult;
   }
   try {
@@ -522,9 +520,6 @@ export const uploadVideo = async (file) => {
     const data = response.data;
     return { success: true, url: data.url || data.videoUrl, ...data };
   } catch (error) {
-    // ⚠️ 동영상은 blob: fallback을 "성공"으로 취급하면 DB에 영구 URL이 저장되지 않아
-    // 업로드 후 피드/상세에서 동영상이 사라진 것처럼 보입니다(onlyPersistentUrls 필터).
-    // 따라서 최종 저장이 불가능한 경우는 실패로 반환해 화면에서 재시도/에러 처리를 하게 합니다.
     logger.warn('동영상 업로드 실패: Supabase/백엔드 모두 실패', error?.message || error);
     return { success: false, error };
   }

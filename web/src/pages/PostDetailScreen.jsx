@@ -114,7 +114,7 @@ const PostDetailScreen = () => {
         ? [post.images]
         : post.image
           ? [post.image]
-          : post.thumbnail
+          : typeof post.thumbnail === 'string' && post.thumbnail.trim()
             ? [post.thumbnail]
             : [];
     const rawVideos = Array.isArray(post.videos) ? post.videos : post.videos ? [post.videos] : [];

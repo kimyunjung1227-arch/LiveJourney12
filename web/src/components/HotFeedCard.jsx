@@ -182,12 +182,20 @@ const HotFeedCard = ({
                 )}
                 {(() => {
                     const still = getMapThumbnailUri(post);
+                    const thumbStr =
+                        typeof post.thumbnail === 'string'
+                            ? post.thumbnail
+                            : Array.isArray(post.thumbnail)
+                              ? ''
+                              : post.thumbnail
+                                ? toMediaStr(post.thumbnail)
+                                : '';
                     const raw =
                         still ||
                         videoPosterUrl ||
                         (Array.isArray(post.images) && post.images.length > 0
                             ? post.images[0]
-                            : post.image || post.thumbnail || '');
+                            : post.image || thumbStr || '');
                     const src = toMediaStr(raw);
                     if (!src) return <div style={{ width: '100%', height: '100%', background: '#e5e7eb' }} />;
                     return (

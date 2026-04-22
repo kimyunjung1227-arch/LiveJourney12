@@ -842,9 +842,7 @@ const UploadScreen = () => {
       if (files.length === 0) return;
 
       const MAX_SIZE = 50 * 1024 * 1024;
-      // ⚠️ Supabase Storage 단일 업로드는 환경에 따라 큰 파일이 거절될 수 있어
-      // 모바일 업로드 실패(“maximum allowed size”)를 막기 위해 보수적으로 제한합니다.
-      const MAX_VIDEO_SIZE = 45 * 1024 * 1024; // 45MB
+      const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB (Storage 프로젝트 한도와 일치시키세요)
 
       const imageFiles = [];
       const videoFiles = [];
@@ -863,7 +861,7 @@ const UploadScreen = () => {
         const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_SIZE;
 
         if (file.size > maxSize) {
-          alert(`${file.name}은(는) ${isVideo ? '45MB' : '50MB'}를 초과합니다.\n\n동영상은 용량을 줄이거나(길이/해상도) 파일을 나눠서 올려주세요.`);
+          alert(`${file.name}은(는) ${isVideo ? '100MB' : '50MB'}를 초과합니다.\n\n동영상은 용량을 줄이거나(길이/해상도) 파일을 나눠서 올려주세요.`);
           continue;
         }
 
@@ -1886,7 +1884,13 @@ const UploadScreen = () => {
                         key={`vid-row-${index}`}
                         className="relative flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 bg-gray-100"
                       >
-                        <video src={video} className="w-full h-full object-cover" muted />
+                        <video
+                          src={video}
+                          className="w-full h-full object-cover bg-black min-h-[96px]"
+                          muted
+                          playsInline
+                          preload="metadata"
+                        />
                         <span className="absolute inset-0 flex items-center justify-center text-white text-xs drop-shadow">동영상</span>
                         <button
                           type="button"

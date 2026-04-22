@@ -1,7 +1,7 @@
 /** @param {string} uri */
 export const isVideoUri = (uri) => {
   if (!uri || typeof uri !== 'string') return false;
-  return /\.(mp4|mov|m4v|webm)(\?.*)?$/i.test(uri.trim());
+  return /\.(mp4|mov|m4v|webm|3gp|3gpp|3g2|mkv)(\?.*)?$/i.test(uri.trim());
 };
 
 /** 이미지·썸네일 필드가 문자열 URL 또는 { url } 객체일 때 표시용 문자열로 통일 */
@@ -12,10 +12,14 @@ export const normalizePostForMedia = (post) => {
   if (!post) return null;
   const rawImgs = Array.isArray(post.images) ? post.images : post.images ? [post.images] : [];
   const rawVids = Array.isArray(post.videos) ? post.videos : post.videos ? [post.videos] : [];
+  const thumbRaw =
+    post.thumbnail != null && post.thumbnail !== '' && !Array.isArray(post.thumbnail)
+      ? toMediaStr(post.thumbnail)
+      : '';
   return {
     images: rawImgs.map(toMediaStr).filter(Boolean),
     videos: rawVids.map(toMediaStr).filter(Boolean),
-    thumbnail: post.thumbnail ? toMediaStr(post.thumbnail) : undefined,
+    thumbnail: typeof thumbRaw === 'string' && thumbRaw.trim() ? thumbRaw.trim() : undefined,
     image: post.image ? toMediaStr(post.image) : undefined,
     imageUrl: post.imageUrl ? toMediaStr(post.imageUrl) : undefined,
   };
@@ -40,28 +44,45 @@ export const buildMediaItemsFromPost = (post) => {
   };
 
   const pushImage = (uri) => {
-    if (!uri || isVideoUri(uri) || !markSeen('i', uri)) return;
-    lastImageUri = uri;
-    items.push({ type: 'image', uri });
+    const s = typeof uri === 'string' ? uri.trim() : '';
+    if (!s || isVideoUri(s) || !markSeen('i', s)) return;
+    lastImageUri = s;
+    items.push({ type: 'image', uri: s });
   };
 
   const pushVideo = (uri) => {
-    if (!uri || !isVideoUri(uri) || !markSeen('v', uri)) return;
-    const thumb = post.thumbnail && !isVideoUri(post.thumbnail) ? post.thumbnail : null;
+    const s = typeof uri === 'string' ? uri.trim() : '';
+    if (!s || !isVideoUri(s) || !markSeen('v', s)) return;
+    let thumb =
+      post.thumbnail && typeof post.thumbnail === 'string' && !isVideoUri(post.thumbnail)
+        ? post.thumbnail.trim()
+        : '';
     const posterUri = lastImageUri || thumb || undefined;
-    items.push({ type: 'video', uri, posterUri });
+    items.push({ type: 'video', uri: s, posterUri });
   };
 
   for (const u of post.images || []) {
     if (!u) continue;
-    if (isVideoUri(u)) pushVideo(u);
-    else pushImage(u);
+    const s = typeof u === 'string' ? u.trim() : String(toMediaStr(u) || '').trim();
+    if (!s) continue;
+    if (isVideoUri(s)) pushVideo(s);
+    else pushImage(s);
   }
   for (const u of post.videos || []) {
-    if (u) pushVideo(u);
+    if (!u) continue;
+    const s = typeof u === 'string' ? u.trim() : String(toMediaStr(u) || '').trim();
+    if (s) pushVideo(s);
   }
 
-  const fallback = post.image || post.thumbnail || post.imageUrl;
+  const rawFallback = post.image || post.thumbnail || post.imageUrl;
+  const fallback =
+    typeof rawFallback === 'string'
+      ? rawFallback.trim()
+      : Array.isArray(rawFallback)
+        ? ''
+        : rawFallback
+          ? String(toMediaStr(rawFallback) || '').trim()
+          : '';
   if (fallback) {
     if (isVideoUri(fallback)) pushVideo(fallback);
     else pushImage(fallback);
