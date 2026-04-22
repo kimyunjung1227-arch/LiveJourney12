@@ -9,6 +9,47 @@ const UPLOAD_ORIGIN = API_BASE.replace(/\/api\/?$/, '') || (typeof window !== 'u
 // Supabase Storage 버킷 이름 (콘솔에서 동일한 이름으로 생성 필요)
 const SUPABASE_IMAGE_BUCKET = 'post-images';
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// 업로드 직전에 세션을 한 번 더 확인/갱신 (best-effort)
+async function ensureSupabaseSession() {
+  try {
+    if (!supabase?.auth) return;
+    const { data } = await supabase.auth.getSession();
+    if (!data?.session) return;
+    // 만료 임박(60초)면 refresh 시도
+    const expMs = (data.session.expires_at ? Number(data.session.expires_at) * 1000 : 0);
+    if (expMs && expMs - Date.now() < 60_000) {
+      await supabase.auth.refreshSession();
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+const safeExtFromName = (name, fallback) => {
+  const s = String(name || '').trim();
+  const ext = s.includes('.') ? s.split('.').pop() : '';
+  const cleaned = String(ext || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  return cleaned || fallback;
+};
+
+async function withRetry(fn, { tries = 3, baseDelayMs = 400 } = {}) {
+  let lastErr;
+  for (let attempt = 1; attempt <= tries; attempt += 1) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      return await fn(attempt);
+    } catch (e) {
+      lastErr = e;
+      const delay = baseDelayMs * Math.min(6, attempt);
+      // eslint-disable-next-line no-await-in-loop
+      await sleep(delay);
+    }
+  }
+  throw lastErr;
+}
+
 /**
  * 표시용 이미지/동영상 URL로 변환
  * - 상대 경로(/uploads/...) → 서버 풀 URL
@@ -258,27 +299,26 @@ const uploadImageToSupabase = async (file, retry = false) => {
       throw new Error('Supabase client not initialized');
     }
 
-    const ext = file.name?.split('.').pop() || 'jpg';
+    await ensureSupabaseSession();
+
+    const ext = safeExtFromName(file?.name, 'jpg');
     const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
     const filePath = `uploads/${fileName}`;
 
-    const { error: uploadError } = await supabase
-      .storage
-      .from(SUPABASE_IMAGE_BUCKET)
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false,
-        contentType: file.type || 'image/jpeg',
-      });
+    await withRetry(async () => {
+      const { error: uploadError } = await supabase
+        .storage
+        .from(SUPABASE_IMAGE_BUCKET)
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type || 'image/jpeg',
+        });
 
-    if (uploadError) {
-      throw uploadError;
-    }
+      if (uploadError) throw uploadError;
+    }, { tries: retry ? 2 : 3, baseDelayMs: 450 });
 
-    const { data } = supabase
-      .storage
-      .from(SUPABASE_IMAGE_BUCKET)
-      .getPublicUrl(filePath);
+    const { data } = supabase.storage.from(SUPABASE_IMAGE_BUCKET).getPublicUrl(filePath);
 
     const publicUrl = data?.publicUrl;
     if (!publicUrl) {
@@ -295,8 +335,8 @@ const uploadImageToSupabase = async (file, retry = false) => {
     };
   } catch (error) {
     if (!retry) {
-      logger.warn('Supabase Storage 1차 실패, 재시도...', error?.message);
-      await new Promise((r) => setTimeout(r, 500));
+      logger.warn('Supabase Storage 이미지 업로드 실패, 재시도...', error?.message);
+      await sleep(650);
       return uploadImageToSupabase(file, true);
     }
     logger.warn('Supabase Storage 이미지 업로드 실패:', {
@@ -386,12 +426,17 @@ export const uploadProfileImage = async (file) => {
 const uploadVideoToSupabase = async (file) => {
   try {
     if (!supabase) throw new Error('Supabase not initialized');
-    const ext = file.name?.split('.').pop() || 'mp4';
+    await ensureSupabaseSession();
+    const ext = safeExtFromName(file?.name, 'mp4');
     const fileName = `videos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error: uploadError } = await supabase.storage
-      .from(SUPABASE_IMAGE_BUCKET)
-      .upload(fileName, file, { cacheControl: '3600', upsert: false, contentType: file.type || 'video/mp4' });
-    if (uploadError) throw uploadError;
+
+    await withRetry(async () => {
+      const { error: uploadError } = await supabase.storage
+        .from(SUPABASE_IMAGE_BUCKET)
+        .upload(fileName, file, { cacheControl: '3600', upsert: false, contentType: file.type || 'video/mp4' });
+      if (uploadError) throw uploadError;
+    }, { tries: 3, baseDelayMs: 550 });
+
     const { data } = supabase.storage.from(SUPABASE_IMAGE_BUCKET).getPublicUrl(fileName);
     if (data?.publicUrl) {
       logger.log('✅ Supabase 동영상 업로드 성공:', data.publicUrl);

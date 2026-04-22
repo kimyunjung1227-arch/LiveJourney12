@@ -1237,6 +1237,12 @@ const UploadScreen = () => {
       return;
     }
 
+    // 업로드는 Supabase에 저장되므로 로그인/세션이 없으면 실패할 확률이 높음 → 먼저 차단
+    if (!user?.id) {
+      alert('로그인이 필요합니다. 로그인 후 다시 업로드해 주세요.');
+      return;
+    }
+
     const pendingTag = normalizeTag(tagInput);
     let finalTags = dedupeHashtags([...(formData.tags || [])]);
     if (pendingTag) {
@@ -1418,19 +1424,27 @@ const UploadScreen = () => {
 
       // 동영상 업로드 (병렬, 기본 2개 동시)
       if (formData.videoFiles.length > 0) {
+        const videoErrors = [];
         const results = await mapWithConcurrency(formData.videoFiles, 2, async (file, i) => {
           try {
             const r = await uploadVideo(file);
             bumpProgress();
-            return r?.success && r.url ? r.url : (formData.videos[i] || '');
-          } catch {
+            if (r?.success && r.url) return r.url;
+            videoErrors.push(r?.message || r?.error?.message || '동영상 업로드 실패');
+            return '';
+          } catch (e) {
             bumpProgress();
-            return formData.videos[i] || '';
+            videoErrors.push(e?.message || '동영상 업로드 실패');
+            return '';
           }
         });
         uploadedVideoUrls.push(...results.filter(Boolean));
-        if (uploadedVideoUrls.length < formData.videoFiles.length || uploadedVideoUrls.some((u) => typeof u === 'string' && u.startsWith('blob:'))) {
-          alert('동영상 업로드에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        if (
+          uploadedVideoUrls.length < formData.videoFiles.length ||
+          uploadedVideoUrls.some((u) => typeof u === 'string' && u.startsWith('blob:'))
+        ) {
+          const detail = videoErrors.find(Boolean);
+          alert(`동영상 업로드에 실패했습니다.\n\n${detail ? `원인: ${detail}\n\n` : ''}잠시 후 다시 시도해 주세요.`);
           setUploading(false);
           setUploadProgress(0);
           return;
