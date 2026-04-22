@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
-import { syncEarnedBadgesFromSupabase } from '../utils/badgeSystem';
+import { setCurrentBadgeUserId, syncEarnedBadgesFromSupabase } from '../utils/badgeSystem';
 import { syncNotificationsFromSupabase } from '../utils/notifications';
 import { setCurrentUserId as setFollowSystemCurrentUserId, syncFollowingFromSupabase } from '../utils/followSystem';
 
@@ -78,12 +78,14 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (appUser?.id) {
       setFollowSystemCurrentUserId(appUser.id);
+      setCurrentBadgeUserId(appUser.id);
       syncEarnedBadgesFromSupabase(appUser.id);
       void syncNotificationsFromSupabase(appUser.id);
       // 팔로우 목록도 DB 기준으로 동기화(멀티기기 일관성)
       void syncFollowingFromSupabase(appUser.id);
     } else {
       setFollowSystemCurrentUserId(null);
+      setCurrentBadgeUserId(null);
     }
   }, [appUser?.id]);
 

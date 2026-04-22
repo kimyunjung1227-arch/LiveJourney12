@@ -10,7 +10,32 @@ import { fetchUserBadgesSupabase, saveUserBadgeSupabase } from '../api/userBadge
 import { normalizeRegionName } from './regionNames';
 
 // 서버 운영 전환: localStorage 제거 → 세션 메모리 캐시만 유지
-let earnedBadgesCache = [];
+// ⚠️ 계정별로 분리 저장하지 않으면, 로그아웃/계정 전환 시 다른 사용자 뱃지가 섞일 수 있음.
+const earnedBadgesCacheByUserId = new Map(); // userId -> earnedBadges[]
+let currentEarnedBadgesUserId = null;
+
+const setCurrentEarnedBadgesUserId = (userId) => {
+  const uid = userId != null ? String(userId).trim() : '';
+  currentEarnedBadgesUserId = uid || null;
+};
+
+const getEarnedBadgesCacheForUser = (userId) => {
+  const uid = userId != null ? String(userId).trim() : (currentEarnedBadgesUserId || '');
+  if (!uid) return [];
+  const list = earnedBadgesCacheByUserId.get(uid);
+  return Array.isArray(list) ? list : [];
+};
+
+const setEarnedBadgesCacheForUser = (userId, list) => {
+  const uid = userId != null ? String(userId).trim() : '';
+  if (!uid) return;
+  earnedBadgesCacheByUserId.set(uid, Array.isArray(list) ? list : []);
+};
+
+/** 현재 로그인 사용자 기준으로 뱃지 캐시를 가리키도록 설정(AuthContext에서 호출 권장) */
+export const setCurrentBadgeUserId = (userId) => {
+  setCurrentEarnedBadgesUserId(userId);
+};
 
 /** [지역명] 뱃지일 때 표시명 반환. 그 외는 name 그대로 */
 export const getBadgeDisplayName = (badge) => {
@@ -544,7 +569,7 @@ export const checkNewBadges = (stats) => {
   logger.log('🎖️ 새 뱃지 확인 시작');
   
   try {
-    const earnedBadges = Array.isArray(earnedBadgesCache) ? earnedBadgesCache : [];
+    const earnedBadges = getEarnedBadgesCacheForUser();
     const earnedBadgeNames = earnedBadges.map(b => b.name);
     
     const newBadges = [];
@@ -589,7 +614,8 @@ export const awardBadge = (badge, opts = {}) => {
   logger.log(`🎁 뱃지 획득 처리 시작: ${badge.name}`);
 
   try {
-    const earnedBadges = Array.isArray(earnedBadgesCache) ? [...earnedBadgesCache] : [];
+    const userId = opts?.userId || currentEarnedBadgesUserId || null;
+    const earnedBadges = [...getEarnedBadgesCacheForUser(userId)];
 
     if (earnedBadges.some((b) => b.name === badge.name)) {
       logger.warn(`⚠️ 이미 획득한 뱃지: ${badge.name}`);
@@ -617,12 +643,11 @@ export const awardBadge = (badge, opts = {}) => {
     earnedBadges.push(newBadge);
 
     // Supabase에 저장 (userId 있으면 → 재로그인 시에도 유지)
-    const userId = opts?.userId || null;
     if (userId) {
       saveUserBadgeSupabase(userId, newBadge).catch(() => {});
+      setCurrentEarnedBadgesUserId(userId);
+      setEarnedBadgesCacheForUser(userId, earnedBadges);
     }
-
-    earnedBadgesCache = earnedBadges;
     logger.log(`✅ 뱃지 저장 완료(메모리): ${badge.name} (${badge.category} 카테고리)`);
 
     window.dispatchEvent(new CustomEvent('badgeEarned', { detail: newBadge }));
@@ -642,6 +667,7 @@ export const awardBadge = (badge, opts = {}) => {
 export const syncEarnedBadgesFromSupabase = async (userId) => {
   if (!userId) return;
   try {
+    setCurrentEarnedBadgesUserId(userId);
     const rows = await fetchUserBadgesSupabase(userId);
     if (!rows || rows.length === 0) return;
     const earned = rows
@@ -654,8 +680,8 @@ export const syncEarnedBadgesFromSupabase = async (userId) => {
           ...(r.region && { region: r.region }),
         };
       })
-      .filter((b) => b?.name && String(b.name).startsWith(DYNAMIC_BADGE_PREFIX));
-    earnedBadgesCache = earned;
+      .filter((b) => b?.name); // 정적/동적 모두 유지
+    setEarnedBadgesCacheForUser(userId, earned);
     logger.log('✅ Supabase 뱃지 동기화:', earned.length, '개');
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('badgeProgressUpdated'));
@@ -670,8 +696,8 @@ export const syncEarnedBadgesFromSupabase = async (userId) => {
  */
 export const getEarnedBadges = () => {
   try {
-    const list = (Array.isArray(earnedBadgesCache) ? earnedBadgesCache : [])
-      .filter((b) => b?.name && String(b.name).startsWith(DYNAMIC_BADGE_PREFIX))
+    const list = getEarnedBadgesCacheForUser()
+      .filter((b) => b?.name)
       .map((b) => {
         const hydrated = hydrateBadgeFromName(b.name);
         return hydrated ? { ...hydrated, ...b } : b;
