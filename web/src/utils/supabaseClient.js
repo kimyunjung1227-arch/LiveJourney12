@@ -10,6 +10,10 @@ const DEFAULT_SUPABASE_ANON_KEY =
 const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim() || DEFAULT_SUPABASE_URL;
 const supabaseAnonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim() || DEFAULT_SUPABASE_ANON_KEY;
 
+/** Storage REST(XHR 업로드 진행률용)와 동일 출처 클라 설정 */
+export const SUPABASE_PROJECT_URL = supabaseUrl.replace(/\/$/, '');
+export const SUPABASE_ANON_KEY = supabaseAnonKey;
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,

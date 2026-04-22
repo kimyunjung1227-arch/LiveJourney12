@@ -1,6 +1,6 @@
 import api from './axios';
 import { logger } from '../utils/logger';
-import { supabase } from '../utils/supabaseClient';
+import { supabase, SUPABASE_PROJECT_URL, SUPABASE_ANON_KEY } from '../utils/supabaseClient';
 import { getApiBasePath } from '../utils/apiBase';
 
 const API_BASE = getApiBasePath();
@@ -422,8 +422,62 @@ export const uploadProfileImage = async (file) => {
   }
 };
 
+/**
+ * Storage REST와 동일한 multipart 요청으로 업로드하여 xhr.upload 진행률 수집
+ * (@supabase/storage-js 와 같은 FormData: cacheControl + 빈 키 파일)
+ */
+function uploadVideoViaStorageXHR(bucket, objectPath, fileBlob, onUploadProgress) {
+  return new Promise((resolve, reject) => {
+    (async () => {
+      try {
+        await ensureSupabaseSession();
+        const { data: sess } = await supabase.auth.getSession();
+        const token = sess?.session?.access_token;
+        if (!token) {
+          reject(new Error('no_session'));
+          return;
+        }
+        const root = String(SUPABASE_PROJECT_URL || '').replace(/\/$/, '');
+        const anon = String(SUPABASE_ANON_KEY || '').trim();
+        if (!root || !anon) {
+          reject(new Error('supabase_env_missing'));
+          return;
+        }
+        const url = `${root}/storage/v1/object/${bucket}/${objectPath}`;
+        const fd = new FormData();
+        fd.append('cacheControl', '3600');
+        fd.append('', fileBlob);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.setRequestHeader('apikey', anon);
+        xhr.setRequestHeader('x-upsert', 'false');
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable && typeof onUploadProgress === 'function') {
+            onUploadProgress(ev.loaded / Math.max(1, ev.total));
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve();
+          } else {
+            const msg = xhr.responseText || xhr.statusText || String(xhr.status);
+            reject(new Error(msg || `upload_${xhr.status}`));
+          }
+        };
+        xhr.onerror = () => reject(new Error('network'));
+        xhr.send(fd);
+      } catch (err) {
+        reject(err);
+      }
+    })();
+  });
+}
+
 // Supabase Storage에 동영상 업로드 (post-images 버킷 또는 동일 정책 사용)
-const uploadVideoToSupabase = async (file) => {
+const uploadVideoToSupabase = async (file, opts = {}) => {
+  const { onUploadProgress } = opts;
   try {
     if (!supabase) throw new Error('Supabase not initialized');
     await ensureSupabaseSession();
@@ -462,12 +516,19 @@ const uploadVideoToSupabase = async (file) => {
                 : 'video/mp4';
     const fileName = `videos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
-    await withRetry(async () => {
-      const { error: uploadError } = await supabase.storage
-        .from(SUPABASE_IMAGE_BUCKET)
-        .upload(fileName, safeFile, { cacheControl: '3600', upsert: false, contentType: inferredType });
-      if (uploadError) throw uploadError;
-    }, { tries: 3, baseDelayMs: 550 });
+    try {
+      await withRetry(async () => {
+        await uploadVideoViaStorageXHR(SUPABASE_IMAGE_BUCKET, fileName, safeFile, onUploadProgress);
+      }, { tries: 3, baseDelayMs: 550 });
+    } catch (xhrErr) {
+      logger.warn('XHR Storage 업로드 실패, supabase-js 업로드로 재시도:', xhrErr?.message || xhrErr);
+      await withRetry(async () => {
+        const { error: uploadError } = await supabase.storage
+          .from(SUPABASE_IMAGE_BUCKET)
+          .upload(fileName, safeFile, { cacheControl: '3600', upsert: false, contentType: inferredType });
+        if (uploadError) throw uploadError;
+      }, { tries: 3, baseDelayMs: 550 });
+    }
 
     const { data } = supabase.storage.from(SUPABASE_IMAGE_BUCKET).getPublicUrl(fileName);
     if (data?.publicUrl) {
@@ -500,8 +561,9 @@ const uploadVideoToSupabase = async (file) => {
 };
 
 // 단일 동영상 업로드 — Supabase Storage만 사용 (존재하지 않는 /upload/video 호출로 404 나지 않게 함)
-export const uploadVideo = async (file) => {
-  const supabaseResult = await uploadVideoToSupabase(file);
+/** @param {{ onUploadProgress?: (ratio: number) => void }} [opts] ratio 0..1 */
+export const uploadVideo = async (file, opts = {}) => {
+  const supabaseResult = await uploadVideoToSupabase(file, opts);
   if (supabaseResult.success && supabaseResult.url) {
     return supabaseResult;
   }

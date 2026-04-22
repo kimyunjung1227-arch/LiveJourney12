@@ -20,6 +20,8 @@
     "@capacitor/ios": "^7.4.4",
     "@capacitor/preferences": "^7.0.3",
     "@capacitor/status-bar": "^7.0.3",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "@supabase/supabase-js": "^2.98.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

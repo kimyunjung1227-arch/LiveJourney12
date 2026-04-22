@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate, useLocation, useMatch } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { uploadImage, uploadVideo, getDisplayImageUrl } from '../api/upload';
+import { compressVideoForUpload } from '../utils/videoCompressClient';
 import { useAuth } from '../contexts/AuthContext';
 import { notifyBadge } from '../utils/notifications';
 import { checkNewBadges, awardBadge, calculateUserStats } from '../utils/badgeSystem';
@@ -1350,12 +1351,13 @@ const UploadScreen = () => {
 
       logger.debug('AI category:', aiCategoryName);
 
-      const totalFiles = formData.imageFiles.length + formData.videoFiles.length;
-      let uploadedCount = 0;
-      const bumpProgress = () => {
-        uploadedCount += 1;
-        const denom = Math.max(1, totalFiles);
-        setUploadProgress(20 + (uploadedCount * 40 / denom));
+      const nImages = formData.imageFiles.length;
+      const nVideos = formData.videoFiles.length;
+      /** 이미지 1단위 + 동영상마다 (압축 1 + 업로드 1) — 진행률을 균등 분배 */
+      const progressUnits = Math.max(1, nImages + nVideos * 2);
+      let completedUnits = 0;
+      const paintProgress = () => {
+        setUploadProgress(10 + (completedUnits / progressUnits) * 78);
       };
 
       // 업로드가 오래 걸리는 원인 중 하나가 "순차 업로드"라서,
@@ -1382,12 +1384,14 @@ const UploadScreen = () => {
         const results = await mapWithConcurrency(formData.imageFiles, 3, async (file, i) => {
           try {
             const r = await uploadImage(file);
-            bumpProgress();
+            completedUnits += 1;
+            paintProgress();
             if (r?.success && r.url) return r.url;
             imageErrors.push(r?.message || r?.error?.message || '사진 업로드 실패');
             return '';
           } catch (e) {
-            bumpProgress();
+            completedUnits += 1;
+            paintProgress();
             imageErrors.push(e?.message || '사진 업로드 실패');
             return '';
           }
@@ -1407,22 +1411,42 @@ const UploadScreen = () => {
         uploadedImageUrls.push(...formData.images);
       }
 
-      // 동영상 업로드 (병렬, 기본 2개 동시)
+      // 동영상: 클라이언트 압축(큰 파일·모바일) 후 업로드 — 순차 처리로 메모리·진행률 안정화
       if (formData.videoFiles.length > 0) {
         const videoErrors = [];
-        const results = await mapWithConcurrency(formData.videoFiles, 2, async (file, i) => {
+        const results = [];
+        for (let vi = 0; vi < formData.videoFiles.length; vi += 1) {
+          const file = formData.videoFiles[vi];
           try {
-            const r = await uploadVideo(file);
-            bumpProgress();
-            if (r?.success && r.url) return r.url;
-            videoErrors.push(r?.message || r?.error?.message || '동영상 업로드 실패');
-            return '';
+            let toUpload = file;
+            try {
+              toUpload = await compressVideoForUpload(file, {
+                onProgress: (p) => {
+                  const frac = typeof p === 'number' ? Math.min(1, Math.max(0, p)) : 0;
+                  setUploadProgress(10 + ((completedUnits + frac) / progressUnits) * 78);
+                },
+              });
+            } catch (ce) {
+              logger.warn('동영상 압축 스킵:', ce?.message || ce);
+            }
+            completedUnits += 1;
+            paintProgress();
+            const r = await uploadVideo(toUpload, {
+              onUploadProgress: (ratio) => {
+                const t = typeof ratio === 'number' ? Math.min(1, Math.max(0, ratio)) : 0;
+                setUploadProgress(10 + ((completedUnits - 1 + t) / progressUnits) * 78);
+              },
+            });
+            completedUnits += 1;
+            paintProgress();
+            if (r?.success && r.url) results.push(r.url);
+            else videoErrors.push(r?.message || r?.error?.message || '동영상 업로드 실패');
           } catch (e) {
-            bumpProgress();
+            completedUnits += 1;
+            paintProgress();
             videoErrors.push(e?.message || '동영상 업로드 실패');
-            return '';
           }
-        });
+        }
         uploadedVideoUrls.push(...results.filter(Boolean));
         if (
           uploadedVideoUrls.length < formData.videoFiles.length ||
@@ -1438,7 +1462,9 @@ const UploadScreen = () => {
         uploadedVideoUrls.push(...formData.videos);
       }
 
-      setUploadProgress(60);
+      setUploadProgress((prev) =>
+        Math.max(prev, Math.min(90, 10 + (completedUnits / Math.max(1, progressUnits)) * 78))
+      );
 
       let coordinates = formData.coordinates || (formData.exifData?.gpsCoordinates ? {
         lat: formData.exifData.gpsCoordinates.lat,
