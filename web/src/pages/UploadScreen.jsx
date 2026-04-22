@@ -842,7 +842,9 @@ const UploadScreen = () => {
       if (files.length === 0) return;
 
       const MAX_SIZE = 50 * 1024 * 1024;
-      const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 동영상은 100MB까지
+      // ⚠️ Supabase Storage 단일 업로드는 환경에 따라 큰 파일이 거절될 수 있어
+      // 모바일 업로드 실패(“maximum allowed size”)를 막기 위해 보수적으로 제한합니다.
+      const MAX_VIDEO_SIZE = 45 * 1024 * 1024; // 45MB
 
       const imageFiles = [];
       const videoFiles = [];
@@ -861,7 +863,7 @@ const UploadScreen = () => {
         const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_SIZE;
 
         if (file.size > maxSize) {
-          alert(`${file.name}은(는) ${isVideo ? '100MB' : '50MB'}를 초과합니다`);
+          alert(`${file.name}은(는) ${isVideo ? '45MB' : '50MB'}를 초과합니다.\n\n동영상은 용량을 줄이거나(길이/해상도) 파일을 나눠서 올려주세요.`);
           continue;
         }
 

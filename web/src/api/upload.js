@@ -427,6 +427,16 @@ const uploadVideoToSupabase = async (file) => {
   try {
     if (!supabase) throw new Error('Supabase not initialized');
     await ensureSupabaseSession();
+    // 업로드 전 서버 상한 방어 (모바일에서 특히 자주 발생)
+    const MAX_VIDEO_BYTES = 45 * 1024 * 1024; // 45MB
+    if (file?.size && Number(file.size) > MAX_VIDEO_BYTES) {
+      return {
+        success: false,
+        error: new Error('maximum_allowed_size_exceeded'),
+        message: '동영상 파일이 너무 큽니다. (최대 45MB)',
+        status: 413,
+      };
+    }
     // 모바일(iOS/Android)에서 File.type이 비거나, Blob이 들어오는 케이스 방어
     let safeFile = file;
     try {
@@ -466,6 +476,15 @@ const uploadVideoToSupabase = async (file) => {
     }
     throw new Error('No public URL');
   } catch (e) {
+    const msg = String(e?.message || '');
+    if (/maximum allowed size/i.test(msg) || /exceeded the maximum/i.test(msg)) {
+      return {
+        success: false,
+        error: e,
+        message: '동영상 파일이 너무 큽니다. (최대 45MB)',
+        status: 413,
+      };
+    }
     logger.warn('Supabase 동영상 업로드 실패:', {
       message: e?.message,
       status: e?.statusCode || e?.status,
