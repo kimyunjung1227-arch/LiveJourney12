@@ -16,6 +16,7 @@ import { normalizeRegionName } from '../utils/regionNames';
 import { getPostUserId, resolveUserDisplayFromPosts } from '../utils/userProfileHints';
 import { getCurrentUserId, getFollowingIds, syncFollowingFromSupabase, toggleFollow, isFollowing } from '../utils/followSystem';
 import { getBadgeDisplayName } from '../utils/badgeSystem';
+import { fetchProfilesByIdsSupabase, searchProfilesSupabase } from '../api/profilesSupabase';
 
 // 해시태그 파싱: #동백꽃 #바다 #힐링 → ['동백꽃','바다','힐링']
 const parseHashtags = (q) => {
@@ -66,6 +67,7 @@ const SearchScreen = () => {
   const [filteredRegions, setFilteredRegions] = useState([]);
   const [filteredHashtags, setFilteredHashtags] = useState([]);
   const [filteredTravelers, setFilteredTravelers] = useState([]);
+  const [profilesDirectory, setProfilesDirectory] = useState([]);
   const [recentSearches, setRecentSearches] = useState([]);
   const [allPosts, setAllPosts] = useState([]);
   const [selectedHashtag, setSelectedHashtag] = useState(null);
@@ -358,39 +360,18 @@ const SearchScreen = () => {
       .map((x) => x.region);
   }, [recommendedRegions, matchChosung]);
 
-  // 인물 검색: 게시물에 등장한 userId 기준 여행자 목록
+  // 인물 검색: profiles 테이블을 기준으로 (게시물이 삭제되어도 유지)
   const travelerDirectory = useMemo(() => {
-    const byId = new Map();
-    for (const p of allPosts) {
-      const uid = getPostUserId(p);
-      if (!uid || uid === 'undefined' || uid === 'null') continue;
-      if (!byId.has(uid)) byId.set(uid, { userId: uid, postCount: 0 });
-      byId.get(uid).postCount += 1;
-    }
-    return Array.from(byId.values())
-      .map((row) => {
-        const resolved = resolveUserDisplayFromPosts(row.userId, allPosts);
-        let username = resolved.username && resolved.username !== '사용자' ? resolved.username : '';
-        if (!username) {
-          const sample = allPosts.find((p) => getPostUserId(p) === String(row.userId));
-          const u = sample?.user;
-          if (u && typeof u === 'object' && (u.username || u.name)) {
-            username = String(u.username || u.name).trim();
-          } else if (typeof u === 'string' && u.trim()) {
-            username = u.trim();
-          }
-        }
-        if (!username) return null;
-        return {
-          userId: row.userId,
-          username,
-          profileImage: resolved.profileImage || null,
-          postCount: row.postCount,
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => b.postCount - a.postCount || a.username.localeCompare(b.username, 'ko'));
-  }, [allPosts]);
+    const rows = Array.isArray(profilesDirectory) ? profilesDirectory : [];
+    return rows
+      .map((r) => ({
+        userId: r?.id ? String(r.id) : '',
+        username: r?.username ? String(r.username) : '',
+        profileImage: r?.avatar_url ? String(r.avatar_url) : null,
+        postCount: 0,
+      }))
+      .filter((t) => t.userId && t.username);
+  }, [profilesDirectory]);
 
   const myUserId = useMemo(() => {
     const id = getCurrentUserId();
@@ -404,6 +385,7 @@ const SearchScreen = () => {
     const load = async () => {
       if (!myUserId) {
         setFollowingIds([]);
+        setProfilesDirectory([]);
         return;
       }
       try {
@@ -412,7 +394,17 @@ const SearchScreen = () => {
         /* ignore */
       }
       if (cancelled) return;
-      setFollowingIds(getFollowingIds(myUserId).filter(Boolean).map(String));
+      const ids = getFollowingIds(myUserId).filter(Boolean).map(String);
+      setFollowingIds(ids);
+
+      // 팔로우한 사용자들의 profiles 미리 로드 (상단 추천/팔로우 리스트 안정화)
+      try {
+        const profiles = await fetchProfilesByIdsSupabase(ids);
+        if (cancelled) return;
+        setProfilesDirectory(profiles);
+      } catch {
+        if (!cancelled) setProfilesDirectory([]);
+      }
     };
     void load();
     return () => {
@@ -561,8 +553,10 @@ const SearchScreen = () => {
 
   const getMatchingTravelers = useCallback(
     (searchTerm, raw) => {
-      if (!searchTerm || !travelerDirectory.length) return [];
-      return travelerDirectory
+      if (!searchTerm) return [];
+      const local = travelerDirectory || [];
+      // profilesDirectory(팔로우 미리보기)에서 먼저 빠르게 매칭
+      const quick = local
         .map((t) => {
           const name = String(t.username || '').toLowerCase();
           let rank = 99;
@@ -574,13 +568,9 @@ const SearchScreen = () => {
           return { ...t, rank };
         })
         .filter(Boolean)
-        .sort(
-          (a, b) =>
-            a.rank - b.rank ||
-            b.postCount - a.postCount ||
-            a.username.localeCompare(b.username, 'ko')
-        )
-        .slice(0, 20);
+        .sort((a, b) => a.rank - b.rank || a.username.localeCompare(b.username, 'ko'))
+        .slice(0, 8);
+      return quick;
     },
     [travelerDirectory, matchChosung]
   );
@@ -616,6 +606,7 @@ const SearchScreen = () => {
         if (searchMode === 'person') {
           setFilteredRegions([]);
           setFilteredHashtags([]);
+          // 1) 즉시: 로컬(팔로우) quick match
           setFilteredTravelers(getMatchingTravelers(searchTerm, raw));
           setShowSuggestions(true);
         } else {
@@ -638,6 +629,33 @@ const SearchScreen = () => {
     },
     [getMatchingRegions, hashtagChips, getMatchingTravelers, searchMode]
   );
+
+  // 인물 검색어가 들어오면 profiles에서 원격 검색(디바운스)
+  useEffect(() => {
+    if (searchMode !== 'person') return;
+    const raw = String(searchQuery || '').trim();
+    if (!raw) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const rows = await searchProfilesSupabase(raw, { limit: 20 });
+        if (cancelled) return;
+        const mapped = (Array.isArray(rows) ? rows : []).map((r) => ({
+          userId: r?.id ? String(r.id) : '',
+          username: r?.username ? String(r.username) : '',
+          profileImage: r?.avatar_url ? String(r.avatar_url) : null,
+          postCount: 0,
+        })).filter((x) => x.userId && x.username);
+        setFilteredTravelers(mapped);
+      } catch {
+        // ignore
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [searchMode, searchQuery]);
 
   // 검색 핸들러: 장소(지역·해시태그) 또는 인물(프로필)
   const handleSearch = useCallback((e) => {

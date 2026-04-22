@@ -24,6 +24,7 @@ import { logger } from '../utils/logger';
 import { getDisplayImageUrl } from '../api/upload';
 import { getPosts } from '../api/posts';
 import { fetchPostsByUserIdSupabase, fetchPostsSupabase } from '../api/postsSupabase';
+import { fetchProfilesByIdsSupabase } from '../api/profilesSupabase';
 import { getTrustRawScore, getTrustGrade, TRUST_GRADES } from '../utils/trustIndex';
 import api from '../api/axios';
 import {
@@ -60,6 +61,7 @@ const UserProfileScreen = () => {
   const [followListType, setFollowListType] = useState('follower');
   const [followListIds, setFollowListIds] = useState([]);
   const [followListPostPool, setFollowListPostPool] = useState([]);
+  const [followListProfiles, setFollowListProfiles] = useState({});
   const [showTrustGradesModal, setShowTrustGradesModal] = useState(false);
   const [trustExplainOpen, setTrustExplainOpen] = useState(false);
 
@@ -318,6 +320,7 @@ const UserProfileScreen = () => {
     if (!showFollowListModal || !userId) return;
     const local = getUploadedPostsSafe();
     setFollowListPostPool(local);
+    setFollowListProfiles({});
     let cancelled = false;
     const ids = Array.isArray(followListIds) ? followListIds : [];
     (async () => {
@@ -334,6 +337,25 @@ const UserProfileScreen = () => {
         setFollowListPostPool([...byId.values()]);
       } catch {
         setFollowListPostPool(local);
+      }
+
+      // profiles 우선 조회: 게시물이 삭제되어도 유저 표시(닉네임/아바타)가 사라지지 않도록
+      try {
+        const rows = await fetchProfilesByIdsSupabase(ids);
+        if (cancelled) return;
+        const map = {};
+        (Array.isArray(rows) ? rows : []).forEach((r) => {
+          if (r?.id) {
+            map[String(r.id)] = {
+              username: r?.username ? String(r.username) : '',
+              profileImage: r?.avatar_url ? String(r.avatar_url) : null,
+              bio: r?.bio ? String(r.bio) : null,
+            };
+          }
+        });
+        setFollowListProfiles(map);
+      } catch {
+        setFollowListProfiles({});
       }
     })();
     return () => {
@@ -1247,6 +1269,13 @@ const UserProfileScreen = () => {
                         return {
                           username: currentUserData.username || '사용자',
                           profileImage: currentUserData.profileImage || null,
+                        };
+                      }
+                      const fromProfiles = followListProfiles?.[String(uid)];
+                      if (fromProfiles?.username) {
+                        return {
+                          username: fromProfiles.username,
+                          profileImage: fromProfiles.profileImage || null,
                         };
                       }
                       const cached = getCachedFollowProfile(uid);
