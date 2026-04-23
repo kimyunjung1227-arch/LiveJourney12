@@ -20,14 +20,33 @@ export default function ProfileInjangSection({ badges, onViewAll, onOpenBadge, c
   const sorted = useMemo(() => sortBadgesForDisplay(badges), [badges]);
   const preview = sorted.slice(0, 12);
 
+  const toSerializableBadge = (b) => ({
+    name: b?.name,
+    displayName: b?.displayName,
+    icon: b?.icon,
+    category: b?.category,
+    earnedAt: b?.earnedAt,
+    region: b?.region,
+    description: b?.description,
+    shortCondition: b?.shortCondition,
+    progressCurrent: b?.progressCurrent,
+    progressTarget: b?.progressTarget,
+    progressUnit: b?.progressUnit,
+    tone: b?.tone,
+    gradientCss: b?.gradientCss,
+    difficulty: b?.difficulty,
+    dynamic: b?.dynamic,
+  });
+
   const openBadge = (badge) => {
+    const safeBadge = toSerializableBadge(badge);
     if (onOpenBadge) {
-      onOpenBadge(badge);
+      onOpenBadge(safeBadge);
       return;
     }
-    const name = String(badge?.name || '').trim();
+    const name = String(safeBadge?.name || '').trim();
     if (!name) return;
-    navigate(`/badge/live/${encodeURIComponent(name)}`, { state: { badge } });
+    navigate(`/badge/live/${encodeURIComponent(name)}`, { state: { badge: safeBadge } });
   };
 
   return (
