@@ -2,6 +2,7 @@ import api from './axios';
 import { logger } from '../utils/logger';
 import { supabase, SUPABASE_PROJECT_URL, SUPABASE_ANON_KEY } from '../utils/supabaseClient';
 import { getApiBasePath } from '../utils/apiBase';
+import * as exifr from 'exifr';
 
 const API_BASE = getApiBasePath();
 const UPLOAD_ORIGIN = API_BASE.replace(/\/api\/?$/, '') || (typeof window !== 'undefined' ? window.location.origin : '');
@@ -226,6 +227,80 @@ const fileToBase64 = (file) => {
 };
 
 /**
+ * 업로드 직전 원본 파일에서 "실시간감"에 필요한 최소 메타데이터만 추출
+ * - 고객이 체감하는 핵심: 언제(촬영시간), 어디서(위치)
+ * - stripImageMetadata()로 메타데이터를 제거하기 전에 호출해야 함
+ */
+const extractRealtimeMeta = async (file) => {
+  try {
+    if (!file || !file.type?.startsWith('image/')) return null;
+    if (file.type === 'image/svg+xml') return null;
+
+    const toIsoString = (v) => {
+      try {
+        if (!v) return null;
+        if (v instanceof Date && !Number.isNaN(v.getTime())) return v.toISOString();
+        const d = new Date(v);
+        return Number.isNaN(d.getTime()) ? null : d.toISOString();
+      } catch {
+        return null;
+      }
+    };
+
+    const [dateRaw, gpsRaw] = await Promise.all([
+      exifr.parse(file, {
+        exif: true,
+        gps: false,
+        xmp: true,
+        tiff: false,
+        ifd0: false,
+        mergeOutput: true,
+        translateValues: true,
+        reviveValues: true,
+      }),
+      exifr.gps(file),
+    ]);
+
+    const takenAt =
+      toIsoString(dateRaw?.DateTimeOriginal || dateRaw?.dateTimeOriginal || dateRaw?.CreateDate || dateRaw?.createDate) ||
+      null;
+
+    const gps =
+      gpsRaw && typeof gpsRaw === 'object' && Number.isFinite(gpsRaw.latitude) && Number.isFinite(gpsRaw.longitude)
+        ? {
+            latitude: gpsRaw.latitude,
+            longitude: gpsRaw.longitude,
+            altitude: Number.isFinite(gpsRaw.altitude) ? gpsRaw.altitude : null,
+          }
+        : null;
+
+    if (!takenAt && !gps) return null;
+    return { takenAt, gps };
+  } catch (e) {
+    logger.warn('메타데이터 추출 실패(무시하고 업로드 진행):', e?.message || e);
+    return null;
+  }
+};
+
+const withTimeout = async (promise, ms, fallback = null) => {
+  let t;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((resolve) => {
+        t = setTimeout(() => resolve(fallback), ms);
+      }),
+    ]);
+  } finally {
+    if (t) clearTimeout(t);
+  }
+};
+
+const shouldStripImageMetadata =
+  typeof import.meta !== 'undefined' &&
+  String(import.meta.env?.VITE_STRIP_IMAGE_METADATA || '').trim() === 'true';
+
+/**
  * 디코드 후 재인코딩하여 EXIF/GPS 등 파일 내 메타데이터 제거 (업로드 직전에 사용)
  */
 const stripImageMetadata = async (file) => {
@@ -357,23 +432,27 @@ const uploadImageToSupabase = async (file, retry = false) => {
 export const uploadImage = async (file) => {
   let safeFile = file;
   try {
-    safeFile = await stripImageMetadata(file);
+    const meta = await withTimeout(extractRealtimeMeta(file), 700, null);
+    if (shouldStripImageMetadata) {
+      safeFile = await stripImageMetadata(file);
+    }
     // 1순위: Supabase Storage 업로드 시도
     const supabaseResult = await uploadImageToSupabase(safeFile);
     if (supabaseResult.success && supabaseResult.url) {
-      return supabaseResult;
+      return { ...supabaseResult, meta };
     }
 
     // 2순위: 기존 백엔드 REST API 시도
     const formData = new FormData();
     formData.append('image', safeFile);
+    if (meta) formData.append('meta', JSON.stringify(meta));
 
     const response = await api.post('/upload/image', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
-    return response.data;
+    return { ...response.data, meta };
   } catch (error) {
     // 이미지도 blob: fallback을 성공으로 취급하면 "업로드가 된 것처럼" 보이지만
     // 실제로는 서버에 저장되지 않아 새로고침/피드에서 사라집니다.
@@ -385,10 +464,15 @@ export const uploadImage = async (file) => {
 // 다중 이미지 업로드
 export const uploadImages = async (files) => {
   try {
-    const safeFiles = await Promise.all(files.map((f) => stripImageMetadata(f)));
+    const metas = await Promise.all(files.map((f) => withTimeout(extractRealtimeMeta(f), 700, null)));
+    const safeFiles = shouldStripImageMetadata
+      ? await Promise.all(files.map((f) => stripImageMetadata(f)))
+      : files;
     const formData = new FormData();
-    safeFiles.forEach(file => {
+    safeFiles.forEach((file, idx) => {
       formData.append('images', file);
+      const meta = metas?.[idx];
+      if (meta) formData.append('metas', JSON.stringify(meta));
     });
 
     const response = await api.post('/upload/images', formData, {
@@ -396,7 +480,7 @@ export const uploadImages = async (files) => {
         'Content-Type': 'multipart/form-data',
       },
     });
-    return response.data;
+    return { ...response.data, metas };
   } catch (error) {
     logger.error('이미지 업로드 실패:', error);
     throw error;
@@ -406,16 +490,18 @@ export const uploadImages = async (files) => {
 // 프로필 이미지 업로드
 export const uploadProfileImage = async (file) => {
   try {
-    const safeFile = await stripImageMetadata(file);
+    const meta = await withTimeout(extractRealtimeMeta(file), 700, null);
+    const safeFile = shouldStripImageMetadata ? await stripImageMetadata(file) : file;
     const formData = new FormData();
     formData.append('profile', safeFile);
+    if (meta) formData.append('meta', JSON.stringify(meta));
 
     const response = await api.post('/upload/profile', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
-    return response.data;
+    return { ...response.data, meta };
   } catch (error) {
     console.error('프로필 이미지 업로드 실패:', error);
     throw error;
