@@ -8,10 +8,15 @@ export const getPosts = async (params = {}) => {
     return response.data;
   } catch (error) {
     // 백엔드 없이도 작동하도록 조용히 처리
-    if (error.code === 'ERR_NETWORK' || error.code === 'ERR_CONNECTION_REFUSED') {
+    const status = error?.response?.status;
+    if (
+      error.code === 'ERR_NETWORK' ||
+      error.code === 'ERR_CONNECTION_REFUSED' ||
+      status === 404
+    ) {
       // 개발 모드에서만 로그 출력
       if (import.meta.env.MODE === 'development') {
-        logger.log('💡 백엔드 서버 미연결 (localStorage 사용 중)');
+        logger.log('💡 게시물 REST API 사용 불가(404/미연결) — Supabase/로컬로 대체');
       }
       return { success: false, posts: [] };
     }
