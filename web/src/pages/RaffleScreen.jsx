@@ -165,6 +165,11 @@ const RaffleScreen = () => {
           <section className="relative w-full overflow-hidden">
             <div className="relative w-full min-h-[88px] max-h-[min(28vh,176px)] aspect-[5/2] sm:aspect-[21/9] sm:max-h-[min(30vh,192px)] bg-gradient-to-br from-sky-700 via-cyan-800 to-slate-900" />
           </section>
+          <div className="px-3 pt-3 sm:px-4 sm:pt-4">
+            <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-300 sm:text-[15px]">
+              지금 이 순간의 여행 기록이, 작은 행운으로 돌아오는 이벤트예요.
+            </p>
+          </div>
 
           <div className="px-3 pt-3 space-y-5 text-[15px] sm:px-4 sm:pt-4 sm:text-base">
             <section>
@@ -290,13 +295,13 @@ const RaffleScreen = () => {
               </button>
             </div>
 
-            <div className="max-h-[70dvh] overflow-y-auto px-4 py-4">
+            <div className="max-h-[78dvh] overflow-y-auto px-4 py-4">
               <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/80">
-                <div className="space-y-5 px-4 py-4">
+                <div className="space-y-4 px-4 py-4">
                   {GUIDE_ITEMS.map((g, idx) => (
                     <div key={g.id}>
                       <div className="flex items-baseline justify-between gap-3">
-                        <h3 className="text-sm font-extrabold text-gray-900 dark:text-gray-100">
+                        <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
                           {g.title}
                         </h3>
                         {idx === 0 && (
@@ -305,7 +310,7 @@ const RaffleScreen = () => {
                           </span>
                         )}
                       </div>
-                      <div className="mt-2 whitespace-pre-line text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+                      <div className="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-gray-600 dark:text-gray-300">
                         {g.body}
                       </div>
                     </div>
