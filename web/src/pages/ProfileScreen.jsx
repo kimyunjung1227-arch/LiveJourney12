@@ -1631,6 +1631,11 @@ const ProfileScreen = () => {
 
             <ProfileInjangSection
               badges={earnedBadges}
+              onOpenBadge={(badge) =>
+                navigate(`/badge/live/${encodeURIComponent(String(badge?.name || ''))}`, {
+                  state: { badge },
+                })
+              }
               onViewAll={() => {
                 const u = user || authUser || null;
                 const serializableBadges = (earnedBadges || []).map((b) => ({

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { getBadgeDisplayName } from '../utils/badgeSystem';
 
 function sortBadgesForDisplay(badges) {
@@ -14,10 +14,9 @@ function sortBadgesForDisplay(badges) {
 /**
  * 프로필 상단 「라이브뱃지」: 가로 스크롤 미리보기 + 모두보기
  */
-export default function ProfileInjangSection({ badges, onViewAll, className = '' }) {
+export default function ProfileInjangSection({ badges, onViewAll, onOpenBadge, className = '' }) {
   const sorted = useMemo(() => sortBadgesForDisplay(badges), [badges]);
   const preview = sorted.slice(0, 12);
-  const [selectedBadge, setSelectedBadge] = useState(null);
 
   return (
     <div className={`pt-2 pb-3 border-b border-gray-100 dark:border-gray-800 ${className}`}>
@@ -47,7 +46,7 @@ export default function ProfileInjangSection({ badges, onViewAll, className = ''
               <button
                 key={`${badge?.name || 'b'}-${index}`}
                 type="button"
-                onClick={() => setSelectedBadge(badge)}
+                onClick={() => onOpenBadge?.(badge)}
                 className="flex flex-col items-center shrink-0 w-[84px] text-left"
               >
                 <div
@@ -73,69 +72,6 @@ export default function ProfileInjangSection({ badges, onViewAll, className = ''
               </button>
             );
           })}
-        </div>
-      )}
-
-      {/* 인장 조건/설명 모달 */}
-      {selectedBadge && (
-        <div
-          className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/50 p-4"
-          onClick={() => setSelectedBadge(null)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="라이브뱃지 조건"
-        >
-          <div
-            className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-xl leading-none" aria-hidden>
-                  {selectedBadge.icon || '🏅'}
-                </span>
-                <h4 className="text-base font-bold text-text-primary-light dark:text-text-primary-dark truncate">
-                  {getBadgeDisplayName(selectedBadge) || selectedBadge?.name || '라이브뱃지'}
-                </h4>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedBadge(null)}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
-                aria-label="닫기"
-              >
-                <span className="material-symbols-outlined text-xl">close</span>
-              </button>
-            </div>
-
-            <div className="p-4 space-y-3">
-              {selectedBadge?.description && (
-                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed break-keep">
-                  {selectedBadge.description}
-                </p>
-              )}
-
-              {(selectedBadge?.shortCondition ||
-                (typeof selectedBadge?.progressCurrent === 'number' &&
-                  typeof selectedBadge?.progressTarget === 'number')) && (
-                <div className="rounded-xl border border-primary/20 bg-primary/5 dark:bg-primary/10 p-3">
-                  <p className="text-xs font-semibold text-primary mb-1">획득 조건</p>
-                  {selectedBadge?.shortCondition && (
-                    <p className="text-sm text-gray-700 dark:text-gray-300 break-keep">
-                      {selectedBadge.shortCondition}
-                    </p>
-                  )}
-                  {typeof selectedBadge?.progressCurrent === 'number' &&
-                    typeof selectedBadge?.progressTarget === 'number' && (
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                        진행도: {selectedBadge.progressCurrent}/{selectedBadge.progressTarget}
-                        {selectedBadge?.progressUnit ? ` ${selectedBadge.progressUnit}` : ''}
-                      </p>
-                    )}
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       )}
     </div>

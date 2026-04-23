@@ -775,6 +775,11 @@ const UserProfileScreen = () => {
 
             <ProfileInjangSection
               badges={earnedBadges}
+              onOpenBadge={(badge) =>
+                navigate(`/badge/live/${encodeURIComponent(String(badge?.name || ''))}`, {
+                  state: { badge },
+                })
+              }
               onViewAll={() => userId && navigate(`/user/${userId}/badges`, {
                 state: {
                   badges: (earnedBadges || []).map((b) => ({
