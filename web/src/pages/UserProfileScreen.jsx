@@ -160,7 +160,7 @@ const UserProfileScreen = () => {
 
     setUser({
       id: String(userId),
-      username: pickUsername(),
+      username: pickUsername() || '여행자',
       profileImage: pickAvatar(),
     });
 
@@ -238,7 +238,7 @@ const UserProfileScreen = () => {
             const next = {
               ...(prev || {}),
               id: String(userId),
-              username: u.username || prev?.username || '사용자',
+              username: u.username || prev?.username || '여행자',
               profileImage: u.profileImage ?? prev?.profileImage ?? null,
             };
             if (next.username && next.username !== '사용자') {
@@ -1267,7 +1267,7 @@ const UserProfileScreen = () => {
                     const resolveUserInfo = (uid) => {
                       if (String(uid) === String(myId) && currentUserData) {
                         return {
-                          username: currentUserData.username || '사용자',
+                          username: currentUserData.username || '여행자',
                           profileImage: currentUserData.profileImage || null,
                         };
                       }
@@ -1281,12 +1281,12 @@ const UserProfileScreen = () => {
                       const cached = getCachedFollowProfile(uid);
                       const fromPosts = resolveUserDisplayFromPosts(uid, pool);
                       const username =
-                        (cached?.username && cached.username !== '사용자' ? cached.username : null) ||
-                        (fromPosts.username !== '사용자' ? fromPosts.username : null) ||
+                        (cached?.username && cached.username !== '사용자' && cached.username !== '여행자' ? cached.username : null) ||
+                        (fromPosts.username !== '사용자' && fromPosts.username !== '여행자' ? fromPosts.username : null) ||
                         cached?.username ||
                         fromPosts.username;
                       const profileImage = fromPosts.profileImage || cached?.profileImage || null;
-                      return { username, profileImage };
+                      return { username: username || '여행자', profileImage };
                     };
                     const getRepBadge = (uid) => {
                       void uid;

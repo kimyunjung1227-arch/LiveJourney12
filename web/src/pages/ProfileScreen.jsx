@@ -2406,19 +2406,19 @@ const ProfileScreen = () => {
                     const resolveUserInfo = (uid) => {
                       if (String(uid) === String(myId) && currentUserData) {
                         return {
-                          username: currentUserData.username || '사용자',
+                          username: currentUserData.username || '여행자',
                           profileImage: currentUserData.profileImage || null,
                         };
                       }
                       const cached = getCachedFollowProfile(uid);
                       const fromPosts = resolveUserDisplayFromPosts(uid, pool);
                       const username =
-                        (cached?.username && cached.username !== '사용자' ? cached.username : null) ||
-                        (fromPosts.username !== '사용자' ? fromPosts.username : null) ||
+                        (cached?.username && cached.username !== '사용자' && cached.username !== '여행자' ? cached.username : null) ||
+                        (fromPosts.username !== '사용자' && fromPosts.username !== '여행자' ? fromPosts.username : null) ||
                         cached?.username ||
                         fromPosts.username;
                       const profileImage = fromPosts.profileImage || cached?.profileImage || null;
-                      return { username, profileImage };
+                      return { username: username || '여행자', profileImage };
                     };
 
                     const getRepBadge = (uid) => {

@@ -29,7 +29,7 @@ export const resolveUserDisplayFromPosts = (userId, posts) => {
     if (p.userAvatar && !profileImage) profileImage = p.userAvatar;
     if (p.user && typeof p.user === 'object') {
       const u = p.user.username || p.user.name;
-      if (u && (!username || username === '사용자')) username = u;
+      if (u && (!username || username === '사용자' || username === '여행자')) username = u;
       const img = p.user.profileImage || p.user.avatar || p.user.picture;
       if (img && !profileImage) profileImage = img;
     }
@@ -37,7 +37,7 @@ export const resolveUserDisplayFromPosts = (userId, posts) => {
   }
 
   return {
-    username: username || '사용자',
+    username: username || '여행자',
     profileImage: profileImage || null,
   };
 };

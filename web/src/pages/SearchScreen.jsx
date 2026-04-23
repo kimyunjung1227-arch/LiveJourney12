@@ -1078,7 +1078,11 @@ const SearchScreen = () => {
           {/* 인물 모드: 검색어가 있으면 "검색 결과 리스트"를 화면 본문에 표시 (이미지 스타일) */}
           {searchMode === 'person' && searchQuery.trim() && (
             <div className="px-4 pt-2 pb-2">
-              {travelerSearchResults.length > 0 ? (
+              {travelerSearchResults.length === 0 ? (
+                <div className="w-full rounded-2xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#2F2418] px-4 py-5 text-center text-sm font-medium text-slate-500 dark:text-slate-300">
+                  일치하는 여행자가 없어요
+                </div>
+              ) : (
                 <div className="divide-y divide-slate-100 dark:divide-white/10 rounded-2xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#2F2418] overflow-hidden">
                   {travelerSearchResults.map((t) => {
                     const followed = isFollowing(null, t.userId);
@@ -1125,7 +1129,7 @@ const SearchScreen = () => {
                     );
                   })}
                 </div>
-              ) : null}
+              )}
             </div>
           )}
 
