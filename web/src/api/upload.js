@@ -248,16 +248,7 @@ const extractRealtimeMeta = async (file) => {
     };
 
     const [dateRaw, gpsRaw] = await Promise.all([
-      exifr.parse(file, {
-        exif: true,
-        gps: false,
-        xmp: true,
-        tiff: false,
-        ifd0: false,
-        mergeOutput: true,
-        translateValues: true,
-        reviveValues: true,
-      }),
+      exifr.parse(file, { exif: true, gps: false, xmp: true, tiff: false, ifd0: false, mergeOutput: true, translateValues: true, reviveValues: true }),
       exifr.gps(file),
     ]);
 
