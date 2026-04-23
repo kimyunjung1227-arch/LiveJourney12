@@ -71,6 +71,23 @@ body {
   flex-direction: column;
 }
 
+/* 데스크톱에서도 "항상 모바일 앱 폭"으로 고정 */
+@media (min-width: 461px) {
+  .app-container {
+    width: min(414px, 100%);
+    max-width: 414px !important;
+  }
+
+  /* 일부 화면이 app-container 밖으로 렌더링되는 경우도 강제 정렬 */
+  .screen-layout,
+  .page-wrapper {
+    max-width: 414px;
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+  }
+}
+
 /* 작은 화면에서는 전체 너비 사용 */
 @media (max-width: 460px) {
   .app-container {
