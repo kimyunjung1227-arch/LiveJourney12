@@ -976,7 +976,8 @@ const SearchScreen = () => {
                 value={searchQuery}
                 onChange={handleSearchInput}
                 onFocus={() => {
-                  if (searchQuery.trim()) setShowSuggestions(true);
+                  // 여행자 모드에서는 자동완성 드롭다운 대신 본문 리스트를 사용한다.
+                  if (searchMode !== 'person' && searchQuery.trim()) setShowSuggestions(true);
                 }}
               />
             </div>
@@ -1020,13 +1021,7 @@ const SearchScreen = () => {
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <div className="bg-white dark:bg-[#2F2418] rounded-2xl ring-2 ring-red-300 dark:ring-red-800 px-4 py-6 text-center">
-                    <span className="material-symbols-outlined text-gray-400 text-4xl mb-2">person_off</span>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">일치하는 여행자가 없어요</p>
-                    <p className="text-gray-400 dark:text-gray-500 text-xs mt-1">닉네임 일부만 입력해도 검색돼요 (예: 김윤)</p>
-                  </div>
-                )
+                ) : null
               ) : filteredRegions.length > 0 || filteredHashtags.length > 0 ? (
                 <div
                   className="bg-white dark:bg-[#2F2418] rounded-2xl shadow-2xl ring-2 ring-primary/30 dark:ring-primary/50 overflow-y-auto"
@@ -1083,11 +1078,7 @@ const SearchScreen = () => {
           {/* 인물 모드: 검색어가 있으면 "검색 결과 리스트"를 화면 본문에 표시 (이미지 스타일) */}
           {searchMode === 'person' && searchQuery.trim() && (
             <div className="px-4 pt-2 pb-2">
-              {travelerSearchResults.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#2F2418] p-4 text-center text-[12px] text-slate-500 dark:text-slate-300">
-                  일치하는 여행자가 없어요
-                </div>
-              ) : (
+              {travelerSearchResults.length > 0 ? (
                 <div className="divide-y divide-slate-100 dark:divide-white/10 rounded-2xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#2F2418] overflow-hidden">
                   {travelerSearchResults.map((t) => {
                     const followed = isFollowing(null, t.userId);
@@ -1134,7 +1125,7 @@ const SearchScreen = () => {
                     );
                   })}
                 </div>
-              )}
+              ) : null}
             </div>
           )}
 
