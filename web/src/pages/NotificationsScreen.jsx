@@ -8,7 +8,6 @@ import {
   syncNotificationsFromSupabase,
   markAllNotificationsAsRead,
   markNotificationAsRead,
-  deleteNotification,
 } from '../utils/notifications';
 import { follow, unfollow, isFollowing, getFollowingIds, syncFollowingFromSupabase } from '../utils/followSystem';
 import { getDisplayImageUrl } from '../api/upload';
@@ -153,7 +152,17 @@ const NotificationsScreen = () => {
 
   const list = useMemo(() => {
     const base = tab === 'friends' ? friendNews : allNotifications;
-    return [...base].sort((a, b) => notificationTimeMs(b) - notificationTimeMs(a));
+    const filtered =
+      tab === 'friends'
+        ? base
+        : (base || []).filter((n) => {
+            // 전체 소식에서는 "게시물 업데이트" 류 알림은 숨김
+            if (n?.type === 'post') return false;
+            if (String(n?.data?.kind || '').includes('post')) return false;
+            if (/게시물.*업데이트/i.test(String(n?.message || ''))) return false;
+            return true;
+          });
+    return [...filtered].sort((a, b) => notificationTimeMs(b) - notificationTimeMs(a));
   }, [allNotifications, friendNews, tab]);
 
   const grouped = useMemo(() => {
@@ -231,12 +240,27 @@ const NotificationsScreen = () => {
     window.dispatchEvent(new Event('notificationCountChanged'));
   };
 
-  const handleDelete = (notificationId, e) => {
-    e.stopPropagation();
-    if (String(notificationId).startsWith('friendpost:')) return;
-    deleteNotification(notificationId);
-    loadNotifications();
-    window.dispatchEvent(new Event('notificationCountChanged'));
+  const getBadgeDisplayFromMessage = (msg) => {
+    const m = String(msg || '');
+    if (!m) return '';
+    // 1) dyn:... 토큰
+    const dyn = m.match(/(dyn:[^\s"']+)/);
+    if (dyn && dyn[1]) {
+      try {
+        return getBadgeDisplayNameFromName(String(dyn[1]).trim());
+      } catch {
+        return String(dyn[1]).trim();
+      }
+    }
+    // 2) "뱃지명"
+    const q = m.match(/"([^"]+)"/);
+    if (q && q[1]) return String(q[1]).trim();
+    // 3) 문장 끝 패턴 제거
+    if (m.includes('뱃지')) {
+      const stripped = m.replace(/\s*뱃지를\s*획득했습니다[!！]?\s*$/u, '').trim();
+      return stripped.replace(/^["「『]|["」』]$/g, '').trim();
+    }
+    return '';
   };
 
   const avatarFor = (n) => {
@@ -249,16 +273,16 @@ const NotificationsScreen = () => {
     const url = avatarFor(n);
     if (url && (n.type === 'follow' || n.type === 'like')) {
       return (
-        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/90 dark:bg-zinc-800 dark:ring-zinc-600">
+        <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/90 dark:bg-zinc-800 dark:ring-zinc-600">
           <img src={url} alt="" className="h-full w-full object-cover" />
         </div>
       );
     }
     return (
       <div
-        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${t.bg}`}
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${t.bg}`}
       >
-        <span className="material-symbols-outlined text-[22px] text-zinc-500 dark:text-zinc-400">
+        <span className="material-symbols-outlined text-[20px] text-zinc-500 dark:text-zinc-400">
           {n.icon || t.icon}
         </span>
       </div>
@@ -268,7 +292,7 @@ const NotificationsScreen = () => {
   const renderRight = (n) => {
     if (n.type === 'like' && n.thumbnailUrl) {
       return (
-        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-zinc-100 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-600">
+        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-zinc-100 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-600">
           <img src={getDisplayImageUrl(n.thumbnailUrl)} alt="" className="h-full w-full object-cover" />
         </div>
       );
@@ -281,7 +305,7 @@ const NotificationsScreen = () => {
             e.stopPropagation();
             handleOpen({ ...n, read: n.read });
           }}
-          className="shrink-0 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:border-primary/30 hover:text-primary-dark dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-primary/40"
+          className="shrink-0 rounded-lg border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:border-primary/30 hover:text-primary-dark dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-primary/40"
         >
           자세히
         </button>
@@ -319,7 +343,10 @@ const NotificationsScreen = () => {
   const mainText = (n) => {
     if (n.type === 'badge') {
       const raw = n.badge || '';
-      const display = n.badgeDisplayName || (raw ? getBadgeDisplayNameFromName(raw) : '');
+      const display =
+        n.badgeDisplayName ||
+        (raw ? getBadgeDisplayNameFromName(raw) : '') ||
+        getBadgeDisplayFromMessage(n.message);
       if (display) return `"${display}" 뱃지를 획득했습니다!`;
       if (n.message) return n.message;
       return '뱃지를 획득했습니다';
@@ -411,7 +438,7 @@ const NotificationsScreen = () => {
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' || e.key === ' ') handleOpen(notification);
                             }}
-                            className={`flex cursor-pointer items-center gap-3 border-l-[3px] px-4 py-3.5 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/80 ${
+                            className={`flex cursor-pointer items-center gap-2.5 border-l-[3px] px-4 py-2.5 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/80 ${
                               !notification.read
                                 ? 'border-primary bg-zinc-50/70 dark:border-primary dark:bg-zinc-800/50'
                                 : 'border-transparent'
@@ -419,27 +446,19 @@ const NotificationsScreen = () => {
                           >
                             {leftIcon(notification)}
                             <div className="min-w-0 flex-1">
-                              <p className="text-[13px] leading-snug text-text-primary-light dark:text-text-primary-dark">
+                              <p className="text-[12px] leading-snug text-text-primary-light dark:text-text-primary-dark">
                                 {mainText(notification)}
                               </p>
                               {notification.subMessage ? (
-                                <p className="mt-0.5 line-clamp-1 text-[11px] text-text-secondary-light dark:text-text-secondary-dark">
+                                <p className="mt-0.5 line-clamp-1 text-[10px] text-text-secondary-light dark:text-text-secondary-dark">
                                   {notification.subMessage}
                                 </p>
                               ) : null}
-                              <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">
+                              <p className="mt-1 text-[10px] text-zinc-400 dark:text-zinc-500">
                                 {notification.time}
                               </p>
                             </div>
                             {renderRight(notification)}
-                            <button
-                              type="button"
-                              onClick={(e) => handleDelete(notification.id, e)}
-                              className="flex size-8 shrink-0 items-center justify-center rounded-full text-zinc-300 hover:bg-zinc-100 hover:text-zinc-500 dark:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-400"
-                              aria-label="삭제"
-                            >
-                              <span className="material-symbols-outlined text-lg">close</span>
-                            </button>
                           </div>
                         ))}
                       </div>
