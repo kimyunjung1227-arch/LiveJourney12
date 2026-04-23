@@ -888,6 +888,18 @@ const UploadScreen = () => {
       if (isFirstMedia && (imageFiles.length > 0 || videoFiles.length > 0)) {
         const firstNewImage = imageFiles[0];
         if (!firstNewImage || firstNewImage.type.startsWith('video/')) {
+          // 동영상만 추가된 경우(또는 첫 미디어가 동영상인 경우):
+          // EXIF가 없으므로 파일의 lastModified를 "촬영 시각 대체값"으로 즉시 반영해 UX를 끊기지 않게 한다.
+          const firstNewVideo = videoFiles[0] || null;
+          if (firstNewVideo && typeof firstNewVideo.lastModified === 'number' && firstNewVideo.lastModified > 0) {
+            const iso = new Date(firstNewVideo.lastModified).toISOString();
+            setFormData((prev) => ({
+              ...prev,
+              photoDate: prev.photoDate || iso,
+              exifData: prev.exifData || null,
+              verifiedLocation: prev.verifiedLocation || null,
+            }));
+          }
           getCurrentLocation();
           generateVideoTags(combinedLocation, formData.note);
         }
@@ -1843,6 +1855,7 @@ const UploadScreen = () => {
                     {formData.photoDate && (
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         {(() => {
+                          const isVideoOnly = formData.imageFiles.length === 0 && formData.videoFiles.length > 0;
                           const formatted = formatExifDate(formData.photoDate);
                           const dateObj = new Date(formData.photoDate);
                           const timeText = isNaN(dateObj.getTime())
@@ -1856,7 +1869,7 @@ const UploadScreen = () => {
                           return (
                             <>
                               <span className="mr-1 text-[11px] font-medium text-teal-600">
-                                EXIF 기준 촬영 시간
+                                {isVideoOnly ? '파일 기준 시간' : 'EXIF 기준 촬영 시간'}
                               </span>
                               <span>
                                 {formatted ? `${formatted} · ${timeText}` : timeText}

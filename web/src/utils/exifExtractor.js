@@ -313,9 +313,17 @@ export const extractExifData = async (file, options = {}) => {
     if (!allowed) {
       return null;
     }
+    const typeLower = String(file?.type || '').toLowerCase();
+    const nameLower = String(file?.name || '').toLowerCase();
+    // 동영상이면 EXIF 대상이 아님
+    if (typeLower.startsWith('video/')) return null;
+    if (!typeLower.startsWith('image/') && /\.(mp4|mov|m4v|webm|3gp|3gpp|3g2|mkv)$/i.test(nameLower)) return null;
+
+    // 모바일(WebView/Safari)에서 type이 비거나 name에 확장자가 없는 파일이 종종 들어와서
+    // 여기서 너무 엄격하게 걸러버리면 EXIF가 항상 null이 된다.
+    // "이미지로 보이지 않음"이어도, 동영상이 아닌 이상 파싱을 한 번 시도한다.
     if (!isLikelyRasterImageFile(file)) {
-      logger.debug('EXIF 추출: 이미지로 보이지 않음 (type/name)', file?.type, file?.name);
-      return null;
+      logger.debug('EXIF 추출: 타입/확장자 불명확 — 파싱 시도', file?.type, file?.name);
     }
 
     const typedFile = ensureTypedImageFileForExif(file);
