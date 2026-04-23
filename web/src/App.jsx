@@ -64,6 +64,7 @@ const AccountConnectionScreen = lazyWithRecover(() => import('./pages/AccountCon
 const AccountDeleteScreen = lazyWithRecover(() => import('./pages/AccountDeleteScreen'))
 const AccountDeleteConfirmScreen = lazyWithRecover(() => import('./pages/AccountDeleteConfirmScreen'))
 const BadgeAchievementScreen = lazyWithRecover(() => import('./pages/BadgeAchievementScreen'))
+const LiveBadgeDetailScreen = lazyWithRecover(() => import('./pages/LiveBadgeDetailScreen'))
 const MyCouponsScreen = lazyWithRecover(() => import('./pages/MyCouponsScreen'))
 const RaffleScreen = lazyWithRecover(() => import('./pages/RaffleScreen'))
 const SettingsScreen = lazyWithRecover(() => import('./pages/SettingsScreen'))
@@ -175,6 +176,7 @@ function App() {
                   }
                 />
                 <Route path="/user/:userId/badges" element={<EarnedBadgesScreen />} />
+                <Route path="/badge/live/:badgeName" element={<LiveBadgeDetailScreen />} />
                 <Route path="/user/:userId" element={<UserProfileScreen />} />
                 <Route path="/badge-achievement/:badgeId" element={<BadgeAchievementScreen />} />
                 <Route path="/badge/achievement" element={<BadgeAchievementScreen />} />

@@ -39,7 +39,6 @@ const EarnedBadgesScreen = () => {
   const [loading, setLoading] = useState(true);
   const [badges, setBadges] = useState([]);
   const [screenTitle, setScreenTitle] = useState('획득한 라이브뱃지');
-  const [selectedBadge, setSelectedBadge] = useState(null);
   const [profileName, setProfileName] = useState('사용자');
   const [profileImage, setProfileImage] = useState(null);
 
@@ -50,6 +49,14 @@ const EarnedBadgesScreen = () => {
   }, [authUser?.id]);
 
   const sortedBadges = useMemo(() => sortBadges(badges), [badges]);
+  const groupedBadges = useMemo(() => {
+    const isRegion = (b) =>
+      String(b?.name || '').startsWith('dyn:region:') || String(b?.category || '').includes('지역');
+    const isTheme = (b) => !isRegion(b); // 시즌/가치 등
+    const regionBadges = sortedBadges.filter(isRegion);
+    const themeBadges = sortedBadges.filter(isTheme);
+    return { regionBadges, themeBadges };
+  }, [sortedBadges]);
 
   const loadLocalPostsForUser = useCallback((uid) => {
     try {
@@ -141,35 +148,104 @@ const EarnedBadgesScreen = () => {
                   아직 획득한 라이브뱃지가 없습니다.
                 </p>
               ) : (
-                <div className="grid grid-cols-3 gap-5 sm:grid-cols-4">
-                  {sortedBadges.map((badge, index) => {
-                    const label = getBadgeDisplayName(badge) || badge?.name || '라이브뱃지';
-                    const icon = badge?.icon;
-                    return (
-                      <button
-                        key={`${badge?.name || 'b'}-${index}`}
-                        type="button"
-                        onClick={() => setSelectedBadge(badge)}
-                        className="flex flex-col items-center text-left"
-                      >
-                        <div className="w-16 h-16 rounded-full bg-white dark:bg-gray-950 border-[3px] border-primary flex items-center justify-center shadow-sm overflow-hidden mb-2">
-                          {icon ? (
-                            <span className="text-3xl leading-none select-none">{icon}</span>
-                          ) : (
-                            <span className="text-[10px] font-bold text-primary text-center px-1 leading-tight line-clamp-2">
-                              {label.slice(0, 8)}
-                            </span>
-                          )}
-                        </div>
-                        <span
-                          className="text-[11px] font-semibold text-center px-2 py-1 rounded-full border bg-primary/10 dark:bg-primary/15 border-primary/25 text-primary truncate w-full"
-                          title={label}
-                        >
-                          {label}
-                        </span>
-                      </button>
-                    );
-                  })}
+                <div className="space-y-10">
+                  <section>
+                    <h2 className="text-sm font-extrabold text-text-primary-light dark:text-text-primary-dark mb-1">
+                      지역 인장
+                    </h2>
+                    <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mb-4">
+                      특정 지역의 실시간 정보를 꾸준히 올리면 성장하는 인장이에요.
+                    </p>
+                    {groupedBadges.regionBadges.length === 0 ? (
+                      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-950/20 px-4 py-8 text-center text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                        인장이 없습니다.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-5 sm:grid-cols-4">
+                        {groupedBadges.regionBadges.map((badge, index) => {
+                          const label = getBadgeDisplayName(badge) || badge?.name || '라이브뱃지';
+                          const icon = badge?.icon;
+                          return (
+                            <button
+                              key={`${badge?.name || 'b'}-${index}`}
+                              type="button"
+                              onClick={() =>
+                                navigate(`/badge/live/${encodeURIComponent(String(badge?.name || ''))}`, {
+                                  state: { badge },
+                                })
+                              }
+                              className="flex flex-col items-center text-left"
+                            >
+                              <div className="w-16 h-16 rounded-full bg-white dark:bg-gray-950 border-[3px] border-primary flex items-center justify-center shadow-sm overflow-hidden mb-2">
+                                {icon ? (
+                                  <span className="text-3xl leading-none select-none">{icon}</span>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-primary text-center px-1 leading-tight line-clamp-2">
+                                    {label.slice(0, 8)}
+                                  </span>
+                                )}
+                              </div>
+                              <span
+                                className="text-[11px] font-semibold text-center px-2 py-1 rounded-full border bg-primary/10 dark:bg-primary/15 border-primary/25 text-primary truncate w-full"
+                                title={label}
+                              >
+                                {label}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+
+                  <section>
+                    <h2 className="text-sm font-extrabold text-text-primary-light dark:text-text-primary-dark mb-1">
+                      테마 인장
+                    </h2>
+                    <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mb-4">
+                      시즌/가치 테마 활동으로 성장하는 인장이에요.
+                    </p>
+                    {groupedBadges.themeBadges.length === 0 ? (
+                      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-950/20 px-4 py-8 text-center text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                        인장이 없습니다.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-5 sm:grid-cols-4">
+                        {groupedBadges.themeBadges.map((badge, index) => {
+                          const label = getBadgeDisplayName(badge) || badge?.name || '라이브뱃지';
+                          const icon = badge?.icon;
+                          return (
+                            <button
+                              key={`${badge?.name || 'b'}-${index}`}
+                              type="button"
+                              onClick={() =>
+                                navigate(`/badge/live/${encodeURIComponent(String(badge?.name || ''))}`, {
+                                  state: { badge },
+                                })
+                              }
+                              className="flex flex-col items-center text-left"
+                            >
+                              <div className="w-16 h-16 rounded-full bg-white dark:bg-gray-950 border-[3px] border-primary flex items-center justify-center shadow-sm overflow-hidden mb-2">
+                                {icon ? (
+                                  <span className="text-3xl leading-none select-none">{icon}</span>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-primary text-center px-1 leading-tight line-clamp-2">
+                                    {label.slice(0, 8)}
+                                  </span>
+                                )}
+                              </div>
+                              <span
+                                className="text-[11px] font-semibold text-center px-2 py-1 rounded-full border bg-primary/10 dark:bg-primary/15 border-primary/25 text-primary truncate w-full"
+                                title={label}
+                              >
+                                {label}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
                 </div>
               )}
             </>
@@ -177,82 +253,6 @@ const EarnedBadgesScreen = () => {
         </div>
       </div>
       <BottomNavigation />
-
-      {/* 인장 조건/설명 모달 */}
-      {selectedBadge && (
-        <div
-          className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/50 p-4"
-          onClick={() => setSelectedBadge(null)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="라이브뱃지 조건"
-        >
-          <div
-            className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-xl leading-none" aria-hidden>
-                  {selectedBadge.icon || '🏅'}
-                </span>
-                <h4 className="text-base font-bold text-text-primary-light dark:text-text-primary-dark truncate">
-                  {getBadgeDisplayName(selectedBadge) || selectedBadge?.name || '라이브뱃지'}
-                </h4>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedBadge(null)}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
-                aria-label="닫기"
-              >
-                <span className="material-symbols-outlined text-xl">close</span>
-              </button>
-            </div>
-
-            <div className="p-4 space-y-3">
-              {selectedBadge?.description && (
-                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed break-keep">
-                  {selectedBadge.description}
-                </p>
-              )}
-
-              {(selectedBadge?.shortCondition ||
-                (typeof selectedBadge?.progressCurrent === 'number' &&
-                  typeof selectedBadge?.progressTarget === 'number')) && (
-                <div className="rounded-xl border border-primary/20 bg-primary/5 dark:bg-primary/10 p-3">
-                  <p className="text-xs font-semibold text-primary mb-1">획득 조건</p>
-                  {selectedBadge?.shortCondition && (
-                    <p className="text-sm text-gray-700 dark:text-gray-300 break-keep">
-                      {selectedBadge.shortCondition}
-                    </p>
-                  )}
-                  {typeof selectedBadge?.progressCurrent === 'number' &&
-                    typeof selectedBadge?.progressTarget === 'number' && (
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                        진행도: {selectedBadge.progressCurrent}/{selectedBadge.progressTarget}
-                        {selectedBadge?.progressUnit ? ` ${selectedBadge.progressUnit}` : ''}
-                      </p>
-                    )}
-                </div>
-              )}
-
-              {isSelf && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRepresentativeBadge(selectedBadge);
-                    setSelectedBadge(null);
-                  }}
-                  className="w-full h-11 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-colors"
-                >
-                  대표 라이브뱃지로 설정
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
