@@ -1543,11 +1543,14 @@ const ProfileScreen = () => {
                     {/* 대표 뱃지 - 클릭 가능 */}
                     <button
                       onClick={() => {
-                        if (earnedBadges.length > 0) {
-                          setShowBadgeSelector(true);
-                        } else {
-                          alert('아직 획득한 뱃지가 없습니다.');
+                        if (representativeBadge?.name) {
+                          navigate(`/badge/live/${encodeURIComponent(String(representativeBadge.name))}`, {
+                            state: { badge: representativeBadge },
+                          });
+                          return;
                         }
+                        if (earnedBadges.length > 0) setShowBadgeSelector(true);
+                        else alert('아직 획득한 뱃지가 없습니다.');
                       }}
                       disabled={earnedBadges.length === 0}
                       className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed max-w-[140px]"
