@@ -165,20 +165,30 @@ const RaffleScreen = () => {
           <section className="relative w-full overflow-hidden">
             <div className="relative w-full min-h-[88px] max-h-[min(28vh,176px)] aspect-[5/2] sm:aspect-[21/9] sm:max-h-[min(30vh,192px)] bg-gradient-to-br from-sky-700 via-cyan-800 to-slate-900" />
           </section>
-          <div className="px-3 pt-3 sm:px-4 sm:pt-4">
-            <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-300 sm:text-[15px]">
-              지금 이 순간의 여행 기록이, 작은 행운으로 돌아오는 이벤트예요.
+          <div className="px-3 pt-4 sm:px-4">
+            <h2 className="text-[34px] font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
+              LiveJourney raffle
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400 sm:text-[15px]">
+              현장의 실시간 기록이 쌓일수록 여행은 더 쉬워지고, 그 가치가 작은 행운으로 돌아옵니다.
             </p>
           </div>
 
-          <div className="px-3 pt-3 space-y-5 text-[15px] sm:px-4 sm:pt-4 sm:text-base">
+          <div className="px-3 pt-4 space-y-5 text-[15px] sm:px-4 sm:text-base">
             <section>
+              <div className="text-sm font-extrabold text-gray-900 dark:text-gray-100">연관 위키</div>
               <button
                 type="button"
                 onClick={() => setGuideOpen(true)}
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-900 shadow-sm transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
+                className="mt-2 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-50 active:scale-[0.99] dark:border-gray-700 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
               >
-                래플가이드(참여방법)
+                <span className="material-symbols-outlined text-[18px] text-rose-500" aria-hidden>
+                  description
+                </span>
+                <span>래플 가이드 (참여 방법)</span>
+                <span className="material-symbols-outlined ml-0.5 text-[18px] text-gray-400" aria-hidden>
+                  chevron_right
+                </span>
               </button>
             </section>
 
