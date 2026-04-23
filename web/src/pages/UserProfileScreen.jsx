@@ -677,20 +677,12 @@ const UserProfileScreen = () => {
                       {user.username || '사용자'}
                     </h2>
                     {representativeBadge && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          navigate(`/badge/live/${encodeURIComponent(String(representativeBadge?.name || ''))}`, {
-                            state: { badge: representativeBadge },
-                          })
-                        }
-                        className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-full flex-shrink-0 border border-gray-200 dark:border-gray-600 max-w-[140px] hover:border-gray-300 dark:hover:border-gray-500 transition-colors"
-                      >
+                      <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-full flex-shrink-0 border border-gray-200 dark:border-gray-600 max-w-[140px]">
                         <span className="text-sm">{representativeBadge.icon}</span>
                         <span className="text-[10px] font-semibold text-gray-800 dark:text-gray-200 truncate">
                           {getBadgeDisplayName(representativeBadge) || representativeBadge.name}
                         </span>
-                      </button>
+                      </div>
                     )}
                   </div>
                   {currentUser && String(currentUser.id) !== String(userId) && (

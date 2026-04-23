@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getBadgeDisplayName } from '../utils/badgeSystem';
 
 function sortBadgesForDisplay(badges) {
@@ -15,8 +16,19 @@ function sortBadgesForDisplay(badges) {
  * 프로필 상단 「라이브뱃지」: 가로 스크롤 미리보기 + 모두보기
  */
 export default function ProfileInjangSection({ badges, onViewAll, onOpenBadge, className = '' }) {
+  const navigate = useNavigate();
   const sorted = useMemo(() => sortBadgesForDisplay(badges), [badges]);
   const preview = sorted.slice(0, 12);
+
+  const openBadge = (badge) => {
+    if (onOpenBadge) {
+      onOpenBadge(badge);
+      return;
+    }
+    const name = String(badge?.name || '').trim();
+    if (!name) return;
+    navigate(`/badge/live/${encodeURIComponent(name)}`, { state: { badge } });
+  };
 
   return (
     <div className={`pt-2 pb-3 border-b border-gray-100 dark:border-gray-800 ${className}`}>
@@ -46,7 +58,7 @@ export default function ProfileInjangSection({ badges, onViewAll, onOpenBadge, c
               <button
                 key={`${badge?.name || 'b'}-${index}`}
                 type="button"
-                onClick={() => onOpenBadge?.(badge)}
+                onClick={() => openBadge(badge)}
                 className="flex flex-col items-center shrink-0 w-[84px] text-left"
               >
                 <div
