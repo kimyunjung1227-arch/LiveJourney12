@@ -677,7 +677,31 @@ const SearchScreen = () => {
         setShowSuggestions(false);
         return;
       }
-      alert('일치하는 여행자를 찾지 못했어요. 닉네임을 확인해 주세요.');
+      // 로컬(팔로우/캐시)에서 못 찾았으면 Supabase profiles 전체 디렉토리에서 prefix 검색으로 재시도
+      void (async () => {
+        try {
+          const rows = await searchProfilesSupabase(raw, { limit: 20 });
+          const first = Array.isArray(rows) ? rows.find((r) => r?.id && r?.username) : null;
+          if (first?.id) {
+            const userId = String(first.id);
+            const username = String(first.username || '').trim();
+            navigate(`/user/${encodeURIComponent(userId)}`, {
+              state: {
+                profileHint: {
+                  username,
+                  profileImage: first?.avatar_url ? String(first.avatar_url) : null,
+                },
+              },
+            });
+            setSearchQuery('');
+            setShowSuggestions(false);
+            return;
+          }
+          alert('일치하는 여행자를 찾지 못했어요. 닉네임을 확인해 주세요.');
+        } catch {
+          alert('여행자 검색에 실패했어요. 잠시 후 다시 시도해 주세요.');
+        }
+      })();
       return;
     }
 
@@ -963,7 +987,7 @@ const SearchScreen = () => {
                   <div className="bg-white dark:bg-[#2F2418] rounded-2xl ring-2 ring-red-300 dark:ring-red-800 px-4 py-6 text-center">
                     <span className="material-symbols-outlined text-gray-400 text-4xl mb-2">person_off</span>
                     <p className="text-gray-500 dark:text-gray-400 text-sm">일치하는 여행자가 없어요</p>
-                    <p className="text-gray-400 dark:text-gray-500 text-xs mt-1">게시물에 올라온 닉네임으로 검색해 보세요</p>
+                    <p className="text-gray-400 dark:text-gray-500 text-xs mt-1">닉네임 일부만 입력해도 검색돼요 (예: 김윤)</p>
                   </div>
                 )
               ) : filteredRegions.length > 0 || filteredHashtags.length > 0 ? (
