@@ -6,6 +6,48 @@ import './utils/clearStorage'
 import { requestNotificationPermission } from './utils/browserNotifications'
 import { logger } from './utils/logger'
 
+/**
+ * 브라우저 확대/축소를 "완전 고정"하는 것은 불가능하지만,
+ * 앱처럼 보이도록 사용자가 의도적으로 줌을 바꾸는 대표 동작(Ctrl+휠 / Ctrl+±/0)을 최대한 막는다.
+ * - 일부 브라우저/환경에서는 정책상 무시될 수 있음.
+ */
+function preventDesktopZoom() {
+  if (typeof window === 'undefined') return
+
+  const onWheel = (e) => {
+    if (e.ctrlKey) e.preventDefault()
+  }
+  const onKeyDown = (e) => {
+    const key = String(e.key || '').toLowerCase()
+    if (!e.ctrlKey && !e.metaKey) return
+    // Ctrl(+)/(-)/(0) or Cmd(+)/(-)/(0)
+    if (key === '+' || key === '=' || key === '-' || key === '_' || key === '0') {
+      e.preventDefault()
+    }
+  }
+
+  // passive: false 필요 (preventDefault 적용)
+  window.addEventListener('wheel', onWheel, { passive: false })
+  window.addEventListener('keydown', onKeyDown, { passive: false })
+
+  // iOS Safari 제스처 줌(핀치) 방지 best-effort
+  window.addEventListener(
+    'gesturestart',
+    (e) => e.preventDefault(),
+    { passive: false },
+  )
+  window.addEventListener(
+    'gesturechange',
+    (e) => e.preventDefault(),
+    { passive: false },
+  )
+  window.addEventListener(
+    'gestureend',
+    (e) => e.preventDefault(),
+    { passive: false },
+  )
+}
+
 /** Supabase Storage 이미지 요청 전 TLS/DNS 연결을 미리 열어 첫 페인트 지연 완화 */
 function preconnectSupabaseOrigin() {
   try {
@@ -113,6 +155,7 @@ const handleGitHubPagesRedirect = () => {
 // 앱 초기화 (Kakao는 백그라운드 로드, 앱은 즉시 표시)
 const initApp = () => {
   handleGitHubPagesRedirect();
+  preventDesktopZoom();
 
   // Kakao Map은 백그라운드에서 로드 (기다리지 않음 → 로드 시간 초과로 앱이 막히지 않음)
   loadKakaoMapAPI()
