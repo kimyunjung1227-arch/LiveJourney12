@@ -46,13 +46,14 @@ export const searchProfilesSupabase = async (query, { limit = 20 } = {}) => {
   if (q.length < 1) return [];
 
   try {
-    // prefix match first for responsiveness, then fallback to contains
     const like = q.replace(/[%_]/g, '\\$&');
+    const lim = Math.max(1, Math.min(50, Number(limit) || 20));
     const { data, error } = await supabase
       .from('profiles')
       .select('id,username,avatar_url,bio,updated_at')
-      .ilike('username', `${like}%`)
-      .limit(Math.max(1, Math.min(50, Number(limit) || 20)));
+      // prefix + contains 모두(예: "도" → "도..." + "...도...")
+      .or(`username.ilike.${like}%,username.ilike.%${like}%`)
+      .limit(lim);
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   } catch (e) {

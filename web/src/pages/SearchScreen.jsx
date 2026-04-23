@@ -67,6 +67,7 @@ const SearchScreen = () => {
   const [filteredRegions, setFilteredRegions] = useState([]);
   const [filteredHashtags, setFilteredHashtags] = useState([]);
   const [filteredTravelers, setFilteredTravelers] = useState([]);
+  const [travelerSearchResults, setTravelerSearchResults] = useState([]);
   const [profilesDirectory, setProfilesDirectory] = useState([]);
   const [recentSearches, setRecentSearches] = useState([]);
   const [allPosts, setAllPosts] = useState([]);
@@ -575,6 +576,31 @@ const SearchScreen = () => {
     [travelerDirectory, matchChosung]
   );
 
+  const rankTravelers = useCallback(
+    (rows, searchTerm, raw) => {
+      const list = Array.isArray(rows) ? rows : [];
+      const key = String(searchTerm || '').toLowerCase();
+      const rawText = String(raw || '').trim();
+      if (!key) return list;
+      return list
+        .map((t) => {
+          const name = String(t?.username || '').toLowerCase();
+          let rank = 99;
+          if (!name) return null;
+          if (name === key) rank = 0;
+          else if (name.startsWith(key)) rank = 1;
+          else if (name.includes(key)) rank = 2;
+          else if (matchChosung(String(t?.username || ''), rawText)) rank = 3;
+          else return null;
+          return { ...t, rank };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.rank - b.rank || a.username.localeCompare(b.username, 'ko'))
+        .map(({ rank, ...rest }) => rest);
+    },
+    [matchChosung]
+  );
+
   const switchSearchMode = useCallback((mode) => {
     if (mode !== 'place' && mode !== 'person') return;
     setSearchMode(mode);
@@ -606,9 +632,11 @@ const SearchScreen = () => {
         if (searchMode === 'person') {
           setFilteredRegions([]);
           setFilteredHashtags([]);
-          // 1) 즉시: 로컬(팔로우) quick match
-          setFilteredTravelers(getMatchingTravelers(searchTerm, raw));
-          setShowSuggestions(true);
+          // 1) 즉시: 로컬(팔로우/추천) quick match → 화면 본문 결과로 노출
+          const quick = getMatchingTravelers(searchTerm, raw);
+          setTravelerSearchResults(quick);
+          setFilteredTravelers(quick);
+          setShowSuggestions(false);
         } else {
           setFilteredRegions(getMatchingRegions(searchTerm, raw));
           const hashtagMatches = (hashtagChips || []).filter(
@@ -618,12 +646,14 @@ const SearchScreen = () => {
           );
           setFilteredHashtags(hashtagMatches);
           setFilteredTravelers([]);
+          setTravelerSearchResults([]);
           setShowSuggestions(true);
         }
       } else {
         setFilteredRegions([]);
         setFilteredHashtags([]);
         setFilteredTravelers([]);
+        setTravelerSearchResults([]);
         setShowSuggestions(false);
       }
     },
@@ -634,11 +664,14 @@ const SearchScreen = () => {
   useEffect(() => {
     if (searchMode !== 'person') return;
     const raw = String(searchQuery || '').trim();
-    if (!raw) return;
+    if (!raw) {
+      setTravelerSearchResults([]);
+      return;
+    }
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
-        const rows = await searchProfilesSupabase(raw, { limit: 20 });
+        const rows = await searchProfilesSupabase(raw, { limit: 50 });
         if (cancelled) return;
         const mapped = (Array.isArray(rows) ? rows : []).map((r) => ({
           userId: r?.id ? String(r.id) : '',
@@ -646,7 +679,11 @@ const SearchScreen = () => {
           profileImage: r?.avatar_url ? String(r.avatar_url) : null,
           postCount: 0,
         })).filter((x) => x.userId && x.username);
-        setFilteredTravelers(mapped);
+        const term = raw.replace(/^#+/, '').trim();
+        const st = term.toLowerCase();
+        const ranked = rankTravelers(mapped, st, term);
+        setTravelerSearchResults(ranked.slice(0, 50));
+        setFilteredTravelers(ranked.slice(0, 8)); // 자동완성(사용 안 하지만 기존 구조 유지)
       } catch {
         // ignore
       }
@@ -655,7 +692,7 @@ const SearchScreen = () => {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [searchMode, searchQuery]);
+  }, [searchMode, searchQuery, rankTravelers]);
 
   // 검색 핸들러: 장소(지역·해시태그) 또는 인물(프로필)
   const handleSearch = useCallback((e) => {
@@ -1043,6 +1080,64 @@ const SearchScreen = () => {
           className="screen-body flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain"
           style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}
         >
+          {/* 인물 모드: 검색어가 있으면 "검색 결과 리스트"를 화면 본문에 표시 (이미지 스타일) */}
+          {searchMode === 'person' && searchQuery.trim() && (
+            <div className="px-4 pt-2 pb-2">
+              {travelerSearchResults.length === 0 ? (
+                <div className="rounded-2xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#2F2418] p-4 text-center text-[12px] text-slate-500 dark:text-slate-300">
+                  일치하는 여행자가 없어요
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 dark:divide-white/10 rounded-2xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#2F2418] overflow-hidden">
+                  {travelerSearchResults.map((t) => {
+                    const followed = isFollowing(null, t.userId);
+                    return (
+                      <div
+                        key={`search-${t.userId}`}
+                        className="flex items-center gap-3 px-4 py-3 min-h-[56px]"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => { if (!hasMovedRef.current) goTravelerProfile(t); }}
+                          className="flex flex-1 min-w-0 items-center gap-3 text-left"
+                        >
+                          {t.profileImage ? (
+                            <img
+                              src={getDisplayImageUrl(t.profileImage)}
+                              alt=""
+                              className="w-10 h-10 rounded-full object-cover shrink-0 bg-gray-200 dark:bg-gray-600"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-sm shrink-0">
+                              {String(t.username || '?').slice(0, 1)}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="text-[#1c140d] dark:text-background-light font-semibold text-base truncate">
+                              {t.username}
+                            </div>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => toggleFollowForTraveler(e, t)}
+                          className={`shrink-0 h-9 px-3 rounded-md text-[12px] font-bold transition ${
+                            followed
+                              ? 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-100'
+                              : 'bg-red-700 text-white'
+                          }`}
+                        >
+                          {followed ? '팔로잉' : '팔로우'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* 인물 모드: 팔로우/추천 여행자 프로필 섹션 */}
           {searchMode === 'person' && !searchQuery.trim() && (
             <div className={`px-4 pt-2 pb-2 ${showSuggestions ? 'opacity-30 pointer-events-none' : ''}`}>
