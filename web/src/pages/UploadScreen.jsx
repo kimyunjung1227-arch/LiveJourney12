@@ -1491,17 +1491,21 @@ const UploadScreen = () => {
         Math.max(prev, Math.min(90, 10 + (completedUnits / Math.max(1, progressUnits)) * 78))
       );
 
-      let coordinates = formData.coordinates || (formData.exifData?.gpsCoordinates ? {
-        lat: formData.exifData.gpsCoordinates.lat,
-        lng: formData.exifData.gpsCoordinates.lng
-      } : null);
-
-      if (!coordinates && combinedLocation.trim()) {
+      // 지도 핀은 "사용자가 입력한 장소명"과 정확히 매치되게: 장소 텍스트로 먼저 좌표를 확정한다.
+      // (EXIF GPS/현재 위치는 실제 촬영 위치일 수 있어, 사용자가 입력한 장소와 불일치할 수 있음)
+      let coordinates = null;
+      if (combinedLocation.trim()) {
         const geo = await searchPlaceWithKakaoFirst(combinedLocation.trim());
         if (geo && !Number.isNaN(geo.lat) && !Number.isNaN(geo.lng)) {
           coordinates = { lat: geo.lat, lng: geo.lng };
-          logger.log('📍 위치 문구로 카카오 좌표 확정:', geo.placeName || geo.address, coordinates);
+          logger.log('📍 위치 문구로 카카오 좌표 확정(핀 기준):', geo.placeName || geo.address, coordinates);
         }
+      }
+      if (!coordinates) {
+        coordinates = formData.coordinates || (formData.exifData?.gpsCoordinates ? {
+          lat: formData.exifData.gpsCoordinates.lat,
+          lng: formData.exifData.gpsCoordinates.lng
+        } : null);
       }
       if (!coordinates) {
         logger.warn('📍 좌표를 확정하지 못했습니다. 지도에서는 장소명 검색으로 표시됩니다.');

@@ -340,6 +340,7 @@ const MapScreen = () => {
   const [posts, setPosts] = useState([]);
   const [postsWithCoords, setPostsWithCoords] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
+  const PIN_MAX_AGE_MS = 48 * 60 * 60 * 1000;
 
   // 처음 진입 시 필터는 기본으로 "미선택"(전체 표시)
   const [selectedFilters, setSelectedFilters] = useState([]);
@@ -396,7 +397,24 @@ const MapScreen = () => {
     try {
       const local = getUploadedPostsSafe();
       const remote = await fetchPostsSupabase();
-      const merged = mergePostsUnique([getCombinedPosts(local), remote]);
+      const mergedAll = mergePostsUnique([getCombinedPosts(local), remote]);
+      const now = Date.now();
+      const getUploadTimeMs = (p) => {
+        const ts = Number(p?.timestamp);
+        if (Number.isFinite(ts) && ts > 0) return ts;
+        const ca = p?.createdAt;
+        if (typeof ca === 'string' && ca.trim()) {
+          const t = new Date(ca).getTime();
+          return Number.isFinite(t) ? t : null;
+        }
+        return null;
+      };
+      // 업로드 시간 기준 48시간 지난 게시물은 지도 핀에서 제외
+      const merged = mergedAll.filter((p) => {
+        const t = getUploadTimeMs(p);
+        if (t == null) return true; // 시간 정보가 없으면 일단 유지(데이터 소실 방지)
+        return now - t <= PIN_MAX_AGE_MS;
+      });
 
       const MAX_ENRICH = 200;
       const slice = merged.slice(0, MAX_ENRICH);
