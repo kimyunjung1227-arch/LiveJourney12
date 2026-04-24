@@ -3,11 +3,12 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import BackButton from '../components/BackButton';
 import BottomNavigation from '../components/BottomNavigation';
 import { getBadgeDisplayName, hydrateBadgeFromName } from '../utils/badgeSystem';
+import LiveBadgeMedallion from '../components/LiveBadgeMedallion';
 
 const TIER_THRESHOLDS = {
   season: [1, 3, 6],
   value: [1, 3, 6],
-  region: [3, 10, 30],
+  region: [5, 20, 50],
 };
 
 function parseDynMeta(name) {
@@ -88,12 +89,13 @@ const LiveBadgeDetailScreen = () => {
           <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
             <p className="text-xs font-bold text-gray-500 dark:text-gray-400">현재 획득한 뱃지</p>
             <div className="mt-3 flex items-center gap-3">
-              <div
-                className="h-16 w-16 shrink-0 rounded-full border-[3px] border-primary bg-white dark:bg-gray-950 flex items-center justify-center overflow-hidden"
-                style={current?.gradientCss ? { backgroundImage: current.gradientCss, borderColor: 'transparent' } : undefined}
-              >
-                <span className="text-3xl leading-none select-none">{current?.icon || '🏅'}</span>
-              </div>
+              <LiveBadgeMedallion
+                badgeName={current?.name}
+                tier={current?.difficulty}
+                icon={current?.icon}
+                gradientCss={current?.gradientCss}
+                size={64}
+              />
               <div className="min-w-0">
                 <div className="text-sm font-extrabold text-gray-900 dark:text-gray-100 truncate">
                   {currentLabel}
@@ -110,12 +112,13 @@ const LiveBadgeDetailScreen = () => {
           <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
             <p className="text-xs font-bold text-gray-500 dark:text-gray-400">다음 등급 뱃지</p>
             <div className="mt-3 flex items-center gap-3">
-              <div
-                className="h-16 w-16 shrink-0 rounded-full border-[3px] border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 flex items-center justify-center overflow-hidden"
-                style={next?.gradientCss ? { backgroundImage: next.gradientCss, borderColor: 'transparent' } : undefined}
-              >
-                <span className="text-3xl leading-none select-none">{next?.icon || current?.icon || '🏅'}</span>
-              </div>
+              <LiveBadgeMedallion
+                badgeName={next?.name || current?.name}
+                tier={next?.difficulty || Math.min(3, (Number(current?.difficulty || meta?.tier || 1) || 1) + 1)}
+                icon={next?.icon || current?.icon}
+                gradientCss={next?.gradientCss}
+                size={64}
+              />
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-extrabold text-gray-900 dark:text-gray-100 truncate">
                   {isMaxTier ? '최고 등급을 달성했어요' : (nextLabel || '다음 등급')}

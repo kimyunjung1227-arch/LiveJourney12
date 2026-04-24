@@ -91,8 +91,8 @@ const decodeDynamicName = (name) => {
   if (parts[0] === 'region') {
     const region = parts[1] || '';
     const tier = Number(String(parts[2] || '').replace(/^tier/, '')) || 1;
-    const labels = ['비기너', '특파원', '마스터'];
-    const icon = tier === 3 ? '👑' : tier === 2 ? '📡' : '🧭';
+    const labels = ['여행자', '커넥터', '전문가'];
+    const icon = '🧭';
     return { kind: 'region', region, tier, displayName: `${region} ${labels[tier - 1] || '비기너'}`, icon, category: '지역 테마' };
   }
   // value:<id>:tierX
@@ -145,6 +145,34 @@ const getPostCapturedAtMs = (p) => {
 };
 const hasGps = (p) => !!(p?.coordinates || (p?.latitude != null && p?.longitude != null));
 const hasPhoto = (p) => Array.isArray(p?.images) ? p.images.length > 0 : !!p?.image || !!p?.thumbnail;
+const getPostHelpfulCount = (p) => {
+  // "도움돼요"를 likes(좋아요)로 해석 (현재 DB/클라에서 확실히 존재하는 반응 필드)
+  const n = Number(p?.helpfulCount ?? p?.helpful ?? p?.usefulCount ?? p?.useful ?? p?.likes ?? p?.likeCount ?? 0) || 0;
+  return Math.max(0, n);
+};
+const getPostPoiKey = (p) => {
+  const raw =
+    p?.placeId ||
+    p?.place_id ||
+    p?.poiId ||
+    p?.poi_id ||
+    p?.placeName ||
+    p?.place_name ||
+    p?.detailedLocation ||
+    p?.detailed_location ||
+    p?.location ||
+    '';
+  const v = String(raw || '').trim();
+  return v || null;
+};
+const getTimeBucket = (ms) => {
+  if (!ms) return null;
+  const h = new Date(ms).getHours();
+  // 오전/오후/야간 3분할 (요청 조건)
+  if (h >= 6 && h <= 11) return 'morning';
+  if (h >= 12 && h <= 17) return 'afternoon';
+  return 'night';
+};
 const hasWeatherTag = (p) => {
   const tagStr = Array.isArray(p?.tags) ? p.tags.join(' ') : String(p?.tags || '');
   const cat = String(p?.categoryName || p?.category || '').trim();
@@ -249,6 +277,7 @@ export const calculateUserStats = (posts = [], user = {}) => {
   const byRegionAndDate = {};
   const byDate = {};
   const dateSet = new Set();
+  const regionRealtimeMeta = {}; // region -> { uploads, helpful, timeBuckets:Set, pois:Set }
   const recent48h = [];
   const seasonSignals48h = { cherry: 0, foliage: 0, snow: 0, sea: 0 };
   const valueSignals48h = { waiting: 0, photo: 0, weather: 0 };
@@ -259,6 +288,19 @@ export const calculateUserStats = (posts = [], user = {}) => {
     if (r) {
       regionCounts[r] = (regionCounts[r] || 0) + 1;
       regionCountsByName[r] = (regionCountsByName[r] || 0) + 1;
+
+      // 지역 뱃지(전문성) 평가용 메타 누적
+      if (!regionRealtimeMeta[r]) {
+        regionRealtimeMeta[r] = { uploads: 0, helpful: 0, timeBuckets: new Set(), pois: new Set() };
+      }
+      regionRealtimeMeta[r].uploads += 1;
+      regionRealtimeMeta[r].helpful += getPostHelpfulCount(p);
+      const ms = getPostCreatedAtMs(p) || getPostCapturedAtMs(p) || 0;
+      const tb = getTimeBucket(ms);
+      if (tb) regionRealtimeMeta[r].timeBuckets.add(tb);
+      const poi = getPostPoiKey(p);
+      if (poi) regionRealtimeMeta[r].pois.add(poi);
+
       const createdAt = p.createdAt || p.created;
       if (createdAt) {
         const d = new Date(createdAt).toDateString();
@@ -381,6 +423,7 @@ export const calculateUserStats = (posts = [], user = {}) => {
     regionConsecutiveDays,
     regionTop1Percent: 0,
     regionCountsByName,
+    regionRealtimeMeta,
 
     weatherReports,
     waitingShares,
@@ -486,10 +529,12 @@ const buildDynamicBadges = (stats) => {
 
   // 2) 지역 테마 (전국 지역: "활동한 지역만" 자연 노출)
   const regionCounts = s.regionCountsByName && typeof s.regionCountsByName === 'object' ? s.regionCountsByName : {};
+  const regionMeta = s.regionRealtimeMeta && typeof s.regionRealtimeMeta === 'object' ? s.regionRealtimeMeta : {};
   const regionStages = [
-    { tier: 1, label: '비기너', target: 3 },
-    { tier: 2, label: '특파원', target: 10 },
-    { tier: 3, label: '마스터', target: 30 },
+    { tier: 1, label: '여행자', targetUploads: 5 },
+    { tier: 2, label: '커넥터', targetUploads: 20 },
+    // tier3는 업로드 외 추가 조건이 붙는다.
+    { tier: 3, label: '전문가', targetUploads: 50, targetHelpful: 100, targetPoi: 5, targetTimeBuckets: 3 },
   ];
   Object.entries(regionCounts)
     .filter(([region]) => region && String(region).trim().length >= 2)
@@ -497,15 +542,41 @@ const buildDynamicBadges = (stats) => {
       const cnt = Number(cntRaw || 0) || 0;
       if (cnt <= 0) return;
       const st =
-        cnt >= regionStages[2].target ? regionStages[2] :
-        cnt >= regionStages[1].target ? regionStages[1] :
+        cnt >= regionStages[2].targetUploads ? regionStages[2] :
+        cnt >= regionStages[1].targetUploads ? regionStages[1] :
         regionStages[0];
+
+      const m = regionMeta?.[region] || null;
+      const helpful = m ? Number(m.helpful || 0) || 0 : 0;
+      const poiCount = m ? (m.pois instanceof Set ? m.pois.size : Number(m.poiCount || 0) || 0) : 0;
+      const timeBucketsCount = m ? (m.timeBuckets instanceof Set ? m.timeBuckets.size : Number(m.timeBucketsCount || 0) || 0) : 0;
+
+      const tier3ExtraOk =
+        st.tier !== 3
+          ? true
+          : cnt >= regionStages[2].targetUploads &&
+            helpful >= regionStages[2].targetHelpful &&
+            poiCount >= regionStages[2].targetPoi &&
+            timeBucketsCount >= regionStages[2].targetTimeBuckets;
+
+      const shortCondition =
+        st.tier === 3
+          ? `${region} 제보 ${regionStages[2].targetUploads}회 + 도움돼요 ${regionStages[2].targetHelpful} + 시간대 3종 + POI 5곳`
+          : `${region} 제보 ${st.targetUploads}회`;
+
+      const progressTarget =
+        st.tier === 3
+          ? regionStages[2].targetUploads
+          : st.targetUploads;
       mk(
         `region:${region}:tier${st.tier}`,
         {
           displayName: `${region} ${st.label}`,
-          description: `${region} 실시간 정보를 꾸준히 올리면 성장하는 지역 전문가 뱃지예요.`,
-          icon: st.tier === 3 ? '👑' : st.tier === 2 ? '📡' : '🧭',
+          description:
+            st.tier === 3
+              ? `${region}의 정보 시차를 줄이는 '지역 전문가'예요. 다양한 시간대·장소에서 검증된 실시간 정보를 연결합니다.`
+              : `${region}의 실시간 정보를 꾸준히 공유하며 지역과 여행자를 연결해요.`,
+          icon: '🧭',
           category: '지역 테마',
           difficulty: st.tier,
           tone: toneForDynamic(`${DYNAMIC_BADGE_PREFIX}region:${region}:tier${st.tier}`),
@@ -514,12 +585,17 @@ const buildDynamicBadges = (stats) => {
             return t ? `linear-gradient(135deg, ${t.from}, ${t.to})` : undefined;
           })(),
           region,
-          condition: () => cnt >= st.target,
-          getProgress: () => Math.min(100, (cnt / st.target) * 100),
+          condition: () => (st.tier === 3 ? tier3ExtraOk : cnt >= progressTarget),
+          getProgress: () => Math.min(100, (cnt / progressTarget) * 100),
           progressCurrent: cnt,
-          progressTarget: st.target,
+          progressTarget,
           progressUnit: '회',
-          shortCondition: `${region} 제보 ${st.target}회`,
+          shortCondition,
+
+          // tier3 부가 조건(상세 화면에서 추가로 보여줄 수 있게 데이터도 포함)
+          regionHelpful: helpful,
+          regionPoiCount: poiCount,
+          regionTimeBucketsCount: timeBucketsCount,
         }
       );
     });

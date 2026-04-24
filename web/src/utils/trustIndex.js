@@ -1,19 +1,21 @@
 /**
- * 신뢰 지수 매트릭스 (Compass Score Matrix)
- * 데이터 무결성(Integrity) + 사용자 기여도(Contribution)를 수학적으로 결합한 구조.
+ * 라이브 싱크 (Live-Sync, %)
+ * "정보의 시차를 없애는 것"에 집중해, 유저의 정보가 현장과 얼마나 동기화되어 있는지(현장 일치도)를 직관적으로 표시합니다.
  *
- * 공식: CS = (A×w1) + (V×w2) + (R×w3) - (P×w4)
- * - A: Activity Index (업로드 빈도, GPS 인증, 정보 상세도)
- * - V: Validation Index (타인의 '정확해요' 추천, 추천인 등급 가중치 가능)
- * - R: Retention/Freshness (48시간 이내 업로드 보너스)
- * - P: Penalty (신고·중복·조작 시 감점)
+ * - 단위: %
+ * - 시작점: 50% (중립)
+ * - 특징: 승급 단계 없이, 모든 활동이 즉시 퍼센트에 반영되는 "살아있는 지수"
+ * - 미활동: 시간이 지나면 50%를 향해 서서히 수렴 (현장감 유지)
+ *
+ * ⚠️ 서버 운영 전환 중이라 데이터가 부분적으로만 존재할 수 있어,
+ *    가능한 필드들(Exif/좋아요/최근성 등)로 안전하게 추정합니다.
  */
 
 const USER_ACCURACY_MARKS_KEY = 'userAccuracyMarks';
 const POST_ACCURACY_COUNT_KEY = 'postAccuracyCount';
-const TRUST_PENALTY_KEY = 'trustPenalty';
-const TRUST_LAST_ACTIVE_KEY = 'trustLastActive';
-const COMPASS_SCORE_CACHE_KEY = 'compassScoreCache';
+const TRUST_PENALTY_KEY = 'trustPenalty'; // legacy key (세션 메모리)
+const TRUST_LAST_ACTIVE_KEY = 'trustLastActive'; // legacy key (세션 메모리)
+const COMPASS_SCORE_CACHE_KEY = 'compassScoreCache'; // legacy key (세션 메모리)
 
 // 서버 운영 전환: localStorage 제거 → 세션 메모리 캐시
 const memory = {
@@ -24,14 +26,23 @@ const memory = {
   compassScoreCache: {}, // userId -> { score, ts }
 };
 
-/** 가중치 (검증 점수 w2 강조) */
-const WEIGHTS = { w1: 1, w2: 3, w3: 0.5, w4: 2 };
-
-/** 48시간(ms) */
-const FRESHNESS_MS = 48 * 60 * 60 * 1000;
-
-/** 감쇠: 비활동 시 월별 차감 비율 (0.02 = 2% per month) */
-const DECAY_RATE_PER_MONTH = 0.02;
+/** 라이브 싱크 산정 파라미터 */
+const LIVE_SYNC = {
+  base: 50,
+  // "현장성"은 최신/실시간성에 강하게 반응하도록
+  maxUpRealtime: 25,
+  maxUpHelpful: 15,
+  maxUpQna: 10,
+  maxUpRegion: 10,
+  maxDownOldPhoto: 20,
+  maxDownMismatchReports: 25,
+  // 미활동 시 50%로 수렴 속도 (반감기 ~ 14일 체감)
+  inactivityHalfLifeDays: 14,
+  // Exif/업로드 시차를 "실시간"으로 간주하는 기준(분)
+  realtimeWindowMin: 10,
+  // 너무 오래된 촬영본(업로드 대비 촬영 시각)이면 페널티(시간)
+  oldPhotoThresholdHours: 24,
+};
 
 /** 게시물 작성자 ID 추출 */
 const getPostAuthorId = (post) => {
@@ -45,16 +56,34 @@ const hasLocationAuth = (post) => {
   return !!(post?.coordinates || (post?.latitude != null && post?.longitude != null) || (post?.location && post.location.trim().length > 0));
 };
 
-/** 게시물이 48시간 이내인지 */
-const isWithin48h = (post) => {
-  const t = post?.createdAt || post?.timestamp || post?.created || 0;
-  const ts = typeof t === 'string' ? new Date(t).getTime() : Number(t) || 0;
-  return ts > 0 && Date.now() - ts < FRESHNESS_MS;
+const toMs = (v) => {
+  const ms = typeof v === 'string' ? new Date(v).getTime() : Number(v) || 0;
+  return Number.isFinite(ms) ? ms : 0;
 };
 
+const getUploadedAtMs = (post) => toMs(post?.createdAt ?? post?.timestamp ?? post?.created ?? post?.uploadedAt ?? 0);
+const getCapturedAtMs = (post) => toMs(post?.photoDate ?? post?.capturedAt ?? post?.captured_at ?? post?.captured ?? 0);
+
+const getLikeCount = (post) => {
+  const n = post?.likes ?? post?.likeCount ?? post?.likesCount ?? 0;
+  const v = Number(n);
+  return Number.isFinite(v) && v >= 0 ? v : 0;
+};
+
+const getRegionKey = (post) => {
+  const raw =
+    post?.region ||
+    (typeof post?.location === 'string' ? post.location.split(' ')[0] : null) ||
+    post?.user?.region ||
+    '';
+  return String(raw || '').trim();
+};
+
+const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+
 /**
- * A (Activity Index): 업로드 빈도, GPS 인증 수, 정보 상세도
- * 캡하여 한 축이 과도하게 지배하지 않도록 함.
+ * (legacy) 아래 Compass Score 계열 API는 내부/뱃지 등에서 쓰일 수 있어 그대로 유지합니다.
  */
 const computeActivityIndex = (myPosts) => {
   const uploadCount = myPosts.length;
@@ -127,8 +156,7 @@ export const getCompassScore = (userId = null, postsOverride = null) => {
 };
 
 /**
- * 감쇠 적용: 비활동 시 서서히 감소 (마지막 활동 기준)
- * lastActive는 게시물 최신 작성일 또는 정확해요 수신일로 갱신 가능.
+ * (legacy) 감쇠 적용: 비활동 시 서서히 감소 (마지막 활동 기준)
  */
 const applyDecay = (rawScore, userId) => {
   try {
@@ -137,7 +165,7 @@ const applyDecay = (rawScore, userId) => {
     if (!lastActive || rawScore <= 0) return rawScore;
     const months = (Date.now() - new Date(lastActive).getTime()) / (30 * 24 * 60 * 60 * 1000);
     if (months < 1) return rawScore;
-    const decay = 1 - Math.min(0.5, months * DECAY_RATE_PER_MONTH);
+    const decay = 1 - Math.min(0.5, months * 0.02);
     return Math.max(0, Math.round(rawScore * decay));
   } catch {
     return rawScore;
@@ -155,9 +183,7 @@ export const getTrustRawScore = (userId = null, postsOverride = null) => {
 };
 
 /**
- * 등급 체계 — Compass 누적(minScore) + GPS·정확해요 게이트
- * 화면에 보이는 점수는 단계마다 0~100(진행률). 상위 등급일수록 같은 활동으로 채워지는 구간이 길어짐(더딤).
- * Lv.1 노마드 → … → Lv.5 앰버서더
+ * (legacy) 등급 체계 — Compass 누적(minScore) + GPS·정확해요 게이트
  */
 export const TRUST_GRADES = [
   { id: 'nomad', name: '노마드', minScore: 0, minGpsAuth: 0, minAccuracy: 0, icon: '🧭', badgeId: '노마드' },
@@ -258,14 +284,136 @@ export const getTrustGrade = (score, userId = null, postsOverride = null) => {
 };
 
 /**
- * 신뢰지수 (화면 표시): 현재 등급 단계 안에서의 진행도 0~100만 표시 (단계마다 100점 만점)
- * 누적 Compass는 getTrustRawScore()
+ * (deprecated) 신뢰지수 (화면 표시): 과거 UI 호환용
+ * - 신규 UI는 getLiveSyncPercent()를 사용하세요.
  */
 export const getTrustScore = (userId = null, postsOverride = null) => {
   const raw = getTrustRawScore(userId, postsOverride);
   const { progressToNext } = getTrustGrade(raw, userId, postsOverride);
   return progressToNext;
 };
+
+/**
+ * 라이브 싱크(%) 계산
+ * - postsOverride(선택): 해당 userId의 게시물 리스트(프로필/피드 집계용)
+ * - 산정에 사용되는 핵심 시그널
+ *   1) 실시간 인증: 촬영시간(Exif)과 업로드시간 간격이 짧을수록 상승
+ *   2) 도움돼요(좋아요): 누적될수록 상승
+ *   3) 지역 싱크: 특정 지역에서 꾸준히 이어서 올릴수록 보너스
+ *   4) 과거 사진 업로드: 촬영시간이 지나치게 과거면 하락
+ *   5) 미활동: 시간이 지나면 50%로 수렴
+ *
+ * 현재 코드베이스에서 "지금 어때요? 채택 답변"과 "정보가 달라요 신고"는
+ * 데이터가 안정적으로 존재하지 않아, 연결되면 즉시 반영할 수 있게 자리만 남깁니다.
+ */
+export const getLiveSyncPercent = (userId = null, postsOverride = null) => {
+  const uid = userId != null ? String(userId) : null;
+  if (!uid) return LIVE_SYNC.base;
+
+  const posts = Array.isArray(postsOverride) ? postsOverride : [];
+  const myPosts = posts.filter((p) => getPostAuthorId(p) === uid);
+  if (myPosts.length === 0) return LIVE_SYNC.base;
+
+  // lastActive: 가장 최근 업로드 시각
+  const lastActiveMs = Math.max(0, ...myPosts.map(getUploadedAtMs));
+
+  // 1) 실시간 인증(Exif 시차)
+  const realtimeRatios = myPosts
+    .map((p) => {
+      const up = getUploadedAtMs(p);
+      const cap = getCapturedAtMs(p);
+      if (!up || !cap) return null;
+      const gapMin = Math.abs(up - cap) / (1000 * 60);
+      // gapMin <= realtimeWindowMin 이면 1.0에 가깝게, 커질수록 0으로
+      const t = 1 - clamp(gapMin / LIVE_SYNC.realtimeWindowMin, 0, 1);
+      return t;
+    })
+    .filter((v) => typeof v === 'number');
+  const realtimeScore =
+    realtimeRatios.length === 0
+      ? 0
+      : LIVE_SYNC.maxUpRealtime * clamp(realtimeRatios.reduce((a, b) => a + b, 0) / realtimeRatios.length, 0, 1);
+
+  // 2) 도움돼요(좋아요) 누적
+  const helpfulTotal = myPosts.reduce((sum, p) => sum + getLikeCount(p), 0);
+  // 0~200 좋아요에서 체감이 크고, 이후 완만하게
+  const helpfulT = clamp(helpfulTotal / 200, 0, 1);
+  const helpfulScore = LIVE_SYNC.maxUpHelpful * Math.sqrt(helpfulT);
+
+  // 3) 지역 싱크: 같은 지역에서 "연속"으로 올린 날짜 런 길이 기반
+  const byRegionDates = {};
+  myPosts.forEach((p) => {
+    const r = getRegionKey(p);
+    if (!r) return;
+    const ms = getUploadedAtMs(p);
+    if (!ms) return;
+    const d = new Date(ms);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (!byRegionDates[r]) byRegionDates[r] = new Set();
+    byRegionDates[r].add(key);
+  });
+  const maxRunForRegion = (set) => {
+    const arr = Array.from(set || []).sort();
+    if (arr.length === 0) return 0;
+    let best = 1;
+    let run = 1;
+    for (let i = 1; i < arr.length; i += 1) {
+      const prev = new Date(arr[i - 1]).getTime();
+      const cur = new Date(arr[i]).getTime();
+      const diffDays = (cur - prev) / (24 * 60 * 60 * 1000);
+      if (diffDays === 1) run += 1;
+      else run = 1;
+      best = Math.max(best, run);
+    }
+    return best;
+  };
+  const bestRegionRun = Object.values(byRegionDates).reduce((m, set) => Math.max(m, maxRunForRegion(set)), 0);
+  // 1~7일 연속에서 보너스가 크게 느껴지도록
+  const regionT = clamp(bestRegionRun / 7, 0, 1);
+  const regionScore = LIVE_SYNC.maxUpRegion * regionT;
+
+  // 4) 과거 사진 페널티(Exif 불일치)
+  const oldPhotoPenalties = myPosts
+    .map((p) => {
+      const up = getUploadedAtMs(p);
+      const cap = getCapturedAtMs(p);
+      if (!up || !cap) return 0;
+      const gapH = Math.abs(up - cap) / (1000 * 60 * 60);
+      if (gapH <= LIVE_SYNC.oldPhotoThresholdHours) return 0;
+      // 24h~7d 사이에서 페널티가 커지고 이후 캡
+      const t = clamp((gapH - LIVE_SYNC.oldPhotoThresholdHours) / (24 * 6), 0, 1);
+      return LIVE_SYNC.maxDownOldPhoto * t;
+    })
+    .filter((v) => typeof v === 'number');
+  const oldPhotoPenalty = oldPhotoPenalties.length ? Math.max(...oldPhotoPenalties) : 0;
+
+  // 5) "정보가 달라요" 신고 페널티(연동 전: trustPenalty 메모리만 반영)
+  const mismatchPenaltyRaw = Number(memory.trustPenalty[uid]) || 0;
+  const mismatchPenalty = clamp(mismatchPenaltyRaw, 0, LIVE_SYNC.maxDownMismatchReports);
+
+  // 6) QnA 채택(연동 포인트)
+  const qnaScore = 0;
+
+  // base + ups - downs
+  let sync = LIVE_SYNC.base + realtimeScore + helpfulScore + regionScore + qnaScore - oldPhotoPenalty - mismatchPenalty;
+  sync = clamp(sync, 0, 100);
+
+  // 미활동 수렴: 시간이 지날수록 50%로 가까워짐
+  if (lastActiveMs > 0) {
+    const days = (Date.now() - lastActiveMs) / (24 * 60 * 60 * 1000);
+    if (days > 0.5) {
+      const halfLife = Math.max(1, LIVE_SYNC.inactivityHalfLifeDays);
+      const factor = Math.pow(0.5, days / halfLife); // 0~1
+      sync = lerp(LIVE_SYNC.base, sync, factor);
+    }
+  }
+
+  return Math.round(sync * 10) / 10; // 0.1% 단위
+};
+
+/** UI 편의: 정수 % */
+export const getLiveSyncPercentRounded = (userId = null, postsOverride = null) =>
+  Math.round(getLiveSyncPercent(userId, postsOverride));
 
 /**
  * 현재 점수에 해당하는 등급의 뱃지 ID

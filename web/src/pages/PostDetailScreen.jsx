@@ -16,7 +16,7 @@ import { getWeatherByRegion } from '../api/weather';
 import { getTimeAgo } from '../utils/dateUtils';
 import { addComment, deleteCommentFromPost, updateCommentInPost, getPostAccuracyCount, hasUserMarkedAccurate, toggleAccuracyFeedback } from '../utils/socialInteractions';
 import { getBadgeDisplayName, getEarnedBadgesForUser } from '../utils/badgeSystem';
-import { getTrustRawScore, getTrustGrade } from '../utils/trustIndex';
+import { getLiveSyncPercentRounded } from '../utils/trustIndex';
 import { follow, unfollow, isFollowing } from '../utils/followSystem';
 import { notifyFollowingStarted, notifyLike, notifyComment } from '../utils/notifications';
 import { mergeCommentsWithCache, setCommentsCacheForPost } from '../utils/postCommentsCache';
@@ -63,7 +63,7 @@ const PostDetailScreen = () => {
   const [isFollowAuthor, setIsFollowAuthor] = useState(false);
   const [accuracyMarked, setAccuracyMarked] = useState(false);
   const [accuracyCount, setAccuracyCount] = useState(0);
-  const [authorTrustScore, setAuthorTrustScore] = useState(null);
+  const [authorLiveSync, setAuthorLiveSync] = useState(null);
   const [authorTrustGrade, setAuthorTrustGrade] = useState(null);
   const [weatherInfo, setWeatherInfo] = useState({
     icon: '☀️',
@@ -340,7 +340,7 @@ const PostDetailScreen = () => {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [postId, refreshPostFromSupabase]);
 
-  // 정보가 정확해요 버튼 클릭 (다른 사용자가 누르면 작성자 신뢰지수 상승)
+  // 정보가 정확해요 버튼 클릭 (다른 사용자가 누르면 작성자 라이브 싱크에 간접 반영)
   const handleAccuracyClick = useCallback(async () => {
     if (!post?.id) return;
     const result = await toggleAccuracyFeedback(post.id);
@@ -855,10 +855,8 @@ const PostDetailScreen = () => {
         setRepresentativeBadge(repBadge);
       }
 
-      const raw = getTrustRawScore(authorId || null, postsForAuthor.length ? postsForAuthor : null);
-      const { grade, progressToNext } = getTrustGrade(raw, authorId || null, postsForAuthor.length ? postsForAuthor : null);
-      setAuthorTrustScore(progressToNext);
-      setAuthorTrustGrade(grade);
+      setAuthorLiveSync(getLiveSyncPercentRounded(authorId || null, postsForAuthor.length ? postsForAuthor : null));
+      setAuthorTrustGrade(null);
     })();
   }, [post]);
 
@@ -1256,9 +1254,9 @@ const PostDetailScreen = () => {
                         </div>
                       )}
                     </div>
-                    {(authorTrustScore != null || authorTrustGrade) && (
+                    {(authorLiveSync != null || authorTrustGrade) && (
                       <p className="mt-0.5 text-[11px] text-text-secondary-light dark:text-text-secondary-dark truncate">
-                        신뢰지수 <span className="font-semibold text-gray-700 dark:text-gray-300">{authorTrustScore ?? 0}</span>
+                        라이브 싱크 <span className="font-semibold text-gray-700 dark:text-gray-300">{authorLiveSync ?? 0}%</span>
                         {authorTrustGrade ? (
                           <span className="ml-1 text-gray-600 dark:text-gray-400">
                             {authorTrustGrade.icon} {authorTrustGrade.name}

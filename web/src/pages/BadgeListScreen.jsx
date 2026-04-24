@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { getAvailableBadges, getEarnedBadges, calculateUserStats } from '../utils/badgeSystem';
+import LiveBadgeMedallion from '../components/LiveBadgeMedallion';
 
 const BadgeListScreen = () => {
   const navigate = useNavigate();
@@ -504,10 +505,14 @@ const BadgeListScreen = () => {
                 }`}
               >
                 {/* 뱃지 아이콘 */}
-                <div className={`w-16 h-16 rounded-full flex items-center justify-center bg-primary/10 ${!badge.isEarned ? 'opacity-40 grayscale' : 'shadow-md'}`}>
-                  <span className="text-4xl">
-                    {badge.icon || '🏆'}
-                  </span>
+                <div className={`${!badge.isEarned ? 'opacity-40 grayscale' : ''}`}>
+                  <LiveBadgeMedallion
+                    badgeName={badge?.name}
+                    tier={badge?.difficulty}
+                    icon={badge?.icon || '🏆'}
+                    gradientCss={badge?.gradientCss}
+                    size={64}
+                  />
                 </div>
                 
                 {/* 뱃지 정보 */}

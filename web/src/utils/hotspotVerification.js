@@ -4,7 +4,6 @@
  */
 
 import { getPostAccuracyCount } from './socialInteractions';
-import { getTrustRawScore } from './trustIndex';
 import { getPostAgeInHours } from './timeUtils';
 
 const getPostTimeMs = (post) => {
@@ -53,8 +52,8 @@ export const verifyAISituation = (post) => {
 };
 
 /**
- * 3) 신뢰도 가중치: 평소 정확한 정보를 올렸던 사용자에게 더 높은 점수
- * - 게시물별 '정확해요' 수 + (작성자가 현재 사용자면 신뢰지수 반영)
+ * 3) 라이브 싱크 가중치(간이): 평소 정확한 정보를 올렸던 사용자에게 더 높은 점수
+ * - 현재는 게시물별 '정확해요' 수만 반영(데이터 안정성 우선)
  */
 export const getTrustWeight = (post) => {
   const accuracyCount = getPostAccuracyCount(post?.id);

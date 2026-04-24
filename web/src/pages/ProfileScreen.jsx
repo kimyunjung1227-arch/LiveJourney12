@@ -8,7 +8,7 @@ import BottomNavigation from '../components/BottomNavigation';
 import { getUnreadCount, notifyFollowingStarted } from '../utils/notifications';
 import { getEarnedBadgesForUser, getBadgeDisplayName } from '../utils/badgeSystem';
 import ProfileInjangSection from '../components/ProfileInjangSection';
-import { getTrustScore, getTrustRawScore, getTrustGrade, TRUST_GRADES } from '../utils/trustIndex';
+import { getLiveSyncPercentRounded, getLiveSyncPercent, TRUST_GRADES } from '../utils/trustIndex';
 import { getCoordinatesByLocation } from '../utils/regionLocationMapping';
 import {
   follow,
@@ -132,32 +132,34 @@ const ProfileScreen = () => {
   const [activeTab, setActiveTab] = useState('my'); // 'my' | 'map' | 'savedRoutes'
   const [savedRoutes, setSavedRoutes] = useState([]);
   const [selectedSavedRoute, setSelectedSavedRoute] = useState(null);
-  const [trustScore, setTrustScore] = useState(0);
+  const [liveSync, setLiveSync] = useState(50);
 
-  const refreshTrustScore = useCallback(() => {
-    setTrustScore(getTrustScore());
-  }, []);
+  const refreshLiveSync = useCallback(() => {
+    const uid = (authUser || user)?.id;
+    const postsArg = myPostsRef.current?.length ? myPostsRef.current : null;
+    setLiveSync(getLiveSyncPercentRounded(uid ? String(uid) : null, postsArg));
+  }, [authUser?.id, user?.id]);
 
   useEffect(() => {
-    refreshTrustScore();
+    refreshLiveSync();
     const handler = () => {
       // 서버 운영 전환: localStorage 토큰 의존 제거
-      refreshTrustScore();
+      refreshLiveSync();
     };
     window.addEventListener('trustIndexUpdated', handler);
     return () => window.removeEventListener('trustIndexUpdated', handler);
-  }, [refreshTrustScore]);
+  }, [refreshLiveSync]);
 
-  // 신뢰지수(Compass Score)는 클라이언트 매트릭스로 계산; 서버 trustScore는 참고용
+  // 라이브 싱크는 클라이언트 매트릭스로 계산; 서버 trustScore는 참고용
   useEffect(() => {
-    if (isAuthenticated) refreshTrustScore();
-  }, [isAuthenticated, refreshTrustScore]);
+    if (isAuthenticated) refreshLiveSync();
+  }, [isAuthenticated, refreshLiveSync]);
 
   useEffect(() => {
     myPostsRef.current = myPosts;
   }, [myPosts]);
 
-  // 게시물·저장소 기준 획득 인장 목록 (신뢰지수 등급 제외)
+  // 게시물·저장소 기준 획득 인장 목록 (라이브 싱크 등급 제외)
   useEffect(() => {
     if (!isAuthenticated) return;
     const uid = (authUser || user)?.id;
@@ -1664,48 +1666,58 @@ const ProfileScreen = () => {
               }}
             />
 
-            {/* 신뢰지수 구역 - 신뢰지수만 좌측, 수치·등급 우측, 등급 전체 보기 */}
+            {/* 라이브 싱크 구역 - 현장 일치도를 %로 표시 */}
             <div className="px-6 py-4">
               {(() => {
-                const uid = (authUser || user)?.id;
-                const raw = getTrustRawScore(uid ? String(uid) : null, myPosts.length ? myPosts : null);
-                const { grade, nextGrade, progressToNext, pointsRemainingInTier } = getTrustGrade(raw, uid ? String(uid) : null, myPosts.length ? myPosts : null);
+                const pct = typeof liveSync === 'number' ? liveSync : 50;
+                const msg =
+                  pct >= 90 ? '실시간 동기화 완료' :
+                  pct >= 70 ? '높은 현장감' :
+                  pct >= 40 ? '일반 여행자' :
+                  '시차 주의';
+                const accent =
+                  pct >= 90 ? 'text-sky-600 dark:text-sky-300' :
+                  pct >= 70 ? 'text-sky-500 dark:text-sky-300' :
+                  pct >= 40 ? 'text-sky-700/70 dark:text-sky-200/70' :
+                  'text-orange-500 dark:text-orange-300';
                 return (
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-1 flex-nowrap min-w-0">
                       <button
                         type="button"
-                        onClick={() => { setTrustExplainOpen(false); setShowTrustGradesModal(true); }}
+                        onClick={() => { setShowTrustGradesModal(false); setTrustExplainOpen((v) => !v); }}
                         className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark shrink-0 hover:text-primary transition-colors"
                       >
-                        신뢰지수
+                        라이브 싱크
                       </button>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-xl font-bold text-gray-800 dark:text-gray-100">{progressToNext}</span>
-                        <span className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark whitespace-nowrap">{grade.icon} {grade.name}</span>
+                        <span className={`text-xl font-extrabold ${accent}`}>{pct}%</span>
+                        <span className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark whitespace-nowrap">{msg}</span>
                       </div>
                     </div>
-                    {nextGrade && (
-                      <>
-                        <div className="flex justify-end mb-0.5">
-                          <span className="text-[11px] text-gray-500 dark:text-gray-400">이번 단계 승급까지 {pointsRemainingInTier}점</span>
+                    <div className="mt-2">
+                      <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-300"
+                          style={{
+                            width: `${Math.max(0, Math.min(100, pct))}%`,
+                            background:
+                              pct >= 90
+                                ? 'linear-gradient(90deg, rgba(2,132,199,1), rgba(14,165,233,1))'
+                                : pct >= 70
+                                  ? 'linear-gradient(90deg, rgba(14,165,233,1), rgba(56,189,248,1))'
+                                  : pct >= 40
+                                    ? 'linear-gradient(90deg, rgba(125,211,252,1), rgba(148,163,184,1))'
+                                    : 'linear-gradient(90deg, rgba(251,146,60,1), rgba(253,186,116,1))',
+                            boxShadow: pct >= 90 ? '0 0 18px rgba(14,165,233,0.35)' : 'none',
+                          }}
+                        />
+                      </div>
+                      {trustExplainOpen ? (
+                        <div className="mt-2 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/20 px-3 py-2 text-[11px] leading-relaxed text-gray-600 dark:text-gray-300">
+                          <span className="font-semibold">라이브 싱크</span>는 내 게시물이 <span className="font-semibold">현장과 얼마나 동기화</span>되어 있는지(시차가 적은지)를 %로 보여줘요. 실시간 촬영·업로드, 도움돼요(좋아요), 지역에서의 꾸준한 업데이트가 높이고, 과거 사진·불일치 리포트는 낮춰요.
                         </div>
-                        <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-gray-400 dark:bg-gray-500 rounded-full transition-all duration-300"
-                            style={{ width: `${progressToNext}%` }}
-                          />
-                        </div>
-                      </>
-                    )}
-                    <div className="flex justify-end mt-2">
-                      <button
-                        type="button"
-                        onClick={() => { setTrustExplainOpen(false); setShowTrustGradesModal(true); }}
-                        className="text-xs text-primary hover:underline"
-                      >
-                        등급 전체 보기
-                      </button>
+                      ) : null}
                     </div>
                   </div>
                 );
@@ -2511,7 +2523,7 @@ const ProfileScreen = () => {
           </div>
         )}
 
-        {/* 신뢰지수 등급 전체 보기 모달 */}
+        {/* (legacy) 신뢰지수 등급 전체 보기 모달 */}
         {showTrustGradesModal && (
           <div
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"

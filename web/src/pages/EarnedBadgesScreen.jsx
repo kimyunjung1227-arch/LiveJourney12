@@ -4,6 +4,7 @@ import BackButton from '../components/BackButton';
 import BottomNavigation from '../components/BottomNavigation';
 import { useAuth } from '../contexts/AuthContext';
 import { getEarnedBadgesForUser, getBadgeDisplayName } from '../utils/badgeSystem';
+import LiveBadgeMedallion from '../components/LiveBadgeMedallion';
  
 
 const getPostUserId = (post) => {
@@ -176,15 +177,14 @@ const EarnedBadgesScreen = () => {
                               }
                               className="flex flex-col items-center text-left"
                             >
-                              <div className="w-16 h-16 rounded-full bg-white dark:bg-gray-950 border-[3px] border-primary flex items-center justify-center shadow-sm overflow-hidden mb-2">
-                                {icon ? (
-                                  <span className="text-3xl leading-none select-none">{icon}</span>
-                                ) : (
-                                  <span className="text-[10px] font-bold text-primary text-center px-1 leading-tight line-clamp-2">
-                                    {label.slice(0, 8)}
-                                  </span>
-                                )}
-                              </div>
+                              <LiveBadgeMedallion
+                                badgeName={badge?.name}
+                                tier={badge?.difficulty}
+                                icon={icon}
+                                gradientCss={badge?.gradientCss}
+                                size={64}
+                                className="mb-2"
+                              />
                               <span
                                 className="text-[11px] font-semibold text-center px-2 py-1 rounded-full border bg-primary/10 dark:bg-primary/15 border-primary/25 text-primary truncate w-full"
                                 title={label}
@@ -225,15 +225,14 @@ const EarnedBadgesScreen = () => {
                               }
                               className="flex flex-col items-center text-left"
                             >
-                              <div className="w-16 h-16 rounded-full bg-white dark:bg-gray-950 border-[3px] border-primary flex items-center justify-center shadow-sm overflow-hidden mb-2">
-                                {icon ? (
-                                  <span className="text-3xl leading-none select-none">{icon}</span>
-                                ) : (
-                                  <span className="text-[10px] font-bold text-primary text-center px-1 leading-tight line-clamp-2">
-                                    {label.slice(0, 8)}
-                                  </span>
-                                )}
-                              </div>
+                              <LiveBadgeMedallion
+                                badgeName={badge?.name}
+                                tier={badge?.difficulty}
+                                icon={icon}
+                                gradientCss={badge?.gradientCss}
+                                size={64}
+                                className="mb-2"
+                              />
                               <span
                                 className="text-[11px] font-semibold text-center px-2 py-1 rounded-full border bg-primary/10 dark:bg-primary/15 border-primary/25 text-primary truncate w-full"
                                 title={label}

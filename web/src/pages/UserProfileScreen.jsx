@@ -25,7 +25,7 @@ import { getDisplayImageUrl } from '../api/upload';
 import { getPosts } from '../api/posts';
 import { fetchPostsByUserIdSupabase, fetchPostsSupabase } from '../api/postsSupabase';
 import { fetchProfilesByIdsSupabase } from '../api/profilesSupabase';
-import { getTrustRawScore, getTrustGrade, TRUST_GRADES } from '../utils/trustIndex';
+import { getLiveSyncPercentRounded } from '../utils/trustIndex';
 import api from '../api/axios';
 import {
   resolveUserDisplayFromPosts,
@@ -53,8 +53,8 @@ const UserProfileScreen = () => {
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [followLoading, setFollowLoading] = useState(false);
-  /** Compass 누적(내부). 화면에는 등급 단계 0~100만 표시 */
-  const [trustRawScore, setTrustRawScore] = useState(0);
+  /** 라이브 싱크(%) */
+  const [liveSync, setLiveSync] = useState(50);
   const [activeTab, setActiveTab] = useState('my'); // 'my' | 'map' — 내 프로필과 동일 탭 구조
   const [photoViewMode, setPhotoViewMode] = useState('custom'); // 'custom' | 'date'
   const [showFollowListModal, setShowFollowListModal] = useState(false);
@@ -105,7 +105,7 @@ const UserProfileScreen = () => {
     setUserPosts([]);
     setEarnedBadges([]);
     setRepresentativeBadge(null);
-    setTrustRawScore(0);
+    setLiveSync(50);
 
     // 해당 사용자의 정보 찾기 (게시물에서)
     const uploadedPosts = getUploadedPostsSafe();
@@ -185,6 +185,7 @@ const UserProfileScreen = () => {
       const applyMerged = (mergedList) => {
         const merged = [...mergedList].sort((a, b) => (b.timestamp || b.createdAt || 0) - (a.timestamp || a.createdAt || 0));
         setUserPosts(merged);
+        setLiveSync(getLiveSyncPercentRounded(userId || null, merged.length ? merged : null));
         const badges = getEarnedBadgesForUser(userId, merged) || [];
         setEarnedBadges(badges);
         if (!repBadgeJson) {
@@ -363,14 +364,13 @@ const UserProfileScreen = () => {
     };
   }, [showFollowListModal, followListIds, userId]);
 
-  // 신뢰지수: 클라이언트 Compass 누적(등급·단계 진행률은 getTrustGrade로 계산)
+  // 라이브 싱크: 유저 게시물이 바뀌면 즉시 % 갱신
   useEffect(() => {
     if (!userId) return;
-    const raw = getTrustRawScore(userId, userPosts.length ? userPosts : null);
-    setTrustRawScore(raw);
+    setLiveSync(getLiveSyncPercentRounded(userId, userPosts.length ? userPosts : null));
   }, [userId, userPosts]);
 
-  // 서버에서 유저 정보 가져오기 (신뢰지수는 로컬 Compass 기준으로 통일)
+  // 서버에서 유저 정보 가져오기 (점수는 클라이언트 기준으로 통일)
   useEffect(() => {
     if (!userId) return;
     const isServerId = /^[a-fA-F0-9]{24}$/.test(String(userId));
@@ -806,12 +806,17 @@ const UserProfileScreen = () => {
 
             <div className="px-6 py-4">
               {(() => {
-                const postsForTrust = userPosts.length ? userPosts : null;
-                const { grade, nextGrade, progressToNext, pointsRemainingInTier } = getTrustGrade(
-                  trustRawScore,
-                  userId || null,
-                  postsForTrust
-                );
+                const pct = typeof liveSync === 'number' ? liveSync : 50;
+                const msg =
+                  pct >= 90 ? '실시간 동기화 완료' :
+                  pct >= 70 ? '높은 현장감' :
+                  pct >= 40 ? '일반 여행자' :
+                  '시차 주의';
+                const accent =
+                  pct >= 90 ? 'text-sky-600 dark:text-sky-300' :
+                  pct >= 70 ? 'text-sky-500 dark:text-sky-300' :
+                  pct >= 40 ? 'text-sky-700/70 dark:text-sky-200/70' :
+                  'text-orange-500 dark:text-orange-300';
                 return (
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-1 flex-nowrap min-w-0">
@@ -820,35 +825,39 @@ const UserProfileScreen = () => {
                         onClick={() => { setTrustExplainOpen(false); setShowTrustGradesModal(true); }}
                         className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark shrink-0 hover:text-primary transition-colors"
                       >
-                        신뢰지수
+                        라이브 싱크
                       </button>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-xl font-bold text-gray-800 dark:text-gray-100">{progressToNext}</span>
-                        <span className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark whitespace-nowrap">
-                          {grade.icon} {grade.name}
-                        </span>
+                        <span className={`text-xl font-extrabold ${accent}`}>{pct}%</span>
+                        <span className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark whitespace-nowrap">{msg}</span>
                       </div>
                     </div>
-                    {nextGrade && (
-                      <>
-                        <div className="flex justify-end mb-0.5">
-                          <span className="text-[11px] text-gray-500 dark:text-gray-400">이번 단계 승급까지 {pointsRemainingInTier}점</span>
-                        </div>
-                        <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-gray-400 dark:bg-gray-500 rounded-full transition-all duration-300"
-                            style={{ width: `${progressToNext}%` }}
-                          />
-                        </div>
-                      </>
-                    )}
+                    <div className="mt-2">
+                      <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-300"
+                          style={{
+                            width: `${Math.max(0, Math.min(100, pct))}%`,
+                            background:
+                              pct >= 90
+                                ? 'linear-gradient(90deg, rgba(2,132,199,1), rgba(14,165,233,1))'
+                                : pct >= 70
+                                  ? 'linear-gradient(90deg, rgba(14,165,233,1), rgba(56,189,248,1))'
+                                  : pct >= 40
+                                    ? 'linear-gradient(90deg, rgba(125,211,252,1), rgba(148,163,184,1))'
+                                    : 'linear-gradient(90deg, rgba(251,146,60,1), rgba(253,186,116,1))',
+                            boxShadow: pct >= 90 ? '0 0 18px rgba(14,165,233,0.35)' : 'none',
+                          }}
+                        />
+                      </div>
+                    </div>
                     <div className="flex justify-end mt-2">
                       <button
                         type="button"
                         onClick={() => { setTrustExplainOpen(false); setShowTrustGradesModal(true); }}
                         className="text-xs text-primary hover:underline"
                       >
-                        등급 전체 보기
+                        자세히 보기
                       </button>
                     </div>
                   </div>
@@ -1381,14 +1390,14 @@ const UserProfileScreen = () => {
             onClick={() => setShowTrustGradesModal(false)}
             role="dialog"
             aria-modal="true"
-            aria-label="신뢰지수 등급"
+            aria-label="라이브 싱크 안내"
           >
             <div
               className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm shadow-xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">신뢰지수 등급</h2>
+                <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">라이브 싱크 안내</h2>
                 <button
                   type="button"
                   onClick={() => setShowTrustGradesModal(false)}
@@ -1406,37 +1415,42 @@ const UserProfileScreen = () => {
                     className="w-full flex items-center justify-between gap-2 p-3 text-left hover:bg-gray-200/50 dark:hover:bg-gray-700/50 transition-colors"
                     aria-expanded={trustExplainOpen}
                   >
-                    <span className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">점수가 어떻게 올라가나요?</span>
+                    <span className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">라이브 싱크가 어떻게 변하나요?</span>
                     <span className={`material-symbols-outlined text-lg text-gray-500 dark:text-gray-400 transition-transform ${trustExplainOpen ? 'rotate-180' : ''}`} aria-hidden>expand_more</span>
                   </button>
                   {trustExplainOpen && (
                     <div className="px-3 pb-3 pt-0 border-t border-gray-200 dark:border-gray-700">
                       <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside pt-2">
-                        <li>게시물 업로드 (많을수록 가산)</li>
-                        <li>GPS·위치 인증된 글 작성</li>
-                        <li>상세한 캡션(50자 이상)</li>
-                        <li>다른 사람에게 &apos;정확해요&apos; 받기</li>
-                        <li>최근 48시간 이내 업로드 보너스</li>
+                        <li>실시간 인증: 촬영(Exif)~업로드 간격이 짧을수록 상승</li>
+                        <li>도움돼요(좋아요): 누적될수록 상승</li>
+                        <li>지역 싱크: 같은 지역에서 꾸준히 이어서 올릴수록 상승</li>
+                        <li>과거 사진: 촬영 시각이 너무 과거면 하락</li>
+                        <li>미활동: 시간이 지나면 50%를 향해 서서히 수렴</li>
                       </ul>
                     </div>
                   )}
                 </div>
-                {(() => {
-                  const rawModal = getTrustRawScore(userId ? String(userId) : null, userPosts.length ? userPosts : null);
-                  const { grade: currentGrade } = getTrustGrade(rawModal, userId ? String(userId) : null, userPosts.length ? userPosts : null);
-                  const currentGradeId = currentGrade?.id;
-                  return TRUST_GRADES.map((g) => (
-                    <div
-                      key={g.id}
-                      className={`flex flex-col gap-1 py-3 px-3 rounded-xl ${currentGradeId === g.id ? 'bg-primary/10 dark:bg-primary/20 border border-primary/30' : 'bg-gray-50 dark:bg-gray-800'}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl" aria-hidden>{g.icon}</span>
-                        <span className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark">{g.name}</span>
-                      </div>
+                <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-3">
+                  <div className="text-xs font-bold text-gray-500 dark:text-gray-400">색상 가이드</div>
+                  <div className="mt-2 space-y-1.5 text-xs text-gray-700 dark:text-gray-200">
+                    <div className="flex items-center justify-between">
+                      <span>90% ~ 100%</span>
+                      <span className="font-semibold text-sky-600 dark:text-sky-300">실시간 동기화 완료</span>
                     </div>
-                  ));
-                })()}
+                    <div className="flex items-center justify-between">
+                      <span>70% ~ 89%</span>
+                      <span className="font-semibold text-sky-500 dark:text-sky-300">높은 현장감</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>40% ~ 69%</span>
+                      <span className="font-semibold text-slate-500 dark:text-slate-300">일반 여행자</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>40% 미만</span>
+                      <span className="font-semibold text-orange-500 dark:text-orange-300">시차 주의</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

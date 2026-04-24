@@ -12,7 +12,7 @@ import {
   toMediaStr,
 } from '../utils/postMedia';
 import { getTimeAgo } from '../utils/timeUtils';
-import { getTrustGrade, getTrustRawScore, getTrustScore } from '../utils/trustIndex';
+import { getLiveSyncPercentRounded } from '../utils/trustIndex';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import {
@@ -139,25 +139,21 @@ export default function HotplaceLiveFeedScreen() {
 
   const heroTrustMeta = useMemo(() => {
     if (!heroPost || !heroAuthorId) {
-      return { grade: null, regionLabel: '' };
+      return { regionLabel: '' };
     }
-    const authorPosts = allPosts.filter((p) => getUserIdForPost(p) === heroAuthorId);
-    const postsArg = authorPosts.length ? authorPosts : null;
-    const raw = getTrustRawScore(heroAuthorId, postsArg);
-    const { grade } = getTrustGrade(raw, heroAuthorId, postsArg);
     const u = heroPost.user;
     const region =
       String(u?.region || u?.city || u?.location || '').trim() ||
       String(heroPost.region || '').trim() ||
       displayTitle.split(/[\s,·]/)[0]?.trim() ||
       '';
-    return { grade, regionLabel: region || '여행' };
+    return { regionLabel: region || '여행' };
   }, [heroPost, heroAuthorId, allPosts, displayTitle]);
 
-  const heroTrustIndex = useMemo(() => {
+  const heroLiveSync = useMemo(() => {
     if (!heroAuthorId || !heroPost) return null;
     const authorPosts = allPosts.filter((p) => getUserIdForPost(p) === heroAuthorId);
-    return Math.round(getTrustScore(heroAuthorId, authorPosts.length ? authorPosts : null));
+    return getLiveSyncPercentRounded(heroAuthorId, authorPosts.length ? authorPosts : null);
   }, [heroAuthorId, heroPost, allPosts]);
 
   const situationPosts = useMemo(() => {
@@ -213,8 +209,7 @@ export default function HotplaceLiveFeedScreen() {
 
   const heroAvatarUrl = heroPost ? getAvatarUrlForPost(heroPost) : null;
 
-  /** 1행: 지역 + 노마드일 때만「비기너」(첨부 시안과 동일). 상위 등급은 2행에 등급명만 표시 */
-  const profileLine1Suffix = heroTrustMeta.grade?.id === 'nomad' ? '비기너' : '';
+  const profileLine1Suffix = '';
 
   const openHeroPost = () => {
     if (!heroPost) return;
@@ -423,17 +418,15 @@ export default function HotplaceLiveFeedScreen() {
                             </span>
                           </div>
                           <div className="mt-0.5 flex flex-wrap items-center gap-x-1 text-[10px] leading-tight text-sky-100/95">
-                            {heroTrustIndex != null ? (
-                              <span className="font-inter font-bold">신뢰지수 {heroTrustIndex}</span>
+                            {heroLiveSync != null ? (
+                              <span className="font-inter font-bold">라이브 싱크 {heroLiveSync}%</span>
                             ) : (
-                              <span className="font-inter font-semibold text-white/55">신뢰지수 —</span>
+                              <span className="font-inter font-semibold text-white/55">라이브 싱크 —</span>
                             )}
                             <span className="material-symbols-outlined text-[13px] text-sky-200/85" aria-hidden>
                               explore
                             </span>
-                            {heroTrustMeta.grade?.name ? (
-                              <span className="font-inter font-bold">{heroTrustMeta.grade.name}</span>
-                            ) : null}
+                            <span className="font-inter font-bold">현장 일치도</span>
                           </div>
                         </div>
                       </div>
