@@ -831,10 +831,12 @@ const UserProfileScreen = () => {
                         <button
                           type="button"
                           onClick={() => { setTrustExplainOpen(false); setShowTrustGradesModal(true); }}
-                          className="px-2 py-0.5 rounded-full text-[11px] font-semibold border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/60 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                          className="w-7 h-7 inline-flex items-center justify-center rounded-full border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/60 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                           aria-label="라이브 싱크 설명 보기"
                         >
-                          설명
+                          <span className="material-symbols-outlined text-[18px]" aria-hidden>
+                            info
+                          </span>
                         </button>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
