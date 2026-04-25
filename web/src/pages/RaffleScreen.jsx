@@ -166,49 +166,25 @@ const RaffleScreen = () => {
             <div className="relative w-full min-h-[88px] max-h-[min(28vh,176px)] aspect-[5/2] sm:aspect-[21/9] sm:max-h-[min(30vh,192px)] bg-gradient-to-br from-sky-700 via-cyan-800 to-slate-900" />
           </section>
           <div className="px-3 pt-4 sm:px-4">
-            <h2 className="text-[34px] font-extrabold tracking-tight text-gray-900 dark:text-gray-100">
-              여행 래플
-            </h2>
-            <p className="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400 sm:text-[15px]">
-              현장에서 기록한 실시간 정보가 쌓일수록 여행은 더 쉬워지고, 그 가치가 래플 리워드로 돌아옵니다.
-            </p>
+            <h2 className="text-[34px] font-extrabold tracking-tight text-gray-900 dark:text-gray-100">래플</h2>
           </div>
 
           <div className="px-3 pt-4 space-y-5 text-[15px] sm:px-4 sm:text-base">
             <section>
-              <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-gray-900 dark:text-gray-100 sm:text-[15px]">
-                래플 소개
-              </h2>
-              <p className="text-sm leading-relaxed text-text-secondary-light dark:text-text-secondary-dark sm:text-[15px]">
-                래플은 실시간으로 기록한 여행 정보가 쌓일수록 응모 기회가 늘어나고, 그 가치가 리워드로 돌아오는 이벤트입니다.
-                현장에서 남긴 생생한 기록이 커뮤니티에 도움이 될수록 더 많은 기회가 생겨요.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-gray-900 dark:text-gray-100 sm:text-[15px]">
-                래플 가이드
-              </h2>
-              <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/80">
-                <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {GUIDE_ITEMS.map((g) => (
-                    <details key={g.id} className="group">
-                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 [&::-webkit-details-marker]:hidden">
-                        <span>{g.title}</span>
-                        <span
-                          className="material-symbols-outlined shrink-0 text-xl text-sky-500 transition-transform group-open:rotate-180 dark:text-sky-300"
-                          aria-hidden
-                        >
-                          expand_more
-                        </span>
-                      </summary>
-                      <div className="border-t border-gray-100 bg-gray-50/80 px-3 py-3 text-sm leading-relaxed text-gray-600 dark:border-gray-800 dark:bg-gray-950/50 dark:text-gray-300">
-                        {g.body}
-                      </div>
-                    </details>
-                  ))}
-                </div>
-              </div>
+              <div className="text-sm font-extrabold text-gray-900 dark:text-gray-100">래플 가이드</div>
+              <button
+                type="button"
+                onClick={() => setGuideOpen(true)}
+                className="mt-2 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-50 active:scale-[0.99] dark:border-gray-700 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
+              >
+                <span className="material-symbols-outlined text-[18px] text-sky-500" aria-hidden>
+                  description
+                </span>
+                <span>래플 가이드 (참여 방법)</span>
+                <span className="material-symbols-outlined ml-0.5 text-[18px] text-sky-400" aria-hidden>
+                  chevron_right
+                </span>
+              </button>
             </section>
 
             <section aria-roledescription="carousel" aria-label="진행 예정 래플">

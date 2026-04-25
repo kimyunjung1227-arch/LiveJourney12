@@ -682,6 +682,29 @@ export const checkNewBadges = (stats) => {
   }
 };
 
+// "뱃지 안내 노출" 상태: localStorage 제거 → 세션 메모리만 사용
+// UploadScreen 등에서 import하므로 기존 API를 유지합니다.
+const seenBadgesByUserId = new Map(); // userId -> Set(badgeName)
+
+export const hasSeenBadge = (badgeName, userId = null) => {
+  const key = String(badgeName || '').trim();
+  if (!key) return false;
+  const uid = userId != null ? String(userId).trim() : (currentEarnedBadgesUserId || '');
+  const set = seenBadgesByUserId.get(uid || '__anon__');
+  return !!(set && set.has(key));
+};
+
+export const markBadgeAsSeen = (badgeName, userId = null) => {
+  const key = String(badgeName || '').trim();
+  if (!key) return false;
+  const uid = userId != null ? String(userId).trim() : (currentEarnedBadgesUserId || '');
+  const mapKey = uid || '__anon__';
+  const prev = seenBadgesByUserId.get(mapKey);
+  if (prev) prev.add(key);
+  else seenBadgesByUserId.set(mapKey, new Set([key]));
+  return true;
+};
+
 /**
  * 뱃지 획득 처리 (Supabase + localStorage 둘 다 저장 → 로그아웃 후에도 유지)
  * @param {object} opts - { region, userId } 지역 뱃지일 때 region, Supabase 저장용 userId
