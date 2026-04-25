@@ -378,6 +378,16 @@ const CrowdedPlaceScreen = () => {
                                     const post = place.representative;
                                     if (!post?.id) return null;
                                     const img = post.image || getDisplayImageUrl(post.images?.[0] || post.thumbnail || '');
+                                    const rawThumbs = Array.isArray(post.images)
+                                        ? post.images
+                                        : post.images
+                                            ? [post.images]
+                                            : post.image
+                                                ? [post.image]
+                                                : post.thumbnail
+                                                    ? [post.thumbnail]
+                                                    : [];
+                                    const thumbs = rawThumbs.map((v) => getDisplayImageUrl(v)).filter(Boolean).slice(0, 3);
 
                                     const cardProps = cardPropsById.get(String(post.id));
                                     const socialText = cardProps ? getHotFeedSocialLine(cardProps, crowdedSocialIdx) : '';
@@ -419,6 +429,21 @@ const CrowdedPlaceScreen = () => {
                                                         사진 없음
                                                     </div>
                                                 )}
+
+                                                {/* 우측 하단: 가벼운 사진 미리보기 */}
+                                                {thumbs.length > 1 ? (
+                                                    <div className="absolute bottom-2.5 right-2.5 z-10 flex items-center gap-1.5">
+                                                        {thumbs.map((src, i) => (
+                                                            <div
+                                                                key={`${post.id}-mini-${i}`}
+                                                                className="h-[34px] w-[34px] overflow-hidden border border-white/60 bg-white/10 shadow-sm backdrop-blur-[6px]"
+                                                                style={{ borderRadius: 6 }}
+                                                            >
+                                                                <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : null}
                                                 <div
                                                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none"
                                                     aria-label={`랭킹 ${place.rank}위`}
