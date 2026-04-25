@@ -837,7 +837,7 @@ const MainScreen = () => {
                                         )}
                                     </div>
                                     {/* 사진 정보 하단 — 설명만 표시 */}
-                                    <div style={{ padding: '4px 10px 6px', minHeight: '88px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                                    <div style={{ padding: '4px 10px 6px', minHeight: '100px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', flexShrink: 0 }}>
                                             <div style={{ color: '#111827', fontSize: '14px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
                                                 {post.location || '어딘가의 지금'}
@@ -852,41 +852,30 @@ const MainScreen = () => {
                                             </div>
                                         )}
                                         {(hasWeather || (Array.isArray(post.reasonTags) && post.reasonTags.length > 0) || (!post.reasonTags?.length && Array.isArray(post.aiHotTags) && post.aiHotTags.length > 0)) && (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
-                                                <div
-                                                    style={{
-                                                        display: 'flex',
-                                                        flexWrap: 'nowrap',
-                                                        gap: '6px',
-                                                        flex: 1,
-                                                        minWidth: 0,
-                                                        overflow: 'hidden',
-                                                    }}
-                                                >
-                                                    {Array.isArray(post.reasonTags) && post.reasonTags.length > 0
-                                                        ? post.reasonTags.slice(0, 3).map((tag) => (
-                                                            <span
-                                                                key={String(tag)}
-                                                                style={{
-                                                                    fontSize: '11px',
-                                                                    fontWeight: 800,
-                                                                    color: '#0f172a',
-                                                                    background: 'rgba(38, 198, 218, 0.14)',
-                                                                    border: '1px solid rgba(38, 198, 218, 0.30)',
-                                                                    padding: '2px 8px',
-                                                                    borderRadius: '999px',
-                                                                    flexShrink: 0,
-                                                                    maxWidth: 'calc(100% - 4px)',
-                                                                    overflow: 'hidden',
-                                                                    textOverflow: 'ellipsis',
-                                                                    whiteSpace: 'nowrap',
-                                                                }}
-                                                            >
-                                                                {formatHotTag(tag)}
-                                                            </span>
-                                                        ))
-                                                        : (!post.reasonTags?.length && Array.isArray(post.aiHotTags) && post.aiHotTags.length > 0
-                                                            ? post.aiHotTags.slice(0, 2).map((tag) => (
+                                            <div
+                                                style={{
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    alignItems: 'stretch',
+                                                    gap: 6,
+                                                    marginTop: 6,
+                                                    width: '100%',
+                                                    minWidth: 0,
+                                                }}
+                                            >
+                                                {(Array.isArray(post.reasonTags) && post.reasonTags.length > 0) ||
+                                                (!post.reasonTags?.length && Array.isArray(post.aiHotTags) && post.aiHotTags.length > 0) ? (
+                                                    <div
+                                                        style={{
+                                                            display: 'flex',
+                                                            flexWrap: 'wrap',
+                                                            gap: 6,
+                                                            width: '100%',
+                                                            minWidth: 0,
+                                                        }}
+                                                    >
+                                                        {Array.isArray(post.reasonTags) && post.reasonTags.length > 0
+                                                            ? post.reasonTags.slice(0, 3).map((tag) => (
                                                                 <span
                                                                     key={String(tag)}
                                                                     style={{
@@ -895,10 +884,9 @@ const MainScreen = () => {
                                                                         color: '#0f172a',
                                                                         background: 'rgba(38, 198, 218, 0.14)',
                                                                         border: '1px solid rgba(38, 198, 218, 0.30)',
-                                                                        padding: '2px 8px',
+                                                                        padding: '3px 9px',
                                                                         borderRadius: '999px',
-                                                                        flexShrink: 0,
-                                                                        maxWidth: 'calc(100% - 4px)',
+                                                                        maxWidth: '100%',
                                                                         overflow: 'hidden',
                                                                         textOverflow: 'ellipsis',
                                                                         whiteSpace: 'nowrap',
@@ -907,11 +895,32 @@ const MainScreen = () => {
                                                                     {formatHotTag(tag)}
                                                                 </span>
                                                             ))
-                                                            : null)}
-                                                </div>
+                                                            : post.aiHotTags.slice(0, 2).map((tag) => (
+                                                                <span
+                                                                    key={String(tag)}
+                                                                    style={{
+                                                                        fontSize: '11px',
+                                                                        fontWeight: 800,
+                                                                        color: '#0f172a',
+                                                                        background: 'rgba(38, 198, 218, 0.14)',
+                                                                        border: '1px solid rgba(38, 198, 218, 0.30)',
+                                                                        padding: '3px 9px',
+                                                                        borderRadius: '999px',
+                                                                        maxWidth: '100%',
+                                                                        overflow: 'hidden',
+                                                                        textOverflow: 'ellipsis',
+                                                                        whiteSpace: 'nowrap',
+                                                                    }}
+                                                                >
+                                                                    {formatHotTag(tag)}
+                                                                </span>
+                                                            ))}
+                                                    </div>
+                                                ) : null}
                                                 {hasWeather && (
                                                     <div
                                                         style={{
+                                                            alignSelf: 'flex-end',
                                                             flexShrink: 0,
                                                             background: 'rgba(15,23,42,0.08)',
                                                             padding: '3px 8px',
@@ -922,6 +931,7 @@ const MainScreen = () => {
                                                             display: 'inline-flex',
                                                             alignItems: 'center',
                                                             gap: '4px',
+                                                            width: 'fit-content',
                                                         }}
                                                     >
                                                         {weather.icon && <span>{weather.icon}</span>}

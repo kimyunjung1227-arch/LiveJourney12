@@ -15,6 +15,7 @@ import { getBadgeCongratulationMessage, getBadgeDifficultyEffects } from '../uti
 import { logger } from '../utils/logger';
 import { useExifConsent } from '../contexts/ExifConsentContext';
 import { convertGpsToAddress, extractExifData, isExifCaptureTooOldForUpload } from '../utils/exifExtractor';
+import UploadGuideBody from '../components/UploadGuideBody';
 
 const UploadScreen = () => {
   const navigate = useNavigate();
@@ -23,7 +24,7 @@ const UploadScreen = () => {
   const { exifAllowed } = useExifConsent();
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [uploadGuideOpen, setUploadGuideOpen] = useState(false);
+  const [showUploadGuideModal, setShowUploadGuideModal] = useState(false);
   const [formData, setFormData] = useState({
     images: [],
     imageFiles: [],
@@ -983,10 +984,10 @@ const UploadScreen = () => {
                 navigate(-1);
               }
             }}
-            className="flex size-10 shrink-0 items-center justify-center text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className="flex size-10 shrink-0 items-center justify-center text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label="뒤로"
           >
-            뒤로
+            <span className="material-symbols-outlined text-xl">arrow_back</span>
           </button>
           <h1 className="flex-1 text-center text-lg font-bold" style={{ 
             fontSize: '18px',
@@ -1010,30 +1011,12 @@ const UploadScreen = () => {
               <div className="flex justify-end mb-1">
                 <button
                   type="button"
-                  onClick={() => setUploadGuideOpen((v) => !v)}
+                  onClick={() => setShowUploadGuideModal(true)}
                   className="text-xs font-semibold text-primary px-2 py-1 rounded-md hover:bg-primary/5"
                 >
-                  업로드 가이드 {uploadGuideOpen ? '접기' : '펼치기'}
+                  업로드 가이드
                 </button>
               </div>
-              {uploadGuideOpen && (
-                <div className="mb-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-[11px] text-gray-700 leading-relaxed space-y-1.5">
-                  <p className="font-semibold text-gray-900">요약</p>
-                  <ul className="list-disc pl-4 space-y-1">
-                    <li>현장에서 찍은 &apos;지금&apos; 모습을 올려 주세요.</li>
-                    <li>과한 보정은 피하고, 솔직한 정보가 다른 여행자에게 도움이 됩니다.</li>
-                    <li>촬영 후 48시간이 지난 사진은 업로드할 수 없습니다.</li>
-                    <li>위치·이야기·사진이 함께할 때 가장 큰 도움이 됩니다.</li>
-                  </ul>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/upload/guide', { state: { returnTo: '/upload' } })}
-                    className="text-primary font-semibold underline-offset-2 hover:underline"
-                  >
-                    전체 가이드 보기
-                  </button>
-                </div>
-              )}
               {(formData.images.length === 0 && formData.videos.length === 0) ? (
                 <button
                   onClick={() => setShowPhotoOptions(true)}
@@ -1387,6 +1370,47 @@ const UploadScreen = () => {
             >
               취소
             </button>
+          </div>
+        )}
+
+        {showUploadGuideModal && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="upload-guide-modal-title"
+            className="absolute inset-0 z-[205] flex items-center justify-center bg-black/50 dark:bg-black/60 p-3"
+            style={{
+              paddingTop: 'max(12px, env(safe-area-inset-top, 0px))',
+              paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))',
+              paddingLeft: 'max(12px, env(safe-area-inset-left, 0px))',
+              paddingRight: 'max(12px, env(safe-area-inset-right, 0px))',
+            }}
+            onClick={() => setShowUploadGuideModal(false)}
+          >
+            <div
+              className="flex min-h-0 w-full max-w-[min(28rem,100%)] max-h-[min(85dvh,calc(100%-1.5rem))] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-200 px-3 py-2.5 dark:border-gray-700">
+                <h2
+                  id="upload-guide-modal-title"
+                  className="text-base font-bold text-gray-900 dark:text-gray-100"
+                >
+                  업로드 가이드
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setShowUploadGuideModal(false)}
+                  className="flex size-10 shrink-0 items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                  aria-label="닫기"
+                >
+                  <span className="material-symbols-outlined text-2xl">close</span>
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
+                <UploadGuideBody />
+              </div>
+            </div>
           </div>
         )}
 

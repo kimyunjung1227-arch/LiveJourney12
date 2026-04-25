@@ -214,16 +214,28 @@ const HotFeedCard = ({
                 <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{title}</h4>
                 <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', background: 'transparent', boxShadow: 'none' }}>{captionForCard}</p>
                 {(hasWeather || displayTags.length > 0) && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, flex: 1, minWidth: 0 }}>
-                            {displayTags.map((tag) => (
-                                <span key={`${post?.id || 'post'}-tag-${String(tag)}`} style={tagChipStyle}>
-                                    {String(tag)}
-                                </span>
-                            ))}
-                        </div>
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'stretch',
+                            gap: 6,
+                            marginTop: 6,
+                            width: '100%',
+                            minWidth: 0,
+                        }}
+                    >
+                        {displayTags.length > 0 ? (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, width: '100%', minWidth: 0 }}>
+                                {displayTags.map((tag) => (
+                                    <span key={`${post?.id || 'post'}-tag-${String(tag)}`} style={tagChipStyle}>
+                                        {String(tag)}
+                                    </span>
+                                ))}
+                            </div>
+                        ) : null}
                         {hasWeather ? (
-                            <div style={weatherPillStyle}>
+                            <div style={{ ...weatherPillStyle, alignSelf: 'flex-end', width: 'fit-content' }}>
                                 {weather?.icon && <span>{weather.icon}</span>}
                                 {weather?.temperature && <span>{weather.temperature}</span>}
                             </div>
