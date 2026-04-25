@@ -1,109 +1,42 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
-import { filterActivePosts48 } from '../utils/timeUtils';
+import { filterActivePosts48, getTimeAgo } from '../utils/timeUtils';
 import './MainScreen.css';
 
 import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
 import { fetchPostsSupabase } from '../api/postsSupabase';
-import { rankHotspotPlaces } from '../utils/hotnessEngine';
-import { useAuth } from '../contexts/AuthContext';
-import { toggleLikeForPost } from '../utils/postLikeActions';
+import { rankHotspotPosts } from '../utils/hotnessEngine';
+import { toggleBookmark, isPostBookmarked } from '../utils/socialInteractions';
 import { getMapThumbnailUri } from '../utils/postMedia';
-import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCardModel';
-import { buildPlaceStatsMap, selectPostsForPlaceStats, transformPostForHotFeed } from '../utils/hotFeedPostTransform';
+import { buildHotFeedCardProps } from '../utils/hotFeedCardModel';
+import {
+    getHotFeedAddressLine,
+    getCityDongLine,
+    getPhotoCategoryLabel,
+    getPhotoCaptionLine,
+} from '../utils/hotPlaceDisplay';
 import { getWeatherByRegion } from '../api/weather';
-import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
-import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
-const PRIMARY_HEX = '#26C6DA';
+const HOT_BADGE_VARIANTS = ['급상승', '실시간 인기', '지금 주목받는 곳', '실시간 핫플'];
 
-const getPostTimeMs = (post) => {
-    const raw = post?.timestamp || post?.createdAt || post?.time;
-    const t = raw ? new Date(raw).getTime() : NaN;
-    return Number.isNaN(t) ? 0 : t;
-};
-
-const getPostCoords = (post) => {
-    const c = post?.coordinates;
-    if (c && (c.lat != null || c.latitude != null) && (c.lng != null || c.longitude != null)) {
-        return { lat: Number(c.lat ?? c.latitude), lng: Number(c.lng ?? c.longitude) };
-    }
-    if (post?.location && typeof post.location === 'object') {
-        const lat = post.location.lat ?? post.location.latitude;
-        const lng = post.location.lng ?? post.location.lon ?? post.location.longitude;
-        if (lat != null && lng != null) return { lat: Number(lat), lng: Number(lng) };
-    }
-    return null;
-};
-
-const haversineKm = (a, b) => {
-    if (!a || !b) return null;
-    const R = 6371;
-    const toRad = (v) => (v * Math.PI) / 180;
-    const dLat = toRad(b.lat - a.lat);
-    const dLng = toRad(b.lng - a.lng);
-    const lat1 = toRad(a.lat);
-    const lat2 = toRad(b.lat);
-    const s =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(lat1) * Math.cos(lat2);
-    const c = 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
-    return R * c;
-};
-
-const formatAgo = (ms) => {
-    if (!ms) return '';
-    const diffMin = Math.max(0, Math.floor((Date.now() - ms) / 60000));
-    if (diffMin <= 0) return '방금';
-    if (diffMin < 60) return `${diffMin}분 전`;
-    const h = Math.floor(diffMin / 60);
-    return `${h}시간 전`;
-};
+function getHotBadgeLabel(variantIndex) {
+    return HOT_BADGE_VARIANTS[variantIndex % HOT_BADGE_VARIANTS.length];
+}
 
 const CrowdedPlaceScreen = () => {
     const navigate = useNavigate();
-    const { user } = useAuth();
     const [crowdedData, setCrowdedData] = useState([]);
-    const [allHotPosts, setAllHotPosts] = useState([]);
     const [refreshKey, setRefreshKey] = useState(0);
+    const [bookmarkRefresh, setBookmarkRefresh] = useState(0);
     const [weatherByRegion, setWeatherByRegion] = useState({});
-    const [crowdedSocialIdx, setCrowdedSocialIdx] = useState(0);
+    const [badgeTick, setBadgeTick] = useState(0);
     const contentRef = useRef(null);
-    const [userPos, setUserPos] = useState(null);
-    const [, setNowTick] = useState(0);
 
     useEffect(() => {
-        const id = setInterval(() => setCrowdedSocialIdx((i) => (i + 1) % 3), 2800);
+        const id = setInterval(() => setBadgeTick((t) => t + 1), 2600);
         return () => clearInterval(id);
-    }, []);
-
-    useEffect(() => {
-        const id = setInterval(() => setNowTick((x) => x + 1), 30000);
-        return () => clearInterval(id);
-    }, []);
-
-    useEffect(() => {
-        if (!navigator?.geolocation) return undefined;
-        let cancelled = false;
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                if (cancelled) return;
-                setUserPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-            },
-            () => {
-                /* ignore */
-            },
-            { enableHighAccuracy: true, maximumAge: 120000, timeout: 6000 }
-        );
-        return () => {
-            cancelled = true;
-        };
-    }, []);
-
-    useEffect(() => {
-        setCrowdedSocialIdx(0);
     }, []);
 
     const crowdedRegionsKey = useMemo(() => {
@@ -114,11 +47,10 @@ const CrowdedPlaceScreen = () => {
     useEffect(() => {
         const regions = new Set();
         crowdedData.forEach((p) => {
-            if (!p || p.weather || p.weatherSnapshot) return;
-            const r = (p.region || p.location || '').trim().split(/\s+/)[0] || p.region || p.location;
-            if (!r) return;
-            if (weatherByRegion?.[r]) return;
-            regions.add(r);
+            if (p && !p.weather && (p.region || p.location)) {
+                const r = (p.region || p.location || '').trim().split(/\s+/)[0] || p.region || p.location;
+                if (r) regions.add(r);
+            }
         });
         if (regions.size === 0) return undefined;
         let cancelled = false;
@@ -143,53 +75,13 @@ const CrowdedPlaceScreen = () => {
         return () => {
             cancelled = true;
         };
-    }, [crowdedRegionsKey, weatherByRegion]);
+    }, [crowdedRegionsKey]);
 
-    const handleHotFeedLike = useCallback(async (e, post) => {
+    const handleBookmark = (e, post) => {
         e.stopPropagation();
-        if (!user?.id) {
-            alert('로그인 후 좋아요를 누를 수 있어요.');
-            return;
-        }
-        const prevLiked = !!post.likedByMe;
-        const prevCount = Math.max(0, Number(post.likes ?? post.likeCount ?? 0) || 0);
-        const optimisticLiked = !prevLiked;
-        const optimisticCount = Math.max(0, prevCount + (optimisticLiked ? 1 : -1));
-
-        setCrowdedData((prev) =>
-            prev.map((p) =>
-                p && p.id === post.id
-                    ? { ...p, likes: optimisticCount, likeCount: optimisticCount, likedByMe: optimisticLiked }
-                    : p
-            )
-        );
-
-        const serverRes = await toggleLikeForPost({ postId: post.id, userId: user.id, likedBefore: prevLiked });
-        if (serverRes?.success) {
-            const finalLiked = !!serverRes.isLiked;
-            const finalCount = typeof serverRes.likesCount === 'number' ? serverRes.likesCount : optimisticCount;
-            setCrowdedData((prev) =>
-                prev.map((p) =>
-                    p && p.id === post.id
-                        ? { ...p, likes: finalCount, likeCount: finalCount, likedByMe: finalLiked }
-                        : p
-                )
-            );
-            return;
-        }
-
-        // 롤백
-        setCrowdedData((prev) =>
-            prev.map((p) =>
-                p && p.id === post.id
-                    ? { ...p, likes: prevCount, likeCount: prevCount, likedByMe: prevLiked }
-                    : p
-            )
-        );
-        if (serverRes?.reason && serverRes.reason !== 'non_uuid') {
-            alert(serverRes.reason === 'no_session' ? '로그인 세션이 없어요. 다시 로그인 후 시도해 주세요.' : '좋아요 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
-        }
-    }, [user?.id]);
+        toggleBookmark(post);
+        setBookmarkRefresh((k) => k + 1);
+    };
 
     useEffect(() => {
         const handler = () => setRefreshKey((k) => k + 1);
@@ -199,22 +91,11 @@ const CrowdedPlaceScreen = () => {
 
     useEffect(() => {
         const onLike = (e) => {
-            const { postId, likesCount, isLiked } = e.detail || {};
-            if (!postId) return;
+            const { postId, likesCount } = e.detail || {};
+            if (!postId || typeof likesCount !== 'number') return;
             const id = String(postId);
             setCrowdedData((prev) =>
-                prev.map((p) => {
-                    if (!p || String(p.id) !== id) return p;
-                    const next = { ...p };
-                    if (typeof likesCount === 'number') {
-                        next.likes = likesCount;
-                        next.likeCount = likesCount;
-                    }
-                    if (typeof isLiked === 'boolean') {
-                        next.likedByMe = isLiked;
-                    }
-                    return next;
-                })
+                prev.map((p) => (p && String(p.id) === id ? { ...p, likes: likesCount, likeCount: likesCount } : p))
             );
         };
         const onComments = (e) => {
@@ -235,299 +116,245 @@ const CrowdedPlaceScreen = () => {
 
     useEffect(() => {
         const loadData = async () => {
-            const localPosts = getUploadedPostsSafe();
-            const supabasePosts = await fetchPostsSupabase(user?.id || null);
-            const allPosts = getCombinedPosts(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
-            // 메인 실시간 핫플과 동일한 장소 집계 → 좌상단 핫 태그(reasonTags·급상승 등) 일치
-            const postsForPlaceStats = selectPostsForPlaceStats(allPosts);
-            const placeStats = buildPlaceStatsMap(postsForPlaceStats);
+            const localPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
+            const supabasePosts = await fetchPostsSupabase();
+            const byId = new Map();
+            [...(Array.isArray(supabasePosts) ? supabasePosts : []), ...(Array.isArray(localPosts) ? localPosts : [])].forEach((p) => {
+                if (p && p.id && !byId.has(p.id)) byId.set(p.id, p);
+            });
+            const allPosts = getCombinedPosts(Array.from(byId.values()));
             const posts = filterActivePosts48(allPosts);
 
             const transformPost = (post) => {
-                const base = transformPostForHotFeed(post, placeStats);
                 const firstImage = post.images?.[0] || post.image || post.thumbnail || '';
                 const firstVideo = post.videos?.[0] || '';
+                const likesNum = Number(post.likes ?? post.likeCount ?? 0) || 0;
+                const commentsArr = Array.isArray(post.comments) ? post.comments : [];
+                const timeStr = getTimeAgo(post.timestamp || post.createdAt || post.time);
                 const coverStill = getMapThumbnailUri(post);
                 return {
-                    ...base,
+                    ...post,
+                    id: post.id,
                     // 동영상은 재생하지 않고, 가능한 정지 썸네일(이미지/thumbnail/poster)만 사용
                     image: getDisplayImageUrl(coverStill || firstImage || ''),
                     thumbnailIsVideo: !firstImage && !!firstVideo,
                     firstVideoUrl: firstVideo ? getDisplayImageUrl(firstVideo) : null,
                     location: post.location,
                     region: post.region || (post.location || '').trim().split(/\s+/).slice(0, 2).join(' ') || post.location,
+                    time: timeStr,
                     content: post.note || post.content || `${post.location || '장소'}의 모습`,
+                    likes: likesNum,
+                    likeCount: likesNum,
+                    comments: commentsArr,
                 };
             };
 
             const transformed = posts.map(transformPost);
-            setAllHotPosts(transformed);
             const preFiltered = transformed.filter((p) => {
                 const hasLikes = (p.likes || 0) > 0;
                 const isRecent = p.time && (p.time.includes('방금') || p.time.includes('분 전') || p.time.includes('시간 전'));
                 return hasLikes || isRecent;
             });
             const toRank = preFiltered.length > 0 ? preFiltered : transformed;
-            const rankedPlaces = rankHotspotPlaces(toRank, { verifyFirst: true, maxItems: 50 });
-            const repPosts = rankedPlaces
-                .filter((p) => p?.representative?.id)
-                .map((p) => ({
-                    ...p.representative,
-                    _rank: p.rank,
-                    _impactLabel: p.warning || `컴퍼스 ${p.compassCount}명 동시 중계 중`,
-                    _compassCount: p.compassCount,
-                    _placeKey: p.key,
-                }));
-            setCrowdedData(repPosts.length > 0 ? repPosts : transformed.slice(0, 50));
+            const ranked = rankHotspotPosts(toRank, { verifyFirst: true, maxItems: 100 });
+            const crowdedWithRank = ranked.map((r) => ({
+                ...r.post,
+                _rank: r.rank,
+                _impactLabel: r.impactLabel,
+            }));
+            setCrowdedData(crowdedWithRank.length > 0 ? crowdedWithRank : transformed.slice(0, 50));
         };
         loadData();
-    }, [refreshKey, user?.id]);
+    }, [refreshKey]);
 
     const filteredPosts = crowdedData;
 
-    const placeRankings = useMemo(() => {
-        const ranked = rankHotspotPlaces(allHotPosts, { verifyFirst: true, maxItems: 30 });
-        return ranked.map((x) => {
-            const representative = x.representative;
-            const coords = representative ? getPostCoords(representative) : null;
-            const distKm = userPos && coords ? haversineKm(userPos, coords) : null;
-            const tags = Array.isArray(representative?.reasonTags) ? representative.reasonTags : [];
-            const liveTags = tags
-                .map((t) => String(t || '').replace(/_/g, ' ').trim())
-                .filter(Boolean)
-                .slice(0, 3);
-            return {
-                key: x.key,
-                score: x.score,
-                latestMs: x.latestMs,
-                trustPercent: x.trustPercent,
-                representative,
-                coords,
-                distKm,
-                liveTags,
-                rank: x.rank,
-                compassCount: x.compassCount,
-                warning: x.warning,
-            };
-        });
-    }, [allHotPosts, userPos]);
-
-    const lastUpdatedMs = useMemo(() => {
-        const ms = Math.max(0, ...placeRankings.map((p) => Number(p.latestMs || 0)));
-        return ms || 0;
-    }, [placeRankings]);
-
-    // 소셜 문구는 주기적으로 바뀌지만, 카드 props 계산은 무거우므로 데이터가 바뀔 때만 캐시
-    const cardPropsById = useMemo(() => {
-        const map = new Map();
-        filteredPosts.forEach((post) => {
-            if (!post?.id) return;
-            const cp = buildHotFeedCardProps(post, weatherByRegion);
-            if (cp) map.set(String(post.id), cp);
-        });
-        return map;
-    }, [filteredPosts, weatherByRegion]);
-
     return (
         <div className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col">
-            <header className="sticky top-0 z-20 flex shrink-0 items-center gap-2 border-b border-border-light bg-background-light px-3 py-3 dark:border-border-dark dark:bg-background-dark">
+            {/* 헤더 */}
+            <header className="screen-header sticky top-0 z-20 flex items-center justify-between px-4 py-3 bg-background-light/90 dark:bg-background-dark/90 border-b border-slate-100 dark:border-slate-800 backdrop-blur">
                 <button
-                    type="button"
                     onClick={() => navigate(-1)}
                     aria-label="뒤로가기"
-                    className="flex size-10 shrink-0 items-center justify-center rounded-full text-text-primary-light hover:bg-black/5 dark:text-text-primary-dark dark:hover:bg-white/10"
+                    className="flex size-10 shrink-0 items-center justify-center rounded-full text-text-main dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
                     <span className="material-symbols-outlined text-2xl">arrow_back</span>
                 </button>
-                <h1 className="min-w-0 flex-1 pr-2 text-center text-[17px] font-bold leading-snug text-text-primary-light dark:text-text-primary-dark">
+                <h1 className="flex-1 text-center text-lg font-bold text-text-main dark:text-white">
                     실시간 급상승 핫플
                 </h1>
-                <div className="size-10 shrink-0" aria-hidden />
+                <div className="w-10" />
             </header>
 
-            <div ref={contentRef} className="screen-content flex-1 overflow-y-auto bg-background-light dark:bg-background-dark">
-                <div className="min-h-full px-4 pb-16 pt-2">
-                    <div className="pb-6">
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                                <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                                    {lastUpdatedMs ? `업데이트 ${formatAgo(lastUpdatedMs)}` : '업데이트 정보를 불러오는 중...'}
-                                </div>
-                                <div className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">
-                                    방금 올라온 사진이 있는 곳 위주로 순위가 바뀝니다
-                                </div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setRefreshKey((k) => k + 1)}
-                                className="shrink-0 rounded-full border border-zinc-200 bg-white px-3 py-2 text-xs font-bold text-zinc-700 shadow-sm hover:border-primary/30 hover:text-primary-dark dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-                                style={{ borderColor: 'rgba(38,198,218,0.25)' }}
-                            >
-                                새로고침
-                            </button>
-                        </div>
+            {/* 컨텐츠 */}
+            <div ref={contentRef} className="screen-content flex-1 overflow-y-auto">
+                {/* 상단 타이틀 — 실시간 급상승 핫플 피드 */}
+                <section className="px-5 pt-3 pb-0.5">
+                    <h2 className="text-lg font-bold leading-tight text-text-main dark:text-white">
+                        실시간 급상승 핫플 🔥
+                    </h2>
+                    <p className="text-text-sub dark:text-slate-400 text-[11px] mt-0.5">지금 가장 핫한 장소를 확인해보세요</p>
+                </section>
 
-                        {placeRankings.length === 0 ? (
-                            <div className="py-10 text-center text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                                아직 실시간 핫플 게시물이 없어요.
-                            </div>
-                        ) : (
-                            <div className="flex flex-col gap-2">
-                                {placeRankings.map((place) => {
-                                    const post = place.representative;
-                                    if (!post?.id) return null;
-                                    const img = post.image || getDisplayImageUrl(post.images?.[0] || post.thumbnail || '');
-                                    const distText =
-                                        typeof place.distKm === 'number'
-                                            ? place.distKm < 1
-                                                ? `${Math.round(place.distKm * 1000)}m`
-                                                : `${place.distKm.toFixed(1)}km`
-                                            : null;
+                {/* 필터 제거: 바로 게시물 노출 */}
 
-                                    const cardProps = cardPropsById.get(String(post.id));
-                                    const socialText = cardProps ? getHotFeedSocialLine(cardProps, crowdedSocialIdx) : '';
-                                    const tempText = (() => {
-                                        const w = cardProps?.weather;
-                                        const raw = w?.temperature ?? w?.temp ?? '';
-                                        const s = String(raw || '').trim();
-                                        if (!s || s === '-') return '';
-                                        return s.includes('°') ? s : `${s}°C`;
-                                    })();
-                                    const hotTagChips = (Array.isArray(place.liveTags) ? place.liveTags : [])
-                                        .map((t) => {
-                                            const raw = String(t || '')
-                                                .replace(/#/g, '')
-                                                .trim();
-                                            if (!raw) return '';
-                                            return raw.startsWith('#') ? raw : `#${raw}`;
-                                        })
-                                        .filter(Boolean)
-                                        .slice(0, 3);
-
-                                    return (
-                                        <button
-                                            key={place.key}
-                                            type="button"
-                                            onClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } })}
-                                            className="group w-full overflow-hidden rounded-2xl border border-zinc-100 bg-white text-left shadow-sm transition hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
-                                        >
-                                            <div className="relative aspect-[16/10] w-full overflow-hidden bg-zinc-100 dark:bg-zinc-800">
-                                                {img ? (
-                                                    <img src={img} alt="" className="h-full w-full object-cover" loading="eager" decoding="async" />
-                                                ) : (
-                                                    <div className="flex h-full w-full items-center justify-center text-xs text-zinc-400">
-                                                        사진 없음
-                                                    </div>
-                                                )}
-                                                <div
-                                                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none"
-                                                    aria-label={`랭킹 ${place.rank}위`}
-                                                    style={{
-                                                        padding: '6px 12px',
-                                                        borderRadius: 9999,
-                                                        background: 'rgba(15, 23, 42, 0.55)',
-                                                        backdropFilter: 'blur(10px)',
-                                                        WebkitBackdropFilter: 'blur(10px)',
-                                                        border: '1px solid rgba(250, 204, 21, 0.35)',
-                                                        boxShadow: '0 10px 28px rgba(15, 23, 42, 0.28)',
-                                                    }}
-                                                >
-                                                    <span
-                                                        style={{
-                                                            display: 'inline-block',
-                                                            fontSize: 22,
-                                                            fontWeight: 950,
-                                                            letterSpacing: -0.6,
-                                                            color: '#ffffff',
-                                                            textShadow: '0 2px 12px rgba(0,0,0,0.45)',
-                                                        }}
-                                                    >
-                                                        {place.rank}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div className="px-2 pb-3 pt-2">
-                                                <div className="flex items-start justify-between gap-2">
-                                                    <div className="min-w-0 flex-1">
-                                                        <h4 className="truncate text-[16px] font-bold leading-snug text-zinc-900 dark:text-zinc-50">
-                                                            {String(place.key).trim()}
-                                                        </h4>
-                                                        {hotTagChips.length > 0 ? (
-                                                            <div className="mt-2 flex flex-wrap gap-1.5">
-                                                                {hotTagChips.map((tag) => (
-                                                                    <span
-                                                                        key={`${place.key}-${tag}`}
-                                                                        className="max-w-full truncate rounded-full border px-2 py-0.5 text-[11px] font-extrabold text-slate-900 dark:text-slate-100"
-                                                                        style={{
-                                                                            background: 'rgba(38, 198, 218, 0.14)',
-                                                                            borderColor: 'rgba(38, 198, 218, 0.30)',
-                                                                        }}
-                                                                        title={tag}
-                                                                    >
-                                                                        {tag}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
-                                                        ) : null}
-                                                        <p className="mt-2 text-[12px] font-medium leading-relaxed text-zinc-600 dark:text-zinc-400">
-                                                            <span>컴퍼스 {place.compassCount || 0}명 중계 중</span>
-                                                            <span className="mx-1.5 text-zinc-300 dark:text-zinc-600">·</span>
-                                                            <span>라이브 인증 {place.trustPercent}%</span>
-                                                            {tempText ? (
-                                                                <>
-                                                                    <span className="mx-1.5 text-zinc-300 dark:text-zinc-600">·</span>
-                                                                    <span>기온 {tempText}</span>
-                                                                </>
-                                                            ) : null}
-                                                            <span className="mx-1.5 text-zinc-300 dark:text-zinc-600">·</span>
-                                                            <span>{formatAgo(place.latestMs)}</span>
-                                                            {distText ? (
-                                                                <>
-                                                                    <span className="mx-1.5 text-zinc-300 dark:text-zinc-600">·</span>
-                                                                    <span>{distText}</span>
-                                                                </>
-                                                            ) : null}
-                                                        </p>
-                                                        {place.warning ? (
-                                                            <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
-                                                                {place.warning}
-                                                            </p>
-                                                        ) : null}
-                                                        {socialText ? (
-                                                            <p className="mt-1 line-clamp-1 text-[11px] font-medium text-zinc-500 dark:text-zinc-500">
-                                                                {socialText}
-                                                            </p>
-                                                        ) : null}
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            navigate(`/hotplace/${encodeURIComponent(String(place.key || '').trim())}`, {
-                                                                state: {
-                                                                    placeKey: String(place.key || '').trim(),
-                                                                    allPosts: allHotPosts,
-                                                                },
-                                                            });
-                                                        }}
-                                                        aria-label="장소 모아보기"
-                                                        className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
-                                                        style={{ border: `1px solid rgba(38,198,218,0.28)` }}
-                                                    >
-                                                        <span className="material-symbols-outlined text-[18px]" style={{ color: PRIMARY_HEX }}>
-                                                            chevron_right
-                                                        </span>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        )}
+                {/* 피드 — 세로 리스트, 4:3 카드, 랭킹은 3위까지 표시하되 피드는 계속 노출 */}
+                {filteredPosts.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 px-6 text-center text-slate-400 dark:text-slate-500">
+                        <span className="material-symbols-outlined text-5xl mb-3">local_fire_department</span>
+                        <p className="text-sm mb-1">아직 실시간 핫플 게시물이 없어요</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">좋아요가 쌓이거나 최근 게시물이 생기면 이곳에 표시돼요.</p>
                     </div>
-                </div>
+                ) : (
+                    <div className="flex flex-col gap-2 px-4 pb-16">
+                        {filteredPosts.map((post) => {
+                            const hotCard = buildHotFeedCardProps(post, weatherByRegion);
+                            const addressLine = getHotFeedAddressLine(post);
+                            const cityDong = getCityDongLine(post);
+                            const photoCat = getPhotoCategoryLabel(post);
+                            const regionShort = post.region || (post.location || '').trim().split(/\s+/).slice(0, 2).join(' ') || '위치';
+                            const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
+                            const commentCount = Array.isArray(post.comments) ? post.comments.length : 0;
+                            const photoCount = Math.max(1, Math.min(99, (likeCount + commentCount * 2) % 28 + 4));
+                            const captionLine = (hotCard?.captionForCard || getPhotoCaptionLine(post) || '').trim();
+                            const hotReasonLabel = String(hotCard?.hotReasonLabel || '').trim();
+                            const hotReasonIcon = String(hotCard?.hotReasonIcon || 'local_fire_department');
+                            const rawTags = [
+                                ...(Array.isArray(post.reasonTags) ? post.reasonTags : []),
+                                ...(Array.isArray(post.aiHotTags) ? post.aiHotTags : []),
+                            ]
+                                .map((t) => String(t || '').replace(/#/g, '').replace(/_/g, ' ').trim())
+                                .filter(Boolean);
+                            const tagsToShow = rawTags.slice(0, 2);
+                            const isBookmarked = bookmarkRefresh >= 0 && isPostBookmarked(post.id);
+                            const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
+                            const weather = post.weather || weatherByRegion[regionKey] || null;
+                            const hasWeather = weather && (weather.icon || weather.temperature != null);
+                            return (
+                                <div
+                                    key={post.id}
+                                    onClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } })}
+                                    className="group flex flex-col cursor-pointer overflow-hidden rounded-[14px] border border-slate-100 bg-white shadow-[0_2px_14px_rgba(15,23,42,0.07)] dark:border-slate-700 dark:bg-slate-800"
+                                >
+                                    <div
+                                        className="relative w-full shrink-0 overflow-hidden bg-[#e5e7eb]"
+                                        style={{
+                                            aspectRatio: '4/3',
+                                            maxHeight: 'min(54vw, 36dvh, 228px)',
+                                        }}
+                                    >
+                                        <div className="absolute left-2 top-2 z-10 inline-flex max-w-[58%] items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[10px] font-extrabold tracking-tight text-white shadow-[0_2px_8px_rgba(0,0,0,0.12)]">
+                                            <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: '"FILL" 1' }}>
+                                                local_fire_department
+                                            </span>
+                                            {getHotBadgeLabel(badgeTick)}
+                                        </div>
+                                        {hasWeather ? (
+                                            <div className="absolute right-2 top-2 z-10 inline-flex max-w-[58%] items-center gap-1 rounded-full bg-[rgba(15,23,42,0.52)] px-2.5 py-1 text-[10px] font-semibold text-[#f8fafc] shadow-md backdrop-blur-[8px]">
+                                                {weather.icon ? <span className="text-xs">{weather.icon}</span> : null}
+                                                <span className="truncate">
+                                                    {weather.temperature != null && weather.temperature !== '-' ? `${weather.temperature}` : ''}
+                                                    {weather.condition && weather.condition !== '-' ? ` ${weather.condition}` : ''}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <div className="absolute right-2 top-2 z-10 inline-flex max-w-[58%] items-center gap-0.5 rounded-full bg-[rgba(15,23,42,0.52)] px-2.5 py-1 text-[10px] font-semibold text-[#f8fafc] backdrop-blur-[8px]">
+                                                <span className="material-symbols-outlined text-[13px]">location_on</span>
+                                                <span className="truncate">{regionShort}</span>
+                                            </div>
+                                        )}
+                                        {post.image ? (
+                                            <img src={post.image} alt={post.location || ''} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]" />
+                                        ) : (
+                                            <div className="flex h-full min-h-[100px] w-full items-center justify-center text-slate-400">
+                                                <span className="material-symbols-outlined text-4xl">image</span>
+                                            </div>
+                                        )}
+                                        {(() => {
+                                            const raw = Array.isArray(post.images)
+                                                ? post.images
+                                                : post.images
+                                                    ? [post.images]
+                                                    : post.image
+                                                        ? [post.image]
+                                                        : post.thumbnail
+                                                            ? [post.thumbnail]
+                                                            : [];
+                                            const thumbs = raw.map((v) => getDisplayImageUrl(v)).filter(Boolean).slice(0, 3);
+                                            const showThumbs = thumbs.length > 1;
+                                            if (!showThumbs) return null;
+                                            return (
+                                                <div className="absolute left-2 bottom-2 z-10 flex items-center gap-1.5 rounded-full bg-[rgba(15,23,42,0.38)] px-2 py-1 shadow-sm backdrop-blur-[8px]">
+                                                    {thumbs.map((src, i) => (
+                                                        <img
+                                                            key={`${post.id}-thumb-${i}`}
+                                                            src={src}
+                                                            alt=""
+                                                            className="h-[30px] w-[30px] rounded-[10px] object-cover"
+                                                            style={{ border: '1px solid rgba(255,255,255,0.55)' }}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                    <div className="shrink-0 px-2 pb-2.5 pt-2.5">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0 flex-1">
+                                                <h3 className="line-clamp-2 text-[15px] font-bold leading-snug text-text-main dark:text-white">{addressLine}</h3>
+                                                <div className="mt-1.5 flex items-center justify-between gap-2">
+                                                    <span className="min-w-0 flex-1 truncate text-[11px] font-medium leading-snug text-slate-500 dark:text-slate-400">
+                                                        {cityDong || regionShort}
+                                                    </span>
+                                                    {photoCat ? (
+                                                        <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-extrabold text-white">{photoCat}</span>
+                                                    ) : null}
+                                                </div>
+                                                {tagsToShow.length > 0 ? (
+                                                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                                        {tagsToShow.map((t) => (
+                                                            <span
+                                                                key={`${post.id}-tag-${t}`}
+                                                                className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-700/60 dark:text-slate-100"
+                                                            >
+                                                                {t}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                ) : null}
+
+                                                <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+                                                    <span className="material-symbols-outlined text-[14px]" aria-hidden>
+                                                        {hotReasonIcon}
+                                                    </span>
+                                                    <span className="truncate">{hotReasonLabel || '지금 주목받는 장소예요'}</span>
+                                                </div>
+                                                <p className="mt-1 line-clamp-2 break-words text-[11px] font-medium leading-relaxed text-slate-600 dark:text-slate-300">
+                                                    {captionLine || '실시간으로 공유된 장소예요.'}
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className="mt-0.5 shrink-0 p-1 text-slate-400 transition-colors hover:text-primary"
+                                                onClick={(e) => handleBookmark(e, post)}
+                                                aria-label="저장"
+                                            >
+                                                <span className="material-symbols-outlined text-[22px]" style={isBookmarked ? { fontVariationSettings: "'FILL' 1" } : undefined}>
+                                                    bookmark
+                                                </span>
+                                            </button>
+                                        </div>
+                                        <div className="mt-2 flex shrink-0 items-center justify-end">
+                                            <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                                                {post.time ? `${post.time} 업로드` : '최근 업로드'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
 
             {/* 위로가기 버튼 - 프로필 버튼 바로 위, 흰색 완전 원형 */}
