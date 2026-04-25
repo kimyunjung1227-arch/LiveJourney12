@@ -164,6 +164,13 @@ const ProfileScreen = () => {
     myPostsRef.current = myPosts;
   }, [myPosts]);
 
+  // 프로필 진입 직후에는 posts가 늦게 로딩되어 50%로 잠깐 보일 수 있어,
+  // 게시물 목록이 갱신되는 타이밍에도 라이브 싱크를 즉시 재계산한다.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    refreshLiveSync();
+  }, [isAuthenticated, myPosts.length, refreshLiveSync]);
+
   // 게시물·저장소 기준 획득 인장 목록 (라이브 싱크 등급 제외)
   useEffect(() => {
     if (!isAuthenticated) return;

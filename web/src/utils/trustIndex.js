@@ -451,11 +451,19 @@ export const setLiveSyncPercentCache = (userId, pct, sampleCount = null) => {
   const clamped = Math.max(0, Math.min(100, n));
   const ts = Date.now();
   const sc = sampleCount != null ? Math.max(0, Number(sampleCount) || 0) : (memory.liveSyncCache?.[uid]?.sampleCount ?? 0);
-  memory.liveSyncCache[uid] = { pct: clamped, ts, sampleCount: sc };
+  const prev = memory.liveSyncCache?.[uid];
+  // 점수가 갑자기 튀지 않도록 완만하게 누적(스무딩)
+  const prevPct = typeof prev?.pct === 'number' ? prev.pct : null;
+  const maxStep = 2; // 한 번 갱신에서 최대 2%만 변동
+  const nextPct =
+    prevPct == null
+      ? clamped
+      : Math.max(0, Math.min(100, prevPct + Math.max(-maxStep, Math.min(maxStep, clamped - prevPct))));
+  memory.liveSyncCache[uid] = { pct: nextPct, ts, sampleCount: sc };
 
   // 프로필 화면에서 계산한 값을 다른 화면에서도 동일하게 쓰기 위해 로컬에도 보관
   const store = safeReadLiveSyncStore();
-  store[uid] = { pct: clamped, ts, sampleCount: sc };
+  store[uid] = { pct: nextPct, ts, sampleCount: sc };
   safeWriteLiveSyncStore(store);
 };
 
@@ -471,11 +479,17 @@ export const getLiveSyncPercentRoundedFromCache = (userId = null, postsOverride 
     ) {
       const computed = getLiveSyncPercentRounded(uid, postsOverride);
       const ts = Date.now();
-      memory.liveSyncCache[uid] = { pct: computed, ts, sampleCount };
+      const prevPct = typeof mem?.pct === 'number' ? mem.pct : null;
+      const maxStep = 2;
+      const nextPct =
+        prevPct == null
+          ? computed
+          : Math.max(0, Math.min(100, prevPct + Math.max(-maxStep, Math.min(maxStep, computed - prevPct))));
+      memory.liveSyncCache[uid] = { pct: nextPct, ts, sampleCount };
       const store = safeReadLiveSyncStore();
-      store[uid] = { pct: computed, ts, sampleCount };
+      store[uid] = { pct: nextPct, ts, sampleCount };
       safeWriteLiveSyncStore(store);
-      return computed;
+      return nextPct;
     }
     if (mem && typeof mem.pct === 'number') return mem.pct;
 
