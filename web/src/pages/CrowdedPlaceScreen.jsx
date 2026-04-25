@@ -444,32 +444,35 @@ const CrowdedPlaceScreen = () => {
                                                         ))}
                                                     </div>
                                                 ) : null}
-                                                <div
-                                                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none"
-                                                    aria-label={`랭킹 ${place.rank}위`}
-                                                    style={{
-                                                        padding: '6px 12px',
-                                                        borderRadius: 9999,
-                                                        background: 'rgba(15, 23, 42, 0.55)',
-                                                        backdropFilter: 'blur(10px)',
-                                                        WebkitBackdropFilter: 'blur(10px)',
-                                                        border: '1px solid rgba(250, 204, 21, 0.35)',
-                                                        boxShadow: '0 10px 28px rgba(15, 23, 42, 0.28)',
-                                                    }}
-                                                >
-                                                    <span
+                                                {place.rank <= 20 ? (
+                                                    <div
+                                                        className="pointer-events-none absolute left-3 top-3 select-none"
+                                                        aria-label={`랭킹 ${place.rank}위`}
                                                         style={{
-                                                            display: 'inline-block',
-                                                            fontSize: 22,
-                                                            fontWeight: 950,
-                                                            letterSpacing: -0.6,
-                                                            color: '#ffffff',
-                                                            textShadow: '0 2px 12px rgba(0,0,0,0.45)',
+                                                            padding: '7px 11px',
+                                                            borderRadius: 9999,
+                                                            background: 'rgba(15, 23, 42, 0.62)',
+                                                            backdropFilter: 'blur(10px)',
+                                                            WebkitBackdropFilter: 'blur(10px)',
+                                                            border: '1px solid rgba(255,255,255,0.32)',
+                                                            boxShadow: '0 10px 28px rgba(15, 23, 42, 0.28)',
                                                         }}
                                                     >
-                                                        {place.rank}
-                                                    </span>
-                                                </div>
+                                                        <span
+                                                            style={{
+                                                                display: 'inline-block',
+                                                                fontSize: 14,
+                                                                fontWeight: 950,
+                                                                letterSpacing: -0.2,
+                                                                color: '#ffffff',
+                                                                textShadow: '0 2px 12px rgba(0,0,0,0.45)',
+                                                                lineHeight: 1,
+                                                            }}
+                                                        >
+                                                            {place.rank}위
+                                                        </span>
+                                                    </div>
+                                                ) : null}
                                             </div>
                                             <div className="px-2 pb-3 pt-2">
                                                 <div className="flex items-start justify-between gap-2">
@@ -482,7 +485,7 @@ const CrowdedPlaceScreen = () => {
                                                                 {aiBlurb}
                                                             </p>
                                                         ) : null}
-                                                        {hotTagChips.length > 0 ? (
+                                                        {place.rank <= 20 && hotTagChips.length > 0 ? (
                                                             <div className="mt-2 flex flex-wrap gap-1.5">
                                                                 {hotTagChips.map((tag) => (
                                                                     <span
