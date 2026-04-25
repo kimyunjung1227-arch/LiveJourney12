@@ -19,12 +19,12 @@ import {
   syncFollowingFromSupabase,
   isFollowingRemote,
 } from '../utils/followSystem';
-import { notifyFollowReceived, notifyFollowingStarted } from '../utils/notifications';
+import { notifyFollowReceived, notifyFollowingStarted, getActorHintsFromNotificationsCache } from '../utils/notifications';
 import { logger } from '../utils/logger';
 import { getDisplayImageUrl } from '../api/upload';
 import { getPosts } from '../api/posts';
 import { fetchPostsByUserIdSupabase, fetchPostsSupabase } from '../api/postsSupabase';
-import { fetchProfilesByIdsSupabase } from '../api/profilesSupabase';
+import { fetchProfilesByIdsSupabase, fetchProfileByIdSupabase } from '../api/profilesSupabase';
 import api from '../api/axios';
 import { fetchLiveSyncPctSupabase } from '../api/liveSyncSupabase';
 // supabase 직접 조회 대신 liveSyncSupabase 유틸을 사용합니다.
@@ -32,6 +32,7 @@ import {
   resolveUserDisplayFromPosts,
   getCachedFollowProfile,
   setCachedFollowProfile,
+  getPostUserId,
 } from '../utils/userProfileHints';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
@@ -138,9 +139,13 @@ const UserProfileScreen = () => {
 
     const cached = getCachedFollowProfile(userId);
     const resolvedFromPosts = resolveUserDisplayFromPosts(userId, uploadedPosts);
+    const badDisplayName = (s) => {
+      const t = String(s || '').trim();
+      return !t || t === '사용자' || t === '여행자';
+    };
     const pickUsername = () => {
-      if (profileHint?.username && profileHint.username !== '사용자') return profileHint.username;
-      if (cached?.username && cached.username !== '사용자') return cached.username;
+      if (profileHint?.username && !badDisplayName(profileHint.username)) return profileHint.username;
+      if (cached?.username && !badDisplayName(cached.username)) return cached.username;
       if (userPost) {
         const postUserId = userPost.userId ||
           (typeof userPost.user === 'string' ? userPost.user : userPost.user?.id) ||
@@ -221,6 +226,25 @@ const UserProfileScreen = () => {
       // 로컬만으로 먼저 화면 표시 (느린 전체 Supabase 조회 제거)
       applyMerged([...byId.values()]);
       setLoading(false);
+
+      try {
+        const prof = await fetchProfileByIdSupabase(String(userId).trim());
+        if (prof && (prof.username || prof.avatar_url)) {
+          const uName = prof.username ? String(prof.username).trim() : '';
+          const av = prof.avatar_url ? String(prof.avatar_url).trim() : null;
+          setUser((prev) => ({
+            ...(prev || {}),
+            id: String(userId),
+            username: (uName && !badDisplayName(uName) ? uName : prev?.username) || '여행자',
+            profileImage: av ?? prev?.profileImage ?? null,
+          }));
+          if (uName && !badDisplayName(uName)) {
+            setCachedFollowProfile(userId, { username: uName, profileImage: av || null });
+          }
+        }
+      } catch (_) {
+        /* profiles 조회 실패 시 게시물·힌트만 사용 */
+      }
 
       // 1) Supabase: 해당 user_id(UUID) 게시물만 (경량)
       try {
@@ -342,9 +366,29 @@ const UserProfileScreen = () => {
     setFollowListProfiles({});
     let cancelled = false;
     const ids = Array.isArray(followListIds) ? followListIds : [];
+    const viewerId = currentUser?.id || null;
     (async () => {
       try {
-        const remote = await fetchPostsSupabase(currentUser?.id || null);
+        try {
+          const rows = await fetchProfilesByIdsSupabase(ids);
+          if (!cancelled) {
+            const map = {};
+            (Array.isArray(rows) ? rows : []).forEach((r) => {
+              if (r?.id) {
+                map[String(r.id)] = {
+                  username: r?.username ? String(r.username) : '',
+                  profileImage: r?.avatar_url ? String(r.avatar_url) : null,
+                  bio: r?.bio ? String(r.bio) : null,
+                };
+              }
+            });
+            setFollowListProfiles(map);
+          }
+        } catch {
+          if (!cancelled) setFollowListProfiles({});
+        }
+
+        const remote = await fetchPostsSupabase(viewerId);
         if (cancelled) return;
         const byId = new Map();
         local.forEach((p) => {
@@ -353,34 +397,29 @@ const UserProfileScreen = () => {
         (remote || []).forEach((p) => {
           if (p?.id != null && !byId.has(p.id)) byId.set(p.id, p);
         });
+        for (const uid of ids) {
+          const has = [...byId.values()].some((p) => getPostUserId(p) === String(uid));
+          if (!has) {
+            try {
+              const up = await fetchPostsByUserIdSupabase(uid, viewerId);
+              if (cancelled) return;
+              (up || []).forEach((p) => {
+                if (p?.id && !byId.has(p.id)) byId.set(p.id, p);
+              });
+            } catch {
+              /* skip */
+            }
+          }
+        }
         setFollowListPostPool([...byId.values()]);
       } catch {
-        setFollowListPostPool(local);
-      }
-
-      // profiles 우선 조회: 게시물이 삭제되어도 유저 표시(닉네임/아바타)가 사라지지 않도록
-      try {
-        const rows = await fetchProfilesByIdsSupabase(ids);
-        if (cancelled) return;
-        const map = {};
-        (Array.isArray(rows) ? rows : []).forEach((r) => {
-          if (r?.id) {
-            map[String(r.id)] = {
-              username: r?.username ? String(r.username) : '',
-              profileImage: r?.avatar_url ? String(r.avatar_url) : null,
-              bio: r?.bio ? String(r.bio) : null,
-            };
-          }
-        });
-        setFollowListProfiles(map);
-      } catch {
-        setFollowListProfiles({});
+        if (!cancelled) setFollowListPostPool(local);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [showFollowListModal, followListIds, userId]);
+  }, [showFollowListModal, followListIds, userId, currentUser?.id]);
 
   // 라이브 싱크: 유저 게시물이 바뀌면 즉시 % 갱신
   useEffect(() => {
@@ -1304,6 +1343,12 @@ const UserProfileScreen = () => {
                     const currentUserData = currentUser;
                     const myId = currentUserData?.id;
                     const pool = followListPostPool.length > 0 ? followListPostPool : posts;
+                    const notifActorMap = getActorHintsFromNotificationsCache();
+                    const pickNonGenericName = (s) => {
+                      const t = String(s || '').trim();
+                      if (!t || t === '사용자' || t === '여행자') return null;
+                      return t;
+                    };
                     const resolveUserInfo = (uid) => {
                       if (String(uid) === String(myId) && currentUserData) {
                         return {
@@ -1312,21 +1357,23 @@ const UserProfileScreen = () => {
                         };
                       }
                       const fromProfiles = followListProfiles?.[String(uid)];
-                      if (fromProfiles?.username) {
-                        return {
-                          username: fromProfiles.username,
-                          profileImage: fromProfiles.profileImage || null,
-                        };
-                      }
+                      const notif = notifActorMap[String(uid)];
                       const cached = getCachedFollowProfile(uid);
                       const fromPosts = resolveUserDisplayFromPosts(uid, pool);
                       const username =
-                        (cached?.username && cached.username !== '사용자' && cached.username !== '여행자' ? cached.username : null) ||
-                        (fromPosts.username !== '사용자' && fromPosts.username !== '여행자' ? fromPosts.username : null) ||
-                        cached?.username ||
-                        fromPosts.username;
-                      const profileImage = fromPosts.profileImage || cached?.profileImage || null;
-                      return { username: username || '여행자', profileImage };
+                        pickNonGenericName(fromProfiles?.username) ||
+                        pickNonGenericName(notif?.username) ||
+                        pickNonGenericName(cached?.username) ||
+                        pickNonGenericName(fromPosts.username) ||
+                        String(fromProfiles?.username || notif?.username || cached?.username || fromPosts.username || '').trim() ||
+                        '여행자';
+                      const profileImage =
+                        fromProfiles?.profileImage ||
+                        notif?.profileImage ||
+                        fromPosts.profileImage ||
+                        cached?.profileImage ||
+                        null;
+                      return { username, profileImage };
                     };
                     const getRepBadge = (uid) => {
                       void uid;

@@ -14,6 +14,7 @@ import { getDisplayImageUrl } from '../api/upload';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { fetchFriendNewsStateSupabase, upsertFriendNewsStateSupabase } from '../api/friendNewsSupabase';
 import { getBadgeDisplayNameFromName } from '../utils/badgeSystem';
+import { setCachedFollowProfile } from '../utils/userProfileHints';
 
 const isValidUuid = (v) =>
   typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
@@ -209,10 +210,49 @@ const NotificationsScreen = () => {
         if (selfId && actorId === selfId) {
           navigate('/profile');
         } else {
-          navigate(`/user/${encodeURIComponent(actorId)}`);
+          const rawName = String(notification.actorUsername || '').trim();
+          const nameOk = rawName && rawName !== '사용자' && rawName !== '여행자';
+          const av = notification.actorAvatar ? String(notification.actorAvatar).trim() : null;
+          if (nameOk || av) {
+            setCachedFollowProfile(actorId, {
+              ...(nameOk ? { username: rawName } : {}),
+              ...(av ? { profileImage: av } : {}),
+            });
+          }
+          navigate(`/user/${encodeURIComponent(actorId)}`, {
+            state: {
+              profileHint: {
+                ...(nameOk ? { username: rawName } : {}),
+                ...(av ? { profileImage: av } : {}),
+              },
+            },
+          });
         }
         return;
       }
+    }
+    // 친구소식: 게시물로 이동할 때 작성자 표시(알림 목록과 동일)를 상세 화면에 전달
+    if (tab === 'friends' && notification.postId) {
+      const pid = String(notification.postId).trim();
+      const hintUid = String(notification.actorUserId || '').trim();
+      const rawName = String(notification.actorUsername || '').trim();
+      const nameOk = rawName && rawName !== '사용자' && rawName !== '여행자';
+      const av = notification.actorAvatar ? String(notification.actorAvatar).trim() : null;
+      if (isValidUuid(hintUid) && (nameOk || av)) {
+        setCachedFollowProfile(hintUid, {
+          ...(nameOk ? { username: rawName } : {}),
+          ...(av ? { profileImage: av } : {}),
+        });
+      }
+      navigate(`/post/${encodeURIComponent(pid)}`, {
+        state: {
+          notificationAuthorHint:
+            hintUid && (nameOk || av)
+              ? { userId: hintUid, username: nameOk ? rawName : '', profileImage: av || null }
+              : undefined,
+        },
+      });
+      return;
     }
     if (notification.link) navigate(notification.link);
   };

@@ -77,6 +77,54 @@ export const getNotificationsForCurrentUser = () => {
   return all.filter((n) => !n.recipientUserId || String(n.recipientUserId) === uid);
 };
 
+const notifActorTimeMs = (n) => {
+  if (n?.timestamp) {
+    const t = new Date(n.timestamp).getTime();
+    if (!Number.isNaN(t)) return t;
+  }
+  return 0;
+};
+
+/**
+ * 동기화된 알림 캐시에서 actor_user_id → 닉네임·아바타 힌트.
+ * profiles 직접 조회가 비어 있을 때(예: RLS) 팔로워 목록 등에 actor_username을 반영한다.
+ */
+export const getActorHintsFromNotificationsCache = () => {
+  const list = getNotificationsForCurrentUser();
+  const best = new Map();
+
+  for (const n of list) {
+    if (!n?.actorUserId) continue;
+    const sid = String(n.actorUserId).trim();
+    if (!isValidUuid(sid)) continue;
+
+    const ts = notifActorTimeMs(n);
+    const username = String(n.actorUsername || '').trim();
+    const profileImage = n.actorAvatar ? String(n.actorAvatar).trim() : null;
+
+    const cur = best.get(sid);
+    if (!cur || ts >= cur.ts) {
+      best.set(sid, {
+        username: username || cur?.username || '',
+        profileImage: profileImage || cur?.profileImage || null,
+        ts,
+      });
+    } else {
+      best.set(sid, {
+        username: cur.username || username || '',
+        profileImage: cur.profileImage || profileImage || null,
+        ts: cur.ts,
+      });
+    }
+  }
+
+  const out = {};
+  best.forEach((v, k) => {
+    out[k] = { username: v.username, profileImage: v.profileImage };
+  });
+  return out;
+};
+
 /** DB 제약: type은 like | comment | follow | post | badge | system */
 const toDbNotificationType = (t) => {
   const x = String(t || 'system');

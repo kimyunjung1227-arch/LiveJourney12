@@ -43,7 +43,16 @@ const PostDetailScreen = () => {
   const location = useLocation();
   const { id: postId } = useParams();
   const { user } = useAuth();
-  const { post: passedPost, fromMap, selectedPinId, allPins, mapState, allPosts, currentPostIndex } = location.state || {};
+  const {
+    post: passedPost,
+    fromMap,
+    selectedPinId,
+    allPins,
+    mapState,
+    allPosts,
+    currentPostIndex,
+    notificationAuthorHint,
+  } = location.state || {};
 
   const [post, setPost] = useState(passedPost);
   const [loading, setLoading] = useState(!passedPost);
@@ -290,6 +299,35 @@ const PostDetailScreen = () => {
       setAccuracyCount(getPostAccuracyCount(post.id));
     }
   }, [post?.id, post?.userMarked, post?.accuracyCount]);
+
+  // 알림(친구소식)에서 진입 시: 목록에 표시된 작성자명·아바타를 게시물 상세에 반영
+  useEffect(() => {
+    if (!post?.id || !notificationAuthorHint?.userId) return;
+    const hintId = String(notificationAuthorHint.userId).trim();
+    const postUid = String(
+      post.userId ?? (typeof post.user === 'object' && post.user ? post.user.id : '') ?? ''
+    ).trim();
+    if (!hintId || hintId !== postUid) return;
+    const rawName = String(notificationAuthorHint.username || '').trim();
+    const nameOk = rawName && rawName !== '사용자' && rawName !== '여행자';
+    const av = notificationAuthorHint.profileImage ? String(notificationAuthorHint.profileImage).trim() : null;
+    if (!nameOk && !av) return;
+
+    setPost((p) => {
+      if (!p) return p;
+      const uid = String(p.userId ?? (typeof p.user === 'object' && p.user ? p.user.id : '') ?? '').trim();
+      if (uid !== hintId) return p;
+      const prevU = p.user && typeof p.user === 'object' ? { ...p.user } : { id: hintId };
+      const nextName = nameOk ? rawName : prevU.username || '';
+      const nextImg = av || prevU.profileImage || null;
+      if (prevU.username === nextName && prevU.profileImage === nextImg) return p;
+      return {
+        ...p,
+        user: { ...prevU, id: prevU.id || hintId, username: nextName || prevU.username, profileImage: nextImg },
+        userAvatar: p.userAvatar || nextImg || undefined,
+      };
+    });
+  }, [post?.id, post?.userId, post?.user?.username, post?.user?.profileImage, notificationAuthorHint]);
 
   // Supabase 게시물 최신 데이터 조회 (서버 단일 진실: 좋아요/카운트/댓글 모두 DB 기준)
   const refreshPostFromSupabase = useCallback(() => {

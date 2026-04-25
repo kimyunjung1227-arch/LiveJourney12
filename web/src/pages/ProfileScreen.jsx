@@ -5,7 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import BackButton from '../components/BackButton';
 import { useAuth } from '../contexts/AuthContext';
 import BottomNavigation from '../components/BottomNavigation';
-import { getUnreadCount, notifyFollowingStarted } from '../utils/notifications';
+import { getUnreadCount, notifyFollowingStarted, getActorHintsFromNotificationsCache } from '../utils/notifications';
 import { getEarnedBadgesForUser, getBadgeDisplayName } from '../utils/badgeSystem';
 import ProfileInjangSection from '../components/ProfileInjangSection';
 import { getLiveSyncPercentRounded, getLiveSyncPercent, TRUST_GRADES } from '../utils/trustIndex';
@@ -2477,6 +2477,12 @@ const ProfileScreen = () => {
                     const myId = currentUserData?.id;
 
                     const pool = followListPostPool.length > 0 ? followListPostPool : posts;
+                    const notifActorMap = getActorHintsFromNotificationsCache();
+                    const pickNonGenericName = (s) => {
+                      const t = String(s || '').trim();
+                      if (!t || t === '사용자' || t === '여행자') return null;
+                      return t;
+                    };
                     const resolveUserInfo = (uid) => {
                       if (String(uid) === String(myId) && currentUserData) {
                         return {
@@ -2485,21 +2491,23 @@ const ProfileScreen = () => {
                         };
                       }
                       const fromProfiles = followListProfiles?.[String(uid)];
-                      if (fromProfiles?.username) {
-                        return {
-                          username: fromProfiles.username,
-                          profileImage: fromProfiles.profileImage || null,
-                        };
-                      }
+                      const notif = notifActorMap[String(uid)];
                       const cached = getCachedFollowProfile(uid);
                       const fromPosts = resolveUserDisplayFromPosts(uid, pool);
                       const username =
-                        (cached?.username && cached.username !== '사용자' && cached.username !== '여행자' ? cached.username : null) ||
-                        (fromPosts.username !== '사용자' && fromPosts.username !== '여행자' ? fromPosts.username : null) ||
-                        cached?.username ||
-                        fromPosts.username;
-                      const profileImage = fromPosts.profileImage || cached?.profileImage || null;
-                      return { username: username || '여행자', profileImage };
+                        pickNonGenericName(fromProfiles?.username) ||
+                        pickNonGenericName(notif?.username) ||
+                        pickNonGenericName(cached?.username) ||
+                        pickNonGenericName(fromPosts.username) ||
+                        String(fromProfiles?.username || notif?.username || cached?.username || fromPosts.username || '').trim() ||
+                        '여행자';
+                      const profileImage =
+                        fromProfiles?.profileImage ||
+                        notif?.profileImage ||
+                        fromPosts.profileImage ||
+                        cached?.profileImage ||
+                        null;
+                      return { username, profileImage };
                     };
 
                     const getRepBadge = (uid) => {
