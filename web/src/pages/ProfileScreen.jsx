@@ -27,6 +27,7 @@ import { getDisplayImageUrl } from '../api/upload';
 import api from '../api/axios';
 import { cleanLegacyUploadedPosts, getUploadedPostsSafe } from '../utils/localStorageManager';
 import { deletePostSupabase, fetchPostsByUserIdSupabase, fetchPostsSupabase } from '../api/postsSupabase';
+import { fetchProfilesByIdsSupabase } from '../api/profilesSupabase';
 import {
   resolveUserDisplayFromPosts,
   getCachedFollowProfile,
@@ -286,6 +287,8 @@ const ProfileScreen = () => {
   const [followListIds, setFollowListIds] = useState([]);
   /** 팔로우 목록 모달: 로컬+Supabase 게시물 풀 (이름·아바타 추론용) */
   const [followListPostPool, setFollowListPostPool] = useState([]);
+  /** 팔로우 목록 모달: profiles 테이블 조회 결과(닉네임/아바타/bio) */
+  const [followListProfiles, setFollowListProfiles] = useState({});
   const [showTrustGradesModal, setShowTrustGradesModal] = useState(false);
   const [trustExplainOpen, setTrustExplainOpen] = useState(false);
   // 내 사진 탭 보기 방식: 'date' | 'custom'
@@ -383,10 +386,31 @@ const ProfileScreen = () => {
     if (!showFollowListModal) return;
     const local = getUploadedPostsSafe();
     setFollowListPostPool(local);
+    setFollowListProfiles({});
     let cancelled = false;
     const ids = Array.isArray(followListIds) ? followListIds : [];
     (async () => {
       try {
+        // profiles 우선 조회: 게시물이 없어도 닉네임/아바타가 "여행자"로 떨어지지 않게
+        try {
+          const rows = await fetchProfilesByIdsSupabase(ids);
+          if (!cancelled) {
+            const map = {};
+            (Array.isArray(rows) ? rows : []).forEach((r) => {
+              if (r?.id) {
+                map[String(r.id)] = {
+                  username: r?.username ? String(r.username) : '',
+                  profileImage: r?.avatar_url ? String(r.avatar_url) : null,
+                  bio: r?.bio ? String(r.bio) : null,
+                };
+              }
+            });
+            setFollowListProfiles(map);
+          }
+        } catch {
+          if (!cancelled) setFollowListProfiles({});
+        }
+
         const remote = await fetchPostsSupabase(authUser?.id || null);
         if (cancelled) return;
         const byId = new Map();
@@ -2445,6 +2469,13 @@ const ProfileScreen = () => {
                         return {
                           username: currentUserData.username || '여행자',
                           profileImage: currentUserData.profileImage || null,
+                        };
+                      }
+                      const fromProfiles = followListProfiles?.[String(uid)];
+                      if (fromProfiles?.username) {
+                        return {
+                          username: fromProfiles.username,
+                          profileImage: fromProfiles.profileImage || null,
                         };
                       }
                       const cached = getCachedFollowProfile(uid);
