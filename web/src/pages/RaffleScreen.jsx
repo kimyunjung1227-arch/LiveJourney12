@@ -171,7 +171,10 @@ const RaffleScreen = () => {
 
           <div className="px-3 pt-4 space-y-5 text-[15px] sm:px-4 sm:text-base">
             <section>
-              <div className="text-sm font-extrabold text-gray-900 dark:text-gray-100">래플 가이드</div>
+              <p className="text-base leading-relaxed text-gray-700 dark:text-gray-300">
+                래플은 실시간으로 업로드한 여행 기록이 쌓일수록 응모 기회가 늘어나고, 그 결과가 리워드로 돌아오는 이벤트예요.
+                참여 방법과 당첨 안내는 아래 문서에서 한 번에 확인할 수 있어요.
+              </p>
               <button
                 type="button"
                 onClick={() => setGuideOpen(true)}
