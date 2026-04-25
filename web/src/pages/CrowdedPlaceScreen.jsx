@@ -16,6 +16,7 @@ import { buildPlaceStatsMap, selectPostsForPlaceStats, transformPostForHotFeed }
 import { getWeatherByRegion } from '../api/weather';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
+import { generatePlaceAiBlurb } from '../utils/placeAiBlurb';
 
 const PRIMARY_HEX = '#26C6DA';
 
@@ -403,6 +404,11 @@ const CrowdedPlaceScreen = () => {
                                         })
                                         .filter(Boolean)
                                         .slice(0, 3);
+                                    const aiBlurb = generatePlaceAiBlurb(place.key, {
+                                        tags: hotTagChips,
+                                        cityDong: place.cityDong || '',
+                                        tier: cardProps?.hotReasonLabel || '',
+                                    });
 
                                     return (
                                         <button
@@ -452,6 +458,11 @@ const CrowdedPlaceScreen = () => {
                                                         <h4 className="truncate text-[16px] font-bold leading-snug text-zinc-900 dark:text-zinc-50">
                                                             {String(place.key).trim()}
                                                         </h4>
+                                                        {aiBlurb ? (
+                                                            <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-relaxed text-zinc-700 dark:text-zinc-300">
+                                                                {aiBlurb}
+                                                            </p>
+                                                        ) : null}
                                                         {hotTagChips.length > 0 ? (
                                                             <div className="mt-2 flex flex-wrap gap-1.5">
                                                                 {hotTagChips.map((tag) => (

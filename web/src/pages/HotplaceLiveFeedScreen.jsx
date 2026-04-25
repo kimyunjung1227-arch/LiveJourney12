@@ -12,7 +12,7 @@ import {
   toMediaStr,
 } from '../utils/postMedia';
 import { getTimeAgo } from '../utils/timeUtils';
-import { getLiveSyncPercentRounded } from '../utils/trustIndex';
+import { getLiveSyncPercentRoundedFromCache } from '../utils/trustIndex';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import {
@@ -153,7 +153,7 @@ export default function HotplaceLiveFeedScreen() {
   const heroLiveSync = useMemo(() => {
     if (!heroAuthorId || !heroPost) return null;
     const authorPosts = allPosts.filter((p) => getUserIdForPost(p) === heroAuthorId);
-    return getLiveSyncPercentRounded(heroAuthorId, authorPosts.length ? authorPosts : null);
+    return getLiveSyncPercentRoundedFromCache(heroAuthorId, authorPosts.length ? authorPosts : null);
   }, [heroAuthorId, heroPost, allPosts]);
 
   const situationPosts = useMemo(() => {
@@ -349,6 +349,47 @@ export default function HotplaceLiveFeedScreen() {
                   )}
 
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/8 via-transparent to-black/30" />
+
+                  {/* 우측 하단 미디어 미리보기(가볍게) */}
+                  {heroMediaItems.length > 1 ? (
+                    <div className="absolute bottom-3 right-3 z-20 flex flex-col gap-1.5 sm:bottom-4 sm:right-4">
+                      {heroMediaItems.slice(0, 3).map((m, idx) => {
+                        const active = idx === mediaIdx;
+                        const src =
+                          m?.type === 'empty'
+                            ? ''
+                            : getDisplayImageUrl(m.uri, { hero: true });
+                        const label = m?.type === 'video' ? '동영상 미리보기' : '사진 미리보기';
+                        return (
+                          <button
+                            key={`hero-preview-${String(bestCutPost?.id)}-${idx}`}
+                            type="button"
+                            aria-label={`${label} ${idx + 1}`}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              mediaSwiperRef.current?.slideTo(idx);
+                            }}
+                            className="pointer-events-auto"
+                            style={{ lineHeight: 0 }}
+                          >
+                            <div
+                              className={`h-[38px] w-[38px] overflow-hidden border bg-white/10 backdrop-blur-[6px] transition-all sm:h-[42px] sm:w-[42px] ${
+                                active ? 'border-white/80 ring-2 ring-white/30' : 'border-white/35 hover:border-white/60'
+                              }`}
+                              style={{ borderRadius: 7 }}
+                            >
+                              {src ? (
+                                <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                              ) : (
+                                <div className="h-full w-full bg-white/10" />
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
 
                   <div className="pointer-events-none absolute left-3 top-3 z-10 sm:left-4 sm:top-4">
                     <div
