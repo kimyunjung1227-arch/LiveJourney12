@@ -274,7 +274,7 @@ const CrowdedPlaceScreen = () => {
                 .map((p) => ({
                     ...p.representative,
                     _rank: p.rank,
-                    _impactLabel: p.warning || `컴퍼스 ${p.compassCount}명 동시 중계 중`,
+                    _impactLabel: p.warning || '방금 전 올라온 핫플 정보예요',
                     _compassCount: p.compassCount,
                     _placeKey: p.key,
                 }));
@@ -470,9 +470,6 @@ const CrowdedPlaceScreen = () => {
                                                             </div>
                                                         ) : null}
                                                         <p className="mt-2 text-[12px] font-medium leading-relaxed text-zinc-600 dark:text-zinc-400">
-                                                            <span>컴퍼스 {place.compassCount || 0}명 중계 중</span>
-                                                            <span className="mx-1.5 text-zinc-300 dark:text-zinc-600">·</span>
-                                                            <span>라이브 인증 {place.trustPercent}%</span>
                                                             {tempText ? (
                                                                 <>
                                                                     <span className="mx-1.5 text-zinc-300 dark:text-zinc-600">·</span>
