@@ -89,18 +89,21 @@ const resolveSupabaseBucketRelativePath = (trimmed) => {
 };
 
 /** HTTPS 페이지에서 Supabase 스토리지 http 링크가 막히는 경우 방지 */
+/**
+ * HTTPS 페이지 Mixed Content 방지: 원격 http:// 를 https:// 로 승격 (Supabase·카카오 CDN 등).
+ * localhost / 127.0.0.1 은 로컬 API용으로 그대로 둡니다.
+ */
 const upgradeSupabaseHttpToHttps = (url) => {
   if (!url || !url.startsWith('http://')) return url;
   try {
     const u = new URL(url);
-    if (u.hostname.endsWith('.supabase.co')) {
-      u.protocol = 'https:';
-      return u.toString();
-    }
+    const host = u.hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') return url;
+    u.protocol = 'https:';
+    return u.toString();
   } catch {
-    /* ignore */
+    return url;
   }
-  return url;
 };
 
 const IMAGE_FILE_EXT = /\.(jpe?g|png|webp|avif|bmp)(\?|#|$)/i;
@@ -213,7 +216,8 @@ export const getDisplayImageUrl = (url, opts) => {
     resolved = reTrimmed;
   }
 
-  return applySupabaseImageResize(resolved, opts) || PLACEHOLDER_IMAGE;
+  const sized = applySupabaseImageResize(resolved, opts) || PLACEHOLDER_IMAGE;
+  return upgradeSupabaseHttpToHttps(sized);
 };
 
 // 이미지를 Base64로 변환

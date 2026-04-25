@@ -260,7 +260,22 @@ const ProfileScreen = () => {
   const mapInstance = useRef(null);
   const markersRef = useRef([]);
   const mapInitialBoundsDoneRef = useRef(false); // true면 더 이상 자동 이동 안 함 (사용자가 직접 화면 이동)
+  /** 탭 전환·의존성 변경 시 이전 initMap·setTimeout 무효화 (Kakao insertBefore 오류 방지) */
+  const mapInitGenerationRef = useRef(0);
+  const mapInitPendingTimeoutsRef = useRef([]);
+  const kakaoInitWaitAttemptsRef = useRef(0);
   const [mapLoading, setMapLoading] = useState(true);
+
+  const clearMapInitTimeouts = useCallback(() => {
+    mapInitPendingTimeoutsRef.current.forEach(clearTimeout);
+    mapInitPendingTimeoutsRef.current = [];
+  }, []);
+
+  const scheduleMapTimeout = useCallback((fn, ms) => {
+    const id = setTimeout(fn, ms);
+    mapInitPendingTimeoutsRef.current.push(id);
+    return id;
+  }, []);
   // 저장된 경로 미리보기용 지도
   const savedRoutesMapRef = useRef(null);
   const savedRoutesMapInstance = useRef(null);
@@ -700,8 +715,10 @@ const ProfileScreen = () => {
     }
   }, [myPosts.length, availableDates, activeTab]);
 
-  // 지도 초기화 및 마커 표시
-  const initMap = useCallback(() => {
+  // 지도 초기화 및 마커 표시 (gen: map 탭 effect 세션 — 무효화 시 Kakao DOM 조작 중단)
+  const initMap = useCallback((gen) => {
+    if (mapInitGenerationRef.current !== gen) return;
+
     logger.log('🗺️ 지도 초기화 시작', {
       kakaoLoaded: !!window.kakao,
       mapRefExists: !!mapRef.current,
@@ -710,19 +727,26 @@ const ProfileScreen = () => {
     });
 
     if (!window.kakao || !window.kakao.maps) {
+      kakaoInitWaitAttemptsRef.current += 1;
+      if (kakaoInitWaitAttemptsRef.current > 100) {
+        logger.warn('⏹️ Kakao Map API 대기 포기');
+        setMapLoading(false);
+        return;
+      }
       logger.debug('⏳ Kakao Map API 로딩 대기...');
-      setTimeout(initMap, 100);
+      scheduleMapTimeout(() => initMap(gen), 120);
       return;
     }
+    kakaoInitWaitAttemptsRef.current = 0;
 
     if (!mapRef.current) {
       logger.debug('⏳ 지도 컨테이너 대기...');
-      setTimeout(initMap, 100);
+      scheduleMapTimeout(() => initMap(gen), 120);
       return;
     }
 
-    if (activeTab !== 'map') {
-      logger.debug('⏸️ 지도 탭이 아님, 초기화 중단');
+    if (activeTab !== 'map' || mapInitGenerationRef.current !== gen) {
+      logger.debug('⏸️ 지도 탭이 아님 또는 세션 무효, 초기화 중단');
       return;
     }
 
@@ -746,6 +770,11 @@ const ProfileScreen = () => {
 
       // 지도 컨테이너 가져오기 (innerHTML 사용하지 않음 - React DOM 충돌 방지)
       const container = mapRef.current;
+      if (!container.isConnected || mapInitGenerationRef.current !== gen) {
+        logger.debug('⏳ 지도 컨테이너가 아직 DOM에 없음, 재시도');
+        scheduleMapTimeout(() => initMap(gen), 120);
+        return;
+      }
 
       // 게시물이 있으면 첫 번째 게시물 위치로, 없으면 서울로
       let centerLat = 37.5665;
@@ -765,9 +794,11 @@ const ProfileScreen = () => {
       // 지도 컨테이너 크기 확인
       if (container.offsetWidth === 0 || container.offsetHeight === 0) {
         logger.warn('⚠️ 지도 컨테이너 크기가 0입니다. 재시도...');
-        setTimeout(initMap, 200);
+        scheduleMapTimeout(() => initMap(gen), 200);
         return;
       }
+
+      if (mapInitGenerationRef.current !== gen) return;
 
       logger.log('✅ 지도 생성 시작:', { centerLat, centerLng, level, containerSize: { width: container.offsetWidth, height: container.offsetHeight } });
 
@@ -788,35 +819,9 @@ const ProfileScreen = () => {
 
       logger.log('✅ 지도 인스턴스 생성/갱신 완료');
 
-      // 지도가 완전히 로드될 때까지 대기
-      const tilesLoadedHandler = () => {
-        logger.debug('✅ 지도 타일 로드 완료');
-        setMapLoading(false);
-        // 지도 로드 후 마커 생성
-        createMarkersAfterMapLoad(map);
-      };
-
-      window.kakao.maps.event.addListener(map, 'tilesloaded', tilesLoadedHandler);
-
-      // 타임아웃 설정 (지도가 로드되지 않아도 진행)
-      setTimeout(() => {
-        logger.warn('⏰ 지도 로드 타임아웃, 마커 생성 진행');
-        setMapLoading(false);
-        // 타임아웃 후에도 마커 생성 시도
-        if (markersRef.current.length === 0) {
-          createMarkersAfterMapLoad(map);
-        }
-      }, 2000);
-
-      // 즉시 마커 생성 시도 (지도가 이미 로드된 경우)
-      setTimeout(() => {
-        if (markersRef.current.length === 0) {
-          createMarkersAfterMapLoad(map);
-        }
-      }, 500);
-
-      // 마커 생성 함수 (지도 로드 후 호출)
-      const createMarkersAfterMapLoad = (map) => {
+      let markersCreatedForSession = false;
+      const createMarkersAfterMapLoad = () => {
+        if (mapInitGenerationRef.current !== gen) return;
         logger.log('📍 마커 생성 시작:', filteredPosts.length);
 
         // 기존 마커 및 선 제거
@@ -935,10 +940,12 @@ const ProfileScreen = () => {
             });
           }
 
-          // CustomOverlay 생성
+          if (mapInitGenerationRef.current !== gen) return;
+          // Kakao CustomOverlay는 단일 HTMLElement를 기대 — 래퍼 대신 버튼 노드 사용(insertBefore 오류 방지)
+          const overlayRoot = el.firstElementChild instanceof HTMLElement ? el.firstElementChild : el;
           const overlay = new window.kakao.maps.CustomOverlay({
             position: position,
-            content: el,
+            content: overlayRoot,
             yAnchor: 1,
             zIndex: index
           });
@@ -1000,6 +1007,7 @@ const ProfileScreen = () => {
 
         const pathCoordinates = [];
         sortedPosts.forEach((post, index) => {
+          if (mapInitGenerationRef.current !== gen) return;
           const coords = getPostCoordinates(post);
           if (coords && !Number.isNaN(coords.lat) && !Number.isNaN(coords.lng)) {
             pathCoordinates.push(new window.kakao.maps.LatLng(coords.lat, coords.lng));
@@ -1008,7 +1016,7 @@ const ProfileScreen = () => {
         });
 
         // 경로 선 그리기 (2개 이상의 좌표가 있을 때)
-        if (pathCoordinates.length >= 2) {
+        if (mapInitGenerationRef.current === gen && pathCoordinates.length >= 2) {
           const polyline = new window.kakao.maps.Polyline({
             path: pathCoordinates,
             strokeWeight: 3,
@@ -1024,6 +1032,7 @@ const ProfileScreen = () => {
         const overlayMarkers = markersRef.current.filter(m => m.overlay || m.marker);
         if (overlayMarkers.length > 0) {
           const moveToPins = () => {
+            if (mapInitGenerationRef.current !== gen) return;
             // 이미 한 번 자동으로 이동했다면 더 이상 지도를 강제로 움직이지 않음
             if (mapInitialBoundsDoneRef.current) {
               logger.debug('🔒 지도 자동 이동 생략 (사용자 제어 모드)');
@@ -1049,19 +1058,69 @@ const ProfileScreen = () => {
             }
             mapInitialBoundsDoneRef.current = true;
           };
-          setTimeout(moveToPins, 350);
+          scheduleMapTimeout(moveToPins, 350);
         }
       };
+
+      const onTilesLoaded = () => {
+        if (mapInitGenerationRef.current !== gen) return;
+        if (markersCreatedForSession) return;
+        if (!mapRef.current?.isConnected) return;
+        markersCreatedForSession = true;
+        try {
+          window.kakao.maps.event.removeListener(map, 'tilesloaded', onTilesLoaded);
+        } catch (_) {
+          /* ignore */
+        }
+        logger.debug('✅ 지도 타일 로드 완료');
+        setMapLoading(false);
+        createMarkersAfterMapLoad();
+      };
+
+      window.kakao.maps.event.addListener(map, 'tilesloaded', onTilesLoaded);
+
+      scheduleMapTimeout(() => {
+        if (mapInitGenerationRef.current !== gen) return;
+        if (markersCreatedForSession) return;
+        logger.warn('⏰ 지도 로드 타임아웃, 마커 생성 진행');
+        markersCreatedForSession = true;
+        try {
+          window.kakao.maps.event.removeListener(map, 'tilesloaded', onTilesLoaded);
+        } catch (_) {
+          /* ignore */
+        }
+        setMapLoading(false);
+        createMarkersAfterMapLoad();
+      }, 2000);
+
+      scheduleMapTimeout(() => {
+        if (mapInitGenerationRef.current !== gen) return;
+        if (markersCreatedForSession) return;
+        if (markersRef.current.length > 0) return;
+        markersCreatedForSession = true;
+        try {
+          window.kakao.maps.event.removeListener(map, 'tilesloaded', onTilesLoaded);
+        } catch (_) {
+          /* ignore */
+        }
+        setMapLoading(false);
+        createMarkersAfterMapLoad();
+      }, 500);
     } catch (error) {
       logger.error('지도 초기화 오류:', error);
       setMapLoading(false);
     }
-  }, [filteredPosts, activeTab, navigate, selectedDate]);
+  }, [filteredPosts, activeTab, navigate, selectedDate, scheduleMapTimeout]);
 
   // 탭 변경 또는 날짜 변경 시 지도 초기화
   useEffect(() => {
     if (activeTab === 'map') {
       logger.log('🗺️ 나의 기록 지도 탭 활성화 또는 날짜 변경');
+      mapInitGenerationRef.current += 1;
+      const gen = mapInitGenerationRef.current;
+      kakaoInitWaitAttemptsRef.current = 0;
+      clearMapInitTimeouts();
+
       setMapLoading(true);
 
       // 기존 마커 및 선 제거
@@ -1084,17 +1143,21 @@ const ProfileScreen = () => {
 
       let retryTimerId = null;
       const initTimer = setTimeout(() => {
+        if (mapInitGenerationRef.current !== gen) return;
         if (mapRef.current) {
-          initMap();
+          initMap(gen);
         } else {
           retryTimerId = setTimeout(() => {
-            if (mapRef.current) initMap();
+            if (mapInitGenerationRef.current !== gen) return;
+            if (mapRef.current) initMap(gen);
             else setMapLoading(false);
           }, 400);
         }
       }, 300);
 
       return () => {
+        mapInitGenerationRef.current += 1;
+        clearMapInitTimeouts();
         clearTimeout(initTimer);
         if (retryTimerId) clearTimeout(retryTimerId);
       };
@@ -1124,7 +1187,7 @@ const ProfileScreen = () => {
       }
       setMapLoading(false);
     }
-  }, [activeTab, filteredPosts, initMap, selectedDate]);
+  }, [activeTab, filteredPosts, initMap, selectedDate, clearMapInitTimeouts]);
 
   const handleLogout = () => {
     // 로그아웃 처리

@@ -73,19 +73,31 @@ function preconnectSupabaseOrigin() {
 preconnectSupabaseOrigin()
 
 // Kakao Map API 로드: HTML 스크립트 대기 → 없으면 동적 주입 시도 → 초기화
+/** 동시 호출·setInterval 중복 시 maps.load()가 여러 번 호출되면 SDK 내부 insertBefore 오류가 날 수 있어 단일 Promise + 단일 load로 고정 */
+let kakaoMapApiPromise = null;
 const loadKakaoMapAPI = () => {
-  return new Promise((resolve, reject) => {
-    const key = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_KAKAO_MAP_API_KEY
-      ? String(import.meta.env.VITE_KAKAO_MAP_API_KEY).trim()
-      : '';
+  if (kakaoMapApiPromise) return kakaoMapApiPromise;
+
+  kakaoMapApiPromise = new Promise((resolve, reject) => {
+    const key =
+      typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_KAKAO_MAP_API_KEY
+        ? String(import.meta.env.VITE_KAKAO_MAP_API_KEY).trim()
+        : '';
+
+    let mapsLoadScheduled = false;
+    const scheduleMapsLoadOnce = () => {
+      if (mapsLoadScheduled || !window.kakao?.maps) return;
+      mapsLoadScheduled = true;
+      window.kakao.maps.load(() => {
+        logger.log('✅ Kakao Map API 초기화 완료');
+        resolve(window.kakao);
+      });
+    };
 
     const tryResolve = () => {
       if (window.kakao && window.kakao.maps) {
         logger.log('✅ Kakao Map API 로드됨');
-        window.kakao.maps.load(() => {
-          logger.log('✅ Kakao Map API 초기화 완료');
-          resolve(window.kakao);
-        });
+        scheduleMapsLoadOnce();
         return true;
       }
       return false;
@@ -107,21 +119,30 @@ const loadKakaoMapAPI = () => {
       }, 150);
     };
 
-    // 1) 먼저 HTML에 삽입된 스크립트 대기 (최대 4초)
     logger.log('📡 Kakao Map API 대기 중...');
     waitForKakao(4000);
   }).catch((err) => {
-    // 2) 실패 시 키가 있으면 동적 스크립트로 한 번 더 시도
-    const key = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_KAKAO_MAP_API_KEY
-      ? String(import.meta.env.VITE_KAKAO_MAP_API_KEY).trim()
-      : '';
+    const key =
+      typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_KAKAO_MAP_API_KEY
+        ? String(import.meta.env.VITE_KAKAO_MAP_API_KEY).trim()
+        : '';
     if (!key) {
-      logger.warn('⚠️ Kakao Map: VITE_KAKAO_MAP_API_KEY가 없습니다. Vercel 환경변수와 카카오 콘솔 웹 도메인을 확인하세요.');
+      logger.warn(
+        '⚠️ Kakao Map: VITE_KAKAO_MAP_API_KEY가 없습니다. Vercel 환경변수와 카카오 콘솔 웹 도메인을 확인하세요.',
+      );
+      kakaoMapApiPromise = null;
       throw err;
     }
     return new Promise((resolve, reject) => {
-      if (window.kakao && window.kakao.maps) {
+      let mapsLoadScheduled = false;
+      const runLoad = () => {
+        if (mapsLoadScheduled || !window.kakao?.maps) return;
+        mapsLoadScheduled = true;
         window.kakao.maps.load(() => resolve(window.kakao));
+      };
+
+      if (window.kakao && window.kakao.maps) {
+        runLoad();
         return;
       }
       const script = document.createElement('script');
@@ -129,15 +150,27 @@ const loadKakaoMapAPI = () => {
       script.async = false;
       script.onload = () => {
         if (window.kakao && window.kakao.maps) {
-          window.kakao.maps.load(() => resolve(window.kakao));
+          runLoad();
         } else {
+          kakaoMapApiPromise = null;
           reject(new Error('Kakao Map 스크립트 로드 후 초기화 실패'));
         }
       };
-      script.onerror = () => reject(new Error('Kakao Map 스크립트 404/실패. 카카오 콘솔에서 이 사이트 도메인을 등록했는지 확인하세요.'));
-      document.head.appendChild(script);
+      script.onerror = () => {
+        kakaoMapApiPromise = null;
+        reject(new Error('Kakao Map 스크립트 404/실패. 카카오 콘솔에서 이 사이트 도메인을 등록했는지 확인하세요.'));
+      };
+      const head = document.head || document.getElementsByTagName('head')[0];
+      if (!head) {
+        kakaoMapApiPromise = null;
+        reject(new Error('document.head 없음'));
+        return;
+      }
+      head.appendChild(script);
     });
   });
+
+  return kakaoMapApiPromise;
 };
 
 // GitHub Pages 리다이렉트 처리 (404.html에서 리다이렉트된 경우)
