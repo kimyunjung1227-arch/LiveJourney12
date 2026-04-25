@@ -55,6 +55,7 @@ export default defineConfig(({ mode }) => {
     },
   ],
   publicDir: 'public',
+  // 서브경로 배포 시 반드시 VITE_BASE_URL=/subdir/ 로 빌드. nginx 등에서 /assets/* 를 index.html 로 폴백하면 MIME 모듈 오류가 난다.
   base: process.env.VITE_BASE_URL || '/',
   server: {
     host: '0.0.0.0',

@@ -3,6 +3,10 @@
 
 <head>
   <meta charset="UTF-8" />
+  <!-- index.html이 오래 캐시되면 이전 빌드의 /assets/*.js 해시를 요청 → 404 후 SPA가 HTML을 주면 MIME 모듈 오류가 난다. -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <!-- 파비콘 없음: <link rel="icon"> 미사용 + /favicon.* 미배포 시 구글 검색 결과는 보통 회색 지구본(기본). 캐시 갱신까지 시간 소요 -->
   <link rel="manifest" href="/manifest.json" />
   <meta name="viewport"

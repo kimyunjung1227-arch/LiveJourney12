@@ -1,0 +1,9 @@
+# Apache: index는 재검증, 정적 JS/CSS는 장기 캐시 (MIME 모듈 오류·오래된 HTML 캐시 완화)
+<IfModule mod_headers.c>
+  <FilesMatch "^index\\.html$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </FilesMatch>
+  <FilesMatch "\\.(js|mjs|css)$">
+    Header set X-Content-Type-Options "nosniff"
+  </FilesMatch>
+</IfModule>
