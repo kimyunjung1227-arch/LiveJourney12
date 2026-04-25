@@ -12,6 +12,17 @@ export const fetchProfilesByIdsSupabase = async (ids = []) => {
   if (list.length === 0) return [];
 
   try {
+    // 단건일 때는 in() 파싱/인코딩 이슈를 피하기 위해 eq()로 조회
+    if (list.length === 1) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id,username,avatar_url,bio,updated_at')
+        .eq('id', list[0])
+        .maybeSingle();
+      if (error) throw error;
+      return data ? [data] : [];
+    }
+
     const { data, error } = await supabase
       .from('profiles')
       .select('id,username,avatar_url,bio,updated_at')
@@ -19,7 +30,7 @@ export const fetchProfilesByIdsSupabase = async (ids = []) => {
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   } catch (e) {
-    logger.warn('fetchProfilesByIdsSupabase 실패:', e?.message);
+    logger.warn('fetchProfilesByIdsSupabase 실패:', e?.message || e);
     return [];
   }
 };
