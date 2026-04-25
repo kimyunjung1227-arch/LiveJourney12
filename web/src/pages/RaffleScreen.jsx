@@ -165,9 +165,6 @@ const RaffleScreen = () => {
           <section className="relative w-full overflow-hidden">
             <div className="relative w-full min-h-[88px] max-h-[min(28vh,176px)] aspect-[5/2] sm:aspect-[21/9] sm:max-h-[min(30vh,192px)] bg-gradient-to-br from-sky-700 via-cyan-800 to-slate-900" />
           </section>
-          <div className="px-3 pt-4 sm:px-4">
-            <h2 className="text-[34px] font-extrabold tracking-tight text-gray-900 dark:text-gray-100">래플</h2>
-          </div>
 
           <div className="px-3 pt-4 space-y-5 text-[15px] sm:px-4 sm:text-base">
             <section>
