@@ -1294,9 +1294,7 @@ const UploadScreen = () => {
 
             <div>
               <label className="flex flex-col">
-                <p className="text-base font-medium pb-2 text-gray-900">
-                  이 순간의 이야기 <span className="text-sm font-semibold text-primary">(필수)</span>
-                </p>
+                <p className="text-base font-medium pb-2 text-gray-900">이 순간의 이야기</p>
                 <div className="relative">
                   <textarea
                     className="form-textarea w-full rounded-lg border border-subtle-light dark:border-subtle-dark bg-background-light dark:bg-background-dark focus:border-primary focus:ring-0 p-3 text-sm font-normal placeholder:text-placeholder-light dark:placeholder:text-placeholder-dark resize-none"
