@@ -448,27 +448,58 @@ const CrowdedPlaceScreen = () => {
                                                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none"
                                                     aria-label={`랭킹 ${place.rank}위`}
                                                     style={{
-                                                        padding: '6px 12px',
+                                                        padding: '8px 13px',
                                                         borderRadius: 9999,
-                                                        background: 'rgba(15, 23, 42, 0.55)',
+                                                        background:
+                                                            place.rank === 1
+                                                                ? 'linear-gradient(135deg, rgba(250,204,21,0.95) 0%, rgba(245,158,11,0.92) 55%, rgba(202,138,4,0.92) 100%)'
+                                                                : place.rank === 2
+                                                                    ? 'linear-gradient(135deg, rgba(226,232,240,0.92) 0%, rgba(148,163,184,0.88) 55%, rgba(100,116,139,0.88) 100%)'
+                                                                    : place.rank === 3
+                                                                        ? 'linear-gradient(135deg, rgba(251,146,60,0.92) 0%, rgba(180,83,9,0.88) 65%, rgba(124,45,18,0.88) 100%)'
+                                                                        : 'linear-gradient(135deg, rgba(15,23,42,0.72) 0%, rgba(15,23,42,0.56) 100%)',
                                                         backdropFilter: 'blur(10px)',
                                                         WebkitBackdropFilter: 'blur(10px)',
-                                                        border: '1px solid rgba(250, 204, 21, 0.35)',
-                                                        boxShadow: '0 10px 28px rgba(15, 23, 42, 0.28)',
+                                                        border:
+                                                            place.rank <= 3
+                                                                ? '1px solid rgba(255,255,255,0.45)'
+                                                                : '1px solid rgba(250, 204, 21, 0.35)',
+                                                        boxShadow:
+                                                            place.rank === 1
+                                                                ? '0 14px 34px rgba(250,204,21,0.22), 0 8px 22px rgba(15,23,42,0.28)'
+                                                                : place.rank === 2
+                                                                    ? '0 14px 34px rgba(226,232,240,0.14), 0 8px 22px rgba(15,23,42,0.28)'
+                                                                    : place.rank === 3
+                                                                        ? '0 14px 34px rgba(251,146,60,0.14), 0 8px 22px rgba(15,23,42,0.28)'
+                                                                        : '0 10px 28px rgba(15, 23, 42, 0.28)',
                                                     }}
                                                 >
-                                                    <span
-                                                        style={{
-                                                            display: 'inline-block',
-                                                            fontSize: 22,
-                                                            fontWeight: 950,
-                                                            letterSpacing: -0.6,
-                                                            color: '#ffffff',
-                                                            textShadow: '0 2px 12px rgba(0,0,0,0.45)',
-                                                        }}
-                                                    >
-                                                        {place.rank}
-                                                    </span>
+                                                    <div className="flex items-center gap-1.5">
+                                                        {place.rank <= 3 ? (
+                                                            <span
+                                                                className="material-symbols-outlined text-[16px] text-white"
+                                                                aria-hidden
+                                                                style={{ textShadow: '0 2px 10px rgba(0,0,0,0.35)', fontVariationSettings: '"FILL" 1' }}
+                                                            >
+                                                                emoji_events
+                                                            </span>
+                                                        ) : null}
+                                                        <span
+                                                            style={{
+                                                                display: 'inline-block',
+                                                                fontSize: 24,
+                                                                fontWeight: 950,
+                                                                letterSpacing: -0.6,
+                                                                color: '#ffffff',
+                                                                textShadow: '0 2px 14px rgba(0,0,0,0.45)',
+                                                            }}
+                                                        >
+                                                            {place.rank}
+                                                        </span>
+                                                        <span className="font-manrope text-[11px] font-extrabold tracking-tight text-white/95" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.35)' }}>
+                                                            위
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div className="px-2 pb-3 pt-2">
