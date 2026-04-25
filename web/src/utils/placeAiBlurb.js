@@ -30,9 +30,10 @@ export function generatePlaceAiBlurb(placeKey, { tags = [], cityDong = '', tier 
     '최근 공유가 이어지는 곳이에요.';
 
   if (!key) return '';
-  const head = region ? `${region} · ${key}` : key;
   const tailTags = tagHint ? ` · ${tagHint}` : '';
-  // "왜 핫플인지"를 먼저, 장소 성격은 뒤에 짧게
-  return `${head} — ${whyHot}${tailTags}. ${whyLine} (${kind})`;
+  // 카드에서 장소명을 이미 노출하므로, 여기서는 "설명"만 반환합니다.
+  // "왜 핫플인지"를 먼저, 지역/태그/장소 성격은 뒤에 짧게.
+  const regionHint = region ? `${region} · ` : '';
+  return `${regionHint}${whyHot}${tailTags}. ${whyLine} (${kind})`;
 }
 

@@ -378,12 +378,6 @@ const CrowdedPlaceScreen = () => {
                                     const post = place.representative;
                                     if (!post?.id) return null;
                                     const img = post.image || getDisplayImageUrl(post.images?.[0] || post.thumbnail || '');
-                                    const distText =
-                                        typeof place.distKm === 'number'
-                                            ? place.distKm < 1
-                                                ? `${Math.round(place.distKm * 1000)}m`
-                                                : `${place.distKm.toFixed(1)}km`
-                                            : null;
 
                                     const cardProps = cardPropsById.get(String(post.id));
                                     const socialText = cardProps ? getHotFeedSocialLine(cardProps, crowdedSocialIdx) : '';
@@ -489,12 +483,6 @@ const CrowdedPlaceScreen = () => {
                                                             ) : null}
                                                             <span className="mx-1.5 text-zinc-300 dark:text-zinc-600">·</span>
                                                             <span>{formatAgo(place.latestMs)}</span>
-                                                            {distText ? (
-                                                                <>
-                                                                    <span className="mx-1.5 text-zinc-300 dark:text-zinc-600">·</span>
-                                                                    <span>{distText}</span>
-                                                                </>
-                                                            ) : null}
                                                         </p>
                                                         {place.warning ? (
                                                             <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
