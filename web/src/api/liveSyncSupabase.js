@@ -21,11 +21,8 @@ export async function fetchLiveSyncPctSupabase(userId, { bypassCache = false } =
   }
 
   try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('live_sync_pct,live_sync_updated_at')
-      .eq('id', uid)
-      .maybeSingle();
+    // DB에 live_sync_* 컬럼이 없으면 특정 컬럼만 select 할 때 400이 나므로 * 로 읽고 필드는 옵션 처리
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
     if (error) throw error;
     const pct = clampPct(data?.live_sync_pct);
     cache.set(uid, { pct, ts: now });
