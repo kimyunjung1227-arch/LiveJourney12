@@ -25,9 +25,9 @@ import { getDisplayImageUrl } from '../api/upload';
 import { getPosts } from '../api/posts';
 import { fetchPostsByUserIdSupabase, fetchPostsSupabase } from '../api/postsSupabase';
 import { fetchProfilesByIdsSupabase } from '../api/profilesSupabase';
-import { getLiveSyncPercentRounded, setLiveSyncPercentCache } from '../utils/trustIndex';
 import api from '../api/axios';
-import { supabase } from '../utils/supabaseClient';
+import { fetchLiveSyncPctSupabase } from '../api/liveSyncSupabase';
+// supabase 직접 조회 대신 liveSyncSupabase 유틸을 사용합니다.
 import {
   resolveUserDisplayFromPosts,
   getCachedFollowProfile,
@@ -186,9 +186,7 @@ const UserProfileScreen = () => {
       const applyMerged = (mergedList) => {
         const merged = [...mergedList].sort((a, b) => (b.timestamp || b.createdAt || 0) - (a.timestamp || a.createdAt || 0));
         setUserPosts(merged);
-        const pct = getLiveSyncPercentRounded(userId || null, merged.length ? merged : null);
-        setLiveSync(pct);
-        if (userId) setLiveSyncPercentCache(String(userId), pct, merged.length);
+        void fetchLiveSyncPctSupabase(userId || null, { bypassCache: true }).then((pct) => setLiveSync(pct));
         const badges = getEarnedBadgesForUser(userId, merged) || [];
         setEarnedBadges(badges);
         if (!repBadgeJson) {
@@ -297,15 +295,8 @@ const UserProfileScreen = () => {
     let cancelled = false;
     (async () => {
       try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('live_sync_pct,live_sync_updated_at')
-          .eq('id', String(userId))
-          .maybeSingle();
-        if (cancelled) return;
-        if (error) return;
-        const pct = Number(data?.live_sync_pct);
-        if (Number.isFinite(pct)) setLiveSync(Math.max(0, Math.min(100, Math.round(pct))));
+        const pct = await fetchLiveSyncPctSupabase(userId, { bypassCache: true });
+        if (!cancelled) setLiveSync(pct);
       } catch {
         // ignore
       }
@@ -394,9 +385,7 @@ const UserProfileScreen = () => {
   // 라이브 싱크: 유저 게시물이 바뀌면 즉시 % 갱신
   useEffect(() => {
     if (!userId) return;
-    const pct = getLiveSyncPercentRounded(userId, userPosts.length ? userPosts : null);
-    setLiveSync(pct);
-    setLiveSyncPercentCache(String(userId), pct, userPosts.length);
+    void fetchLiveSyncPctSupabase(userId, { bypassCache: true }).then((pct) => setLiveSync(pct));
   }, [userId, userPosts]);
 
   // 서버에서 유저 정보 가져오기 (점수는 클라이언트 기준으로 통일)

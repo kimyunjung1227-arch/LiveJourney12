@@ -16,9 +16,8 @@ import { getWeatherByRegion } from '../api/weather';
 import { getTimeAgo } from '../utils/dateUtils';
 import { addComment, deleteCommentFromPost, updateCommentInPost, getPostAccuracyCount, hasUserMarkedAccurate, toggleAccuracyFeedback } from '../utils/socialInteractions';
 import { getBadgeDisplayName, getEarnedBadgesForUser } from '../utils/badgeSystem';
-import { getLiveSyncPercentRoundedFromCache, setLiveSyncPercentCache } from '../utils/trustIndex';
+import { fetchLiveSyncPctSupabase } from '../api/liveSyncSupabase';
 import { follow, unfollow, isFollowing } from '../utils/followSystem';
-import { supabase } from '../utils/supabaseClient';
 import { notifyFollowingStarted, notifyLike, notifyComment } from '../utils/notifications';
 import { mergeCommentsWithCache, setCommentsCacheForPost } from '../utils/postCommentsCache';
 import { getCachedFollowProfile, setCachedFollowProfile } from '../utils/userProfileHints';
@@ -856,24 +855,8 @@ const PostDetailScreen = () => {
         setRepresentativeBadge(repBadge);
       }
 
-      // Supabase profiles에 저장된 값을 우선 사용하면 화면간 값이 즉시 통일된다.
-      let pct = null;
-      try {
-        const { data } = await supabase
-          .from('profiles')
-          .select('live_sync_pct,live_sync_updated_at')
-          .eq('id', String(authorId))
-          .maybeSingle();
-        const n = Number(data?.live_sync_pct);
-        if (Number.isFinite(n)) pct = Math.max(0, Math.min(100, Math.round(n)));
-      } catch {
-        pct = null;
-      }
-      if (pct == null) {
-        pct = getLiveSyncPercentRoundedFromCache(authorId || null, postsForAuthor.length ? postsForAuthor : null);
-      }
+      const pct = await fetchLiveSyncPctSupabase(authorId || null);
       setAuthorLiveSync(pct);
-      if (authorId) setLiveSyncPercentCache(String(authorId), pct, postsForAuthor.length);
       setAuthorTrustGrade(null);
     })();
   }, [post]);

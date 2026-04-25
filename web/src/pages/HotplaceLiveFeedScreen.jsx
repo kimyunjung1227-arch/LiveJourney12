@@ -12,7 +12,6 @@ import {
   toMediaStr,
 } from '../utils/postMedia';
 import { getTimeAgo } from '../utils/timeUtils';
-import { getLiveSyncPercentRoundedFromCache } from '../utils/trustIndex';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import {
@@ -23,6 +22,7 @@ import {
   feedGridMetaRow,
 } from '../utils/feedGridCardStyles';
 import { normalizePlaceIdentityKey } from '../utils/placeKeyNormalize';
+import { fetchLiveSyncPctSupabase } from '../api/liveSyncSupabase';
 
 const MOCK_PRIMARY = '#1353d8';
 
@@ -150,11 +150,21 @@ export default function HotplaceLiveFeedScreen() {
     return { regionLabel: region || '여행' };
   }, [heroPost, heroAuthorId, allPosts, displayTitle]);
 
-  const heroLiveSync = useMemo(() => {
-    if (!heroAuthorId || !heroPost) return null;
-    const authorPosts = allPosts.filter((p) => getUserIdForPost(p) === heroAuthorId);
-    return getLiveSyncPercentRoundedFromCache(heroAuthorId, authorPosts.length ? authorPosts : null);
-  }, [heroAuthorId, heroPost, allPosts]);
+  const [heroLiveSync, setHeroLiveSync] = useState(null);
+  useEffect(() => {
+    if (!heroAuthorId) {
+      setHeroLiveSync(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const pct = await fetchLiveSyncPctSupabase(heroAuthorId);
+      if (!cancelled) setHeroLiveSync(pct);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [heroAuthorId]);
 
   const situationPosts = useMemo(() => {
     if (!heroPost?.id) return postsForPlace;

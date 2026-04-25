@@ -8,7 +8,7 @@ import BottomNavigation from '../components/BottomNavigation';
 import { getUnreadCount, notifyFollowingStarted } from '../utils/notifications';
 import { getEarnedBadgesForUser, getBadgeDisplayName } from '../utils/badgeSystem';
 import ProfileInjangSection from '../components/ProfileInjangSection';
-import { getLiveSyncPercentRounded, getLiveSyncPercent, TRUST_GRADES, setLiveSyncPercentCache, getLiveSyncPercentRoundedFromCache } from '../utils/trustIndex';
+import { getLiveSyncPercentRounded, getLiveSyncPercent, TRUST_GRADES } from '../utils/trustIndex';
 import { getCoordinatesByLocation } from '../utils/regionLocationMapping';
 import {
   follow,
@@ -28,7 +28,7 @@ import api from '../api/axios';
 import { cleanLegacyUploadedPosts, getUploadedPostsSafe } from '../utils/localStorageManager';
 import { deletePostSupabase, fetchPostsByUserIdSupabase, fetchPostsSupabase } from '../api/postsSupabase';
 import { fetchProfilesByIdsSupabase } from '../api/profilesSupabase';
-import { supabase } from '../utils/supabaseClient';
+import { fetchLiveSyncPctSupabase, setLiveSyncPctSupabase } from '../api/liveSyncSupabase';
 import {
   resolveUserDisplayFromPosts,
   getCachedFollowProfile,
@@ -136,26 +136,14 @@ const ProfileScreen = () => {
   const [selectedSavedRoute, setSelectedSavedRoute] = useState(null);
   const [liveSync, setLiveSync] = useState(35);
 
-  // profiles에 저장된 live_sync_pct를 먼저 보여주면,
-  // 프로필 첫 진입에서도 게시물 화면과 동일한 값으로 즉시 맞출 수 있다.
+  // 라이브싱크는 Supabase profiles 값만 사용(로컬 계산/캐시 제거)
   useEffect(() => {
     const uid = (authUser || user)?.id;
     if (!uid) return;
     let cancelled = false;
     (async () => {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('live_sync_pct,live_sync_updated_at')
-          .eq('id', String(uid))
-          .maybeSingle();
-        if (cancelled) return;
-        if (error) return;
-        const pct = Number(data?.live_sync_pct);
-        if (Number.isFinite(pct)) setLiveSync(Math.max(0, Math.min(100, Math.round(pct))));
-      } catch {
-        // ignore
-      }
+      const pct = await fetchLiveSyncPctSupabase(uid, { bypassCache: true });
+      if (!cancelled) setLiveSync(pct);
     })();
     return () => {
       cancelled = true;
@@ -164,18 +152,11 @@ const ProfileScreen = () => {
 
   const refreshLiveSync = useCallback(() => {
     const uid = (authUser || user)?.id;
-    const postsArg = myPostsRef.current?.length ? myPostsRef.current : null;
-    const pct = getLiveSyncPercentRoundedFromCache(uid ? String(uid) : null, postsArg);
-    setLiveSync(pct);
-    // postsArg가 있을 때만 "더 큰 샘플"로 캐시 갱신하도록 저장
-    if (uid && Array.isArray(postsArg) && postsArg.length > 0) {
-      setLiveSyncPercentCache(String(uid), pct, postsArg.length, { authoritative: true });
-      // Supabase profiles에도 저장해서 모든 화면에서 동일 값 사용
-      void supabase
-        .from('profiles')
-        .update({ live_sync_pct: pct, live_sync_updated_at: new Date().toISOString() })
-        .eq('id', String(uid));
-    }
+    if (!uid) return;
+    void (async () => {
+      const pct = await fetchLiveSyncPctSupabase(uid, { bypassCache: true });
+      setLiveSync(pct);
+    })();
   }, [authUser?.id, user?.id]);
 
   useEffect(() => {
