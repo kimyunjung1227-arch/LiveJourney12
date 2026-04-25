@@ -23,6 +23,7 @@ const UploadScreen = () => {
   const { exifAllowed } = useExifConsent();
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [uploadGuideOpen, setUploadGuideOpen] = useState(false);
   const [formData, setFormData] = useState({
     images: [],
     imageFiles: [],
@@ -525,6 +526,10 @@ const UploadScreen = () => {
       return;
     }
 
+    if (!String(formData.note || '').trim()) {
+      return;
+    }
+
     // 촬영시간(EXIF) 기준 48시간 초과면 업로드 차단
     if (
       formData?.exifData?.photoDate &&
@@ -941,10 +946,15 @@ const UploadScreen = () => {
     }
   }, [formData, user, navigate, checkAndAwardBadge]);
 
+  const hasMedia = formData.images.length > 0 || formData.videos.length > 0;
+  const noteFilled = String(formData.note || '').trim().length > 0;
+  const canSubmit =
+    !uploading && hasMedia && Boolean(formData.location.trim()) && noteFilled;
+
   return (
     <>
       <div className="phone-screen" style={{ 
-        background: '#f8fafc',
+        background: '#ffffff',
         borderRadius: '32px',
         overflow: 'hidden',
         height: '100vh',
@@ -965,6 +975,7 @@ const UploadScreen = () => {
           color: '#111827'
         }}>
           <button 
+            type="button"
             onClick={() => {
               if (location.state?.fromMap) {
                 navigate('/main');
@@ -972,9 +983,10 @@ const UploadScreen = () => {
                 navigate(-1);
               }
             }}
-            className="flex size-10 shrink-0 items-center justify-center text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className="flex size-10 shrink-0 items-center justify-center text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            aria-label="뒤로"
           >
-            <span className="material-symbols-outlined text-xl">arrow_back</span>
+            뒤로
           </button>
           <h1 className="flex-1 text-center text-lg font-bold" style={{ 
             fontSize: '18px',
@@ -986,18 +998,46 @@ const UploadScreen = () => {
         </header>
 
         {/* 앱 컨텐츠 */}
-        <main className="app-content" style={{ 
+        <main className="app-content bg-white" style={{ 
           flex: 1,
           overflowY: 'auto',
           paddingBottom: '100px',
-          padding: '0 16px 100px 16px'
+          padding: '0 16px 100px 16px',
+          background: '#ffffff',
         }}>
-          <div className="p-4 space-y-4">
-            <div>
+          <div className="p-4 space-y-4 bg-white">
+            <div className="relative">
+              <div className="flex justify-end mb-1">
+                <button
+                  type="button"
+                  onClick={() => setUploadGuideOpen((v) => !v)}
+                  className="text-xs font-semibold text-primary px-2 py-1 rounded-md hover:bg-primary/5"
+                >
+                  업로드 가이드 {uploadGuideOpen ? '접기' : '펼치기'}
+                </button>
+              </div>
+              {uploadGuideOpen && (
+                <div className="mb-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-[11px] text-gray-700 leading-relaxed space-y-1.5">
+                  <p className="font-semibold text-gray-900">요약</p>
+                  <ul className="list-disc pl-4 space-y-1">
+                    <li>현장에서 찍은 &apos;지금&apos; 모습을 올려 주세요.</li>
+                    <li>과한 보정은 피하고, 솔직한 정보가 다른 여행자에게 도움이 됩니다.</li>
+                    <li>촬영 후 48시간이 지난 사진은 업로드할 수 없습니다.</li>
+                    <li>위치·이야기·사진이 함께할 때 가장 큰 도움이 됩니다.</li>
+                  </ul>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/upload/guide', { state: { returnTo: '/upload' } })}
+                    className="text-primary font-semibold underline-offset-2 hover:underline"
+                  >
+                    전체 가이드 보기
+                  </button>
+                </div>
+              )}
               {(formData.images.length === 0 && formData.videos.length === 0) ? (
                 <button
                   onClick={() => setShowPhotoOptions(true)}
-                  className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-subtle-light dark:border-subtle-dark px-6 py-12 text-center w-full hover:border-primary transition-colors"
+                  className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-subtle-light dark:border-subtle-dark px-6 py-12 text-center w-full hover:border-primary transition-colors bg-white"
                 >
                   <span className="material-symbols-outlined text-4xl text-primary">add_circle</span>
                   <p className="text-base font-bold">사진 또는 동영상 추가</p>
@@ -1062,6 +1102,7 @@ const UploadScreen = () => {
                         className="w-full h-full object-cover" 
                       />
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setFormData(prev => ({
@@ -1071,9 +1112,10 @@ const UploadScreen = () => {
                           }));
                         }}
                         onMouseDown={(e) => e.stopPropagation()}
-                        className="absolute top-1 right-1 bg-black/70 text-white rounded-full p-1 hover:bg-black/90 transition-colors z-10"
+                        className="absolute top-1 right-1 flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-black/70 px-1.5 text-sm font-bold leading-none text-white hover:bg-black/90 z-10"
+                        aria-label="미리보기 삭제"
                       >
-                        <span className="material-symbols-outlined text-xs">close</span>
+                        ×
                       </button>
                     </div>
                   ))}
@@ -1086,10 +1128,11 @@ const UploadScreen = () => {
                         className="w-full h-full object-cover"
                         muted
                       />
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                        <span className="material-symbols-outlined text-white text-lg drop-shadow-lg">play_circle</span>
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+                        <span className="rounded bg-black/45 px-1.5 py-0.5 text-[10px] font-bold text-white">동영상</span>
                       </div>
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setFormData(prev => ({
@@ -1099,9 +1142,10 @@ const UploadScreen = () => {
                           }));
                         }}
                         onMouseDown={(e) => e.stopPropagation()}
-                        className="absolute top-1 right-1 bg-black/70 text-white rounded-full p-1 hover:bg-black/90 transition-colors z-10"
+                        className="absolute top-1 right-1 flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-black/70 px-1.5 text-sm font-bold leading-none text-white hover:bg-black/90 z-10"
+                        aria-label="미리보기 삭제"
                       >
-                        <span className="material-symbols-outlined text-xs">close</span>
+                        ×
                       </button>
                     </div>
                   ))}
@@ -1126,7 +1170,7 @@ const UploadScreen = () => {
             <div>
               <label className="flex flex-col">
                 <div className="flex items-center justify-between pb-2">
-                  <p className="text-base font-medium">📍 어디에서 찍었나요?</p>
+                  <p className="text-base font-medium text-gray-900">어디에서 찍었나요?</p>
                   {loadingLocation && (
                     <span className="text-xs text-primary">위치 감지 중...</span>
                   )}
@@ -1142,10 +1186,10 @@ const UploadScreen = () => {
                     type="button"
                     onClick={getCurrentLocation}
                     disabled={loadingLocation}
-                    className="flex items-center justify-center rounded-lg border border-subtle-light dark:border-subtle-dark bg-primary/10 dark:bg-primary/20 hover:bg-primary/20 dark:hover:bg-primary/30 px-3 h-12 text-primary transition-colors disabled:opacity-50"
+                    className="flex shrink-0 items-center justify-center rounded-lg border border-subtle-light dark:border-subtle-dark bg-primary/10 dark:bg-primary/20 hover:bg-primary/20 dark:hover:bg-primary/30 px-3 h-12 text-xs font-semibold text-primary transition-colors disabled:opacity-50 whitespace-nowrap"
                     title="현재 위치 자동 감지"
                   >
-                    <span className="material-symbols-outlined text-lg">my_location</span>
+                    현재 위치
                   </button>
                 </div>
               </label>
@@ -1154,7 +1198,7 @@ const UploadScreen = () => {
             <div>
               <label className="flex flex-col">
                 <div className="flex items-center justify-between pb-2">
-                  <p className="text-base font-medium">🏷️ 태그 추가</p>
+                  <p className="text-base font-medium text-gray-900">태그 추가</p>
                   {loadingAITags && (
                     <span className="text-xs text-primary">AI 분석 중...</span>
                   )}
@@ -1191,18 +1235,16 @@ const UploadScreen = () => {
               {!loadingAITags && autoTags.length > 0 && (
                 <div className="mt-3">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm text-zinc-600 dark:text-zinc-400 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-base">auto_awesome</span>
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400">
                       <span className="font-semibold">AI 추천 태그</span>
-                      <span className="text-xs text-zinc-500">(클릭하여 추가)</span>
+                      <span className="text-xs text-zinc-500"> (탭하여 추가)</span>
                     </p>
                     {formData.imageFiles.length > 0 && (
                       <button
                         type="button"
                         onClick={() => analyzeImageAndGenerateTags(formData.imageFiles[0], formData.location, formData.note)}
-                        className="text-xs text-primary hover:text-primary/80 font-semibold flex items-center gap-1"
+                        className="text-xs text-primary hover:text-primary/80 font-semibold"
                       >
-                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>refresh</span>
                         재분석
                       </button>
                     )}
@@ -1212,10 +1254,10 @@ const UploadScreen = () => {
                       <button
                         key={tag}
                         onClick={() => addAutoTag(tag)}
-                        className="flex items-center gap-1.5 rounded-full bg-primary/8 dark:bg-primary/15 hover:bg-primary/12 dark:hover:bg-primary/20 py-1.5 px-3 text-sm font-medium text-primary dark:text-primary-soft hover:text-primary-dark transition-all border border-primary/20 dark:border-primary/30"
+                        className="rounded-full bg-primary/8 dark:bg-primary/15 hover:bg-primary/12 dark:hover:bg-primary/20 py-1.5 px-3 text-sm font-medium text-primary dark:text-primary-soft hover:text-primary-dark transition-all border border-primary/20 dark:border-primary/30"
                       >
-                        <span>{tag}</span>
-                        <span className="material-symbols-outlined text-base">add_circle</span>
+                        {tag}
+                        <span className="ml-1 text-xs opacity-80">+</span>
                       </button>
                     ))}
                   </div>
@@ -1236,10 +1278,12 @@ const UploadScreen = () => {
                       >
                         <span>{tag}</span>
                         <button
+                          type="button"
                           onClick={() => removeTag(tag)}
-                          className="flex items-center justify-center"
+                          className="text-xs font-semibold opacity-80 hover:opacity-100 px-1"
+                          aria-label={`${tag} 제거`}
                         >
-                          <span className="material-symbols-outlined text-base">cancel</span>
+                          ×
                         </button>
                       </div>
                     ))}
@@ -1250,7 +1294,9 @@ const UploadScreen = () => {
 
             <div>
               <label className="flex flex-col">
-                <p className="text-base font-medium pb-2">✍️ 이 순간의 이야기 (선택사항)</p>
+                <p className="text-base font-medium pb-2 text-gray-900">
+                  이 순간의 이야기 <span className="text-sm font-semibold text-primary">(필수)</span>
+                </p>
                 <div className="relative">
                   <textarea
                     className="form-textarea w-full rounded-lg border border-subtle-light dark:border-subtle-dark bg-background-light dark:bg-background-dark focus:border-primary focus:ring-0 p-3 text-sm font-normal placeholder:text-placeholder-light dark:placeholder:text-placeholder-dark resize-none"
@@ -1268,39 +1314,36 @@ const UploadScreen = () => {
             </div>
 
             {/* 업로드 버튼 */}
-            <div className="mt-6">
+            <div className="mt-5">
               <button
+                type="button"
                 onClick={() => {
                   logger.debug('Upload button clicked');
-                  logger.debug('Current state:', { 
-                    uploading, 
-                    imageCount: formData.images.length,
+                  logger.debug('Current state:', {
+                    uploading,
+                    hasMedia,
                     location: formData.location,
-                    disabled: uploading || formData.images.length === 0 
+                    noteFilled,
+                    canSubmit,
                   });
                   handleSubmit();
                 }}
-                disabled={uploading || formData.images.length === 0 || !formData.location.trim()}
-                className={`flex w-full items-center justify-center rounded-xl h-14 px-4 text-lg font-bold transition-all shadow-lg ${
-                  uploading || formData.images.length === 0 || !formData.location.trim()
-                    ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed'
-                    : 'bg-primary text-white hover:bg-primary/90 hover:shadow-xl active:scale-95'
+                disabled={!canSubmit}
+                className={`flex w-full items-center justify-center rounded-lg h-10 px-3 text-sm font-semibold transition-colors shadow-sm ${
+                  !canSubmit
+                    ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 cursor-not-allowed'
+                    : 'bg-primary text-white hover:bg-primary/90 active:scale-[0.99]'
                 }`}
               >
                 {uploading ? (
                   <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
                     <span>업로드 중...</span>
                   </>
                 ) : (
-                  <span>📤 여행 기록 업로드하기</span>
+                  <span>여행 기록 업로드</span>
                 )}
               </button>
-              {(formData.images.length === 0 || !formData.location.trim()) && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
-                  {formData.images.length === 0 ? '사진을 추가해주세요' : '위치를 입력해주세요'}
-                </p>
-              )}
             </div>
           </div>
         </main>
