@@ -16,7 +16,8 @@ const POST_ACCURACY_COUNT_KEY = 'postAccuracyCount';
 const TRUST_PENALTY_KEY = 'trustPenalty'; // legacy key (세션 메모리)
 const TRUST_LAST_ACTIVE_KEY = 'trustLastActive'; // legacy key (세션 메모리)
 const COMPASS_SCORE_CACHE_KEY = 'compassScoreCache'; // legacy key (세션 메모리)
-const LIVE_SYNC_PCT_CACHE_KEY = 'lj_liveSyncPctCache_v1';
+// 서버에서 live_sync_pct를 초기화/리셋할 수 있어, 로컬 캐시를 강제로 무효화하기 위해 버전 키를 올린다.
+const LIVE_SYNC_PCT_CACHE_KEY = 'lj_liveSyncPctCache_v2';
 
 // 서버 운영 전환: localStorage 제거 → 세션 메모리 캐시
 const memory = {
