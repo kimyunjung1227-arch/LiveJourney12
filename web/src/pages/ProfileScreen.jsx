@@ -8,7 +8,7 @@ import BottomNavigation from '../components/BottomNavigation';
 import { getUnreadCount, notifyFollowingStarted } from '../utils/notifications';
 import { getEarnedBadgesForUser, getBadgeDisplayName } from '../utils/badgeSystem';
 import ProfileInjangSection from '../components/ProfileInjangSection';
-import { getLiveSyncPercentRounded, getLiveSyncPercent, TRUST_GRADES, setLiveSyncPercentCache } from '../utils/trustIndex';
+import { getLiveSyncPercentRounded, getLiveSyncPercent, TRUST_GRADES, setLiveSyncPercentCache, getLiveSyncPercentRoundedFromCache } from '../utils/trustIndex';
 import { getCoordinatesByLocation } from '../utils/regionLocationMapping';
 import {
   follow,
@@ -137,9 +137,12 @@ const ProfileScreen = () => {
   const refreshLiveSync = useCallback(() => {
     const uid = (authUser || user)?.id;
     const postsArg = myPostsRef.current?.length ? myPostsRef.current : null;
-    const pct = getLiveSyncPercentRounded(uid ? String(uid) : null, postsArg);
+    const pct = getLiveSyncPercentRoundedFromCache(uid ? String(uid) : null, postsArg);
     setLiveSync(pct);
-    if (uid) setLiveSyncPercentCache(String(uid), pct, Array.isArray(postsArg) ? postsArg.length : 0);
+    // postsArg가 있을 때만 "더 큰 샘플"로 캐시 갱신하도록 저장
+    if (uid && Array.isArray(postsArg) && postsArg.length > 0) {
+      setLiveSyncPercentCache(String(uid), pct, postsArg.length);
+    }
   }, [authUser?.id, user?.id]);
 
   useEffect(() => {

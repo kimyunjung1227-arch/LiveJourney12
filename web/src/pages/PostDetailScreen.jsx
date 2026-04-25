@@ -16,7 +16,7 @@ import { getWeatherByRegion } from '../api/weather';
 import { getTimeAgo } from '../utils/dateUtils';
 import { addComment, deleteCommentFromPost, updateCommentInPost, getPostAccuracyCount, hasUserMarkedAccurate, toggleAccuracyFeedback } from '../utils/socialInteractions';
 import { getBadgeDisplayName, getEarnedBadgesForUser } from '../utils/badgeSystem';
-import { getLiveSyncPercentRounded } from '../utils/trustIndex';
+import { getLiveSyncPercentRoundedFromCache, setLiveSyncPercentCache } from '../utils/trustIndex';
 import { follow, unfollow, isFollowing } from '../utils/followSystem';
 import { notifyFollowingStarted, notifyLike, notifyComment } from '../utils/notifications';
 import { mergeCommentsWithCache, setCommentsCacheForPost } from '../utils/postCommentsCache';
@@ -855,7 +855,9 @@ const PostDetailScreen = () => {
         setRepresentativeBadge(repBadge);
       }
 
-      setAuthorLiveSync(getLiveSyncPercentRounded(authorId || null, postsForAuthor.length ? postsForAuthor : null));
+      const pct = getLiveSyncPercentRoundedFromCache(authorId || null, postsForAuthor.length ? postsForAuthor : null);
+      setAuthorLiveSync(pct);
+      if (authorId) setLiveSyncPercentCache(String(authorId), pct, postsForAuthor.length);
       setAuthorTrustGrade(null);
     })();
   }, [post]);
