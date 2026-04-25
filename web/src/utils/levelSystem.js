@@ -65,3 +65,15 @@ export function getUserLevel() {
   const title = getLevelTitle(level);
   return { level, title };
 }
+
+/**
+ * 경험치 획득 (호환용)
+ * - 기존 화면(UploadScreen 등)에서 `gainExp()`를 호출하고 있어 export를 제공합니다.
+ * - 서버 운영 전환으로 totalExp 계산은 현재 0으로 고정되어 있어,
+ *   레벨 업은 발생하지 않지만 호출부가 깨지지 않도록 결과 형태를 유지합니다.
+ */
+export const gainExp = (action) => {
+  const expGained = EXP_REWARDS[action] || 0;
+  if (expGained === 0) return { levelUp: false };
+  return { levelUp: false };
+};
