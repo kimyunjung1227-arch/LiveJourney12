@@ -51,7 +51,7 @@ const safeWriteLiveSyncStore = (obj) => {
 
 /** 라이브 싱크 산정 파라미터 */
 const LIVE_SYNC = {
-  base: 50,
+  base: 35,
   // "현장성"은 최신/실시간성에 강하게 반응하도록
   maxUpRealtime: 25,
   maxUpHelpful: 15,
@@ -443,7 +443,7 @@ export const getLiveSyncPercentRounded = (userId = null, postsOverride = null) =
  * - ProfileScreen/UserProfileScreen 등에서 계산한 값을 캐시에 저장해두면
  *   피드/상세/핫플 등 다른 화면에서 postsOverride가 부분 집합이어도 동일한 값으로 표시 가능.
  */
-export const setLiveSyncPercentCache = (userId, pct, sampleCount = null) => {
+export const setLiveSyncPercentCache = (userId, pct, sampleCount = null, options = {}) => {
   const uid = userId != null ? String(userId) : '';
   if (!uid) return;
   const n = Math.round(Number(pct));
@@ -452,11 +452,12 @@ export const setLiveSyncPercentCache = (userId, pct, sampleCount = null) => {
   const ts = Date.now();
   const sc = sampleCount != null ? Math.max(0, Number(sampleCount) || 0) : (memory.liveSyncCache?.[uid]?.sampleCount ?? 0);
   const prev = memory.liveSyncCache?.[uid];
-  // 점수가 갑자기 튀지 않도록 완만하게 누적(스무딩)
+  const authoritative = options && typeof options === 'object' ? options.authoritative === true : false;
+  // 점수가 갑자기 튀지 않도록 완만하게 누적(스무딩) — 단, 프로필처럼 "게시물 전체"가 들어온 값은 즉시 스냅
   const prevPct = typeof prev?.pct === 'number' ? prev.pct : null;
   const maxStep = 2; // 한 번 갱신에서 최대 2%만 변동
   const nextPct =
-    prevPct == null
+    authoritative || prevPct == null
       ? clamped
       : Math.max(0, Math.min(100, prevPct + Math.max(-maxStep, Math.min(maxStep, clamped - prevPct))));
   memory.liveSyncCache[uid] = { pct: nextPct, ts, sampleCount: sc };
@@ -479,17 +480,12 @@ export const getLiveSyncPercentRoundedFromCache = (userId = null, postsOverride 
     ) {
       const computed = getLiveSyncPercentRounded(uid, postsOverride);
       const ts = Date.now();
-      const prevPct = typeof mem?.pct === 'number' ? mem.pct : null;
-      const maxStep = 2;
-      const nextPct =
-        prevPct == null
-          ? computed
-          : Math.max(0, Math.min(100, prevPct + Math.max(-maxStep, Math.min(maxStep, computed - prevPct))));
-      memory.liveSyncCache[uid] = { pct: nextPct, ts, sampleCount };
+      // "더 큰 샘플"로 재계산된 값은 authoritative로 보고 즉시 스냅 (프로필 첫 진입 통일용)
+      memory.liveSyncCache[uid] = { pct: computed, ts, sampleCount };
       const store = safeReadLiveSyncStore();
-      store[uid] = { pct: nextPct, ts, sampleCount };
+      store[uid] = { pct: computed, ts, sampleCount };
       safeWriteLiveSyncStore(store);
-      return nextPct;
+      return computed;
     }
     if (mem && typeof mem.pct === 'number') return mem.pct;
 

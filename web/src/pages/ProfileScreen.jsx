@@ -132,7 +132,7 @@ const ProfileScreen = () => {
   const [activeTab, setActiveTab] = useState('my'); // 'my' | 'map' | 'savedRoutes'
   const [savedRoutes, setSavedRoutes] = useState([]);
   const [selectedSavedRoute, setSelectedSavedRoute] = useState(null);
-  const [liveSync, setLiveSync] = useState(50);
+  const [liveSync, setLiveSync] = useState(35);
 
   const refreshLiveSync = useCallback(() => {
     const uid = (authUser || user)?.id;
@@ -141,7 +141,7 @@ const ProfileScreen = () => {
     setLiveSync(pct);
     // postsArg가 있을 때만 "더 큰 샘플"로 캐시 갱신하도록 저장
     if (uid && Array.isArray(postsArg) && postsArg.length > 0) {
-      setLiveSyncPercentCache(String(uid), pct, postsArg.length);
+      setLiveSyncPercentCache(String(uid), pct, postsArg.length, { authoritative: true });
     }
   }, [authUser?.id, user?.id]);
 

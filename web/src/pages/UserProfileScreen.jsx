@@ -54,7 +54,7 @@ const UserProfileScreen = () => {
   const [followingCount, setFollowingCount] = useState(0);
   const [followLoading, setFollowLoading] = useState(false);
   /** 라이브 싱크(%) */
-  const [liveSync, setLiveSync] = useState(50);
+  const [liveSync, setLiveSync] = useState(35);
   const [activeTab, setActiveTab] = useState('my'); // 'my' | 'map' — 내 프로필과 동일 탭 구조
   const [photoViewMode, setPhotoViewMode] = useState('custom'); // 'custom' | 'date'
   const [showFollowListModal, setShowFollowListModal] = useState(false);
