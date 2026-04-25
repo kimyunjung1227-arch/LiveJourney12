@@ -16,6 +16,7 @@ const POST_ACCURACY_COUNT_KEY = 'postAccuracyCount';
 const TRUST_PENALTY_KEY = 'trustPenalty'; // legacy key (세션 메모리)
 const TRUST_LAST_ACTIVE_KEY = 'trustLastActive'; // legacy key (세션 메모리)
 const COMPASS_SCORE_CACHE_KEY = 'compassScoreCache'; // legacy key (세션 메모리)
+const LIVE_SYNC_PCT_CACHE_KEY = 'lj_liveSyncPctCache_v1';
 
 // 서버 운영 전환: localStorage 제거 → 세션 메모리 캐시
 const memory = {
@@ -24,6 +25,28 @@ const memory = {
   trustPenalty: {}, // userId -> number
   trustLastActive: {}, // userId -> ts
   compassScoreCache: {}, // userId -> { score, ts }
+  // 화면 간 라이브 싱크(%) 일관성을 위한 캐시
+  liveSyncCache: {}, // userId -> { pct, ts, sampleCount }
+};
+
+const safeReadLiveSyncStore = () => {
+  try {
+    if (typeof window === 'undefined' || !window?.localStorage) return {};
+    const raw = window.localStorage.getItem(LIVE_SYNC_PCT_CACHE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const safeWriteLiveSyncStore = (obj) => {
+  try {
+    if (typeof window === 'undefined' || !window?.localStorage) return;
+    window.localStorage.setItem(LIVE_SYNC_PCT_CACHE_KEY, JSON.stringify(obj || {}));
+  } catch {
+    // ignore
+  }
 };
 
 /** 라이브 싱크 산정 파라미터 */
@@ -414,6 +437,62 @@ export const getLiveSyncPercent = (userId = null, postsOverride = null) => {
 /** UI 편의: 정수 % */
 export const getLiveSyncPercentRounded = (userId = null, postsOverride = null) =>
   Math.round(getLiveSyncPercent(userId, postsOverride));
+
+/**
+ * 화면 간 "동일 계정" 라이브 싱크 값을 일치시키기 위한 캐시 API
+ * - ProfileScreen/UserProfileScreen 등에서 계산한 값을 캐시에 저장해두면
+ *   피드/상세/핫플 등 다른 화면에서 postsOverride가 부분 집합이어도 동일한 값으로 표시 가능.
+ */
+export const setLiveSyncPercentCache = (userId, pct, sampleCount = null) => {
+  const uid = userId != null ? String(userId) : '';
+  if (!uid) return;
+  const n = Math.round(Number(pct));
+  if (!Number.isFinite(n)) return;
+  const clamped = Math.max(0, Math.min(100, n));
+  const ts = Date.now();
+  const sc = sampleCount != null ? Math.max(0, Number(sampleCount) || 0) : (memory.liveSyncCache?.[uid]?.sampleCount ?? 0);
+  memory.liveSyncCache[uid] = { pct: clamped, ts, sampleCount: sc };
+
+  // 프로필 화면에서 계산한 값을 다른 화면에서도 동일하게 쓰기 위해 로컬에도 보관
+  const store = safeReadLiveSyncStore();
+  store[uid] = { pct: clamped, ts, sampleCount: sc };
+  safeWriteLiveSyncStore(store);
+};
+
+export const getLiveSyncPercentRoundedFromCache = (userId = null, postsOverride = null) => {
+  const uid = userId != null ? String(userId) : null;
+  const sampleCount = Array.isArray(postsOverride) ? postsOverride.length : 0;
+  if (uid) {
+    const mem = memory.liveSyncCache?.[uid];
+    // 캐시가 없거나, 더 큰 샘플(게시물 수)로 들어왔으면 재계산해서 캐시를 갱신
+    if (
+      (!mem || typeof mem.pct !== 'number') ||
+      (sampleCount > Number(mem?.sampleCount || 0) && sampleCount > 0)
+    ) {
+      const computed = getLiveSyncPercentRounded(uid, postsOverride);
+      const ts = Date.now();
+      memory.liveSyncCache[uid] = { pct: computed, ts, sampleCount };
+      const store = safeReadLiveSyncStore();
+      store[uid] = { pct: computed, ts, sampleCount };
+      safeWriteLiveSyncStore(store);
+      return computed;
+    }
+    if (mem && typeof mem.pct === 'number') return mem.pct;
+
+    const store = safeReadLiveSyncStore();
+    const saved = store?.[uid];
+    if (saved && typeof saved.pct === 'number') {
+      // 메모리도 워밍업
+      memory.liveSyncCache[uid] = {
+        pct: saved.pct,
+        ts: saved.ts || Date.now(),
+        sampleCount: Number(saved?.sampleCount || 0),
+      };
+      return saved.pct;
+    }
+  }
+  return getLiveSyncPercentRounded(uid, postsOverride);
+};
 
 /**
  * 현재 점수에 해당하는 등급의 뱃지 ID

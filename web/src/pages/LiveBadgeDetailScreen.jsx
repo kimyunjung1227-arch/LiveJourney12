@@ -39,6 +39,14 @@ function clamp01(v) {
   return Math.max(0, Math.min(1, x));
 }
 
+function sectionTitle(text) {
+  return (
+    <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+      {text}
+    </h2>
+  );
+}
+
 const LiveBadgeDetailScreen = () => {
   const navigate = useNavigate();
   const { badgeName: badgeNameParam } = useParams();
@@ -73,7 +81,34 @@ const LiveBadgeDetailScreen = () => {
   const curCount = typeof current?.progressCurrent === 'number' ? current.progressCurrent : 0;
   const pct = nextTarget ? clamp01(curCount / nextTarget) : clamp01((current?.getProgress?.() || 0) / 100);
 
-  const isMaxTier = !next;
+  const hasDynLadder = Boolean(meta);
+  const hasNextStage = Boolean(next);
+  const isDynMaxTier = hasDynLadder && !hasNextStage;
+
+  const earnedConditionText =
+    current?.shortCondition?.trim() ||
+    (nextTarget != null
+      ? `누적 진행 ${curCount} / ${nextTarget}${current?.progressUnit ? ` ${current.progressUnit}` : ''}`
+      : '활동 기록을 쌓아 획득한 라이브뱃지입니다.');
+
+  const descriptionText =
+    current?.description?.trim() ||
+    '활동을 통해 성장하는 라이브뱃지입니다. 실시간 기록을 쌓아 다음 단계에 도전해 보세요.';
+
+  const nextConditionText = hasNextStage
+    ? (next?.shortCondition?.trim() ||
+        (nextTarget != null
+          ? `다음 단계까지 ${nextTarget}${current?.progressUnit ? ` ${current.progressUnit}` : ''} 달성`
+          : '다음 단계 조건을 확인하려면 프로필에서 활동을 이어가 주세요.'))
+    : isDynMaxTier
+      ? '이 뱃지는 최고 단계까지 달성했습니다.'
+      : '이 뱃지는 단계형 진행 정보가 없습니다. 활동을 이어가면 새로운 뱃지를 만날 수 있어요.';
+
+  const statusLine = hasNextStage
+    ? `현재 ${curCount} / 목표 ${nextTarget ?? current?.progressTarget ?? 0}${current?.progressUnit ? ` ${current.progressUnit}` : ''}`
+    : isDynMaxTier
+      ? '최고 단계 달성'
+      : '진행률 정보 없음';
 
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark min-h-[100dvh]">
@@ -86,60 +121,86 @@ const LiveBadgeDetailScreen = () => {
         </header>
 
         <div className="screen-body bg-white dark:bg-gray-900 px-4 py-6 pb-24 space-y-5">
+          {/* 현재 획득한 뱃지: 아이콘 중앙 → (아이콘 아래) 설명 → 달성 조건 */}
           <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
-            <p className="text-xs font-bold text-gray-500 dark:text-gray-400">현재 획득한 뱃지</p>
-            <div className="mt-3 flex items-center gap-3">
+            {sectionTitle('현재 획득한 뱃지')}
+
+            <div className="mt-4 flex flex-col items-center text-center">
               <LiveBadgeMedallion
                 badgeName={current?.name}
                 tier={current?.difficulty}
                 icon={current?.icon}
                 gradientCss={current?.gradientCss}
-                size={64}
+                size={92}
+                className="mx-auto"
               />
-              <div className="min-w-0">
-                <div className="text-sm font-extrabold text-gray-900 dark:text-gray-100 truncate">
-                  {currentLabel}
-                </div>
-                {current?.shortCondition ? (
-                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
-                    {current.shortCondition}
-                  </div>
-                ) : null}
+              <div className="mt-3 text-base font-extrabold text-gray-900 dark:text-gray-100">
+                {currentLabel}
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <div>
+                {sectionTitle('설명')}
+                <p className="mt-2 text-sm leading-relaxed text-gray-700 dark:text-gray-300 break-keep">
+                  {descriptionText}
+                </p>
+              </div>
+              <div>
+                {sectionTitle('달성 조건')}
+                <p className="mt-2 text-sm leading-relaxed text-gray-800 dark:text-gray-200 break-keep">
+                  {earnedConditionText}
+                </p>
               </div>
             </div>
           </section>
 
+          {/* 다음 뱃지: (좌) 달성조건/진행사항 → (우) 아이콘 */}
           <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
-            <p className="text-xs font-bold text-gray-500 dark:text-gray-400">다음 등급 뱃지</p>
-            <div className="mt-3 flex items-center gap-3">
+            {sectionTitle('다음 뱃지')}
+
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-extrabold text-gray-900 dark:text-gray-100 truncate">
+                  {hasNextStage ? (nextLabel || '다음 뱃지') : isDynMaxTier ? '최고 단계' : '다음 뱃지'}
+                </div>
+
+                <div className="mt-3 space-y-3">
+                  <div>
+                    {sectionTitle('달성 조건')}
+                    <p className="mt-2 text-sm leading-relaxed text-gray-800 dark:text-gray-200 break-keep">
+                      {nextConditionText}
+                    </p>
+                  </div>
+
+                  <div>
+                    {sectionTitle('진행 사항')}
+                    {hasNextStage ? (
+                      <>
+                        <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                          <div
+                            className="h-full rounded-full bg-primary transition-all"
+                            style={{ width: `${Math.round(pct * 100)}%` }}
+                          />
+                        </div>
+                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{statusLine}</p>
+                      </>
+                    ) : (
+                      <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{statusLine}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <LiveBadgeMedallion
                 badgeName={next?.name || current?.name}
                 tier={next?.difficulty || Math.min(3, (Number(current?.difficulty || meta?.tier || 1) || 1) + 1)}
                 icon={next?.icon || current?.icon}
                 gradientCss={next?.gradientCss}
-                size={64}
+                size={72}
+                className="shrink-0"
               />
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-extrabold text-gray-900 dark:text-gray-100 truncate">
-                  {isMaxTier ? '최고 등급을 달성했어요' : (nextLabel || '다음 등급')}
-                </div>
-                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
-                  <div className="h-full bg-primary" style={{ width: `${Math.round(pct * 100)}%` }} />
-                </div>
-                <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  {isMaxTier
-                    ? '현재 등급이 마지막 단계입니다.'
-                    : `진행도 ${curCount}/${nextTarget ?? current?.progressTarget ?? 0}${current?.progressUnit ? ` ${current.progressUnit}` : ''}`}
-                </div>
-              </div>
             </div>
-          </section>
-
-          <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
-            <p className="text-xs font-bold text-gray-500 dark:text-gray-400">설명</p>
-            <p className="mt-2 text-sm leading-relaxed text-gray-700 dark:text-gray-300 break-keep">
-              {current?.description || '활동을 통해 성장하는 라이브뱃지입니다. 실시간 기록을 쌓아 다음 등급에 도전해 보세요.'}
-            </p>
           </section>
         </div>
       </div>
@@ -149,4 +210,3 @@ const LiveBadgeDetailScreen = () => {
 };
 
 export default LiveBadgeDetailScreen;
-
