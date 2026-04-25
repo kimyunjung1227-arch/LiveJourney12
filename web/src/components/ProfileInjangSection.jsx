@@ -12,6 +12,9 @@ function sortBadgesForDisplay(badges) {
   });
 }
 
+/** 획득 뱃지가 이 개수 이상일 때만 「모두보기」 노출 */
+const MIN_BADGES_FOR_VIEW_ALL = 5;
+
 /**
  * 프로필 상단 「라이브뱃지」: 가로 스크롤 미리보기 + 모두보기
  */
@@ -19,6 +22,7 @@ export default function ProfileInjangSection({ badges, onViewAll, onOpenBadge, c
   const navigate = useNavigate();
   const sorted = useMemo(() => sortBadgesForDisplay(badges), [badges]);
   const preview = sorted.slice(0, 12);
+  const showViewAll = sorted.length >= MIN_BADGES_FOR_VIEW_ALL;
 
   const toSerializableBadge = (b) => ({
     name: b?.name,
@@ -55,13 +59,15 @@ export default function ProfileInjangSection({ badges, onViewAll, onOpenBadge, c
         <h3 className="text-base font-bold text-text-primary-light dark:text-text-primary-dark shrink-0">
           라이브뱃지
         </h3>
-        <button
-          type="button"
-          onClick={() => onViewAll?.()}
-          className="text-sm font-semibold text-primary hover:underline shrink-0 py-1"
-        >
-          모두보기
-        </button>
+        {showViewAll ? (
+          <button
+            type="button"
+            onClick={() => onViewAll?.()}
+            className="text-sm font-semibold text-primary hover:underline shrink-0 py-1"
+          >
+            모두보기
+          </button>
+        ) : null}
       </div>
 
       {preview.length === 0 ? (
