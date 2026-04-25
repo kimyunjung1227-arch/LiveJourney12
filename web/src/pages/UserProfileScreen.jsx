@@ -27,6 +27,7 @@ import { fetchPostsByUserIdSupabase, fetchPostsSupabase } from '../api/postsSupa
 import { fetchProfilesByIdsSupabase } from '../api/profilesSupabase';
 import { getLiveSyncPercentRounded, setLiveSyncPercentCache } from '../utils/trustIndex';
 import api from '../api/axios';
+import { supabase } from '../utils/supabaseClient';
 import {
   resolveUserDisplayFromPosts,
   getCachedFollowProfile,
@@ -105,7 +106,7 @@ const UserProfileScreen = () => {
     setUserPosts([]);
     setEarnedBadges([]);
     setRepresentativeBadge(null);
-    setLiveSync(50);
+    setLiveSync(35);
 
     // 해당 사용자의 정보 찾기 (게시물에서)
     const uploadedPosts = getUploadedPostsSafe();
@@ -289,6 +290,30 @@ const UserProfileScreen = () => {
       setAvailableDates([]);
     };
   }, [userId, navigate, currentUser, location.key]);
+
+  // 다른 사용자 프로필도 profiles.live_sync_pct를 우선 노출 (게시물 로딩 전 기본값으로 보이는 현상 완화)
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('live_sync_pct,live_sync_updated_at')
+          .eq('id', String(userId))
+          .maybeSingle();
+        if (cancelled) return;
+        if (error) return;
+        const pct = Number(data?.live_sync_pct);
+        if (Number.isFinite(pct)) setLiveSync(Math.max(0, Math.min(100, Math.round(pct))));
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   // 팔로우 / 팔로워·팔로잉 수 로드 및 followsUpdated 구독
   useEffect(() => {

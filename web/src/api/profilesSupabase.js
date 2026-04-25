@@ -16,7 +16,7 @@ export const fetchProfilesByIdsSupabase = async (ids = []) => {
     if (list.length === 1) {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id,username,avatar_url,bio,updated_at')
+        .select('id,username,avatar_url,bio,updated_at,live_sync_pct,live_sync_updated_at')
         .eq('id', list[0])
         .maybeSingle();
       if (error) throw error;
@@ -25,7 +25,7 @@ export const fetchProfilesByIdsSupabase = async (ids = []) => {
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('id,username,avatar_url,bio,updated_at')
+      .select('id,username,avatar_url,bio,updated_at,live_sync_pct,live_sync_updated_at')
       .in('id', list);
     if (error) throw error;
     return Array.isArray(data) ? data : [];
@@ -41,7 +41,7 @@ export const fetchProfileByIdSupabase = async (id) => {
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id,username,avatar_url,bio,updated_at')
+      .select('id,username,avatar_url,bio,updated_at,live_sync_pct,live_sync_updated_at')
       .eq('id', uid)
       .maybeSingle();
     if (error) throw error;
