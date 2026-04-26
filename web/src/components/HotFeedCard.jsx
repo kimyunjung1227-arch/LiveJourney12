@@ -217,25 +217,33 @@ const HotFeedCard = ({
                     <div
                         style={{
                             display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'stretch',
-                            gap: 6,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 8,
                             marginTop: 6,
                             width: '100%',
                             minWidth: 0,
                         }}
                     >
-                        {displayTags.length > 0 ? (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, width: '100%', minWidth: 0 }}>
-                                {displayTags.map((tag) => (
-                                    <span key={`${post?.id || 'post'}-tag-${String(tag)}`} style={tagChipStyle}>
-                                        {String(tag)}
-                                    </span>
-                                ))}
-                            </div>
-                        ) : null}
+                        <div
+                            style={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: 4,
+                                flex: 1,
+                                minWidth: 0,
+                                alignItems: 'center',
+                            }}
+                        >
+                            {displayTags.map((tag) => (
+                                <span key={`${post?.id || 'post'}-tag-${String(tag)}`} style={tagChipStyle}>
+                                    {String(tag)}
+                                </span>
+                            ))}
+                        </div>
                         {hasWeather ? (
-                            <div style={{ ...weatherPillStyle, alignSelf: 'flex-end', width: 'fit-content' }}>
+                            <div style={{ ...weatherPillStyle, flexShrink: 0 }}>
                                 {weather?.icon && <span>{weather.icon}</span>}
                                 {weather?.temperature && <span>{weather.temperature}</span>}
                             </div>

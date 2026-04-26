@@ -5,7 +5,7 @@ import { uploadImage } from '../api/upload';
 import { createPostSupabase, getMergedMyPostsForStats, mapSupabasePostRowToPost } from '../api/postsSupabase';
 import { useAuth } from '../contexts/AuthContext';
 import { notifyBadge } from '../utils/notifications';
-import { checkNewBadges, awardBadge, hasSeenBadge, markBadgeAsSeen, calculateUserStats } from '../utils/badgeSystem';
+import { checkNewBadges, awardBadge, hasSeenBadge, markBadgeAsSeen, calculateUserStats, getBadgeDisplayName } from '../utils/badgeSystem';
 import { checkAndNotifyInterestPlace } from '../utils/interestPlaces';
 import { getPartitionedUploadTags, getRecommendedTags } from '../utils/aiImageAnalyzer';
 import { resolveDisplayLocationFromKakaoCoordResult } from '../utils/locationFromGeocode';
@@ -14,8 +14,6 @@ import { getBadgeCongratulationMessage, getBadgeDifficultyEffects } from '../uti
 import { logger } from '../utils/logger';
 import { useExifConsent } from '../contexts/ExifConsentContext';
 import { convertGpsToAddress, extractExifData, isExifCaptureTooOldForUpload } from '../utils/exifExtractor';
-import UploadGuideBody from '../components/UploadGuideBody';
-
 const UploadScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -23,7 +21,6 @@ const UploadScreen = () => {
   const { exifAllowed } = useExifConsent();
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [showUploadGuideModal, setShowUploadGuideModal] = useState(false);
   const [formData, setFormData] = useState({
     images: [],
     imageFiles: [],
@@ -778,13 +775,28 @@ const UploadScreen = () => {
           >
             <span className="material-symbols-outlined text-xl">arrow_back</span>
           </button>
-          <h1 className="flex-1 text-center text-lg font-bold" style={{ 
-            fontSize: '18px',
-            fontWeight: 700,
-            color: '#111827',
-            fontFamily: "'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-          }}>업로드: 여행 기록</h1>
-          <div className="w-10"></div>
+          <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-1">
+            <h1 className="truncate text-center text-lg font-bold" style={{ 
+              fontSize: '18px',
+              fontWeight: 700,
+              color: '#111827',
+              fontFamily: "'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+            }}>업로드: 여행 기록</h1>
+            <button
+              type="button"
+              onClick={() =>
+                navigate('/upload/guide', {
+                  state: { returnTo: `${location.pathname}${location.search || ''}` },
+                })
+              }
+              className="flex size-9 shrink-0 items-center justify-center rounded-full text-primary hover:bg-primary/10"
+              title="업로드 가이드"
+              aria-label="업로드 가이드 전체 화면으로 보기"
+            >
+              <span className="material-symbols-outlined text-[22px] leading-none">menu_book</span>
+            </button>
+          </div>
+          <div className="w-10 shrink-0" aria-hidden />
         </header>
 
         {/* 앱 컨텐츠 */}
@@ -797,43 +809,17 @@ const UploadScreen = () => {
         }}>
           <div className="space-y-3 bg-white px-0 pt-0 pb-2">
             {(formData.images.length === 0 && formData.videos.length === 0) ? (
-              <div className="relative w-full">
-                <button
-                  type="button"
-                  onClick={() => setShowPhotoOptions(true)}
-                  className="flex w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-subtle-light bg-white px-6 py-10 text-center transition-colors hover:border-primary dark:border-subtle-dark dark:bg-white"
-                >
-                  <span className="material-symbols-outlined text-4xl text-primary">add_circle</span>
-                  <p className="text-base font-bold">사진 또는 동영상 추가</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">최대 10개까지</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowUploadGuideModal(true);
-                  }}
-                  className="absolute right-2 top-2 z-20 flex size-10 items-center justify-center rounded-full bg-white/95 text-primary shadow-sm ring-1 ring-gray-200/80 hover:bg-primary/10 dark:bg-gray-900/95 dark:ring-gray-600"
-                  title="업로드 가이드"
-                  aria-label="업로드 가이드"
-                >
-                  <span className="material-symbols-outlined text-[22px] leading-none">menu_book</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowPhotoOptions(true)}
+                className="flex w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-subtle-light bg-white px-6 py-10 text-center transition-colors hover:border-primary dark:border-subtle-dark dark:bg-white"
+              >
+                <span className="material-symbols-outlined text-4xl text-primary">add_circle</span>
+                <p className="text-base font-bold">사진 또는 동영상 추가</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">최대 10개까지</p>
+              </button>
             ) : (
-              <div className="relative -mx-1">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowUploadGuideModal(true);
-                  }}
-                  className="absolute right-1 top-1 z-20 flex size-9 items-center justify-center rounded-full bg-white/95 text-primary shadow-sm ring-1 ring-gray-200/80 hover:bg-primary/10 dark:bg-gray-900/95 dark:ring-gray-600"
-                  title="업로드 가이드"
-                  aria-label="업로드 가이드"
-                >
-                  <span className="material-symbols-outlined text-[20px] leading-none">menu_book</span>
-                </button>
+              <div className="-mx-1">
                 <div 
                   className="flex gap-2 overflow-x-scroll overflow-y-hidden pb-2 px-1 snap-x snap-mandatory scroll-smooth cursor-grab active:cursor-grabbing select-none [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" 
                   style={{ 
@@ -1171,47 +1157,6 @@ const UploadScreen = () => {
           </div>
         )}
 
-        {showUploadGuideModal && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="upload-guide-modal-title"
-            className="absolute inset-0 z-[205] flex items-center justify-center bg-black/50 dark:bg-black/60 p-3"
-            style={{
-              paddingTop: 'max(12px, env(safe-area-inset-top, 0px))',
-              paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))',
-              paddingLeft: 'max(12px, env(safe-area-inset-left, 0px))',
-              paddingRight: 'max(12px, env(safe-area-inset-right, 0px))',
-            }}
-            onClick={() => setShowUploadGuideModal(false)}
-          >
-            <div
-              className="flex min-h-0 w-full max-w-[min(28rem,100%)] max-h-[min(85dvh,calc(100%-1.5rem))] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex shrink-0 items-center justify-between gap-2 border-b border-gray-200 px-3 py-2.5 dark:border-gray-700">
-                <h2
-                  id="upload-guide-modal-title"
-                  className="text-base font-bold text-gray-900 dark:text-gray-100"
-                >
-                  업로드 가이드
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setShowUploadGuideModal(false)}
-                  className="flex size-10 shrink-0 items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                  aria-label="닫기"
-                >
-                  <span className="material-symbols-outlined text-2xl">close</span>
-                </button>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
-                <UploadGuideBody />
-              </div>
-            </div>
-          </div>
-        )}
-
         {showSuccessModal && (
           <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/40 dark:bg-black/60 p-4">
             <div className="w-full max-w-sm transform flex-col rounded-xl bg-white dark:bg-[#221910] p-6 shadow-2xl transition-all">
@@ -1269,16 +1214,19 @@ const UploadScreen = () => {
               </h1>
               
               <p className="text-xl font-bold text-center text-primary mb-2">
-                {earnedBadge.name || earnedBadge}
+                {getBadgeDisplayName(earnedBadge) || earnedBadge?.name || ''}
               </p>
               
               <div className="flex items-center justify-center gap-3 mb-4">
                 <div className={`px-3 py-1 rounded-full text-sm font-bold ${
-                  earnedBadge.difficulty === '상' ? 'bg-primary-dark text-white' :
-                  earnedBadge.difficulty === '중' ? 'bg-blue-500 text-white' :
+                  earnedBadge.difficulty === '상' || earnedBadge.difficulty === 3 ? 'bg-primary-dark text-white' :
+                  earnedBadge.difficulty === '중' || earnedBadge.difficulty === 2 ? 'bg-blue-500 text-white' :
                   'bg-green-500 text-white'
                 }`}>
-                  난이도: {earnedBadge.difficulty || '하'}
+                  난이도:{' '}
+                  {typeof earnedBadge.difficulty === 'number'
+                    ? ['하', '중', '상'][Math.min(2, Math.max(0, earnedBadge.difficulty - 1))] || earnedBadge.difficulty
+                    : earnedBadge.difficulty || '하'}
                 </div>
               </div>
               

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { logger } from '../utils/logger';
+import { getBadgeDisplayName, getBadgeDisplayNameFromName } from '../utils/badgeSystem';
 
 const BadgeAchievementScreen = () => {
   const navigate = useNavigate();
@@ -58,6 +59,11 @@ const BadgeAchievementScreen = () => {
     };
   };
 
+  const rawKey = passedBadge?.name || badgeId || '로컬 전문가';
+  const displayTitle =
+    (passedBadge && (getBadgeDisplayName(passedBadge) || getBadgeDisplayNameFromName(rawKey))) ||
+    getBadgeDisplayNameFromName(rawKey) ||
+    rawKey;
   const badge = passedBadge ? getBadgeInfo(passedBadge.name) : getBadgeInfo(badgeId || '로컬 전문가');
 
   const handleExploreRelated = () => {
@@ -71,8 +77,8 @@ const BadgeAchievementScreen = () => {
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
-        title: `${badge.name} 뱃지 획득!`,
-        text: `LiveJourney에서 ${badge.name} 뱃지를 획득했습니다!`,
+        title: `${displayTitle} 뱃지 획득!`,
+        text: `LiveJourney에서 ${displayTitle} 뱃지를 획득했습니다!`,
         url: window.location.href
       }).catch((error) => logger.log('공유 실패:', error));
     } else {
@@ -103,7 +109,7 @@ const BadgeAchievementScreen = () => {
         <div className="flex justify-center mb-6">
           <div className="flex items-center justify-center bg-primary/10 rounded-full p-6 shadow-xl animate-pulse">
             <img
-              alt={`${badge.name} 뱃지 아이콘`}
+              alt={`${displayTitle} 뱃지 아이콘`}
               className="h-32 w-32 object-contain"
               src={badge.badgeIcon}
             />
@@ -117,7 +123,7 @@ const BadgeAchievementScreen = () => {
             뱃지 획득!
           </h1>
           <h2 className="text-primary text-2xl font-bold">
-            {badge.name}
+            {displayTitle}
           </h2>
         </div>
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
-import { getAvailableBadges, getEarnedBadges, calculateUserStats } from '../utils/badgeSystem';
+import { getAvailableBadges, getEarnedBadges, calculateUserStats, getBadgeDisplayName } from '../utils/badgeSystem';
 import LiveBadgeMedallion from '../components/LiveBadgeMedallion';
 
 const BadgeListScreen = () => {
@@ -518,7 +518,7 @@ const BadgeListScreen = () => {
                 {/* 뱃지 정보 */}
                 <div className="flex flex-col gap-1">
                   <p className={`text-sm font-bold leading-tight ${badge.isEarned ? 'text-primary' : 'text-gray-600 dark:text-gray-400'}`}>
-                    {badge.name}
+                    {getBadgeDisplayName(badge) || badge.name}
                   </p>
                   
                   {/* 난이도 */}
@@ -590,7 +590,7 @@ const BadgeListScreen = () => {
               
               {/* 뱃지 이름 */}
               <h2 className={`mt-4 text-xl font-bold ${selectedBadge.isEarned ? 'text-primary' : 'text-gray-700 dark:text-gray-300'}`}>
-                {selectedBadge.name}
+                {getBadgeDisplayName(selectedBadge) || selectedBadge.name}
               </h2>
               
               {/* 난이도 */}
