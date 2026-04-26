@@ -22,31 +22,27 @@ const RaffleGuideScreen = () => {
       </header>
 
       <main className="screen-content flex-1 overflow-y-auto px-4 pb-10 pt-4 bg-background-light dark:bg-background-dark">
-        <div className="mx-auto w-full max-w-[520px]">
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/80">
-            <div className="space-y-5 px-4 py-5">
-              {RAFFLE_GUIDE_ITEMS.map((g, idx) => (
-                <section key={g.id}>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">{g.title}</h2>
-                    {idx === 0 && (
-                      <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                        전체 안내
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-2 whitespace-pre-line text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-                    {g.body}
-                  </div>
-                </section>
-              ))}
-            </div>
-          </div>
+        <div className="mx-auto w-full max-w-[520px] space-y-5">
+          {RAFFLE_GUIDE_ITEMS.map((g, idx) => (
+            <section key={g.id}>
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">{g.title}</h2>
+                {idx === 0 && (
+                  <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                    전체 안내
+                  </span>
+                )}
+              </div>
+              <div className="mt-2 whitespace-pre-line text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+                {g.body}
+              </div>
+            </section>
+          ))}
 
           <button
             type="button"
             onClick={() => navigate('/raffle')}
-            className="mt-6 w-full rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-primary-dark"
+            className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-primary-dark"
           >
             래플 화면으로
           </button>
