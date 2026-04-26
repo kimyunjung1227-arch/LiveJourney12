@@ -1,16 +1,14 @@
 ﻿import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
-import { createPost } from '../api/posts';
 import { uploadImage } from '../api/upload';
+import { createPostSupabase, getMergedMyPostsForStats, mapSupabasePostRowToPost } from '../api/postsSupabase';
 import { useAuth } from '../contexts/AuthContext';
 import { notifyBadge } from '../utils/notifications';
-import { safeSetItem, logLocalStorageStatus } from '../utils/localStorageManager';
 import { checkNewBadges, awardBadge, hasSeenBadge, markBadgeAsSeen, calculateUserStats } from '../utils/badgeSystem';
 import { checkAndNotifyInterestPlace } from '../utils/interestPlaces';
 import { getPartitionedUploadTags, getRecommendedTags } from '../utils/aiImageAnalyzer';
 import { resolveDisplayLocationFromKakaoCoordResult } from '../utils/locationFromGeocode';
-import { getCurrentTimestamp, getTimeAgo } from '../utils/timeUtils';
 import { gainExp } from '../utils/levelSystem';
 import { getBadgeCongratulationMessage, getBadgeDifficultyEffects } from '../utils/badgeMessages';
 import { logger } from '../utils/logger';
@@ -410,20 +408,26 @@ const UploadScreen = () => {
     }
   }, [formData.tags]);
 
-  const checkAndAwardBadge = useCallback(() => {
+  const checkAndAwardBadge = useCallback(async () => {
     logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     logger.log('🏆 뱃지 체크 및 획득 시작');
     logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
     try {
-      // 사용자 통계 계산
-      const uploadedPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
       const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
       const currentUser = user || savedUser;
-      const currentUserId = currentUser?.id || savedUser?.id || 'test_user_001';
-      
-      // 내 게시물만 필터링
-      const myPosts = uploadedPosts.filter(p => p.userId === currentUserId);
+      const currentUserId = currentUser?.id || savedUser?.id || null;
+      const uid = currentUserId != null ? String(currentUserId).trim() : '';
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uid);
+
+      let myPosts = [];
+      if (isUuid) {
+        try {
+          myPosts = await getMergedMyPostsForStats(uid);
+        } catch (e) {
+          logger.warn('Supabase 내 게시물 조회 실패(뱃지 통계):', e?.message);
+        }
+      }
       
       logger.log(`📊 사용자 통계 계산 중... (총 ${myPosts.length}개 게시물)`);
       
@@ -485,7 +489,7 @@ const UploadScreen = () => {
       logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       return false;
     }
-  }, []);
+  }, [user]);
 
   const handleSubmit = useCallback(async () => {
     logger.log('Upload started!');
@@ -503,6 +507,7 @@ const UploadScreen = () => {
     }
 
     if (!String(formData.note || '').trim()) {
+      alert('이 순간의 이야기를 입력해 주세요.');
       return;
     }
 
@@ -549,11 +554,9 @@ const UploadScreen = () => {
               uploadedImageUrls.push(uploadResult.url);
             }
           } catch (uploadError) {
-            uploadedImageUrls.push(formData.images[i]);
+            logger.warn('이미지 업로드 실패:', uploadError?.message || uploadError);
           }
         }
-      } else {
-        uploadedImageUrls.push(...formData.images);
       }
       
       // 동영상 업로드 (동일한 uploadImage 함수 사용, 백엔드에서 처리)
@@ -569,358 +572,133 @@ const UploadScreen = () => {
               uploadedVideoUrls.push(uploadResult.url);
             }
           } catch (uploadError) {
-            uploadedVideoUrls.push(formData.videos[i]);
+            logger.warn('동영상 업로드 실패:', uploadError?.message || uploadError);
           }
         }
-      } else {
-        uploadedVideoUrls.push(...formData.videos);
       }
       
       setUploadProgress(60);
-      
-      const lat = Number(formData.coordinates?.lat);
-      const lng = Number(formData.coordinates?.lng);
-      const postData = {
-        images: uploadedImageUrls.length > 0 ? uploadedImageUrls : formData.images,
-        videos: uploadedVideoUrls.length > 0 ? uploadedVideoUrls : formData.videos,
-        content: formData.note || `${formData.location}에서의 여행 기록`,
-        location: {
-          name: formData.location,
-          lat: Number.isFinite(lat) ? lat : 37.5665,
-          lon: Number.isFinite(lng) ? lng : 126.9780,
-          region: formData.location?.split(/\s+/)[0] || '지역',
-          country: '대한민국'
-        },
-        tags: formData.tags.map(tag => tag.replace('#', '')),
-        isRealtime: true
-      };
-      
-      setUploadProgress(80);
-      
-      try {
-        const result = await createPost(postData);
-        
-        if (result.success) {
-          // 백엔드 업로드 성공 시에도 localStorage에 저장 (뱃지 시스템을 위해)
-          const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
-          const currentUser = user || savedUser;
-          const username = currentUser?.username || currentUser?.email?.split('@')[0] || '모사모';
-          const currentUserId = currentUser?.id || savedUser?.id || 'test_user_001';
-          
-          const backendPost = result.post || result.data;
-          
-          // 이미지 URL 확인 및 설정
-          const finalImages = uploadedImageUrls.length > 0 
-            ? uploadedImageUrls 
-            : (formData.images && formData.images.length > 0 ? formData.images : []);
-          const finalVideos = uploadedVideoUrls.length > 0 
-            ? uploadedVideoUrls 
-            : (formData.videos && formData.videos.length > 0 ? formData.videos : []);
-          
-          logger.log('📸 최종 이미지/동영상 (백엔드):', {
-            images: finalImages.length,
-            videos: finalVideos.length,
-            imageUrls: finalImages,
-            videoUrls: finalVideos
-          });
-          
-          if (finalImages.length === 0 && finalVideos.length === 0) {
-            logger.error('❌ 이미지 또는 동영상이 없습니다!');
-            alert('이미지 또는 동영상이 업로드되지 않았습니다');
-            setUploading(false);
-            setUploadProgress(0);
-            return;
-          }
-          
-          // 지역 정보 추출 (첫 번째 단어를 지역으로 사용)
-          const region = formData.location?.split(' ')[0] || '기타';
-          
-          const uploadedPost = {
-            id: backendPost?._id || backendPost?.id || `backend-${Date.now()}`,
-            userId: currentUserId,
-            images: finalImages,
-            videos: finalVideos,
-            location: formData.location,
-            tags: formData.tags,
-            note: formData.note,
-            timestamp: backendPost?.createdAt || getCurrentTimestamp(),
-            createdAt: backendPost?.createdAt || getCurrentTimestamp(),
-            timeLabel: getTimeAgo(new Date(backendPost?.createdAt || Date.now())),
-            user: username,
-            likes: backendPost?.likesCount || 0,
-            isNew: true,
-            isLocal: false,
-            category: aiCategory,
-            categoryName: aiCategoryName,
-            aiLabels: aiLabels,
-            coordinates: formData.coordinates,
-            detailedLocation: formData.location,
-            placeName: formData.location,
-            region: region, // 지역 정보 추가
-            // EXIF 기반 촬영 정보/위치 인증(현장LIVE/최근인증 태그 계산에 사용)
-            photoDate: formData?.exifData?.photoDate || null,
-            exifData: formData?.exifData || null,
-            verifiedLocation: formData?.verifiedLocation || null,
-          };
-          
-          // localStorage에는 이미지를 저장하지 않음 (용량 문제)
-          // 메타데이터만 저장하고, 이미지는 서버에서 불러옴
-          const sanitizedPost = {
-            ...uploadedPost,
-            images: [], // localStorage에는 이미지 저장 안 함
-            videos: [], // localStorage에는 비디오 저장 안 함
-            // 이미지 개수만 저장 (표시용)
-            imageCount: finalImages.length,
-            videoCount: finalVideos.length,
-            // 첫 번째 이미지 썸네일만 저장 (서버 URL이 있는 경우)
-            thumbnail: (() => {
-              const u = finalImages[0] || finalVideos[0];
-              if (typeof u !== 'string' || !u.trim()) return null;
-              if (/^https?:\/\//i.test(u)) return u;
-              if (/^(uploads\/|videos\/)/i.test(u)) return u;
-              return null;
-            })()
-          };
-          
-          console.log('💾 localStorage 저장 (이미지 제외):', {
-            게시물ID: sanitizedPost.id,
-            이미지수: sanitizedPost.imageCount,
-            비디오수: sanitizedPost.videoCount,
-            썸네일: sanitizedPost.thumbnail ? '있음' : '없음'
-          });
-          
-          const existingPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-          const updatedPosts = [sanitizedPost, ...existingPosts];
-          
-          // JSON 문자열 크기 확인
-          const jsonString = JSON.stringify(updatedPosts);
-          const jsonSizeMB = (jsonString.length / (1024 * 1024)).toFixed(2);
-          console.log(`📊 저장할 데이터 크기: ${jsonSizeMB} MB (이미지 제외)`);
-          
-          const saveResult = safeSetItem('uploadedPosts', jsonString);
-          
-          if (!saveResult.success) {
-            console.error('❌ localStorage 저장 실패:', saveResult);
-            console.log('💡 게시물은 서버에 업로드되었습니다.');
-          } else {
-            logger.log('✅ 백엔드 업로드 성공 및 localStorage 저장 완료:', {
-              저장된게시물수: updatedPosts.length,
-              새게시물ID: sanitizedPost.id,
-              이미지수: sanitizedPost.imageCount,
-              비디오수: sanitizedPost.videoCount
-            });
-          }
 
-          setUploadProgress(100);
-          setShowSuccessModal(true);
-          
-          logger.log('Backend upload success! Checking badges...');
-          
-          // 관심 지역/장소 알림 발송
-          setTimeout(async () => {
-            logger.log('🔔 관심 지역/장소 알림 체크 중...');
-            await checkAndNotifyInterestPlace(uploadedPost);
-          }, 200);
-          
-          // 게시물 업데이트 이벤트 발생 (localStorage 저장 후)
-          setTimeout(() => {
-            logger.log('📢 게시물 업데이트 이벤트 발생 (백엔드)');
-            window.dispatchEvent(new Event('newPostsAdded'));
-            window.dispatchEvent(new Event('postsUpdated'));
-            logger.log('✅ 이벤트 전송 완료');
-          }, 100); // 50ms -> 100ms로 증가하여 저장 완료 대기
-          
-          // 데이터 저장 완료 후 뱃지 체크 (더 긴 지연 시간)
-          setTimeout(() => {
-            logger.debug('Badge check timer running');
-            
-            // localStorage 저장 확인
-            const verifyPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-            const verifyPost = verifyPosts.find(p => p.id === uploadedPost.id);
-            logger.debug('🔍 저장 확인 (백엔드):', {
-              저장된게시물수: verifyPosts.length,
-              새게시물존재: !!verifyPost,
-              새게시물이미지: verifyPost?.images?.length || 0
-            });
-            
-            // 사진 업로드 시 레벨 상승 (실제 업로드만)
-            const expResult = gainExp('사진 업로드');
-            if (expResult.levelUp) {
-              logger.log(`Level up! Lv.${expResult.newLevel}`);
-              window.dispatchEvent(new CustomEvent('levelUp', { 
-                detail: { 
-                  newLevel: expResult.newLevel
-                } 
-              }));
-            }
-            
-            logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            logger.log('🏆 뱃지 체크 시작');
-            const earnedBadge = checkAndAwardBadge();
-            logger.debug('Badge earned result:', earnedBadge);
-            logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            
-            // 뱃지 진행률 업데이트 이벤트 발생
-            window.dispatchEvent(new Event('badgeProgressUpdated'));
-            
-            if (!earnedBadge) {
-              logger.debug('Navigate to main in 2 seconds...');
-              setTimeout(() => {
-                setShowSuccessModal(false);
-                navigate('/main');
-              }, 2000);
-            } else {
-              logger.log('Badge earned! Showing badge modal...');
-            }
-          }, 1000); // 500ms -> 1000ms로 증가하여 데이터 저장 완료 대기
-        }
-      } catch (postError) {
-        logger.warn('Backend API failed - using localStorage');
-        
-        const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
-        const currentUser = user || savedUser;
-        const username = currentUser?.username || currentUser?.email?.split('@')[0] || '모사모';
-        const currentUserId = currentUser?.id || savedUser?.id || 'test_user_001';
-        
-        logger.log('📸 게시물 저장 정보:', {
-          userId: currentUserId,
-          username: username,
-          images: uploadedImageUrls.length > 0 ? uploadedImageUrls.length : formData.images.length,
-          location: formData.location
-        });
-        
-        // 이미지 URL 확인 및 설정
-        const finalImages = uploadedImageUrls.length > 0 
-          ? uploadedImageUrls 
-          : (formData.images && formData.images.length > 0 ? formData.images : []);
-        const finalVideos = uploadedVideoUrls.length > 0 
-          ? uploadedVideoUrls 
-          : (formData.videos && formData.videos.length > 0 ? formData.videos : []);
-        
-        logger.log('📸 최종 이미지/동영상:', {
-          images: finalImages.length,
-          videos: finalVideos.length,
-          imageUrls: finalImages,
-          videoUrls: finalVideos
-        });
-        
-        if (finalImages.length === 0 && finalVideos.length === 0) {
-          logger.error('❌ 이미지 또는 동영상이 없습니다!');
-          alert('이미지 또는 동영상을 추가해주세요');
-          setUploading(false);
-          setUploadProgress(0);
-          return;
-        }
-        
-        // 지역 정보 추출 (첫 번째 단어를 지역으로 사용)
-        const region = formData.location?.split(' ')[0] || '기타';
-        
-        const uploadedPost = {
-          id: `local-${Date.now()}`,
-          userId: currentUserId,
-          images: finalImages,
-          videos: finalVideos,
-          location: formData.location,
-          tags: formData.tags,
-          note: formData.note,
-          timestamp: getCurrentTimestamp(),
-          createdAt: getCurrentTimestamp(),
-          timeLabel: getTimeAgo(new Date()),
-          user: username,
-          likes: 0,
-          isNew: true,
-          isLocal: true,
-          category: aiCategory,
-          categoryName: aiCategoryName,
-          aiLabels: aiLabels,
-          coordinates: formData.coordinates,
-          detailedLocation: formData.location,
-          placeName: formData.location,
-          region: region // 지역 정보 추가
-        };
-        
-        logLocalStorageStatus();
-        
-        const existingPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-        const updatedPosts = [uploadedPost, ...existingPosts];
-        const saveResult = safeSetItem('uploadedPosts', JSON.stringify(updatedPosts));
-        
-        if (!saveResult.success) {
-          logger.error('localStorage save failed:', saveResult.message);
-          throw new Error(saveResult.message || 'localStorage save failed');
-        }
-        
-        logger.log('✅ 게시물 저장 완료:', {
-          저장된게시물수: updatedPosts.length,
-          새게시물ID: uploadedPost.id,
-          새게시물userId: uploadedPost.userId
-        });
-        
-        // 게시물 업데이트 이벤트 발생 (뱃지 진행률 업데이트를 위해)
-        // localStorage 저장 후 이벤트 발생
-        setTimeout(() => {
-          logger.log('📢 게시물 업데이트 이벤트 발생 (localStorage)');
-          window.dispatchEvent(new Event('newPostsAdded'));
-          window.dispatchEvent(new Event('postsUpdated'));
-          logger.log('✅ 이벤트 전송 완료');
-        }, 100); // 50ms -> 100ms로 증가하여 저장 완료 대기
-        
-        setUploadProgress(100);
-        setShowSuccessModal(true);
-        
-        logger.log('Upload success! Checking badges & titles...');
-        
-        // 관심 지역/장소 알림 발송
-        setTimeout(async () => {
-          logger.log('🔔 관심 지역/장소 알림 체크 중...');
-          await checkAndNotifyInterestPlace(uploadedPost);
-        }, 200);
-        
-        // 데이터 저장 완료 후 뱃지 체크 (더 긴 지연 시간)
-        setTimeout(() => {
+      const toHttpsPersistent = (u) => {
+        if (typeof u !== 'string' || !u.trim()) return null;
+        let t = u.trim();
+        if (t.startsWith('http://') && /\.supabase\.co/i.test(t)) t = t.replace(/^http:/i, 'https:');
+        return t.startsWith('https://') ? t : null;
+      };
+
+      const finalImages = uploadedImageUrls.map(toHttpsPersistent).filter(Boolean);
+      const finalVideos = uploadedVideoUrls.map(toHttpsPersistent).filter(Boolean);
+
+      logger.log('📸 업로드된 미디어 URL(Supabase https만 DB 저장):', {
+        images: finalImages.length,
+        videos: finalVideos.length,
+      });
+
+      if (finalImages.length === 0 && finalVideos.length === 0) {
+        alert(
+          '미디어가 서버에 올라가지 않았습니다. Supabase Storage·환경 변수·로그인을 확인해 주세요.\n(https 주소만 저장됩니다)'
+        );
+        setUploading(false);
+        setUploadProgress(0);
+        return;
+      }
+
+      setUploadProgress(78);
+
+      const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const currentUser = user || savedUser;
+      const username = currentUser?.username || currentUser?.email?.split('@')[0] || '모사모';
+      const rawId = currentUser?.id || savedUser?.id || null;
+      const uid = rawId != null ? String(rawId).trim() : '';
+      const userIdForDb = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uid) ? uid : null;
+
+      const region = formData.location?.split(/\s+/)[0] || '기타';
+
+      const supResult = await createPostSupabase({
+        userId: userIdForDb,
+        user:
+          userIdForDb && currentUser && typeof currentUser === 'object'
+            ? {
+                id: userIdForDb,
+                username,
+                profileImage: currentUser.profileImage || currentUser.avatar_url || null,
+              }
+            : { username },
+        note: formData.note,
+        content: formData.note,
+        images: finalImages,
+        videos: finalVideos,
+        location: formData.location,
+        detailedLocation: formData.location,
+        placeName: formData.location,
+        region,
+        tags: formData.tags,
+        category: aiCategory,
+        categoryName: aiCategoryName,
+        likes: 0,
+        coordinates: formData.coordinates,
+        photoDate: formData?.exifData?.photoDate || null,
+        exifData: formData?.exifData || null,
+        createdAt: new Date().toISOString(),
+        comments: [],
+      });
+
+      if (!supResult.success || !supResult.post) {
+        const hint = supResult.hint || supResult.error || '알 수 없는 오류';
+        logger.error('Supabase 게시물 저장 실패:', supResult);
+        alert(`게시물을 저장하지 못했습니다.\n${typeof hint === 'string' ? hint : ''}`);
+        setUploading(false);
+        setUploadProgress(0);
+        return;
+      }
+
+      const uploadedPost = mapSupabasePostRowToPost(supResult.post);
+
+      setUploadProgress(100);
+      setShowSuccessModal(true);
+
+      logger.log('Supabase 게시물 저장 완료:', uploadedPost.id);
+
+      setTimeout(async () => {
+        logger.log('🔔 관심 지역/장소 알림 체크 중...');
+        await checkAndNotifyInterestPlace(uploadedPost);
+      }, 200);
+
+      setTimeout(() => {
+        logger.log('📢 게시물 업데이트 이벤트 (Supabase)');
+        window.dispatchEvent(new Event('newPostsAdded'));
+        window.dispatchEvent(new Event('postsUpdated'));
+      }, 100);
+
+      setTimeout(() => {
+        void (async () => {
           logger.debug('Badge check timer running');
-          
-          // localStorage 저장 확인
-          const verifyPosts = JSON.parse(localStorage.getItem('uploadedPosts') || '[]');
-          const verifyPost = verifyPosts.find(p => p.id === uploadedPost.id);
-          logger.debug('🔍 저장 확인:', {
-            저장된게시물수: verifyPosts.length,
-            새게시물존재: !!verifyPost,
-            새게시물이미지: verifyPost?.images?.length || 0
-          });
-          
-          // 사진 업로드 시 레벨 상승 (실제 업로드만)
           const expResult = gainExp('사진 업로드');
           if (expResult.levelUp) {
             logger.log(`Level up! Lv.${expResult.newLevel}`);
-            window.dispatchEvent(new CustomEvent('levelUp', { 
-              detail: { 
-                newLevel: expResult.newLevel
-              } 
-            }));
+            window.dispatchEvent(
+              new CustomEvent('levelUp', {
+                detail: { newLevel: expResult.newLevel },
+              })
+            );
           }
-          
           logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           logger.log('🏆 뱃지 체크 시작');
-          const earnedBadge = checkAndAwardBadge();
+          const earnedBadge = await checkAndAwardBadge();
           logger.debug('Badge earned result:', earnedBadge);
           logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-          
-          // 뱃지 진행률 업데이트 이벤트 발생
           window.dispatchEvent(new Event('badgeProgressUpdated'));
-          
-            // 뱃지가 없으면 메인으로 이동
-            if (!earnedBadge) {
+          if (!earnedBadge) {
             logger.debug('Navigate to main in 2 seconds...');
             setTimeout(() => {
               setShowSuccessModal(false);
               navigate('/main');
             }, 2000);
           } else {
-            logger.log('Badge or Title earned! Showing modal...');
+            logger.log('Badge earned! Showing badge modal...');
           }
-        }, 500);
-      }
+        })();
+      }, 800);
     } catch (error) {
       logger.error('Upload failed:', error);
       alert('업로드에 실패했습니다. 다시 시도해주세요');

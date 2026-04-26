@@ -265,8 +265,8 @@ export const fetchLikedPostIdsSupabase = async (postIds, userId) => {
   }
 };
 
-// Supabase에서 단일 게시물 조회 (상세 화면 진입 시 최신 좋아요·미디어 반영용)
-const mapRowToPost = (row, opts = {}) => {
+/** Supabase `posts` 행 → 앱 공통 post 객체 */
+export const mapSupabasePostRowToPost = (row, opts = {}) => {
   if (!row) return null;
   const uid = row.user_id;
   const userObj =
@@ -341,7 +341,7 @@ export const fetchPostByIdSupabase = async (postId, currentUserId = null) => {
       .single();
     if (error || !data) return null;
     const likedSet = await fetchLikedPostIdsSupabase([trimmed], currentUserId);
-    const mapped = mapRowToPost(data, { likedByMe: likedSet.has(trimmed) });
+    const mapped = mapSupabasePostRowToPost(data, { likedByMe: likedSet.has(trimmed) });
     const liveComments = await fetchCommentsForPostSupabase(trimmed);
     const fromTable = Array.isArray(liveComments) && liveComments.length > 0
       ? liveComments.map((c) => ({
@@ -400,7 +400,7 @@ export const fetchPostsByUserIdSupabase = async (userId, currentUserId = null) =
 
     const ids = data.map((r) => r.id).filter(Boolean);
     const likedSet = await fetchLikedPostIdsSupabase(ids, currentUserId);
-    return data.map((r) => mapRowToPost(r, { likedByMe: likedSet.has(String(r.id)) })).filter(Boolean);
+    return data.map((r) => mapSupabasePostRowToPost(r, { likedByMe: likedSet.has(String(r.id)) })).filter(Boolean);
   } catch (error) {
     logger.warn('Supabase fetchPostsByUserId 실패:', error?.message);
     return [];
@@ -426,7 +426,7 @@ export const fetchPostsSupabase = async (currentUserId = null) => {
 
     const ids = data.map((r) => r.id).filter(Boolean);
     const likedSet = await fetchLikedPostIdsSupabase(ids, currentUserId);
-    return data.map((r) => mapRowToPost(r, { likedByMe: likedSet.has(String(r.id)) })).filter(Boolean);
+    return data.map((r) => mapSupabasePostRowToPost(r, { likedByMe: likedSet.has(String(r.id)) })).filter(Boolean);
   } catch (error) {
     logger.warn('Supabase fetchPosts 실패:', error);
     return [];
