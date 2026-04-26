@@ -1,6 +1,14 @@
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
-import { seoulTodayMidnight, computeEndsAt, formatDaysLeftKorean } from '../utils/raffleSchedule';
+import {
+  seoulTodayMidnight,
+  computeEndsAt,
+  computeEndsAtFromNow,
+  formatDaysLeftKorean,
+} from '../utils/raffleSchedule';
+
+export const RAFFLE_START_MIDNIGHT = 'midnight';
+export const RAFFLE_START_IMMEDIATE = 'immediate';
 
 const sortRows = (rows) =>
   [...(rows || [])].sort((a, b) => {
@@ -97,8 +105,8 @@ export const createRaffle = async (payload) => {
   }
 };
 
-/** 진행 예정 → 진행 중: 서울 당일 00시 시작, N일차 00시 종료 */
-export const startScheduledRaffle = async (id) => {
+/** 진행 예정 → 진행 중. startMode: midnight=서울 0시 기준, immediate=지금부터 N×24시간 */
+export const startScheduledRaffle = async (id, startMode = RAFFLE_START_MIDNIGHT) => {
   try {
     const { data: row, error: fetchErr } = await supabase.from('raffles').select('*').eq('id', id).maybeSingle();
     if (fetchErr) throw fetchErr;
@@ -106,8 +114,10 @@ export const startScheduledRaffle = async (id) => {
       return { success: false, error: '진행 예정 래플만 시작할 수 있습니다.' };
     }
     const duration = Math.max(1, Math.floor(Number(row.duration_days)) || 7);
-    const starts_at = seoulTodayMidnight();
-    const ends_at = computeEndsAt(starts_at, duration);
+    const mode = startMode === RAFFLE_START_IMMEDIATE ? RAFFLE_START_IMMEDIATE : RAFFLE_START_MIDNIGHT;
+    const starts_at = mode === RAFFLE_START_IMMEDIATE ? new Date() : seoulTodayMidnight();
+    const ends_at =
+      mode === RAFFLE_START_IMMEDIATE ? computeEndsAtFromNow(starts_at, duration) : computeEndsAt(starts_at, duration);
     const days_left = formatDaysLeftKorean(ends_at);
 
     const { data, error } = await supabase
@@ -126,6 +136,39 @@ export const startScheduledRaffle = async (id) => {
   } catch (e) {
     logger.error('startScheduledRaffle 실패:', e?.message);
     return { success: false, error: e?.message || '시작 처리에 실패했습니다.' };
+  }
+};
+
+/** 진행 중 → 완료(관리자 즉시 종료) */
+export const completeRaffleNow = async (id) => {
+  try {
+    const { data: row, error: fetchErr } = await supabase.from('raffles').select('*').eq('id', id).maybeSingle();
+    if (fetchErr) throw fetchErr;
+    if (!row || row.kind !== 'ongoing') {
+      return { success: false, error: '진행 중인 래플만 종료할 수 있습니다.' };
+    }
+    const category = (row.category && String(row.category).trim()) || '래플 종료';
+    const status_message =
+      (row.status_message && String(row.status_message).trim()) || '관리자에 의해 조기 종료되었습니다.';
+    const badge = (row.badge && String(row.badge).trim()) || '미응모';
+
+    const { data, error } = await supabase
+      .from('raffles')
+      .update({
+        kind: 'completed',
+        days_left: null,
+        category,
+        status_message,
+        badge,
+      })
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return { success: true, raffle: data };
+  } catch (e) {
+    logger.error('completeRaffleNow 실패:', e?.message);
+    return { success: false, error: e?.message || '종료 처리에 실패했습니다.' };
   }
 };
 

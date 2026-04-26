@@ -23,6 +23,15 @@ export function computeEndsAt(startsAt, durationDays) {
   return new Date(startsAt.getTime() + (n - 1) * 24 * 60 * 60 * 1000);
 }
 
+/**
+ * 지금 시작: 시작 시각부터 정확히 N×24시간 후 종료(달력 00시 기준이 아님).
+ * @param {Date} startsAt
+ */
+export function computeEndsAtFromNow(startsAt, durationDays) {
+  const n = Math.max(1, Math.floor(Number(durationDays)) || 7);
+  return new Date(startsAt.getTime() + n * 24 * 60 * 60 * 1000);
+}
+
 /** @param {string|Date} endsAt */
 export function formatDaysLeftKorean(endsAt) {
   const end = endsAt instanceof Date ? endsAt : new Date(endsAt);

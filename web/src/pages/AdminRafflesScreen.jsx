@@ -1,6 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchRaffles, createRaffle, updateRaffle, deleteRaffle, startScheduledRaffle } from '../api/rafflesSupabase';
+import {
+  fetchRaffles,
+  createRaffle,
+  updateRaffle,
+  deleteRaffle,
+  startScheduledRaffle,
+  completeRaffleNow,
+  RAFFLE_START_MIDNIGHT,
+  RAFFLE_START_IMMEDIATE,
+} from '../api/rafflesSupabase';
 import { formatDaysLeftKorean } from '../utils/raffleSchedule';
 
 const BADGE_OPTIONS = ['당첨', '미당첨', '미응모'];
@@ -27,6 +36,8 @@ const AdminRafflesScreen = () => {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [startingId, setStartingId] = useState(null);
+  const [startPickId, setStartPickId] = useState(null);
+  const [endingId, setEndingId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState({ id: null });
 
   const load = useCallback(async () => {
@@ -149,22 +160,43 @@ const AdminRafflesScreen = () => {
     }
   };
 
-  const handleStartRaffle = async (id) => {
+  const openStartPicker = (id) => {
     if (!id) return;
-    const ok = window.confirm(
-      '이 래플을 지금 시작할까요?\n서울 기준 오늘 0시를 1일차 시작으로 잡고, 설정한 일수만큼 N일차 0시에 종료됩니다.'
-    );
-    if (!ok) return;
+    setStartPickId(id);
+  };
+
+  const closeStartPicker = () => setStartPickId(null);
+
+  const runStartWithMode = async (id, mode) => {
+    if (!id) return;
     setStartingId(id);
     try {
-      const res = await startScheduledRaffle(id);
+      const res = await startScheduledRaffle(id, mode);
       if (res.success) {
+        closeStartPicker();
         await load();
       } else {
         alert(res.error || '시작에 실패했습니다.');
       }
     } finally {
       setStartingId(null);
+    }
+  };
+
+  const handleEndRaffle = async (id) => {
+    if (!id) return;
+    const ok = window.confirm('이 래플을 지금 완료(종료) 처리할까요? 완료된 래플 목록으로 옮겨집니다.');
+    if (!ok) return;
+    setEndingId(id);
+    try {
+      const res = await completeRaffleNow(id);
+      if (res.success) {
+        await load();
+      } else {
+        alert(res.error || '종료에 실패했습니다.');
+      }
+    } finally {
+      setEndingId(null);
     }
   };
 
@@ -186,7 +218,7 @@ const AdminRafflesScreen = () => {
     return '';
   };
 
-  const renderList = (list, { showStart } = {}) => (
+  const renderList = (list, { showStart, showEnd } = {}) => (
     <ul className="space-y-2">
       {list.map((r) => {
         const daysLine = displayDaysLabel(r);
@@ -209,11 +241,21 @@ const AdminRafflesScreen = () => {
               {showStart && (
                 <button
                   type="button"
-                  disabled={startingId === r.id}
-                  onClick={() => handleStartRaffle(r.id)}
+                  disabled={startingId === r.id || Boolean(startPickId)}
+                  onClick={() => openStartPicker(r.id)}
                   className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
                 >
-                  {startingId === r.id ? '시작 중…' : '래플 시작'}
+                  래플 시작
+                </button>
+              )}
+              {showEnd && (
+                <button
+                  type="button"
+                  disabled={endingId === r.id}
+                  onClick={() => handleEndRaffle(r.id)}
+                  className="rounded-lg border border-amber-600/80 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-950/60"
+                >
+                  {endingId === r.id ? '종료 중…' : '래플 종료'}
                 </button>
               )}
               <button
@@ -255,8 +297,10 @@ const AdminRafflesScreen = () => {
 
       <main className="space-y-8 p-4 pb-28">
         <p className="text-[13px] leading-relaxed text-gray-600 dark:text-gray-400">
-          진행 예정만 여기서 등록한 뒤, 목록에서 <strong className="text-gray-800 dark:text-gray-200">래플 시작</strong>을 누르면
-          진행 중으로 바뀝니다. 기간이 끝나면 자동으로 완료 목록으로 이동합니다. RLS 오류 시 Supabase SQL에{' '}
+          진행 예정만 등록한 뒤 <strong className="text-gray-800 dark:text-gray-200">래플 시작</strong>에서{' '}
+          <strong className="text-gray-800 dark:text-gray-200">지금 시작</strong>(N×24시간) 또는{' '}
+          <strong className="text-gray-800 dark:text-gray-200">00시 시작</strong>(서울 달력 1일차 0시~N일차 0시)을 고를 수 있습니다.
+          진행 중에는 <strong className="text-gray-800 dark:text-gray-200">래플 종료</strong>로 조기 완료할 수 있고, 기간이 끝나면 자동으로 완료됩니다. RLS 오류 시 Supabase SQL에{' '}
           <code className="rounded bg-gray-200 px-1 text-[12px] dark:bg-gray-700">20260426120000_raffles_schedule_rls.sql</code>{' '}
           을 적용하고, <code className="rounded bg-gray-200 px-1 text-[12px] dark:bg-gray-700">admin_users</code>에 본인{' '}
           <code className="rounded bg-gray-200 px-1 text-[12px] dark:bg-gray-700">user_id</code>를 넣어 주세요.
@@ -295,7 +339,7 @@ const AdminRafflesScreen = () => {
                   진행 중인 래플이 없습니다. 진행 예정에서 래플 시작을 눌러 주세요.
                 </p>
               ) : (
-                renderList(ongoing, { showStart: false })
+                renderList(ongoing, { showStart: false, showEnd: true })
               )}
             </section>
 
@@ -464,6 +508,48 @@ const AdminRafflesScreen = () => {
                 className={`flex-1 rounded-full py-2.5 text-[13px] font-semibold text-white ${submitting ? 'bg-gray-400' : 'bg-primary hover:bg-primary-dark'}`}
               >
                 {submitting ? '저장 중...' : '저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {startPickId && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-[360px] rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900">
+            <h3 className="m-0 text-[16px] font-extrabold text-gray-900 dark:text-gray-50">시작 방식 선택</h3>
+            <p className="mt-2 text-[13px] leading-relaxed text-gray-600 dark:text-gray-300">
+              <span className="font-semibold text-gray-800 dark:text-gray-200">지금 시작</span>: 이 순간부터 설정한 일수만큼
+              정확히 N×24시간 후 종료합니다.
+              <br />
+              <br />
+              <span className="font-semibold text-gray-800 dark:text-gray-200">00시 시작</span>: 서울 기준 오늘 0시를 1일차로
+              잡고, N일차 0시에 종료합니다.
+            </p>
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                disabled={startingId === startPickId}
+                onClick={() => runStartWithMode(startPickId, RAFFLE_START_IMMEDIATE)}
+                className="w-full rounded-xl bg-emerald-600 py-3 text-[13px] font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {startingId === startPickId ? '처리 중…' : '지금 시작'}
+              </button>
+              <button
+                type="button"
+                disabled={startingId === startPickId}
+                onClick={() => runStartWithMode(startPickId, RAFFLE_START_MIDNIGHT)}
+                className="w-full rounded-xl border border-gray-300 bg-white py-3 text-[13px] font-bold text-gray-900 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-800"
+              >
+                00시 시작 (서울)
+              </button>
+              <button
+                type="button"
+                disabled={startingId === startPickId}
+                onClick={closeStartPicker}
+                className="w-full rounded-xl py-2.5 text-[13px] font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+              >
+                취소
               </button>
             </div>
           </div>
