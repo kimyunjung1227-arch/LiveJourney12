@@ -8,7 +8,8 @@ import { notifyBadge } from '../utils/notifications';
 import { safeSetItem, logLocalStorageStatus } from '../utils/localStorageManager';
 import { checkNewBadges, awardBadge, hasSeenBadge, markBadgeAsSeen, calculateUserStats } from '../utils/badgeSystem';
 import { checkAndNotifyInterestPlace } from '../utils/interestPlaces';
-import { analyzeImageForTags, getRecommendedTags } from '../utils/aiImageAnalyzer';
+import { getPartitionedUploadTags, getRecommendedTags } from '../utils/aiImageAnalyzer';
+import { resolveDisplayLocationFromKakaoCoordResult } from '../utils/locationFromGeocode';
 import { getCurrentTimestamp, getTimeAgo } from '../utils/timeUtils';
 import { gainExp } from '../utils/levelSystem';
 import { getBadgeCongratulationMessage, getBadgeDifficultyEffects } from '../utils/badgeMessages';
@@ -47,7 +48,8 @@ const UploadScreen = () => {
   const [exifExtracting, setExifExtracting] = useState(false);
   const [showBadgeModal, setShowBadgeModal] = useState(false);
   const [earnedBadge, setEarnedBadge] = useState(null);
-  const reanalysisTimerRef = useRef(null);
+  /** 미디어를 모두 지우기 전까지 AI 자동 태그는 최초 1회만 */
+  const initialAiSuggestDoneRef = useRef(false);
 
   const getCurrentLocation = useCallback(async () => {
     if (!navigator.geolocation) return;
@@ -68,49 +70,30 @@ const UploadScreen = () => {
         const geocoder = new window.kakao.maps.services.Geocoder();
         
         geocoder.coord2Address(longitude, latitude, (result, status) => {
-          if (status === window.kakao.maps.services.Status.OK && result[0]) {
-            const address = result[0].address;
-            const roadAddress = result[0].road_address;
-            
-            let locationName = '';
-            let detailedAddress = '';
-            
-            if (roadAddress) {
-              const parts = roadAddress.address_name.split(' ');
-              locationName = parts.slice(0, 3).join(' ')
-                .replace('특별시', '')
-                .replace('광역시', '')
-                .replace('특별자치시', '')
-                .replace('특별자치도', '')
-                .trim();
-              detailedAddress = roadAddress.address_name;
+          void (async () => {
+            if (status === window.kakao.maps.services.Status.OK && result[0]) {
+              const row = result[0];
+              const address = row.address;
+              const roadAddress = row.road_address;
+              const detailedAddress = roadAddress?.address_name || address?.address_name || '';
+              const locationName = await resolveDisplayLocationFromKakaoCoordResult(row, longitude, latitude);
+
+              setFormData((prev) => ({
+                ...prev,
+                location: locationName || prev.location,
+                coordinates: { lat: latitude, lng: longitude },
+                address: detailedAddress,
+                detailedLocation: locationName || detailedAddress,
+              }));
             } else {
-              const parts = address.address_name.split(' ');
-              locationName = parts.slice(0, 3).join(' ')
-                .replace('특별시', '')
-                .replace('광역시', '')
-                .replace('특별자치시', '')
-                .replace('특별자치도', '')
-                .trim();
-              detailedAddress = address.address_name;
+              setFormData((prev) => ({
+                ...prev,
+                location: prev.location || '서울',
+                coordinates: { lat: latitude, lng: longitude },
+              }));
             }
-            
-            setFormData(prev => ({
-              ...prev,
-              location: locationName,
-              coordinates: { lat: latitude, lng: longitude },
-              address: detailedAddress,
-              detailedLocation: locationName
-            }));
             setLoadingLocation(false);
-          } else {
-            setFormData(prev => ({
-              ...prev,
-              location: '서울',
-              coordinates: { lat: latitude, lng: longitude }
-            }));
-            setLoadingLocation(false);
-          }
+          })();
         });
       } else {
         setFormData(prev => ({
@@ -135,11 +118,10 @@ const UploadScreen = () => {
     
     setLoadingAITags(true);
     try {
-      const analysisResult = await analyzeImageForTags(file, location, note);
+      const analysisResult = await getPartitionedUploadTags(file, location, note);
       
       if (analysisResult.success && analysisResult.tags && analysisResult.tags.length > 0) {
-        // 5개로 제한
-        const limitedTags = analysisResult.tags.slice(0, 5);
+        const limitedTags = analysisResult.tags.slice(0, 6);
         
         // 현재 등록된 태그 목록 가져오기 (# 제거하여 비교)
         const existingTags = formData.tags.map(tag => 
@@ -157,7 +139,7 @@ const UploadScreen = () => {
             const isKorean = /^[가-힣\s\d]+$/.test(tagWithoutHash);
             return notExists && isKorean;
           })
-          .slice(0, 5); // 최대 5개로 제한
+          .slice(0, 6);
         
         const hashtagged = filteredTags.map(tag => 
           tag.startsWith('#') ? tag : `#${tag}`
@@ -180,13 +162,13 @@ const UploadScreen = () => {
         let defaultTags = [];
         
         if (currentMonth >= 3 && currentMonth <= 5) {
-          defaultTags = ['봄날씨', '화창한날씨', '일출', '골든아워', '여행'];
+          defaultTags = ['맑은날씨', '화창한날씨', '평화로운', '낭만적인', '힐링', '산책'];
         } else if (currentMonth >= 6 && currentMonth <= 8) {
-          defaultTags = ['여름날씨', '맑음', '청명한날씨', '자외선주의', '여행'];
+          defaultTags = ['여름날씨', '청명한날씨', '시원한', '청량한', '활기찬', '여행'];
         } else if (currentMonth >= 9 && currentMonth <= 11) {
-          defaultTags = ['가을날씨', '쾌청한날씨', '일몰', '황금시간대', '여행'];
+          defaultTags = ['가을날씨', '쾌청한날씨', '고즈넉한', '차분한', '낭만적인', '산책'];
         } else {
-          defaultTags = ['겨울날씨', '맑음', '청명한날씨', '일출', '여행'];
+          defaultTags = ['겨울날씨', '맑은날씨', '포근한', '편안한', '고요한', '여행'];
         }
         
         const filteredTags = defaultTags
@@ -194,7 +176,7 @@ const UploadScreen = () => {
             const tagLower = tag.toLowerCase();
             return !existingTags.includes(tagLower);
           })
-          .slice(0, 5);
+          .slice(0, 6);
         
         setAutoTags(filteredTags.map(tag => `#${tag}`));
         
@@ -216,18 +198,18 @@ const UploadScreen = () => {
       let defaultTags = [];
       
       if (currentMonth >= 3 && currentMonth <= 5) {
-        defaultTags = ['봄날씨', '화창한날씨', '일출', '골든아워', '여행'];
+        defaultTags = ['맑은날씨', '화창한날씨', '평화로운', '낭만적인', '힐링', '산책'];
       } else if (currentMonth >= 6 && currentMonth <= 8) {
-        defaultTags = ['여름날씨', '맑음', '청명한날씨', '자외선주의', '여행'];
+        defaultTags = ['여름날씨', '청명한날씨', '시원한', '청량한', '활기찬', '여행'];
       } else if (currentMonth >= 9 && currentMonth <= 11) {
-        defaultTags = ['가을날씨', '쾌청한날씨', '일몰', '황금시간대', '여행'];
+        defaultTags = ['가을날씨', '쾌청한날씨', '고즈넉한', '차분한', '낭만적인', '산책'];
       } else {
-        defaultTags = ['겨울날씨', '맑음', '청명한날씨', '일출', '여행'];
+        defaultTags = ['겨울날씨', '맑은날씨', '포근한', '편안한', '고요한', '여행'];
       }
       
       const filteredTags = defaultTags
         .filter(tag => !existingTags.includes(tag.toLowerCase()))
-        .slice(0, 5);
+        .slice(0, 6);
       
       setAutoTags(filteredTags.map(tag => `#${tag}`));
       
@@ -335,35 +317,20 @@ const UploadScreen = () => {
       } else {
         getCurrentLocation();
       }
-      // 사진 파일만 분석 (동영상은 제외)
+      // 사진 파일만 분석 (동영상은 제외) — AI 추천은 최초 1회만 자동 실행
       const firstImageFile = imageFiles[0];
-      if (firstImageFile && !firstImageFile.type.startsWith('video/')) {
+      if (firstImageFile && !firstImageFile.type.startsWith('video/') && !initialAiSuggestDoneRef.current) {
+        initialAiSuggestDoneRef.current = true;
         analyzeImageAndGenerateTags(firstImageFile, formData.location, formData.note);
       }
     }
   }, [formData.images.length, formData.videos.length, formData.location, formData.note, exifAllowed, getCurrentLocation, analyzeImageAndGenerateTags]);
 
-
   useEffect(() => {
-    if (formData.imageFiles.length === 0) return;
-    
-    if (reanalysisTimerRef.current) {
-      clearTimeout(reanalysisTimerRef.current);
+    if (formData.imageFiles.length === 0 && formData.videoFiles.length === 0) {
+      initialAiSuggestDoneRef.current = false;
     }
-    
-    reanalysisTimerRef.current = setTimeout(() => {
-      // 사진 파일이 있을 때만 재분석
-      if (formData.imageFiles.length > 0 && (formData.location || formData.note)) {
-        analyzeImageAndGenerateTags(formData.imageFiles[0], formData.location, formData.note);
-      }
-    }, 1000);
-    
-    return () => {
-      if (reanalysisTimerRef.current) {
-        clearTimeout(reanalysisTimerRef.current);
-      }
-    };
-  }, [formData.location, formData.note, formData.imageFiles, analyzeImageAndGenerateTags]);
+  }, [formData.imageFiles.length, formData.videoFiles.length]);
 
   // 태그가 변경될 때마다 자동 태그에서 이미 등록된 태그 제거
   useEffect(() => {
@@ -378,6 +345,15 @@ const UploadScreen = () => {
       }));
     }
   }, [formData.tags]);
+
+  const requestAiTagSuggestion = useCallback(() => {
+    const f = formData.imageFiles[0];
+    if (!f || String(f.type || '').startsWith('video/')) {
+      alert('태그 추천을 받으려면 사진을 먼저 추가해 주세요.');
+      return;
+    }
+    analyzeImageAndGenerateTags(f, formData.location, formData.note);
+  }, [formData.imageFiles, formData.location, formData.note, analyzeImageAndGenerateTags]);
 
   const handlePhotoOptionSelect = useCallback((option) => {
     setShowPhotoOptions(false);
@@ -486,7 +462,6 @@ const UploadScreen = () => {
               
               setEarnedBadge(badge);
               setShowBadgeModal(true);
-              setBadgeAnimationKey(prev => prev + 1); // 애니메이션 트리거
               logger.log('   🎉 뱃지 모달 표시');
               
               gainExp(`뱃지 획득 (${badge.difficulty})`);
@@ -603,15 +578,17 @@ const UploadScreen = () => {
       
       setUploadProgress(60);
       
+      const lat = Number(formData.coordinates?.lat);
+      const lng = Number(formData.coordinates?.lng);
       const postData = {
         images: uploadedImageUrls.length > 0 ? uploadedImageUrls : formData.images,
         videos: uploadedVideoUrls.length > 0 ? uploadedVideoUrls : formData.videos,
         content: formData.note || `${formData.location}에서의 여행 기록`,
         location: {
           name: formData.location,
-          lat: 37.5665,
-          lon: 126.9780,
-          region: '지역',
+          lat: Number.isFinite(lat) ? lat : 37.5665,
+          lon: Number.isFinite(lng) ? lng : 126.9780,
+          region: formData.location?.split(/\s+/)[0] || '지역',
           country: '대한민국'
         },
         tags: formData.tags.map(tag => tag.replace('#', '')),
@@ -696,7 +673,13 @@ const UploadScreen = () => {
             imageCount: finalImages.length,
             videoCount: finalVideos.length,
             // 첫 번째 이미지 썸네일만 저장 (서버 URL이 있는 경우)
-            thumbnail: finalImages.length > 0 && finalImages[0].startsWith('http') ? finalImages[0] : null
+            thumbnail: (() => {
+              const u = finalImages[0] || finalVideos[0];
+              if (typeof u !== 'string' || !u.trim()) return null;
+              if (/^https?:\/\//i.test(u)) return u;
+              if (/^(uploads\/|videos\/)/i.test(u)) return u;
+              return null;
+            })()
           };
           
           console.log('💾 localStorage 저장 (이미지 제외):', {
@@ -727,7 +710,7 @@ const UploadScreen = () => {
               비디오수: sanitizedPost.videoCount
             });
           }
-          
+
           setUploadProgress(100);
           setShowSuccessModal(true);
           
@@ -1215,60 +1198,59 @@ const UploadScreen = () => {
               )}
               
               
+              {!loadingAITags && formData.imageFiles.length > 0 && !String(formData.imageFiles[0]?.type || '').startsWith('video/') && (
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={requestAiTagSuggestion}
+                    disabled={loadingAITags}
+                    className="text-xs font-semibold text-violet-600 dark:text-violet-400 hover:underline disabled:opacity-50"
+                  >
+                    AI 태그 다시 추천받기
+                  </button>
+                </div>
+              )}
+
               {!loadingAITags && autoTags.length > 0 && (
                 <div className="mt-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                      <span className="font-semibold">AI 추천 태그</span>
-                      <span className="text-xs text-zinc-500"> (탭하여 추가)</span>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      <span className="font-semibold text-zinc-700 dark:text-zinc-300">AI 추천</span>
+                      <span className="text-zinc-400"> · 날씨 2 + 분위기 4 · 탭하면 추가</span>
                     </p>
-                    {formData.imageFiles.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => analyzeImageAndGenerateTags(formData.imageFiles[0], formData.location, formData.note)}
-                        className="text-xs text-primary hover:text-primary/80 font-semibold"
-                      >
-                        재분석
-                      </button>
-                    )}
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                     {autoTags.map((tag) => (
                       <button
                         key={tag}
+                        type="button"
                         onClick={() => addAutoTag(tag)}
-                        className="rounded-full bg-primary/8 dark:bg-primary/15 hover:bg-primary/12 dark:hover:bg-primary/20 py-1.5 px-3 text-sm font-medium text-primary dark:text-primary-soft hover:text-primary-dark transition-all border border-primary/20 dark:border-primary/30"
+                        className="bg-transparent p-0 text-xs font-medium text-amber-700 dark:text-amber-300/90 border-b border-dashed border-amber-600/40 dark:border-amber-400/40 hover:text-amber-900 dark:hover:text-amber-200 hover:border-amber-700/70"
                       >
                         {tag}
-                        <span className="ml-1 text-xs opacity-80">+</span>
+                        <span className="ml-0.5 text-[10px] opacity-70">+</span>
                       </button>
                     ))}
                   </div>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-2">
-                    AI가 이미지를 분석해서 자동으로 생성한 태그입니다
-                  </p>
                 </div>
               )}
               
               {formData.tags.length > 0 && (
                 <div className="mt-3">
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">내 태그</p>
-                  <div className="flex flex-wrap gap-2">
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1.5">선택한 태그</p>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
                     {formData.tags.map((tag) => (
-                      <div
-                        key={tag}
-                        className="flex items-center gap-1.5 rounded-full bg-primary/20 dark:bg-primary/30 py-1.5 pl-3 pr-2 text-sm text-primary dark:text-orange-300"
-                      >
-                        <span>{tag}</span>
+                      <span key={tag} className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                        <span className="tracking-tight">{tag}</span>
                         <button
                           type="button"
                           onClick={() => removeTag(tag)}
-                          className="text-xs font-semibold opacity-80 hover:opacity-100 px-1"
+                          className="text-[11px] font-bold text-emerald-600/70 hover:text-emerald-900 dark:text-emerald-500/80 dark:hover:text-emerald-200 px-0.5"
                           aria-label={`${tag} 제거`}
                         >
                           ×
                         </button>
-                      </div>
+                      </span>
                     ))}
                   </div>
                 </div>

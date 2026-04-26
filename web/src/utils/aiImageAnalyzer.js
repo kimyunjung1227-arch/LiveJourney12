@@ -228,7 +228,7 @@ const mergeCategoryLists = (a, b) => {
 };
 
 // 이미지 색상 분석 (고급)
-const analyzeImageColors = async (imageFile) => {
+export const analyzeImageColors = async (imageFile) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -762,6 +762,100 @@ export const analyzeImageForTags = async (imageFile, location = '', existingNote
     };
   }
 };
+
+const WEATHER_TAG_HINT = /날씨$|일출|일몰|골든아워|블루아워|자외선|습도|맑은|흐린|쾌청|청명|화창|장마|소나기|우천|강설|함박|소낙|미세먼지|강수|안개|바람|체감온도|쾌적한온도|건조|습함/;
+
+function isWeatherishTag(t) {
+  if (!t || typeof t !== 'string') return false;
+  const s = t.replace(/^#/, '').trim();
+  if (koreanTravelKeywords.weather.includes(s)) return true;
+  return WEATHER_TAG_HINT.test(s);
+}
+
+function defaultWeatherPair() {
+  const month = new Date().getMonth() + 1;
+  if (month >= 3 && month <= 5) return ['맑은날씨', '화창한날씨'];
+  if (month >= 6 && month <= 8) return ['여름날씨', '청명한날씨'];
+  if (month >= 9 && month <= 11) return ['쾌청한날씨', '가을날씨'];
+  return ['겨울날씨', '맑은날씨'];
+}
+
+function moodPoolFromColor(colorAnalysis) {
+  const pool = [...koreanTravelKeywords.mood, ...koreanTravelKeywords.activities.slice(0, 12)];
+  if (!colorAnalysis) return pool;
+  if (colorAnalysis.isBlue) pool.unshift('시원한', '청량한', '맑은');
+  if (colorAnalysis.isGreen) pool.unshift('힐링', '평화로운', '자연스러운');
+  if (colorAnalysis.isDark) pool.unshift('낭만적인', '고즈넉한', '야경');
+  else if (colorAnalysis.isBright) pool.unshift('화사한', '밝은', '따스한');
+  if (colorAnalysis.isVivid) pool.unshift('생생한', '활기찬');
+  if (colorAnalysis.isMuted) pool.unshift('차분한', '편안한');
+  if (colorAnalysis.isPink) pool.unshift('로맨틱한', '예쁜');
+  return pool;
+}
+
+/**
+ * 업로드용: 날씨 성격 태그 2개 + 사진 분위기(색·톤 기반) 태그 4개, 총 6개.
+ */
+export async function getPartitionedUploadTags(imageFile, location = '', note = '') {
+  const [analysis, colorAnalysis] = await Promise.all([
+    analyzeImageForTags(imageFile, location, note),
+    analyzeImageColors(imageFile),
+  ]);
+
+  const raw = Array.isArray(analysis.tags)
+    ? analysis.tags.map((t) => String(t).replace(/^#/, '').trim()).filter((t) => /^[가-힣\s\d]+$/.test(t))
+    : [];
+
+  const weather = [];
+  const mood = [];
+  for (const t of raw) {
+    if (weather.length < 2 && isWeatherishTag(t) && !weather.includes(t)) weather.push(t);
+  }
+  for (const t of raw) {
+    if (mood.length < 4 && !isWeatherishTag(t) && !weather.includes(t) && !mood.includes(t)) mood.push(t);
+  }
+
+  const defW = defaultWeatherPair();
+  while (weather.length < 2) {
+    const w = defW.find((x) => !weather.includes(x));
+    if (w) weather.push(w);
+    else break;
+  }
+
+  const moodPool = moodPoolFromColor(colorAnalysis);
+  const seed =
+    (colorAnalysis?.dominantColor?.r || 0) * 195131 +
+    (colorAnalysis?.dominantColor?.g || 0) * 71821 +
+    (colorAnalysis?.dominantColor?.b || 0) * 35731;
+  let x = seed || 1;
+  const nextRand = () => {
+    x ^= x << 13;
+    x ^= x >>> 17;
+    x ^= x << 5;
+    return (x >>> 0) / 4294967296;
+  };
+
+  const uniqPool = [...new Set(moodPool)].filter((m) => !weather.includes(m) && /^[가-힣\s\d]+$/.test(m));
+  while (mood.length < 4 && uniqPool.length) {
+    const idx = Math.floor(nextRand() * uniqPool.length);
+    const pick = uniqPool.splice(idx, 1)[0];
+    if (pick && !mood.includes(pick)) mood.push(pick);
+  }
+
+  const fallbacks = ['여행', '추억', '낭만적인', '편안한'];
+  while (mood.length < 4) {
+    const f = fallbacks.find((t) => !mood.includes(t) && !weather.includes(t));
+    if (f) mood.push(f);
+    else break;
+  }
+
+  const tags = [...weather.slice(0, 2), ...mood.slice(0, 4)];
+  return {
+    ...analysis,
+    tags,
+    colorAnalysis,
+  };
+}
 
 // 태그를 해시태그 형식으로 변환
 export const formatAsHashtags = (tags) => {

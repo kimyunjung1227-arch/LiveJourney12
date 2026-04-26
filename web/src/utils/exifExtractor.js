@@ -1,5 +1,6 @@
 import exifr from 'exifr';
 import { logger } from './logger';
+import { resolveDisplayLocationFromKakaoCoordResult } from './locationFromGeocode';
 
 /**
  * 안드로이드 WebView·크롬 등에서 갤러리 파일의 `type`이 빈 문자열이거나
@@ -534,38 +535,14 @@ export const convertGpsToAddress = async (lat, lng) => {
       const geocoder = new window.kakao.maps.services.Geocoder();
 
       geocoder.coord2Address(lng, lat, (result, status) => {
-        if (status === window.kakao.maps.services.Status.OK && result[0]) {
-          const address = result[0].address;
-          const roadAddress = result[0].road_address;
-
-          let locationName = '';
-
-          if (roadAddress) {
-            const parts = roadAddress.address_name.split(' ');
-            locationName = parts
-              .slice(1, 3)
-              .join(' ')
-              .replace('특별시', '')
-              .replace('광역시', '')
-              .replace('특별자치시', '')
-              .replace('특별자치도', '')
-              .trim();
-          } else if (address) {
-            const parts = address.address_name.split(' ');
-            locationName = parts
-              .slice(1, 3)
-              .join(' ')
-              .replace('특별시', '')
-              .replace('광역시', '')
-              .replace('특별자치시', '')
-              .replace('특별자치도', '')
-              .trim();
+        void (async () => {
+          if (status === window.kakao.maps.services.Status.OK && result[0]) {
+            const label = await resolveDisplayLocationFromKakaoCoordResult(result[0], lng, lat);
+            resolve(label || null);
+          } else {
+            resolve(null);
           }
-
-          resolve(locationName || null);
-        } else {
-          resolve(null);
-        }
+        })();
       });
     });
   } catch (error) {
