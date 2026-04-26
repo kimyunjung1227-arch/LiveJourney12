@@ -4,45 +4,6 @@ import BackButton from '../components/BackButton';
 import BottomNavigation from '../components/BottomNavigation';
 import { fetchRafflesForUi } from '../api/rafflesSupabase';
 
-const GUIDE_ITEMS = [
-  {
-    id: 'overview',
-    title: '1. 개요 (Overview)',
-    body:
-      "라이브저니 래플은 현장에서 직접 발로 뛰며 실시간 정보를 나누는 커뮤니티 멤버들을 위해 마련된 이벤트입니다.\n우리가 나누는 정보의 시차가 줄어들수록 여행의 가치는 커집니다.\n여러분이 기록한 '지금 이 순간'의 데이터는 래플 응모권으로 전환되어 다양한 여행 굿즈와 혜택으로 돌아옵니다.",
-  },
-  {
-    id: 'probability',
-    title: '2. 당첨 확률 설명 (Winning Probability)',
-    body:
-      "라이브저니는 정직하고 생생한 정보를 공유하는 분들을 우대합니다.\n\n기본 확률: 모든 응모자에게는 공정한 기회가 부여됩니다.\n\n가중치 시스템: 다음과 같은 활동이 많을수록 당첨 확률(가중치)이 높아집니다.\n- 라이브 싱크(Live-Sync): GPS 인증 및 EXIF 데이터가 포함된 '진짜' 실시간 포스트 작성 시.\n- 도움 지수: 내 포스트를 보고 다른 여행자가 \"도움됐어요\"를 눌러 여행 실패를 줄였을 때.\n- 연속성: 꾸준히 지역의 실시간 상황을 업데이트하는 '리얼 타임 마스터' 활동 시.",
-  },
-  {
-    id: 'steps',
-    title: '3. 래플 진행 가이드 (Step-by-Step)',
-    body:
-      "정보 공유: 여행지에서 실시간 포스트를 업로드합니다.\n\n티켓 획득: 포스트의 퀄리티와 신뢰도에 따라 '래플 티켓'이 자동 지급됩니다.\n\n응모하기: 앱 내 [래플] 탭에서 원하는 리워드를 선택하고 티켓을 사용해 응모합니다.\n\n발표 확인: 진행 기간 종료 후, 앱 알림 및 공지사항을 통해 당첨 여부를 확인합니다.",
-  },
-  {
-    id: 'winner',
-    title: '4. 당첨된 경우 (Winner’s Journey)',
-    body:
-      '알림: 당첨 즉시 앱 푸시 알림과 개별 메시지(DM)가 발송됩니다.\n\n정보 입력: 리워드 배송 또는 지급을 위해 정해진 기간(발표 후 7일 이내) 내에 필요한 정보를 입력해야 합니다.\n\n인증하기: 리워드 수령 후, 커뮤니티에 \'행운 인증샷\'을 남겨주시면 다음 래플 응모 시 가산점이 부여됩니다.',
-  },
-  {
-    id: 'waitlist',
-    title: '5. 예비 당첨의 경우 (Waitlist)',
-    body:
-      '라이브저니는 공정한 기회를 위해 예비 당첨자 제도를 운영합니다.\n\n기존 당첨자가 기간 내 정보를 입력하지 않거나, 부정확한 정보 공유(허위 정보 등)로 인해 자격이 박탈될 경우 예비 순번에게 행운이 돌아갑니다.\n\n예비 당첨자는 공식 발표 시 순번이 함께 안내됩니다.',
-  },
-  {
-    id: 'checklist',
-    title: '6. 확인 사항 (Checklist)',
-    body:
-      "진실성 확인: 당첨 후라도 해당 유저가 올린 정보가 허위(과거 사진 재사용, 타인 사진 도용 등)로 판명될 경우 당첨이 취소됩니다.\n\n양도 불가: 래플 리워드는 타인에게 판매하거나 양도할 수 없으며, 적발 시 향후 래플 참여가 제한됩니다.\n\n알림 설정: 당첨 소식을 놓치지 않도록 반드시 앱 알림 설정을 켜두시길 권장합니다.\n\n\"라이브저니와 함께라면, 당신의 모든 발걸음은 이미 가치 있습니다. 이제 그 가치를 행운으로 바꿔보세요!\"",
-  },
-];
-
 const INITIAL_COUNT = 3;
 
 /** 진행 예정·진행 중 공통 카드 (가로 스와이프) */
@@ -124,7 +85,6 @@ function OngoingStyleRaffleBlock({ loading, list, emptyText, ctaMode }) {
 const RaffleScreen = () => {
   const navigate = useNavigate();
   const [completedExpanded, setCompletedExpanded] = useState(false);
-  const [guideOpen, setGuideOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [scheduledList, setScheduledList] = useState([]);
   const [ongoingList, setOngoingList] = useState([]);
@@ -174,7 +134,7 @@ const RaffleScreen = () => {
               </p>
               <button
                 type="button"
-                onClick={() => setGuideOpen(true)}
+                onClick={() => navigate('/raffle/guide')}
                 className="mt-2 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-50 active:scale-[0.99] dark:border-gray-700 dark:bg-gray-900/80 dark:text-gray-100 dark:hover:bg-gray-900"
               >
                 <span className="material-symbols-outlined text-[18px] text-sky-500" aria-hidden>
@@ -273,69 +233,6 @@ const RaffleScreen = () => {
         </div>
       </div>
       <BottomNavigation />
-
-      {/* 래플 가이드: 문서형 모달 (업로드 가이드처럼 열고 닫기) */}
-      {guideOpen && (
-        <div
-          className="fixed inset-0 z-[300] bg-black/50"
-          onMouseDown={() => setGuideOpen(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="래플가이드(참여방법)"
-        >
-          <div
-            className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-[520px] rounded-t-3xl bg-white shadow-2xl dark:bg-gray-900"
-            onMouseDown={(e) => e.stopPropagation()}
-            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
-          >
-            <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-gray-100 dark:border-gray-800">
-              <div className="text-base font-extrabold text-gray-900 dark:text-gray-100">래플가이드(참여방법)</div>
-              <button
-                type="button"
-                onClick={() => setGuideOpen(false)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-                aria-label="닫기"
-              >
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
-            </div>
-
-            <div className="max-h-[78dvh] overflow-y-auto px-4 py-4">
-              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/80">
-                <div className="space-y-4 px-4 py-4">
-                  {GUIDE_ITEMS.map((g, idx) => (
-                    <div key={g.id}>
-                      <div className="flex items-baseline justify-between gap-3">
-                        <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
-                          {g.title}
-                        </h3>
-                        {idx === 0 && (
-                          <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                            전체 안내
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-                        {g.body}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="px-4 pt-0">
-              <button
-                type="button"
-                onClick={() => setGuideOpen(false)}
-                className="mt-3 w-full rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white hover:bg-primary-dark transition-colors"
-              >
-                닫기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

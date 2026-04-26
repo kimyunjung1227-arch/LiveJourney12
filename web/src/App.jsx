@@ -67,6 +67,7 @@ const BadgeAchievementScreen = lazyWithRecover(() => import('./pages/BadgeAchiev
 const LiveBadgeDetailScreen = lazyWithRecover(() => import('./pages/LiveBadgeDetailScreen'))
 const MyCouponsScreen = lazyWithRecover(() => import('./pages/MyCouponsScreen'))
 const RaffleScreen = lazyWithRecover(() => import('./pages/RaffleScreen'))
+const RaffleGuideScreen = lazyWithRecover(() => import('./pages/RaffleGuideScreen'))
 const SettingsScreen = lazyWithRecover(() => import('./pages/SettingsScreen'))
 const FeedUpdateFrequencyScreen = lazyWithRecover(() => import('./pages/FeedUpdateFrequencyScreen'))
 const NoticesScreen = lazyWithRecover(() => import('./pages/NoticesScreen'))
@@ -182,6 +183,7 @@ function App() {
                 <Route path="/badge/achievement" element={<BadgeAchievementScreen />} />
                 <Route path="/coupons" element={<MyCouponsScreen />} />
                 <Route path="/raffle" element={<RaffleScreen />} />
+                <Route path="/raffle/guide" element={<RaffleGuideScreen />} />
                 <Route path="/notifications" element={<NotificationsScreen />} />
                 <Route path="/notices" element={<NoticesScreen />} />
                 <Route path="/faq" element={<FAQScreen />} />
