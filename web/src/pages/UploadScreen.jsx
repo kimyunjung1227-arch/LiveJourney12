@@ -1165,9 +1165,6 @@ const UploadScreen = () => {
               <label className="flex flex-col">
                 <div className="flex items-center justify-between pb-2">
                   <p className="text-base font-medium text-gray-900">태그 추가</p>
-                  {loadingAITags && (
-                    <span className="text-xs text-primary">AI 분석 중...</span>
-                  )}
                 </div>
                 <div className="flex w-full items-stretch gap-2">
                   <input
@@ -1186,66 +1183,60 @@ const UploadScreen = () => {
                 </div>
               </label>
               
-              {loadingAITags && (
-                <div className="mt-3 p-3 bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/15 dark:border-primary/25">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-sm font-medium text-primary dark:text-primary-soft">
-                      AI가 이미지를 분석하고 있습니다...
-                    </p>
-                  </div>
-                </div>
-              )}
-              
-              
-              {!loadingAITags && formData.imageFiles.length > 0 && !String(formData.imageFiles[0]?.type || '').startsWith('video/') && (
-                <div className="mt-2">
-                  <button
-                    type="button"
-                    onClick={requestAiTagSuggestion}
-                    disabled={loadingAITags}
-                    className="text-xs font-semibold text-violet-600 dark:text-violet-400 hover:underline disabled:opacity-50"
-                  >
-                    AI 태그 다시 추천받기
-                  </button>
-                </div>
-              )}
-
-              {!loadingAITags && autoTags.length > 0 && (
-                <div className="mt-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      <span className="font-semibold text-zinc-700 dark:text-zinc-300">AI 추천</span>
-                      <span className="text-zinc-400"> · 날씨 2 + 분위기 4 · 탭하면 추가</span>
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    {autoTags.map((tag) => (
+              {formData.imageFiles.length > 0 &&
+                !String(formData.imageFiles[0]?.type || '').startsWith('video/') && (
+                  <div className="mt-3">
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">AI 추천</span>
                       <button
-                        key={tag}
                         type="button"
-                        onClick={() => addAutoTag(tag)}
-                        className="bg-transparent p-0 text-xs font-medium text-amber-700 dark:text-amber-300/90 border-b border-dashed border-amber-600/40 dark:border-amber-400/40 hover:text-amber-900 dark:hover:text-amber-200 hover:border-amber-700/70"
+                        onClick={requestAiTagSuggestion}
+                        disabled={loadingAITags}
+                        title="AI 태그 다시 추천"
+                        aria-label="AI 태그 다시 추천"
+                        className="flex size-9 shrink-0 items-center justify-center rounded-lg text-primary hover:bg-primary/10 disabled:pointer-events-none disabled:opacity-40 dark:text-primary dark:hover:bg-primary/15"
                       >
-                        {tag}
-                        <span className="ml-0.5 text-[10px] opacity-70">+</span>
+                        <span className="material-symbols-outlined text-[22px] leading-none">refresh</span>
                       </button>
-                    ))}
+                    </div>
+                    {loadingAITags && (
+                      <div className="mb-2 flex items-center gap-2 text-xs text-primary dark:text-primary">
+                        <div className="size-3.5 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        <span>분석 중…</span>
+                      </div>
+                    )}
+                    {!loadingAITags && autoTags.length > 0 && (
+                      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                        {autoTags.map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => addAutoTag(tag)}
+                            className="bg-transparent p-0 text-xs font-medium text-primary hover:text-primary-dark hover:underline dark:text-primary dark:hover:text-primary-soft"
+                          >
+                            {tag}
+                            <span className="ml-0.5 text-[10px] text-primary/70 dark:text-primary/80">+</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                )}
               
               {formData.tags.length > 0 && (
                 <div className="mt-3">
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1.5">선택한 태그</p>
+                  <p className="mb-1.5 text-xs text-gray-500 dark:text-gray-400">선택한 태그</p>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
                     {formData.tags.map((tag) => (
-                      <span key={tag} className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                      <span
+                        key={tag}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-primary-dark dark:text-primary"
+                      >
                         <span className="tracking-tight">{tag}</span>
                         <button
                           type="button"
                           onClick={() => removeTag(tag)}
-                          className="text-[11px] font-bold text-emerald-600/70 hover:text-emerald-900 dark:text-emerald-500/80 dark:hover:text-emerald-200 px-0.5"
+                          className="px-0.5 text-[11px] font-bold text-primary/60 hover:text-primary-dark dark:text-primary/70 dark:hover:text-primary-soft"
                           aria-label={`${tag} 제거`}
                         >
                           ×
