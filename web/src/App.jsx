@@ -95,6 +95,7 @@ const AdminPostsScreen = lazyWithRecover(() => import('./pages/AdminPostsScreen'
 const AdminNoticesScreen = lazyWithRecover(() => import('./pages/AdminNoticesScreen'))
 const AdminPublishedMagazinesScreen = lazyWithRecover(() => import('./pages/AdminPublishedMagazinesScreen'))
 const AdminRafflesScreen = lazyWithRecover(() => import('./pages/AdminRafflesScreen'))
+const AdminRaffleDetailScreen = lazyWithRecover(() => import('./pages/AdminRaffleDetailScreen'))
 const AdminRecommendedFiltersScreen = lazyWithRecover(() => import('./pages/AdminRecommendedFiltersScreen'))
 
 function App() {
@@ -252,6 +253,16 @@ function App() {
                     <ProtectedRoute>
                       <AdminRoute>
                         <AdminRafflesScreen />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/raffles/:id"
+                  element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminRaffleDetailScreen />
                       </AdminRoute>
                     </ProtectedRoute>
                   }

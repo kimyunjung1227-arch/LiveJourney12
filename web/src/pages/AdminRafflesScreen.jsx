@@ -1,16 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  fetchRaffles,
-  createRaffle,
-  updateRaffle,
-  deleteRaffle,
-  startScheduledRaffle,
-  completeRaffleNow,
-  RAFFLE_START_MIDNIGHT,
-  RAFFLE_START_IMMEDIATE,
-} from '../api/rafflesSupabase';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { fetchRaffles, createRaffle, updateRaffle, deleteRaffle } from '../api/rafflesSupabase';
+import { uploadImage } from '../api/upload';
 import { formatDaysLeftKorean } from '../utils/raffleSchedule';
+import { RAFFLE_DURATION_OPTIONS } from '../data/raffleDurations';
 
 const BADGE_OPTIONS = ['당첨', '미당첨', '미응모'];
 
@@ -21,23 +14,20 @@ const emptyForm = {
   title: '',
   description: '',
   image_url: '',
-  days_left: '오픈 예정',
   category: '',
   status_message: '',
   badge: '미응모',
-  sort_order: 0,
   duration_days: 7,
 };
 
 const AdminRafflesScreen = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
-  const [startingId, setStartingId] = useState(null);
-  const [startPickId, setStartPickId] = useState(null);
-  const [endingId, setEndingId] = useState(null);
+  const [imageUploading, setImageUploading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ id: null });
 
   const load = useCallback(async () => {
@@ -50,6 +40,27 @@ const AdminRafflesScreen = () => {
     load().finally(() => setLoading(false));
   }, [load]);
 
+  useEffect(() => {
+    const editId = location.state?.openEditId;
+    if (!editId || loading || !rows.length) return;
+    const r = rows.find((x) => x.id === editId);
+    if (r) {
+      setForm({
+        open: true,
+        kind: r.kind,
+        editingId: r.id,
+        title: r.title || '',
+        description: r.description || '',
+        image_url: r.image_url || '',
+        category: r.category || '',
+        status_message: r.status_message || '',
+        badge: r.badge || '미응모',
+        duration_days: Math.max(1, Number(r.duration_days) || 7),
+      });
+      navigate('/admin/raffles', { replace: true, state: {} });
+    }
+  }, [loading, rows, location.state, navigate]);
+
   const scheduled = useMemo(() => rows.filter((r) => r.kind === 'scheduled'), [rows]);
   const ongoing = useMemo(() => rows.filter((r) => r.kind === 'ongoing'), [rows]);
   const completed = useMemo(() => rows.filter((r) => r.kind === 'completed'), [rows]);
@@ -59,8 +70,6 @@ const AdminRafflesScreen = () => {
       ...emptyForm,
       open: true,
       kind: 'scheduled',
-      days_left: '오픈 예정',
-      sort_order: 0,
       duration_days: 7,
     });
   };
@@ -73,37 +82,40 @@ const AdminRafflesScreen = () => {
       title: row.title || '',
       description: row.description || '',
       image_url: row.image_url || '',
-      days_left: row.days_left || '',
       category: row.category || '',
       status_message: row.status_message || '',
       badge: row.badge || '미응모',
-      sort_order: row.sort_order ?? 0,
       duration_days: Math.max(1, Number(row.duration_days) || 7),
     });
   };
 
   const closeForm = () => setForm(emptyForm);
 
+  const onPickImageFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageUploading(true);
+    try {
+      const res = await uploadImage(file);
+      if (res?.success && res.url) {
+        setForm((p) => ({ ...p, image_url: res.url }));
+      } else {
+        alert(res?.message || '이미지 업로드에 실패했습니다.');
+      }
+    } finally {
+      setImageUploading(false);
+      e.target.value = '';
+    }
+  };
+
   const handleSave = async () => {
-    const {
-      editingId,
-      kind,
-      title,
-      image_url,
-      description,
-      days_left,
-      category,
-      status_message,
-      badge,
-      sort_order,
-      duration_days,
-    } = form;
+    const { editingId, kind, title, image_url, description, category, status_message, badge, duration_days } = form;
     if (!title.trim()) {
       alert('제목을 입력하세요.');
       return;
     }
     if (!image_url.trim()) {
-      alert('이미지 URL을 입력하세요.');
+      alert('이미지 URL을 입력하거나 파일을 업로드하세요.');
       return;
     }
     setSubmitting(true);
@@ -114,20 +126,14 @@ const AdminRafflesScreen = () => {
           title,
           image_url,
           description,
-          sort_order,
           duration_days,
           ...(kind === 'ongoing' || kind === 'scheduled'
             ? {
-                days_left:
-                  kind === 'ongoing'
-                    ? days_left
-                    : (days_left || '').trim() || '오픈 예정',
                 category: null,
                 status_message: null,
                 badge: null,
               }
             : {
-                days_left: null,
                 category,
                 status_message,
                 badge,
@@ -144,59 +150,18 @@ const AdminRafflesScreen = () => {
           title,
           image_url,
           description,
-          sort_order,
           duration_days,
-          days_left: (days_left || '').trim() || '오픈 예정',
         });
-        if (res.success) {
+        if (res.success && res.raffle?.id) {
           await load();
           closeForm();
+          navigate(`/admin/raffles/${res.raffle.id}`);
         } else {
           alert(res.error || '등록에 실패했습니다.');
         }
       }
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const openStartPicker = (id) => {
-    if (!id) return;
-    setStartPickId(id);
-  };
-
-  const closeStartPicker = () => setStartPickId(null);
-
-  const runStartWithMode = async (id, mode) => {
-    if (!id) return;
-    setStartingId(id);
-    try {
-      const res = await startScheduledRaffle(id, mode);
-      if (res.success) {
-        closeStartPicker();
-        await load();
-      } else {
-        alert(res.error || '시작에 실패했습니다.');
-      }
-    } finally {
-      setStartingId(null);
-    }
-  };
-
-  const handleEndRaffle = async (id) => {
-    if (!id) return;
-    const ok = window.confirm('이 래플을 지금 완료(종료) 처리할까요? 완료된 래플 목록으로 옮겨집니다.');
-    if (!ok) return;
-    setEndingId(id);
-    try {
-      const res = await completeRaffleNow(id);
-      if (res.success) {
-        await load();
-      } else {
-        alert(res.error || '종료에 실패했습니다.');
-      }
-    } finally {
-      setEndingId(null);
     }
   };
 
@@ -207,74 +172,63 @@ const AdminRafflesScreen = () => {
       setRows((prev) => prev.filter((r) => r.id !== id));
       setDeleteConfirm({ id: null });
     } else {
-      alert('삭제에 실패했습니다. (Supabase에 raffles 테이블·마이그레이션 적용 및 admin_users에 본인이 등록되어 있는지 확인하세요.)');
+      alert('삭제에 실패했습니다.');
     }
   };
 
   const displayDaysLabel = (r) => {
     if (r.kind === 'ongoing' && r.ends_at) return formatDaysLeftKorean(r.ends_at);
-    if ((r.kind === 'ongoing' || r.kind === 'scheduled') && r.days_left) return r.days_left;
     if (r.kind === 'scheduled') return `${Math.max(1, Number(r.duration_days) || 7)}일 래플 예정`;
     return '';
   };
 
-  const renderList = (list, { showStart, showEnd } = {}) => (
+  const renderRaffleList = (list) => (
     <ul className="space-y-2">
       {list.map((r) => {
         const daysLine = displayDaysLabel(r);
         return (
-        <li
-          key={r.id}
-          className="flex gap-3 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800"
-        >
-          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-900">
-            <img src={r.image_url} alt="" className="h-full w-full object-cover" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="font-semibold text-gray-900 dark:text-white line-clamp-2">{r.title}</div>
-            <div className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
-              정렬 {r.sort_order ?? 0}
-              {daysLine ? ` · ${daysLine}` : ''}
-              {r.kind === 'completed' && r.badge ? ` · ${r.badge}` : ''}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {showStart && (
-                <button
-                  type="button"
-                  disabled={startingId === r.id || Boolean(startPickId)}
-                  onClick={() => openStartPicker(r.id)}
-                  className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-                >
-                  래플 시작
-                </button>
-              )}
-              {showEnd && (
-                <button
-                  type="button"
-                  disabled={endingId === r.id}
-                  onClick={() => handleEndRaffle(r.id)}
-                  className="rounded-lg border border-amber-600/80 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-950/60"
-                >
-                  {endingId === r.id ? '종료 중…' : '래플 종료'}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => openEdit(r)}
-                className="text-xs font-medium text-primary hover:underline"
-              >
-                수정
-              </button>
-              <button
-                type="button"
-                onClick={() => setDeleteConfirm({ id: r.id })}
-                className="text-xs font-medium text-rose-600 hover:underline"
-              >
-                삭제
-              </button>
-            </div>
-          </div>
-        </li>
+          <li key={r.id}>
+            <button
+              type="button"
+              onClick={() => navigate(`/admin/raffles/${r.id}`)}
+              className="flex w-full gap-3 rounded-xl border border-gray-200 bg-white p-3 text-left transition hover:border-primary/40 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/50"
+            >
+              <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-900">
+                <img src={r.image_url} alt="" className="h-full w-full object-cover" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-semibold text-gray-900 dark:text-white line-clamp-2">{r.title}</div>
+                <div className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                  {daysLine ? daysLine : ''}
+                  {r.kind === 'completed' && r.badge ? ` · ${r.badge}` : ''}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span className="text-xs font-medium text-primary">상세 · 시작/종료</span>
+                  <button
+                    type="button"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      openEdit(r);
+                    }}
+                    className="text-xs font-medium text-gray-600 hover:underline dark:text-gray-300"
+                  >
+                    빠른 수정
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      setDeleteConfirm({ id: r.id });
+                    }}
+                    className="text-xs font-medium text-rose-600 hover:underline"
+                  >
+                    삭제
+                  </button>
+                </div>
+              </div>
+              <span className="material-symbols-outlined shrink-0 text-gray-400">chevron_right</span>
+            </button>
+          </li>
         );
       })}
     </ul>
@@ -297,13 +251,9 @@ const AdminRafflesScreen = () => {
 
       <main className="space-y-8 p-4 pb-28">
         <p className="text-[13px] leading-relaxed text-gray-600 dark:text-gray-400">
-          진행 예정만 등록한 뒤 <strong className="text-gray-800 dark:text-gray-200">래플 시작</strong>에서{' '}
-          <strong className="text-gray-800 dark:text-gray-200">지금 시작</strong>(N×24시간) 또는{' '}
-          <strong className="text-gray-800 dark:text-gray-200">00시 시작</strong>(서울 달력 1일차 0시~N일차 0시)을 고를 수 있습니다.
-          진행 중에는 <strong className="text-gray-800 dark:text-gray-200">래플 종료</strong>로 조기 완료할 수 있고, 기간이 끝나면 자동으로 완료됩니다. RLS 오류 시 Supabase SQL에{' '}
-          <code className="rounded bg-gray-200 px-1 text-[12px] dark:bg-gray-700">20260426120000_raffles_schedule_rls.sql</code>{' '}
-          을 적용하고, <code className="rounded bg-gray-200 px-1 text-[12px] dark:bg-gray-700">admin_users</code>에 본인{' '}
-          <code className="rounded bg-gray-200 px-1 text-[12px] dark:bg-gray-700">user_id</code>를 넣어 주세요.
+          항목을 눌러 상세에서 <strong className="text-gray-800 dark:text-gray-200">시작·종료</strong>를 처리하세요.
+          예정 래플을 <strong className="text-gray-800 dark:text-gray-200">00시 종료</strong>로 예약하면 해당 시각 이후 자동 삭제됩니다(
+          SQL <code className="rounded bg-gray-200 px-1 text-[12px] dark:bg-gray-700">20260427130000_raffles_close_scheduled_at_ends.sql</code>).
         </p>
 
         {loading ? (
@@ -326,25 +276,25 @@ const AdminRafflesScreen = () => {
                   등록된 진행 예정 래플이 없습니다.
                 </p>
               ) : (
-                renderList(scheduled, { showStart: true })
+                renderRaffleList(scheduled)
               )}
             </section>
 
             <section>
-              <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="mb-3">
                 <h2 className="text-[15px] font-extrabold text-gray-900 dark:text-white">진행 중인 래플</h2>
               </div>
               {ongoing.length === 0 ? (
                 <p className="rounded-xl border border-dashed border-gray-300 py-6 text-center text-[13px] text-gray-500 dark:border-gray-600">
-                  진행 중인 래플이 없습니다. 진행 예정에서 래플 시작을 눌러 주세요.
+                  진행 중인 래플이 없습니다.
                 </p>
               ) : (
-                renderList(ongoing, { showStart: false, showEnd: true })
+                renderRaffleList(ongoing)
               )}
             </section>
 
             <section>
-              <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="mb-3">
                 <h2 className="text-[15px] font-extrabold text-gray-900 dark:text-white">완료된 래플</h2>
               </div>
               {completed.length === 0 ? (
@@ -352,7 +302,7 @@ const AdminRafflesScreen = () => {
                   완료된 래플이 없습니다.
                 </p>
               ) : (
-                renderList(completed, { showStart: false })
+                renderRaffleList(completed)
               )}
             </section>
           </>
@@ -364,9 +314,7 @@ const AdminRafflesScreen = () => {
           <div className="max-h-[90vh] w-full max-w-[520px] overflow-y-auto rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900">
             <div className="flex items-center justify-between">
               <h3 className="m-0 text-[16px] font-extrabold text-gray-900 dark:text-gray-50">
-                {form.editingId
-                  ? '래플 수정'
-                  : '진행 예정 래플 추가'}
+                {form.editingId ? '래플 수정' : '진행 예정 래플 추가'}
               </h3>
               <button type="button" onClick={closeForm} className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-800">
                 <span className="material-symbols-outlined">close</span>
@@ -382,86 +330,77 @@ const AdminRafflesScreen = () => {
                   onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
                 />
               </div>
+
               <div>
-                <label className="mb-1 block text-[12px] font-semibold text-gray-700 dark:text-gray-200">이미지 URL</label>
+                <label className="mb-1 block text-[12px] font-semibold text-gray-700 dark:text-gray-200">이미지 (PNG 등 파일 또는 URL)</label>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+                  disabled={imageUploading}
+                  onChange={onPickImageFile}
+                  className="mb-2 block w-full text-[13px] file:mr-2 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+                />
                 <input
                   className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-[13px] dark:border-gray-700 dark:bg-gray-950"
-                  placeholder="https://..."
+                  placeholder="또는 이미지 URL (https://...)"
                   value={form.image_url}
                   onChange={(e) => setForm((p) => ({ ...p, image_url: e.target.value }))}
                 />
-              </div>
-              <div>
-                <label className="mb-1 block text-[12px] font-semibold text-gray-700 dark:text-gray-200">정렬 순서 (작을수록 위)</label>
-                <input
-                  type="number"
-                  className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-[13px] dark:border-gray-700 dark:bg-gray-950"
-                  value={form.sort_order}
-                  onChange={(e) => setForm((p) => ({ ...p, sort_order: Number(e.target.value) || 0 }))}
-                />
+                {imageUploading && <p className="mt-1 text-[11px] text-gray-500">업로드 중...</p>}
               </div>
 
-              {(form.kind === 'ongoing' || form.kind === 'scheduled') && !form.editingId && (
+              {form.kind === 'scheduled' && (
                 <div>
                   <label className="mb-1 block text-[12px] font-semibold text-gray-700 dark:text-gray-200">
-                    진행 일수 (N일 래플: 1일차 0시 ~ N일차 0시 종료)
+                    진행 일수 {form.editingId ? '(시작 전에만 변경)' : ''}
                   </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={365}
+                  <select
                     className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-[13px] dark:border-gray-700 dark:bg-gray-950"
                     value={form.duration_days}
-                    onChange={(e) => setForm((p) => ({ ...p, duration_days: Math.max(1, Number(e.target.value) || 7) }))}
-                  />
+                    onChange={(e) => setForm((p) => ({ ...p, duration_days: Number(e.target.value) }))}
+                  >
+                    {RAFFLE_DURATION_OPTIONS.map((d) => (
+                      <option key={d} value={d}>
+                        {d}일
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
 
-              {form.kind === 'scheduled' && form.editingId && (
+              {form.kind === 'ongoing' && form.editingId && (
                 <div>
-                  <label className="mb-1 block text-[12px] font-semibold text-gray-700 dark:text-gray-200">
-                    진행 일수 (시작 전에만 변경 가능)
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={365}
+                  <label className="mb-1 block text-[12px] font-semibold text-gray-700 dark:text-gray-200">진행 일수 (참고)</label>
+                  <select
                     className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-[13px] dark:border-gray-700 dark:bg-gray-950"
                     value={form.duration_days}
-                    onChange={(e) => setForm((p) => ({ ...p, duration_days: Math.max(1, Number(e.target.value) || 7) }))}
-                  />
+                    onChange={(e) => setForm((p) => ({ ...p, duration_days: Number(e.target.value) }))}
+                  >
+                    {RAFFLE_DURATION_OPTIONS.map((d) => (
+                      <option key={d} value={d}>
+                        {d}일
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[11px] text-gray-500">이미 시작된 래플의 종료 시각은 상세 화면에서 조정하세요.</p>
                 </div>
               )}
 
               {form.kind === 'ongoing' || form.kind === 'scheduled' ? (
-                <>
-                  <div>
-                    <label className="mb-1 block text-[12px] font-semibold text-gray-700 dark:text-gray-200">설명</label>
-                    <textarea
-                      className="min-h-[100px] w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2 text-[13px] dark:border-gray-700 dark:bg-gray-950"
-                      value={form.description}
-                      onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[12px] font-semibold text-gray-700 dark:text-gray-200">
-                      {form.kind === 'scheduled' ? '표시 문구 (예: 오픈 예정)' : '남은 기간 표시(수동, 미입력 시 종료일 기준 자동)'}
-                    </label>
-                    <input
-                      className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-[13px] dark:border-gray-700 dark:bg-gray-950"
-                      placeholder={form.kind === 'scheduled' ? '오픈 예정' : '예: 5일 남음'}
-                      value={form.days_left}
-                      onChange={(e) => setForm((p) => ({ ...p, days_left: e.target.value }))}
-                    />
-                  </div>
-                </>
+                <div>
+                  <label className="mb-1 block text-[12px] font-semibold text-gray-700 dark:text-gray-200">설명</label>
+                  <textarea
+                    className="min-h-[100px] w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2 text-[13px] dark:border-gray-700 dark:bg-gray-950"
+                    value={form.description}
+                    onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+                  />
+                </div>
               ) : (
                 <>
                   <div>
                     <label className="mb-1 block text-[12px] font-semibold text-gray-700 dark:text-gray-200">카테고리</label>
                     <input
                       className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-[13px] dark:border-gray-700 dark:bg-gray-950"
-                      placeholder="예: 국내/근교 여행"
                       value={form.category}
                       onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
                     />
@@ -470,7 +409,6 @@ const AdminRafflesScreen = () => {
                     <label className="mb-1 block text-[12px] font-semibold text-gray-700 dark:text-gray-200">상태 문구</label>
                     <input
                       className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-[13px] dark:border-gray-700 dark:bg-gray-950"
-                      placeholder="예: 당첨을 축하드려요."
                       value={form.status_message}
                       onChange={(e) => setForm((p) => ({ ...p, status_message: e.target.value }))}
                     />
@@ -508,48 +446,6 @@ const AdminRafflesScreen = () => {
                 className={`flex-1 rounded-full py-2.5 text-[13px] font-semibold text-white ${submitting ? 'bg-gray-400' : 'bg-primary hover:bg-primary-dark'}`}
               >
                 {submitting ? '저장 중...' : '저장'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {startPickId && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-[360px] rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900">
-            <h3 className="m-0 text-[16px] font-extrabold text-gray-900 dark:text-gray-50">시작 방식 선택</h3>
-            <p className="mt-2 text-[13px] leading-relaxed text-gray-600 dark:text-gray-300">
-              <span className="font-semibold text-gray-800 dark:text-gray-200">지금 시작</span>: 이 순간부터 설정한 일수만큼
-              정확히 N×24시간 후 종료합니다.
-              <br />
-              <br />
-              <span className="font-semibold text-gray-800 dark:text-gray-200">00시 시작</span>: 서울 기준 오늘 0시를 1일차로
-              잡고, N일차 0시에 종료합니다.
-            </p>
-            <div className="mt-4 flex flex-col gap-2">
-              <button
-                type="button"
-                disabled={startingId === startPickId}
-                onClick={() => runStartWithMode(startPickId, RAFFLE_START_IMMEDIATE)}
-                className="w-full rounded-xl bg-emerald-600 py-3 text-[13px] font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
-              >
-                {startingId === startPickId ? '처리 중…' : '지금 시작'}
-              </button>
-              <button
-                type="button"
-                disabled={startingId === startPickId}
-                onClick={() => runStartWithMode(startPickId, RAFFLE_START_MIDNIGHT)}
-                className="w-full rounded-xl border border-gray-300 bg-white py-3 text-[13px] font-bold text-gray-900 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-800"
-              >
-                00시 시작 (서울)
-              </button>
-              <button
-                type="button"
-                disabled={startingId === startPickId}
-                onClick={closeStartPicker}
-                className="w-full rounded-xl py-2.5 text-[13px] font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-              >
-                취소
               </button>
             </div>
           </div>

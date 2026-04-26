@@ -17,6 +17,25 @@ export function seoulTodayMidnight() {
   );
 }
 
+/** 서울 기준으로 `from` 시점 이후(초과) 가장 가까운 0시(UTC instant) */
+export function seoulNextMidnightAfter(from = new Date()) {
+  const parts = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(from);
+  const [y, m, d] = parts.split('-').map(Number);
+  let midnight = new Date(
+    `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}T00:00:00+09:00`
+  );
+  const ms = from.getTime();
+  while (midnight.getTime() <= ms) {
+    midnight = new Date(midnight.getTime() + 24 * 60 * 60 * 1000);
+  }
+  return midnight;
+}
+
 /** @param {Date} startsAt — seoulTodayMidnight() 등 */
 export function computeEndsAt(startsAt, durationDays) {
   const n = Math.max(1, Math.floor(Number(durationDays)) || 7);

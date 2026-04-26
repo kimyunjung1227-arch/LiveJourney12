@@ -5,21 +5,21 @@ import {
   computeEndsAt,
   computeEndsAtFromNow,
   formatDaysLeftKorean,
+  seoulNextMidnightAfter,
 } from '../utils/raffleSchedule';
 
 export const RAFFLE_START_MIDNIGHT = 'midnight';
 export const RAFFLE_START_IMMEDIATE = 'immediate';
+export const RAFFLE_END_NOW = 'immediate';
+export const RAFFLE_END_MIDNIGHT = 'midnight';
 
 const sortRows = (rows) =>
   [...(rows || [])].sort((a, b) => {
-    const so = (a.sort_order ?? 0) - (b.sort_order ?? 0);
-    if (so !== 0) return so;
     const ta = new Date(a.created_at || 0).getTime();
     const tb = new Date(b.created_at || 0).getTime();
     return tb - ta;
   });
 
-/** 만료된 진행 중 래플을 완료로 옮김 (Supabase RPC, RLS 우회 DEFINER) */
 const runCloseExpiredRaffles = async () => {
   try {
     const { error } = await supabase.rpc('close_expired_raffles');
@@ -29,9 +29,6 @@ const runCloseExpiredRaffles = async () => {
   }
 };
 
-/**
- * @returns {Promise<Array>}
- */
 export const fetchRaffles = async () => {
   try {
     await runCloseExpiredRaffles();
@@ -41,6 +38,18 @@ export const fetchRaffles = async () => {
   } catch (e) {
     logger.warn('fetchRaffles 실패:', e?.message);
     return [];
+  }
+};
+
+export const fetchRaffleById = async (id) => {
+  try {
+    await runCloseExpiredRaffles();
+    const { data, error } = await supabase.from('raffles').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return { raffle: data || null, error: null };
+  } catch (e) {
+    logger.warn('fetchRaffleById 실패:', e?.message);
+    return { raffle: null, error: e?.message || '불러오기 실패' };
   }
 };
 
@@ -55,7 +64,6 @@ const mapOngoingLike = (r) => ({
   image: r.image_url,
 });
 
-/** 앱 UI용: 진행 예정 / 진행 중 / 완료 분리 및 필드 매핑 */
 export const fetchRafflesForUi = async () => {
   const rows = await fetchRaffles();
   const scheduled = sortRows(rows.filter((r) => r.kind === 'scheduled')).map(mapOngoingLike);
@@ -71,7 +79,6 @@ export const fetchRafflesForUi = async () => {
   return { scheduled, ongoing, completed };
 };
 
-/** 신규는 진행 예정(scheduled)만 허용 */
 export const createRaffle = async (payload) => {
   try {
     const duration_days = Math.max(1, Math.floor(Number(payload.duration_days)) || 7);
@@ -80,9 +87,8 @@ export const createRaffle = async (payload) => {
       title: (payload.title || '').trim(),
       image_url: (payload.image_url || '').trim(),
       description: payload.description != null ? String(payload.description).trim() : '',
-      sort_order: Number.isFinite(Number(payload.sort_order)) ? Number(payload.sort_order) : 0,
       duration_days,
-      days_left: (payload.days_left || '').trim() || '오픈 예정',
+      days_left: '오픈 예정',
       category: null,
       status_message: null,
       badge: null,
@@ -93,7 +99,7 @@ export const createRaffle = async (payload) => {
       return { success: false, error: '제목을 입력하세요.' };
     }
     if (!row.image_url) {
-      return { success: false, error: '이미지 URL을 입력하세요.' };
+      return { success: false, error: '이미지 URL을 입력하거나 PNG 등 파일을 업로드하세요.' };
     }
 
     const { data, error } = await supabase.from('raffles').insert(row).select('*').single();
@@ -105,7 +111,6 @@ export const createRaffle = async (payload) => {
   }
 };
 
-/** 진행 예정 → 진행 중. startMode: midnight=서울 0시 기준, immediate=지금부터 N×24시간 */
 export const startScheduledRaffle = async (id, startMode = RAFFLE_START_MIDNIGHT) => {
   try {
     const { data: row, error: fetchErr } = await supabase.from('raffles').select('*').eq('id', id).maybeSingle();
@@ -139,7 +144,6 @@ export const startScheduledRaffle = async (id, startMode = RAFFLE_START_MIDNIGHT
   }
 };
 
-/** 진행 중 → 완료(관리자 즉시 종료) */
 export const completeRaffleNow = async (id) => {
   try {
     const { data: row, error: fetchErr } = await supabase.from('raffles').select('*').eq('id', id).maybeSingle();
@@ -168,6 +172,36 @@ export const completeRaffleNow = async (id) => {
     return { success: true, raffle: data };
   } catch (e) {
     logger.error('completeRaffleNow 실패:', e?.message);
+    return { success: false, error: e?.message || '종료 처리에 실패했습니다.' };
+  }
+};
+
+/**
+ * 종료: scheduled → 지금=삭제, 00시=ends_at 예약 후 자동 삭제(RPC)
+ * ongoing → 지금=즉시 완료, 00시=다음 서울 0시에 맞춰 ends_at 연장
+ */
+export const endRaffleWithMode = async (id, endMode = RAFFLE_END_NOW) => {
+  try {
+    const { data: row, error: fetchErr } = await supabase.from('raffles').select('*').eq('id', id).maybeSingle();
+    if (fetchErr) throw fetchErr;
+    if (!row) return { success: false, error: '래플을 찾을 수 없습니다.' };
+
+    const useMidnight = endMode === RAFFLE_END_MIDNIGHT;
+
+    if (row.kind === 'scheduled') {
+      if (!useMidnight) return deleteRaffle(id);
+      const ends_at = seoulNextMidnightAfter(new Date());
+      return updateRaffle(id, { ends_at: ends_at.toISOString() });
+    }
+    if (row.kind === 'ongoing') {
+      if (!useMidnight) return completeRaffleNow(id);
+      const ends_at = seoulNextMidnightAfter(new Date());
+      const days_left = formatDaysLeftKorean(ends_at);
+      return updateRaffle(id, { ends_at: ends_at.toISOString(), days_left });
+    }
+    return { success: false, error: '진행 예정 또는 진행 중인 래플만 종료할 수 있습니다.' };
+  } catch (e) {
+    logger.error('endRaffleWithMode 실패:', e?.message);
     return { success: false, error: e?.message || '종료 처리에 실패했습니다.' };
   }
 };
