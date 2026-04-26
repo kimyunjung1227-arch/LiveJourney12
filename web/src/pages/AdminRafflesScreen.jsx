@@ -1,21 +1,23 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchRaffles, createRaffle, updateRaffle, deleteRaffle } from '../api/rafflesSupabase';
+import { fetchRaffles, createRaffle, updateRaffle, deleteRaffle, startScheduledRaffle } from '../api/rafflesSupabase';
+import { formatDaysLeftKorean } from '../utils/raffleSchedule';
 
 const BADGE_OPTIONS = ['당첨', '미당첨', '미응모'];
 
 const emptyForm = {
   open: false,
-  kind: 'ongoing',
+  kind: 'scheduled',
   editingId: null,
   title: '',
   description: '',
   image_url: '',
-  days_left: '',
+  days_left: '오픈 예정',
   category: '',
   status_message: '',
   badge: '미응모',
   sort_order: 0,
+  duration_days: 7,
 };
 
 const AdminRafflesScreen = () => {
@@ -24,6 +26,7 @@ const AdminRafflesScreen = () => {
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
+  const [startingId, setStartingId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState({ id: null });
 
   const load = useCallback(async () => {
@@ -40,13 +43,14 @@ const AdminRafflesScreen = () => {
   const ongoing = useMemo(() => rows.filter((r) => r.kind === 'ongoing'), [rows]);
   const completed = useMemo(() => rows.filter((r) => r.kind === 'completed'), [rows]);
 
-  const openCreate = (kind) => {
+  const openCreateScheduled = () => {
     setForm({
       ...emptyForm,
       open: true,
-      kind,
-      days_left: '7일 남음',
+      kind: 'scheduled',
+      days_left: '오픈 예정',
       sort_order: 0,
+      duration_days: 7,
     });
   };
 
@@ -63,13 +67,26 @@ const AdminRafflesScreen = () => {
       status_message: row.status_message || '',
       badge: row.badge || '미응모',
       sort_order: row.sort_order ?? 0,
+      duration_days: Math.max(1, Number(row.duration_days) || 7),
     });
   };
 
   const closeForm = () => setForm(emptyForm);
 
   const handleSave = async () => {
-    const { editingId, kind, title, image_url, description, days_left, category, status_message, badge, sort_order } = form;
+    const {
+      editingId,
+      kind,
+      title,
+      image_url,
+      description,
+      days_left,
+      category,
+      status_message,
+      badge,
+      sort_order,
+      duration_days,
+    } = form;
     if (!title.trim()) {
       alert('제목을 입력하세요.');
       return;
@@ -87,9 +104,13 @@ const AdminRafflesScreen = () => {
           image_url,
           description,
           sort_order,
+          duration_days,
           ...(kind === 'ongoing' || kind === 'scheduled'
             ? {
-                days_left,
+                days_left:
+                  kind === 'ongoing'
+                    ? days_left
+                    : (days_left || '').trim() || '오픈 예정',
                 category: null,
                 status_message: null,
                 badge: null,
@@ -109,15 +130,12 @@ const AdminRafflesScreen = () => {
         }
       } else {
         const res = await createRaffle({
-          kind,
           title,
           image_url,
           description,
-          days_left,
-          category,
-          status_message,
-          badge,
           sort_order,
+          duration_days,
+          days_left: (days_left || '').trim() || '오픈 예정',
         });
         if (res.success) {
           await load();
@@ -131,6 +149,25 @@ const AdminRafflesScreen = () => {
     }
   };
 
+  const handleStartRaffle = async (id) => {
+    if (!id) return;
+    const ok = window.confirm(
+      '이 래플을 지금 시작할까요?\n서울 기준 오늘 0시를 1일차 시작으로 잡고, 설정한 일수만큼 N일차 0시에 종료됩니다.'
+    );
+    if (!ok) return;
+    setStartingId(id);
+    try {
+      const res = await startScheduledRaffle(id);
+      if (res.success) {
+        await load();
+      } else {
+        alert(res.error || '시작에 실패했습니다.');
+      }
+    } finally {
+      setStartingId(null);
+    }
+  };
+
   const handleDelete = async (id) => {
     if (!id) return;
     const { success } = await deleteRaffle(id);
@@ -138,13 +175,22 @@ const AdminRafflesScreen = () => {
       setRows((prev) => prev.filter((r) => r.id !== id));
       setDeleteConfirm({ id: null });
     } else {
-      alert('삭제에 실패했습니다. (Supabase에 raffles 테이블이 적용되어 있고 admin_users에 본인이 등록되어 있는지 확인하세요.)');
+      alert('삭제에 실패했습니다. (Supabase에 raffles 테이블·마이그레이션 적용 및 admin_users에 본인이 등록되어 있는지 확인하세요.)');
     }
   };
 
-  const renderList = (list) => (
+  const displayDaysLabel = (r) => {
+    if (r.kind === 'ongoing' && r.ends_at) return formatDaysLeftKorean(r.ends_at);
+    if ((r.kind === 'ongoing' || r.kind === 'scheduled') && r.days_left) return r.days_left;
+    if (r.kind === 'scheduled') return `${Math.max(1, Number(r.duration_days) || 7)}일 래플 예정`;
+    return '';
+  };
+
+  const renderList = (list, { showStart } = {}) => (
     <ul className="space-y-2">
-      {list.map((r) => (
+      {list.map((r) => {
+        const daysLine = displayDaysLabel(r);
+        return (
         <li
           key={r.id}
           className="flex gap-3 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800"
@@ -156,10 +202,20 @@ const AdminRafflesScreen = () => {
             <div className="font-semibold text-gray-900 dark:text-white line-clamp-2">{r.title}</div>
             <div className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
               정렬 {r.sort_order ?? 0}
-              {(r.kind === 'ongoing' || r.kind === 'scheduled') && r.days_left ? ` · ${r.days_left}` : ''}
+              {daysLine ? ` · ${daysLine}` : ''}
               {r.kind === 'completed' && r.badge ? ` · ${r.badge}` : ''}
             </div>
-            <div className="mt-2 flex gap-2">
+            <div className="mt-2 flex flex-wrap gap-2">
+              {showStart && (
+                <button
+                  type="button"
+                  disabled={startingId === r.id}
+                  onClick={() => handleStartRaffle(r.id)}
+                  className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  {startingId === r.id ? '시작 중…' : '래플 시작'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => openEdit(r)}
@@ -177,7 +233,8 @@ const AdminRafflesScreen = () => {
             </div>
           </div>
         </li>
-      ))}
+        );
+      })}
     </ul>
   );
 
@@ -198,10 +255,11 @@ const AdminRafflesScreen = () => {
 
       <main className="space-y-8 p-4 pb-28">
         <p className="text-[13px] leading-relaxed text-gray-600 dark:text-gray-400">
-          진행 예정·진행 중·완료 래플을 등록하면 앱에 반영됩니다. 진행 예정은{' '}
-          <code className="rounded bg-gray-200 px-1 text-[12px] dark:bg-gray-700">scheduled</code> kind 마이그레이션(
-          <code className="rounded bg-gray-200 px-1 text-[12px] dark:bg-gray-700">20250418120000_raffles_scheduled_kind.sql</code>
-          ) 적용이 필요합니다.
+          진행 예정만 여기서 등록한 뒤, 목록에서 <strong className="text-gray-800 dark:text-gray-200">래플 시작</strong>을 누르면
+          진행 중으로 바뀝니다. 기간이 끝나면 자동으로 완료 목록으로 이동합니다. RLS 오류 시 Supabase SQL에{' '}
+          <code className="rounded bg-gray-200 px-1 text-[12px] dark:bg-gray-700">20260426120000_raffles_schedule_rls.sql</code>{' '}
+          을 적용하고, <code className="rounded bg-gray-200 px-1 text-[12px] dark:bg-gray-700">admin_users</code>에 본인{' '}
+          <code className="rounded bg-gray-200 px-1 text-[12px] dark:bg-gray-700">user_id</code>를 넣어 주세요.
         </p>
 
         {loading ? (
@@ -213,7 +271,7 @@ const AdminRafflesScreen = () => {
                 <h2 className="text-[15px] font-extrabold text-gray-900 dark:text-white">진행 예정 래플</h2>
                 <button
                   type="button"
-                  onClick={() => openCreate('scheduled')}
+                  onClick={openCreateScheduled}
                   className="rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white hover:opacity-90"
                 >
                   추가
@@ -224,47 +282,33 @@ const AdminRafflesScreen = () => {
                   등록된 진행 예정 래플이 없습니다.
                 </p>
               ) : (
-                renderList(scheduled)
+                renderList(scheduled, { showStart: true })
               )}
             </section>
 
             <section>
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h2 className="text-[15px] font-extrabold text-gray-900 dark:text-white">진행 중인 래플</h2>
-                <button
-                  type="button"
-                  onClick={() => openCreate('ongoing')}
-                  className="rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white hover:opacity-90"
-                >
-                  추가
-                </button>
               </div>
               {ongoing.length === 0 ? (
                 <p className="rounded-xl border border-dashed border-gray-300 py-6 text-center text-[13px] text-gray-500 dark:border-gray-600">
-                  등록된 진행 중 래플이 없습니다.
+                  진행 중인 래플이 없습니다. 진행 예정에서 래플 시작을 눌러 주세요.
                 </p>
               ) : (
-                renderList(ongoing)
+                renderList(ongoing, { showStart: false })
               )}
             </section>
 
             <section>
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h2 className="text-[15px] font-extrabold text-gray-900 dark:text-white">완료된 래플</h2>
-                <button
-                  type="button"
-                  onClick={() => openCreate('completed')}
-                  className="rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white hover:opacity-90"
-                >
-                  추가
-                </button>
               </div>
               {completed.length === 0 ? (
                 <p className="rounded-xl border border-dashed border-gray-300 py-6 text-center text-[13px] text-gray-500 dark:border-gray-600">
-                  등록된 완료 래플이 없습니다.
+                  완료된 래플이 없습니다.
                 </p>
               ) : (
-                renderList(completed)
+                renderList(completed, { showStart: false })
               )}
             </section>
           </>
@@ -278,11 +322,7 @@ const AdminRafflesScreen = () => {
               <h3 className="m-0 text-[16px] font-extrabold text-gray-900 dark:text-gray-50">
                 {form.editingId
                   ? '래플 수정'
-                  : form.kind === 'scheduled'
-                    ? '진행 예정 래플 추가'
-                    : form.kind === 'ongoing'
-                      ? '진행 중 래플 추가'
-                      : '완료 래플 추가'}
+                  : '진행 예정 래플 추가'}
               </h3>
               <button type="button" onClick={closeForm} className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-800">
                 <span className="material-symbols-outlined">close</span>
@@ -317,6 +357,38 @@ const AdminRafflesScreen = () => {
                 />
               </div>
 
+              {(form.kind === 'ongoing' || form.kind === 'scheduled') && !form.editingId && (
+                <div>
+                  <label className="mb-1 block text-[12px] font-semibold text-gray-700 dark:text-gray-200">
+                    진행 일수 (N일 래플: 1일차 0시 ~ N일차 0시 종료)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-[13px] dark:border-gray-700 dark:bg-gray-950"
+                    value={form.duration_days}
+                    onChange={(e) => setForm((p) => ({ ...p, duration_days: Math.max(1, Number(e.target.value) || 7) }))}
+                  />
+                </div>
+              )}
+
+              {form.kind === 'scheduled' && form.editingId && (
+                <div>
+                  <label className="mb-1 block text-[12px] font-semibold text-gray-700 dark:text-gray-200">
+                    진행 일수 (시작 전에만 변경 가능)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-[13px] dark:border-gray-700 dark:bg-gray-950"
+                    value={form.duration_days}
+                    onChange={(e) => setForm((p) => ({ ...p, duration_days: Math.max(1, Number(e.target.value) || 7) }))}
+                  />
+                </div>
+              )}
+
               {form.kind === 'ongoing' || form.kind === 'scheduled' ? (
                 <>
                   <div>
@@ -328,10 +400,12 @@ const AdminRafflesScreen = () => {
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[12px] font-semibold text-gray-700 dark:text-gray-200">남은 기간 표시</label>
+                    <label className="mb-1 block text-[12px] font-semibold text-gray-700 dark:text-gray-200">
+                      {form.kind === 'scheduled' ? '표시 문구 (예: 오픈 예정)' : '남은 기간 표시(수동, 미입력 시 종료일 기준 자동)'}
+                    </label>
                     <input
                       className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-[13px] dark:border-gray-700 dark:bg-gray-950"
-                      placeholder="예: 5일 남음"
+                      placeholder={form.kind === 'scheduled' ? '오픈 예정' : '예: 5일 남음'}
                       value={form.days_left}
                       onChange={(e) => setForm((p) => ({ ...p, days_left: e.target.value }))}
                     />
