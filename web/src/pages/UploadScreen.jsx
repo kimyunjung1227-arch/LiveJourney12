@@ -47,7 +47,16 @@ const UploadScreen = () => {
   const [showBadgeModal, setShowBadgeModal] = useState(false);
   const [earnedBadge, setEarnedBadge] = useState(null);
   /** 미디어를 모두 지우기 전까지 AI 자동 태그는 최초 1회만 */
-  const initialAiSuggestDoneRef = useRef(false);
+  const initialAiSuggestDoneRef = useRef(null);
+  const noteAreaRef = useRef(null);
+
+  const growNoteArea = useCallback(() => {
+    const el = noteAreaRef.current;
+    if (!el) return;
+    el.style.height = '0px';
+    const next = Math.min(Math.max(el.scrollHeight, 76), 280);
+    el.style.height = `${next}px`;
+  }, []);
 
   const getCurrentLocation = useCallback(async () => {
     if (!navigator.geolocation) return;
@@ -159,14 +168,21 @@ const UploadScreen = () => {
         const currentMonth = new Date().getMonth() + 1;
         let defaultTags = [];
         
+        const locTok =
+          String(location || '')
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+            .pop() || '여행';
+        const locTag = /^[가-힣]/.test(locTok) ? locTok.replace(/[^가-힣0-9]/g, '') || '여행' : '여행';
         if (currentMonth >= 3 && currentMonth <= 5) {
-          defaultTags = ['맑은날씨', '화창한날씨', '평화로운', '낭만적인', '힐링', '산책'];
+          defaultTags = ['맑은날씨', '화창한날씨', locTag, '평화로운', '낭만적인', '힐링'];
         } else if (currentMonth >= 6 && currentMonth <= 8) {
-          defaultTags = ['여름날씨', '청명한날씨', '시원한', '청량한', '활기찬', '여행'];
+          defaultTags = ['여름날씨', '청명한날씨', locTag, '시원한', '청량한', '활기찬'];
         } else if (currentMonth >= 9 && currentMonth <= 11) {
-          defaultTags = ['가을날씨', '쾌청한날씨', '고즈넉한', '차분한', '낭만적인', '산책'];
+          defaultTags = ['가을날씨', '쾌청한날씨', locTag, '고즈넉한', '차분한', '낭만적인'];
         } else {
-          defaultTags = ['겨울날씨', '맑은날씨', '포근한', '편안한', '고요한', '여행'];
+          defaultTags = ['겨울날씨', '맑은날씨', locTag, '포근한', '편안한', '고요한'];
         }
         
         const filteredTags = defaultTags
@@ -195,14 +211,21 @@ const UploadScreen = () => {
       const currentMonth = new Date().getMonth() + 1;
       let defaultTags = [];
       
+      const locTok2 =
+        String(location || '')
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean)
+          .pop() || '여행';
+      const locTag2 = /^[가-힣]/.test(locTok2) ? locTok2.replace(/[^가-힣0-9]/g, '') || '여행' : '여행';
       if (currentMonth >= 3 && currentMonth <= 5) {
-        defaultTags = ['맑은날씨', '화창한날씨', '평화로운', '낭만적인', '힐링', '산책'];
+        defaultTags = ['맑은날씨', '화창한날씨', locTag2, '평화로운', '낭만적인', '힐링'];
       } else if (currentMonth >= 6 && currentMonth <= 8) {
-        defaultTags = ['여름날씨', '청명한날씨', '시원한', '청량한', '활기찬', '여행'];
+        defaultTags = ['여름날씨', '청명한날씨', locTag2, '시원한', '청량한', '활기찬'];
       } else if (currentMonth >= 9 && currentMonth <= 11) {
-        defaultTags = ['가을날씨', '쾌청한날씨', '고즈넉한', '차분한', '낭만적인', '산책'];
+        defaultTags = ['가을날씨', '쾌청한날씨', locTag2, '고즈넉한', '차분한', '낭만적인'];
       } else {
-        defaultTags = ['겨울날씨', '맑은날씨', '포근한', '편안한', '고요한', '여행'];
+        defaultTags = ['겨울날씨', '맑은날씨', locTag2, '포근한', '편안한', '고요한'];
       }
       
       const filteredTags = defaultTags
@@ -315,20 +338,26 @@ const UploadScreen = () => {
       } else {
         getCurrentLocation();
       }
-      // 사진 파일만 분석 (동영상은 제외) — AI 추천은 최초 1회만 자동 실행
-      const firstImageFile = imageFiles[0];
-      if (firstImageFile && !firstImageFile.type.startsWith('video/') && !initialAiSuggestDoneRef.current) {
-        initialAiSuggestDoneRef.current = true;
-        analyzeImageAndGenerateTags(firstImageFile, formData.location, formData.note);
+      const firstMediaFile = imageFiles[0] || videoFiles[0];
+      const mediaKey = firstMediaFile
+        ? `${firstMediaFile.name}:${firstMediaFile.size}:${firstMediaFile.lastModified}`
+        : '';
+      if (firstMediaFile && mediaKey && initialAiSuggestDoneRef.current !== mediaKey) {
+        initialAiSuggestDoneRef.current = mediaKey;
+        analyzeImageAndGenerateTags(firstMediaFile, formData.location, formData.note);
       }
     }
   }, [formData.images.length, formData.videos.length, formData.location, formData.note, exifAllowed, getCurrentLocation, analyzeImageAndGenerateTags]);
 
   useEffect(() => {
     if (formData.imageFiles.length === 0 && formData.videoFiles.length === 0) {
-      initialAiSuggestDoneRef.current = false;
+      initialAiSuggestDoneRef.current = null;
     }
   }, [formData.imageFiles.length, formData.videoFiles.length]);
+
+  useEffect(() => {
+    growNoteArea();
+  }, [formData.note, growNoteArea]);
 
   // 태그가 변경될 때마다 자동 태그에서 이미 등록된 태그 제거
   useEffect(() => {
@@ -345,13 +374,13 @@ const UploadScreen = () => {
   }, [formData.tags]);
 
   const requestAiTagSuggestion = useCallback(() => {
-    const f = formData.imageFiles[0];
-    if (!f || String(f.type || '').startsWith('video/')) {
-      alert('태그 추천을 받으려면 사진을 먼저 추가해 주세요.');
+    const f = formData.imageFiles[0] || formData.videoFiles[0];
+    if (!f) {
+      alert('태그 추천을 받으려면 사진 또는 동영상을 먼저 추가해 주세요.');
       return;
     }
     analyzeImageAndGenerateTags(f, formData.location, formData.note);
-  }, [formData.imageFiles, formData.location, formData.note, analyzeImageAndGenerateTags]);
+  }, [formData.imageFiles, formData.videoFiles, formData.location, formData.note, analyzeImageAndGenerateTags]);
 
   const handlePhotoOptionSelect = useCallback((option) => {
     setShowPhotoOptions(false);
@@ -723,8 +752,8 @@ const UploadScreen = () => {
         flexDirection: 'column',
         position: 'relative'
       }}>
-        {/* 상태바 영역 (시스템 UI 제거, 공간만 유지) */}
-        <div style={{ height: '20px' }} />
+        {/* 상태바 여백 (콘텐츠를 조금 더 위로) */}
+        <div className="h-2 shrink-0" />
         
         {/* 앱 헤더 */}
         <header className="app-header" style={{ 
@@ -763,32 +792,50 @@ const UploadScreen = () => {
           flex: 1,
           overflowY: 'auto',
           paddingBottom: '100px',
-          padding: '0 16px 100px 16px',
+          padding: '4px 16px 100px 16px',
           background: '#ffffff',
         }}>
-          <div className="p-4 space-y-4 bg-white">
-            <div className="relative">
-              <div className="flex justify-end mb-1">
+          <div className="space-y-3 bg-white px-0 pt-0 pb-2">
+            {(formData.images.length === 0 && formData.videos.length === 0) ? (
+              <div className="relative w-full">
                 <button
                   type="button"
-                  onClick={() => setShowUploadGuideModal(true)}
-                  className="text-xs font-semibold text-primary px-2 py-1 rounded-md hover:bg-primary/5"
-                >
-                  업로드 가이드
-                </button>
-              </div>
-              {(formData.images.length === 0 && formData.videos.length === 0) ? (
-                <button
                   onClick={() => setShowPhotoOptions(true)}
-                  className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-subtle-light dark:border-subtle-dark px-6 py-12 text-center w-full hover:border-primary transition-colors bg-white"
+                  className="flex w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-subtle-light bg-white px-6 py-10 text-center transition-colors hover:border-primary dark:border-subtle-dark dark:bg-white"
                 >
                   <span className="material-symbols-outlined text-4xl text-primary">add_circle</span>
                   <p className="text-base font-bold">사진 또는 동영상 추가</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">최대 10개까지</p>
                 </button>
-              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowUploadGuideModal(true);
+                  }}
+                  className="absolute right-2 top-2 z-20 flex size-10 items-center justify-center rounded-full bg-white/95 text-primary shadow-sm ring-1 ring-gray-200/80 hover:bg-primary/10 dark:bg-gray-900/95 dark:ring-gray-600"
+                  title="업로드 가이드"
+                  aria-label="업로드 가이드"
+                >
+                  <span className="material-symbols-outlined text-[22px] leading-none">menu_book</span>
+                </button>
+              </div>
+            ) : (
+              <div className="relative -mx-1">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowUploadGuideModal(true);
+                  }}
+                  className="absolute right-1 top-1 z-20 flex size-9 items-center justify-center rounded-full bg-white/95 text-primary shadow-sm ring-1 ring-gray-200/80 hover:bg-primary/10 dark:bg-gray-900/95 dark:ring-gray-600"
+                  title="업로드 가이드"
+                  aria-label="업로드 가이드"
+                >
+                  <span className="material-symbols-outlined text-[20px] leading-none">menu_book</span>
+                </button>
                 <div 
-                  className="flex gap-2 overflow-x-scroll overflow-y-hidden pb-2 -mx-4 px-4 snap-x snap-mandatory scroll-smooth cursor-grab active:cursor-grabbing select-none [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" 
+                  className="flex gap-2 overflow-x-scroll overflow-y-hidden pb-2 px-1 snap-x snap-mandatory scroll-smooth cursor-grab active:cursor-grabbing select-none [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" 
                   style={{ 
                     WebkitOverflowScrolling: 'touch',
                     scrollBehavior: 'smooth'
@@ -907,8 +954,8 @@ const UploadScreen = () => {
                     </button>
                   )}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             <div>
               <label className="flex flex-col">
@@ -929,10 +976,11 @@ const UploadScreen = () => {
                     type="button"
                     onClick={getCurrentLocation}
                     disabled={loadingLocation}
-                    className="flex shrink-0 items-center justify-center rounded-lg border border-subtle-light dark:border-subtle-dark bg-primary/10 dark:bg-primary/20 hover:bg-primary/20 dark:hover:bg-primary/30 px-3 h-12 text-xs font-semibold text-primary transition-colors disabled:opacity-50 whitespace-nowrap"
+                    className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-subtle-light bg-primary/10 text-primary transition-colors hover:bg-primary/20 disabled:opacity-50 dark:border-subtle-dark dark:bg-primary/20 dark:hover:bg-primary/30"
                     title="현재 위치 자동 감지"
+                    aria-label="현재 위치 자동 감지"
                   >
-                    현재 위치
+                    <span className="material-symbols-outlined text-[24px] leading-none">my_location</span>
                   </button>
                 </div>
               </label>
@@ -960,8 +1008,7 @@ const UploadScreen = () => {
                 </div>
               </label>
               
-              {formData.imageFiles.length > 0 &&
-                !String(formData.imageFiles[0]?.type || '').startsWith('video/') && (
+              {(formData.imageFiles[0] || formData.videoFiles[0]) && (
                   <div className="mt-3">
                     <div className="mb-1.5 flex items-center justify-between gap-2">
                       <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">AI 추천</span>
@@ -1030,14 +1077,15 @@ const UploadScreen = () => {
                 <p className="text-base font-medium pb-2 text-gray-900">이 순간의 이야기</p>
                 <div className="relative">
                   <textarea
-                    className="form-textarea w-full rounded-lg border border-subtle-light dark:border-subtle-dark bg-background-light dark:bg-background-dark focus:border-primary focus:ring-0 p-3 text-sm font-normal placeholder:text-placeholder-light dark:placeholder:text-placeholder-dark resize-none"
+                    ref={noteAreaRef}
+                    className="form-textarea w-full max-h-[280px] min-h-[76px] resize-none overflow-y-auto rounded-lg border border-subtle-light bg-background-light p-3 text-sm font-normal placeholder:text-placeholder-light focus:border-primary focus:ring-0 dark:border-subtle-dark dark:bg-background-dark dark:placeholder:text-placeholder-dark"
                     placeholder="지금 이곳이 어떤지(분위기, 사람, 날씨 등)를 간단히 적어주세요"
-                    rows="3"
+                    rows={2}
                     value={formData.note}
-                    onChange={(e) => setFormData(prev => ({ ...prev, note: e.target.value }))}
-                    style={{ 
-                      maxHeight: '100px',
-                      overflowY: 'auto'
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setFormData((prev) => ({ ...prev, note: v }));
+                      requestAnimationFrame(() => growNoteArea());
                     }}
                   />
                 </div>

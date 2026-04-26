@@ -382,9 +382,26 @@ export const analyzeImageForTags = async (imageFile, location = '', existingNote
     // 2차 시도: 기존 방식 (색상·위치·노트 기반) — AI 미사용 시 항상 여기서 태그·카테고리 생성
     logger.log('🔄 이미지/위치 기반 태그·카테고리 생성 중...');
     const keywords = new Set();
-    
-    // 병렬 처리로 속도 향상
-    const colorAnalysis = await analyzeImageColors(imageFile);
+
+    const isVideoFile = imageFile && String(imageFile.type || '').startsWith('video/');
+    // 동영상은 Image() 색상 분석이 불안정·무거움 → 고정 프로파일로 휴리스틱만 사용
+    const colorAnalysis = isVideoFile
+      ? {
+          brightness: 0.55,
+          isDark: false,
+          isBright: true,
+          dominantColor: { r: 96, g: 110, b: 130 },
+          isGreen: false,
+          isBlue: true,
+          isRed: false,
+          isYellow: false,
+          isWhite: false,
+          isPink: false,
+          isMuted: false,
+          isVivid: false,
+          saturation: 0.35,
+        }
+      : await analyzeImageColors(imageFile);
     
     logger.debug('🎨 색상 분석 결과:');
     logger.debug('  RGB:', colorAnalysis.dominantColor);
@@ -793,28 +810,63 @@ function moodPoolFromColor(colorAnalysis) {
   return pool;
 }
 
+/** 위치 문자열에서 지역·장소 후보 단어 풀 */
+function buildLocationTagPool(loc) {
+  const location = String(loc || '').trim();
+  if (!location) return ['여행'];
+  const fromKw = generateLocationKeywords(location);
+  const tokens = location
+    .split(/\s+/)
+    .map((w) => w.replace(/[^가-힣0-9]/g, '').trim())
+    .filter((w) => w.length >= 2 && w.length <= 14);
+  return [...new Set([...tokens, ...fromKw])].filter((t) => /^[가-힣\d]+$/.test(t));
+}
+
+function pickLocationSlotTag(rawTags, location) {
+  const pool = buildLocationTagPool(location);
+  const locStr = String(location || '').trim();
+  for (const t of rawTags) {
+    const s = String(t).replace(/^#/, '').trim();
+    if (!s || isWeatherishTag(s)) continue;
+    if (pool.includes(s) || locStr.includes(s)) return s;
+    if (pool.some((p) => p.includes(s) || s.includes(p))) return s;
+  }
+  const first = pool.find((p) => /^[가-힣]{2,}$/.test(p));
+  return first || '여행';
+}
+
 /**
- * 업로드용: 날씨 성격 태그 2개 + 사진 분위기(색·톤 기반) 태그 4개, 총 6개.
+ * 업로드용: 날씨 2 + 지역(장소) 1 + 분위기 3 = 총 6개. 동영상은 색상 분석을 건너뛰어 메모리 부담을 줄임.
  */
-export async function getPartitionedUploadTags(imageFile, location = '', note = '') {
-  const [analysis, colorAnalysis] = await Promise.all([
-    analyzeImageForTags(imageFile, location, note),
-    analyzeImageColors(imageFile),
-  ]);
+export async function getPartitionedUploadTags(mediaFile, location = '', note = '') {
+  const isVideo = mediaFile && String(mediaFile.type || '').startsWith('video/');
+
+  const analysis = await analyzeImageForTags(mediaFile, location, note);
+  const colorAnalysis = isVideo
+    ? {
+        brightness: 0.55,
+        isDark: false,
+        isBright: true,
+        dominantColor: { r: 96, g: 110, b: 130 },
+        isGreen: false,
+        isBlue: true,
+        isRed: false,
+        isYellow: false,
+        isPink: false,
+        isWhite: false,
+        isMuted: false,
+        isVivid: false,
+      }
+    : await analyzeImageColors(mediaFile);
 
   const raw = Array.isArray(analysis.tags)
     ? analysis.tags.map((t) => String(t).replace(/^#/, '').trim()).filter((t) => /^[가-힣\s\d]+$/.test(t))
     : [];
 
   const weather = [];
-  const mood = [];
   for (const t of raw) {
     if (weather.length < 2 && isWeatherishTag(t) && !weather.includes(t)) weather.push(t);
   }
-  for (const t of raw) {
-    if (mood.length < 4 && !isWeatherishTag(t) && !weather.includes(t) && !mood.includes(t)) mood.push(t);
-  }
-
   const defW = defaultWeatherPair();
   while (weather.length < 2) {
     const w = defW.find((x) => !weather.includes(x));
@@ -822,7 +874,20 @@ export async function getPartitionedUploadTags(imageFile, location = '', note = 
     else break;
   }
 
-  const moodPool = moodPoolFromColor(colorAnalysis);
+  const locationTag = pickLocationSlotTag(raw, location);
+
+  const mood = [];
+  for (const t of raw) {
+    if (mood.length >= 3) break;
+    if (isWeatherishTag(t) || weather.includes(t)) continue;
+    if (t === locationTag) continue;
+    if (mood.includes(t)) continue;
+    mood.push(t);
+  }
+
+  const moodPool = moodPoolFromColor(colorAnalysis).filter(
+    (m) => !weather.includes(m) && m !== locationTag && /^[가-힣\s\d]+$/.test(m)
+  );
   const seed =
     (colorAnalysis?.dominantColor?.r || 0) * 195131 +
     (colorAnalysis?.dominantColor?.g || 0) * 71821 +
@@ -835,21 +900,21 @@ export async function getPartitionedUploadTags(imageFile, location = '', note = 
     return (x >>> 0) / 4294967296;
   };
 
-  const uniqPool = [...new Set(moodPool)].filter((m) => !weather.includes(m) && /^[가-힣\s\d]+$/.test(m));
-  while (mood.length < 4 && uniqPool.length) {
+  const uniqPool = [...new Set(moodPool)];
+  while (mood.length < 3 && uniqPool.length) {
     const idx = Math.floor(nextRand() * uniqPool.length);
     const pick = uniqPool.splice(idx, 1)[0];
-    if (pick && !mood.includes(pick)) mood.push(pick);
+    if (pick && !mood.includes(pick) && !weather.includes(pick) && pick !== locationTag) mood.push(pick);
   }
 
-  const fallbacks = ['여행', '추억', '낭만적인', '편안한'];
-  while (mood.length < 4) {
-    const f = fallbacks.find((t) => !mood.includes(t) && !weather.includes(t));
+  const fallbacks = ['편안한', '낭만적인', '힐링', '여유로운', '즐거운', '따스한'];
+  while (mood.length < 3) {
+    const f = fallbacks.find((t) => !mood.includes(t) && !weather.includes(t) && t !== locationTag);
     if (f) mood.push(f);
     else break;
   }
 
-  const tags = [...weather.slice(0, 2), ...mood.slice(0, 4)];
+  const tags = [...weather.slice(0, 2), locationTag, ...mood.slice(0, 3)];
   return {
     ...analysis,
     tags,
