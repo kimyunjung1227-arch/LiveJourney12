@@ -534,8 +534,7 @@ const UploadScreen = () => {
       
       const aiCategory = formData.aiCategory || 'scenic';
       const aiCategoryName = formData.aiCategoryName || '추천 장소';
-      const aiLabels = formData.tags || [];
-      
+
       logger.debug('AI category:', aiCategoryName);
       
       const totalFiles = formData.imageFiles.length + formData.videoFiles.length;
