@@ -775,28 +775,32 @@ const UploadScreen = () => {
           >
             <span className="material-symbols-outlined text-xl">arrow_back</span>
           </button>
-          <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-1">
-            <h1 className="truncate text-center text-lg font-bold" style={{ 
-              fontSize: '18px',
-              fontWeight: 700,
-              color: '#111827',
-              fontFamily: "'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-            }}>업로드: 여행 기록</h1>
-            <button
-              type="button"
-              onClick={() =>
-                navigate('/upload/guide', {
-                  state: { returnTo: `${location.pathname}${location.search || ''}` },
-                })
-              }
-              className="flex size-9 shrink-0 items-center justify-center rounded-full text-primary hover:bg-primary/10"
-              title="업로드 가이드"
-              aria-label="업로드 가이드 전체 화면으로 보기"
+          <div className="flex min-w-0 flex-1 items-center justify-center px-1">
+            <h1
+              className="truncate text-center text-lg font-bold"
+              style={{
+                fontSize: '18px',
+                fontWeight: 700,
+                color: '#111827',
+                fontFamily: "'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+              }}
             >
-              <span className="material-symbols-outlined text-[22px] leading-none">menu_book</span>
-            </button>
+              업로드: 여행 기록
+            </h1>
           </div>
-          <div className="w-10 shrink-0" aria-hidden />
+          <button
+            type="button"
+            onClick={() =>
+              navigate('/upload/guide', {
+                state: { returnTo: `${location.pathname}${location.search || ''}` },
+              })
+            }
+            className="flex size-10 shrink-0 items-center justify-center rounded-full text-primary hover:bg-primary/10"
+            title="업로드 가이드"
+            aria-label="업로드 가이드 전체 화면으로 보기"
+          >
+            <span className="material-symbols-outlined text-[22px] leading-none">menu_book</span>
+          </button>
         </header>
 
         {/* 앱 컨텐츠 */}
@@ -946,7 +950,7 @@ const UploadScreen = () => {
             <div>
               <label className="flex flex-col">
                 <div className="flex items-center justify-between pb-2">
-                  <p className="text-base font-medium text-gray-900">어디에서 찍었나요?</p>
+                  <p className="text-base font-medium text-gray-900">위치</p>
                   {loadingLocation && (
                     <span className="text-xs text-primary">위치 감지 중...</span>
                   )}
@@ -975,7 +979,7 @@ const UploadScreen = () => {
             <div>
               <label className="flex flex-col">
                 <div className="flex items-center justify-between pb-2">
-                  <p className="text-base font-medium text-gray-900">태그 추가</p>
+                  <p className="text-base font-medium text-gray-900">태그추가</p>
                 </div>
                 <div className="flex w-full items-stretch gap-2">
                   <input

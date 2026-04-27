@@ -351,9 +351,6 @@ const MapScreen = () => {
 
   const resolveCoordsForPost = useCallback(
     async (post) => {
-      const direct = extractCoordsFromPost(post);
-      if (direct) return direct;
-
       const tryKakaoQuery = async (queryText) => {
         const q = String(queryText || '').trim();
         if (!q) return null;
@@ -368,8 +365,12 @@ const MapScreen = () => {
       };
 
       const qPriority = buildKakaoPriorityQuery(post);
+      // ✅ 사용자 입력 위치/장소명을 우선으로 핀 위치 결정
       let coord = await tryKakaoQuery(qPriority);
       if (coord) return coord;
+
+      const direct = extractCoordsFromPost(post);
+      if (direct) return direct;
 
       const qFallback = buildGeoQuery(post);
       if (qFallback && qFallback !== qPriority) {

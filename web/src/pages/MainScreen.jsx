@@ -875,7 +875,7 @@ const MainScreen = () => {
                                                     }}
                                                 >
                                                     {Array.isArray(post.reasonTags) && post.reasonTags.length > 0
-                                                        ? post.reasonTags.slice(0, 3).map((tag) => (
+                                                        ? post.reasonTags.slice(0, 2).map((tag) => (
                                                             <span
                                                                 key={String(tag)}
                                                                 style={{
