@@ -875,11 +875,11 @@ const UploadScreen = () => {
                 >
                   {/* 이미지들 */}
                   {formData.images.map((image, index) => (
-                    <div key={`img-${index}`} className="relative w-24 h-24 flex-shrink-0 rounded overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 snap-start">
+                    <div key={`img-${index}`} className="relative w-24 h-24 flex-shrink-0 rounded overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 snap-start">
                       <img 
                         src={image} 
                         alt={`preview-${index}`} 
-                        className="w-full h-full object-cover" 
+                        className="w-full h-full object-contain" 
                       />
                       <button
                         type="button"
@@ -902,10 +902,10 @@ const UploadScreen = () => {
                   
                   {/* 동영상들 */}
                   {formData.videos.map((video, index) => (
-                    <div key={`vid-${index}`} className="relative w-24 h-24 flex-shrink-0 rounded overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 snap-start">
+                    <div key={`vid-${index}`} className="relative w-24 h-24 flex-shrink-0 rounded overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 snap-start">
                       <video 
                         src={video} 
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                         muted
                       />
                       <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
