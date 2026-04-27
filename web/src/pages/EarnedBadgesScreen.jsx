@@ -203,7 +203,7 @@ const EarnedBadgesScreen = () => {
                       테마 인장
                     </h2>
                     <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mb-4">
-                      시즌/가치 테마 활동으로 성장하는 인장이에요.
+                      계절 한정(연·시즌)과 여행 응원·기타 테마로 성장하는 인장이에요.
                     </p>
                     {groupedBadges.themeBadges.length === 0 ? (
                       <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-950/20 px-4 py-8 text-center text-sm text-text-secondary-light dark:text-text-secondary-dark">

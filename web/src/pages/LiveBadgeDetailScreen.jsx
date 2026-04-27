@@ -6,8 +6,8 @@ import { getBadgeDisplayName, hydrateBadgeFromName } from '../utils/badgeSystem'
 import LiveBadgeMedallion from '../components/LiveBadgeMedallion';
 
 const TIER_THRESHOLDS = {
+  sm: [5, 15, 30],
   season: [1, 3, 6],
-  value: [1, 3, 6],
   region: [5, 20, 50],
 };
 
@@ -18,13 +18,16 @@ function parseDynMeta(name) {
   const parts = raw.split(':');
   if (!parts.length) return null;
   const kind = parts[0];
+  if (kind === 'support') {
+    return { kind, parts, tier: 1, isFlat: true };
+  }
   const tierPart = parts[parts.length - 1] || '';
   const tier = Number(tierPart.replace(/^tier/, '')) || 1;
   return { kind, parts, tier };
 }
 
 function buildNextDynName(meta) {
-  const kind = meta?.kind;
+  if (meta?.isFlat) return null;
   const tier = Number(meta?.tier || 1);
   const nextTier = Math.min(3, tier + 1);
   const parts = [...(meta?.parts || [])];

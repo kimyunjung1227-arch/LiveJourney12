@@ -1,6 +1,6 @@
 /**
  * 라이브저니 뱃지 시스템 v5.0
- * 7 카테고리: 온보딩, 지역 가이드, 실시간 정보, 도움 지수, 정확한 정보, 친절한 여행자, 기여도, 신뢰지수
+ * 동적 뱃지: 계절 한정(연·SM) / 지역 / 여행 응원(커뮤니티) + 신뢰지수 연동
  * - [지역명] 뱃지: regionAware + opts.region 저장 → getBadgeDisplayName으로 "[지역명] 가이드" 등 표기
  * - Supabase user_badges 연동: 로그아웃 후 재로그인해도 획득 뱃지·활동 통계 유지
  */
@@ -8,6 +8,7 @@ import { logger } from './logger';
 import { getTrustRawScore } from './trustIndex';
 import { fetchUserBadgesSupabase, saveUserBadgeSupabase } from '../api/userBadgesSupabase';
 import { normalizeRegionName } from './regionNames';
+import { getTripSupportStats } from './tripSupportActivity';
 
 // 서버 운영 전환: localStorage 제거 → 세션 메모리 캐시만 유지
 // ⚠️ 계정별로 분리 저장하지 않으면, 로그아웃/계정 전환 시 다른 사용자 뱃지가 섞일 수 있음.
@@ -53,15 +54,19 @@ const makeTone = (from, to) => ({ from, to });
 const toneForDynamic = (name) => {
   const n = String(name || '');
   if (!n.startsWith(DYNAMIC_BADGE_PREFIX)) return null;
-  // season
-  if (n.includes(':season:cherry:')) return makeTone('#FB7185', '#F43F5E'); // pink/rose
-  if (n.includes(':season:foliage:')) return makeTone('#FB923C', '#D97706'); // orange/amber
-  if (n.includes(':season:snow:')) return makeTone('#7DD3FC', '#2563EB'); // sky/blue
-  if (n.includes(':season:sea:')) return makeTone('#22D3EE', '#2563EB'); // cyan/blue
-  // value
-  if (n.includes(':value:waiting:')) return makeTone('#A3E635', '#16A34A'); // lime/green
-  if (n.includes(':value:photo:')) return makeTone('#FBBF24', '#EA580C'); // amber/orange
-  if (n.includes(':value:weather:')) return makeTone('#22D3EE', '#2563EB'); // cyan/blue
+  // season (Y:sm:YEAR:cherry / legacy :season:cherry)
+  if (n.includes(':sm:') && n.includes(':cherry:')) return makeTone('#FB7185', '#F43F5E');
+  if (n.includes(':sm:') && n.includes(':foliage:')) return makeTone('#FB923C', '#D97706');
+  if (n.includes(':sm:') && n.includes(':snow:')) return makeTone('#7DD3FC', '#2563EB');
+  if (n.includes(':sm:') && n.includes(':sea:')) return makeTone('#22D3EE', '#2563EB');
+  if (n.includes(':season:cherry:')) return makeTone('#FB7185', '#F43F5E');
+  if (n.includes(':season:foliage:')) return makeTone('#FB923C', '#D97706');
+  if (n.includes(':season:snow:')) return makeTone('#7DD3FC', '#2563EB');
+  if (n.includes(':season:sea:')) return makeTone('#22D3EE', '#2563EB');
+  // support
+  if (n.includes(':support:guardian')) return makeTone('#34D399', '#047857');
+  if (n.includes(':support:pathfinder')) return makeTone('#A78BFA', '#5B21B6');
+  if (n.includes(':support:lucky')) return makeTone('#FBBF24', '#B45309');
   // region tiers
   if (n.includes(':region:') && n.endsWith(':tier3')) return makeTone('#9333EA', '#C026D3'); // purple/fuchsia
   if (n.includes(':region:') && n.endsWith(':tier2')) return makeTone('#06B6D4', '#2563EB'); // cyan/blue
@@ -69,13 +74,28 @@ const toneForDynamic = (name) => {
   return makeTone('#6B7280', '#374151');
 };
 
+const SEASON_LABELS_KO = { cherry: '봄', sea: '여름', foliage: '가을', snow: '겨울' };
+const TIER_TITLES = { 1: '의 시작', 2: '의 파수꾼', 3: '의 주인' };
+const TIER_ICONS = { cherry: '🌸', sea: '🌊', foliage: '🍁', snow: '❄️' };
+
 const decodeDynamicName = (name) => {
   const n = String(name || '');
   if (!n.startsWith(DYNAMIC_BADGE_PREFIX)) return null;
   const raw = n.slice(DYNAMIC_BADGE_PREFIX.length);
   const parts = raw.split(':');
-  // season:<id>:tierX
-  if (parts[0] === 'season') {
+  // sm:YEAR:cherry:tierX (Standardized Season Master)
+  if (parts[0] === 'sm' && /^\d{4}$/.test(String(parts[1] || ''))) {
+    const year = parts[1];
+    const id = parts[2];
+    const tier = Number(String(parts[3] || '').replace(/^tier/, '')) || 1;
+    const sLabel = SEASON_LABELS_KO[id] || '';
+    const title = TIER_TITLES[tier] || TIER_TITLES[1];
+    const displayName = `${year} ${sLabel}${title}`;
+    const icon = TIER_ICONS[id] || '🏅';
+    return { kind: 'seasonMastery', year, id, tier, displayName, icon, category: '계절 한정' };
+  }
+  // season:<id>:tierX (레거시, 연도 없음)
+  if (parts[0] === 'season' && !/^\d{4}$/.test(String(parts[1] || ''))) {
     const id = parts[1];
     const tier = Number(String(parts[2] || '').replace(/^tier/, '')) || 1;
     const map = {
@@ -85,7 +105,7 @@ const decodeDynamicName = (name) => {
       sea: ['파도 추적자', '서핑 스카우트', '오션 가디언'],
     };
     const icon = { cherry: '🌸', foliage: '🍁', snow: '❄️', sea: '🌊' }[id] || '🏅';
-    return { kind: 'season', id, tier, displayName: (map[id] || [])[tier - 1] || (map[id] || [])[0] || '시즌 뱃지', icon, category: '시즌 테마' };
+    return { kind: 'season', id, tier, displayName: (map[id] || [])[tier - 1] || (map[id] || [])[0] || '시즌 뱃지', icon, category: '시즌 (레거시)' };
   }
   // region:<region>:tierX
   if (parts[0] === 'region') {
@@ -95,17 +115,14 @@ const decodeDynamicName = (name) => {
     const icon = '🧭';
     return { kind: 'region', region, tier, displayName: `${region} ${labels[tier - 1] || '비기너'}`, icon, category: '지역 테마' };
   }
-  // value:<id>:tierX
-  if (parts[0] === 'value') {
-    const id = parts[1];
-    const tier = Number(String(parts[2] || '').replace(/^tier/, '')) || 1;
-    const map = {
-      waiting: ['줄 서기 관찰자', '대기 시간 스나이퍼', '패스트패스 설계자'],
-      photo: ['매직아워 마스터', '구도 설계자', '인생샷 디렉터'],
-      weather: ['구름 추적자', '기상 예보관', '맑음의 연금술사'],
-    };
-    const icon = { waiting: '⏱️', photo: '📸', weather: '🌦️' }[id] || '🏅';
-    return { kind: 'value', id, tier, displayName: (map[id] || [])[tier - 1] || (map[id] || [])[0] || '가치 뱃지', icon, category: '가치 테마' };
+  // support:guardian|pathfinder|lucky
+  if (parts[0] === 'support' && (parts[1] === 'guardian' || parts[1] === 'pathfinder' || parts[1] === 'lucky')) {
+    const t = {
+      guardian: { displayName: '실시간 가디언', icon: '🛡️' },
+      pathfinder: { displayName: '랜선 길잡이', icon: '🧭' },
+      lucky: { displayName: '럭키 메이커', icon: '🍀' },
+    }[parts[1]];
+    if (t) return { kind: 'support', sub: parts[1], displayName: t.displayName, icon: t.icon, category: '여행 응원' };
   }
   return null;
 };
@@ -120,7 +137,7 @@ export const hydrateBadgeFromName = (name) => {
     displayName: decoded.displayName,
     icon: decoded.icon,
     category: decoded.category,
-    difficulty: decoded.tier,
+    difficulty: decoded.tier != null ? decoded.tier : decoded.sub ? 2 : 1,
     tone,
     gradientCss: gradient,
   };
@@ -230,13 +247,6 @@ const matchesAny = (blobLower, keywords = []) => {
   });
 };
 
-const isWithinHours = (p, hours) => {
-  const ms = getPostCreatedAtMs(p) || getPostCapturedAtMs(p) || 0;
-  if (!ms) return false;
-  const ageH = (Date.now() - ms) / (1000 * 60 * 60);
-  return Number.isFinite(ageH) && ageH >= 0 && ageH <= hours;
-};
-
 const isImportantInfoPost = (p) => {
   // "명확한 행동" 기준: 태그(또는 카테고리)로 중요정보를 표시한 경우만 카운트
   const tags = Array.isArray(p?.tags) ? p.tags : (p?.tags ? [p.tags] : []);
@@ -250,6 +260,80 @@ const isNightPost = (p) => {
   if (!ms) return false;
   const h = new Date(ms).getHours();
   return h >= 20 || h <= 5;
+};
+
+/** 시즌별 키워드(=해당 시즌 '카테고리' 실시간 제보로 간주) */
+const SEASON_KW = {
+  cherry: ['벚꽃', '개화', '만개', '봄꽃', '벚꽃길', '벚꽃축제'],
+  foliage: ['단풍', '낙엽', '단풍절정', '단풍길', '단풍명소'],
+  snow: ['첫눈', '눈', '설경', '적설', '빙판', '결빙', '눈길', '폭설', '겨울', '한파'],
+  sea: ['바다', '해변', '파도', '수온', '서핑', '해수욕장', '윤슬', '물멍', '여름', '휴가'],
+};
+
+const getSeasonMetaForDate = (d) => {
+  const m = d.getMonth() + 1;
+  const y = d.getFullYear();
+  if (m >= 3 && m <= 5) return { seasonYear: y, seasonId: 'cherry', label: '봄' };
+  if (m >= 6 && m <= 8) return { seasonYear: y, seasonId: 'sea', label: '여름' };
+  if (m >= 9 && m <= 11) return { seasonYear: y, seasonId: 'foliage', label: '가을' };
+  if (m === 12) return { seasonYear: y, seasonId: 'snow', label: '겨울' };
+  return { seasonYear: y - 1, seasonId: 'snow', label: '겨울' };
+};
+
+/**
+ * 해당 연·시즌 창(한정) 내에서만 뱃지 획득 가능. 시즌 종료 후에는 신규 지급 경로만 차단.
+ * winter(seasonYear): 12/1(년 Y) ~ 다음해 2/말(년 Y+1, 겨울 '라벨'은 Y)
+ */
+const isSeasonEarningOpen = (seasonYear, seasonId, now = new Date()) => {
+  if (!seasonId || !Number.isFinite(Number(seasonYear))) return false;
+  const y = Number(seasonYear);
+  if (seasonId === 'cherry') {
+    return now >= new Date(y, 2, 1) && now <= new Date(y, 4, 31, 23, 59, 59, 999);
+  }
+  if (seasonId === 'sea') {
+    return now >= new Date(y, 5, 1) && now <= new Date(y, 7, 31, 23, 59, 59, 999);
+  }
+  if (seasonId === 'foliage') {
+    return now >= new Date(y, 8, 1) && now <= new Date(y, 10, 30, 23, 59, 59, 999);
+  }
+  if (seasonId === 'snow') {
+    const start = new Date(y, 11, 1);
+    const end = new Date(y + 1, 2, 0, 23, 59, 59, 999);
+    return now >= start && now <= end;
+  }
+  return false;
+};
+
+const computeSeasonMasteryRows = (posts = []) => {
+  const map = new Map();
+  for (const p of posts || []) {
+    const ms = getPostCreatedAtMs(p) || getPostCapturedAtMs(p) || 0;
+    if (!ms) continue;
+    const d = new Date(ms);
+    const meta = getSeasonMetaForDate(d);
+    const blob = getPostBlobLower(p);
+    if (!matchesAny(blob, SEASON_KW[meta.seasonId])) continue;
+    const k = `${meta.seasonYear}:${meta.seasonId}`;
+    if (!map.has(k)) {
+      map.set(k, { seasonYear: meta.seasonYear, seasonId: meta.seasonId, postCount: 0, helpfulSum: 0, uniquePois: new Set() });
+    }
+    const row = map.get(k);
+    row.postCount += 1;
+    row.helpfulSum += getPostHelpfulCount(p);
+    const pk = getPostPoiKey(p) || (p?.coordinates ? 'gps' : null);
+    if (pk) row.uniquePois.add(pk);
+  }
+  return Array.from(map.values()).map((r) => ({
+    ...r,
+    uniqueLocationCount: r.uniquePois instanceof Set ? r.uniquePois.size : 0,
+  }));
+};
+
+const tierForSeasonMastery = (postCount, helpfulSum, uniqueLocationCount) => {
+  if (postCount >= 30 && uniqueLocationCount >= 10) return { tier: 3, target: 30 };
+  if (postCount >= 15 && helpfulSum >= 20) return { tier: 2, target: 15, needsHelp: true };
+  if (postCount >= 5) return { tier: 1, target: 5 };
+  return { tier: 0, target: 5 };
 };
 
 /**
@@ -278,9 +362,6 @@ export const calculateUserStats = (posts = [], user = {}) => {
   const byDate = {};
   const dateSet = new Set();
   const regionRealtimeMeta = {}; // region -> { uploads, helpful, timeBuckets:Set, pois:Set }
-  const recent48h = [];
-  const seasonSignals48h = { cherry: 0, foliage: 0, snow: 0, sea: 0 };
-  const valueSignals48h = { waiting: 0, photo: 0, weather: 0 };
 
   (posts || []).forEach((p) => {
     const rRaw = p.region || (p.location && typeof p.location === 'string' ? p.location.split(' ')[0] : null) || null;
@@ -380,33 +461,9 @@ export const calculateUserStats = (posts = [], user = {}) => {
     return Math.abs(created - captured) <= 10 * 60 * 1000;
   }).length;
 
-  // 시즌/가치 테마: 최근 48시간 "실시간" 시그널
-  (posts || []).forEach((p) => {
-    if (isWithinHours(p, 48)) recent48h.push(p);
-  });
-
-  const SEASON_KW = {
-    cherry: ['벚꽃', '개화', '만개', '봄꽃', '벚꽃길', '벚꽃축제'],
-    foliage: ['단풍', '낙엽', '단풍절정', '단풍길', '단풍명소'],
-    snow: ['첫눈', '눈', '설경', '적설', '빙판', '결빙', '눈길', '폭설'],
-    sea: ['바다', '해변', '파도', '수온', '서핑', '해수욕장', '윤슬', '물멍'],
-  };
-  const VALUE_KW = {
-    photo: ['인생샷', '구도', '채광', '역광', '노을', '일몰', '일출', '골든아워', '블루아워', '매직아워'],
-    waiting: ['웨이팅', '대기', '줄', 'queue', 'waiting', '입장', '만차'],
-    weather: ['날씨', '비', '눈', '바람', '안개', '구름', '소나기', '강수', '기상', '예보'],
-  };
-
-  recent48h.forEach((p) => {
-    const blob = getPostBlobLower(p);
-    if (matchesAny(blob, SEASON_KW.cherry)) seasonSignals48h.cherry += 1;
-    if (matchesAny(blob, SEASON_KW.foliage)) seasonSignals48h.foliage += 1;
-    if (matchesAny(blob, SEASON_KW.snow)) seasonSignals48h.snow += 1;
-    if (matchesAny(blob, SEASON_KW.sea)) seasonSignals48h.sea += 1;
-    if (matchesAny(blob, VALUE_KW.photo)) valueSignals48h.photo += 1;
-    if (matchesAny(blob, VALUE_KW.waiting) || hasWaitingTag(p)) valueSignals48h.waiting += 1;
-    if (matchesAny(blob, VALUE_KW.weather) || hasWeatherTag(p)) valueSignals48h.weather += 1;
-  });
+  const seasonMastery = computeSeasonMasteryRows(posts);
+  const uid = user?.id || user?._id;
+  const tripSupport = getTripSupportStats(uid);
 
   const stats = {
     totalPosts: (posts || []).length,
@@ -428,9 +485,9 @@ export const calculateUserStats = (posts = [], user = {}) => {
     weatherReports,
     waitingShares,
     fastUploads,
-    recent48hCount: recent48h.length,
-    seasonSignals48h,
-    valueSignals48h,
+
+    seasonMastery,
+    tripSupport,
 
     totalInfoViews: 0,
     preventedFailFeedback: 0,
@@ -468,9 +525,9 @@ export const calculateUserStats = (posts = [], user = {}) => {
 };
 
 /**
- * 동적(성장형) 뱃지 빌더: 시즌/지역/가치 3축
- * - 미획득이라도 progress/progressCurrent가 0보다 크면 "자연스럽게" 노출될 수 있음
- * - badge.name은 저장 키로 쓰이므로 유니크하게 구성(dyn:...)
+ * 동적(성장형) 뱃지: 계절 한정(연도) / 지역 / 여행 응원
+ * - badge.name: dyn:sm:YEAR:cherry:tier1 … (Standardized Season Master)
+ * - 가치 테마(48h) 는 제거
  */
 const buildDynamicBadges = (stats) => {
   const s = stats || null;
@@ -482,50 +539,98 @@ const buildDynamicBadges = (stats) => {
     out.push({ ...b, name, dynamic: true });
   };
 
-  // 1) 시즌 테마 (희소성: 시즌에만 활성화)
-  const month = new Date().getMonth() + 1;
-  const inSpring = month >= 3 && month <= 5;
-  const inSummer = month >= 6 && month <= 8;
-  const inAutumn = month >= 9 && month <= 11;
-  const inWinter = month === 12 || month <= 2;
+  // 1) 계절 한정(연·시즌 동일 룰, 획득은 시즌 창 안에서만)
+  const rows = Array.isArray(s.seasonMastery) ? s.seasonMastery : [];
+  rows.forEach((row) => {
+    const y = row.seasonYear;
+    const sid = row.seasonId;
+    const postCount = Number(row.postCount) || 0;
+    const helpfulSum = Number(row.helpfulSum) || 0;
+    const uLoc = Number(row.uniqueLocationCount) || 0;
+    if (!sid || !Number.isFinite(Number(y)) || postCount < 1) return;
 
-  const seasonCount = s.seasonSignals48h || {};
-  const seasonBadge = (id, enabled, count, stages, icon, gradient) => {
-    if (!enabled) return;
-    const [t1, t2, t3] = stages;
-    const thresholds = [1, 3, 6];
-    const st =
-      count >= thresholds[2] ? { title: t3, tier: 3, target: thresholds[2] } :
-      count >= thresholds[1] ? { title: t2, tier: 2, target: thresholds[1] } :
-      { title: t1, tier: 1, target: thresholds[0] };
-    mk(
-      `season:${id}:tier${st.tier}`,
-      {
-        displayName: st.title,
-        description: '48시간 내 실시간 제보로 시즌 현장을 인증해요.',
-        icon,
-        category: '시즌 테마',
-        difficulty: st.tier,
-        tone: toneForDynamic(`${DYNAMIC_BADGE_PREFIX}season:${id}:tier${st.tier}`),
+    const tinfo = tierForSeasonMastery(postCount, helpfulSum, uLoc);
+    const displayTier = tinfo.tier > 0 ? tinfo.tier : 1;
+    const sLabel = SEASON_LABELS_KO[sid] || '';
+    const year = String(y);
+    const makeTitle = (tier) => `${year} ${sLabel}${TIER_TITLES[tier] || TIER_TITLES[1]}`;
+
+    const base = (tier) => ({
+      displayName: makeTitle(tier),
+      icon: TIER_ICONS[sid] || '🏅',
+      category: '계절 한정',
+      difficulty: tier,
+      seasonEarning: { year: y, id: sid },
+      seasonLimited: true,
+    });
+
+    if (displayTier >= 3) {
+      mk(`sm:${year}:${sid}:tier3`, {
+        ...base(3),
+        description:
+          '같은 연·시즌(3개월) 동안 키워드가 맞는 실시간 제보 30회 + 그 시즌 글 기준으로 서로 다른 10곳(장소). 이 연도 시즌이 끝나면 획득 불가.',
+        tone: toneForDynamic(`${DYNAMIC_BADGE_PREFIX}sm:${year}:${sid}:tier3`),
         gradientCss: (() => {
-          const t = toneForDynamic(`${DYNAMIC_BADGE_PREFIX}season:${id}:tier${st.tier}`);
+          const t = toneForDynamic(`${DYNAMIC_BADGE_PREFIX}sm:${year}:${sid}:tier3`);
           return t ? `linear-gradient(135deg, ${t.from}, ${t.to})` : undefined;
         })(),
-        condition: () => count >= st.target,
-        getProgress: () => Math.min(100, (count / st.target) * 100),
-        progressCurrent: count,
-        progressTarget: st.target,
-        progressUnit: '회',
-        shortCondition: `최근 48시간 제보 ${st.target}회`,
-        seasonLimited: true,
-      }
-    );
-  };
-
-  seasonBadge('cherry', inSpring, Number(seasonCount.cherry || 0), ['벚꽃 탐색가', '벚꽃 헌터', '벚꽃 사랑꾼'], '🌸');
-  seasonBadge('foliage', inAutumn, Number(seasonCount.foliage || 0), ['단풍 관찰자', '단풍 스나이퍼', '낙엽 기록가'], '🍁');
-  seasonBadge('snow', inWinter, Number(seasonCount.snow || 0), ['첫눈 목격자', '설경 스나이퍼', '겨울왕국 통치자'], '❄️');
-  seasonBadge('sea', inSummer, Number(seasonCount.sea || 0), ['파도 추적자', '서핑 스카우트', '오션 가디언'], '🌊');
+        condition: (st) => {
+          const m = (st.seasonMastery || []).find((g) => g.seasonYear === y && g.seasonId === sid) || row;
+          return (Number(m.postCount) || 0) >= 30 && (Number(m.uniqueLocationCount) || 0) >= 10;
+        },
+        getProgress: (st) => {
+          const m = (st.seasonMastery || []).find((g) => g.seasonYear === y && g.seasonId === sid) || row;
+          return Math.min(100, Math.min((Number(m.postCount) || 0) / 30, (Number(m.uniqueLocationCount) || 0) / 10) * 100);
+        },
+        progressCurrent: postCount,
+        progressTarget: 30,
+        shortCondition: `제보 30 + 장소 10(서로 다름) · ${year} ${sLabel}`,
+      });
+    } else if (displayTier === 2) {
+      mk(`sm:${year}:${sid}:tier2`, {
+        ...base(2),
+        description:
+          '같은 연·시즌에 키워드 실시간 제보 15회 + 그 제보에 받은 도움됨(좋아요) 20(시즌 누적). 시즌 종료 후 획득 불가.',
+        tone: toneForDynamic(`${DYNAMIC_BADGE_PREFIX}sm:${year}:${sid}:tier2`),
+        gradientCss: (() => {
+          const t = toneForDynamic(`${DYNAMIC_BADGE_PREFIX}sm:${year}:${sid}:tier2`);
+          return t ? `linear-gradient(135deg, ${t.from}, ${t.to})` : undefined;
+        })(),
+        condition: (st) => {
+          const m = (st.seasonMastery || []).find((g) => g.seasonYear === y && g.seasonId === sid) || row;
+          return (Number(m.postCount) || 0) >= 15 && (Number(m.helpfulSum) || 0) >= 20;
+        },
+        getProgress: (st) => {
+          const m = (st.seasonMastery || []).find((g) => g.seasonYear === y && g.seasonId === sid) || row;
+          return Math.min(100, Math.min((Number(m.postCount) || 0) / 15, (Number(m.helpfulSum) || 0) / 20) * 100);
+        },
+        progressCurrent: postCount,
+        progressTarget: 15,
+        shortCondition: `제보 15 + 도움됨(좋아요) 20(시즌) · ${year} ${sLabel}`,
+      });
+    } else {
+      mk(`sm:${year}:${sid}:tier1`, {
+        ...base(1),
+        description: '같은 연·시즌에 시즌 키워드가 포함된 실시간 제보 5회. 이 연도 시즌이 끝나면 획득 불가.',
+        tone: toneForDynamic(`${DYNAMIC_BADGE_PREFIX}sm:${year}:${sid}:tier1`),
+        gradientCss: (() => {
+          const t = toneForDynamic(`${DYNAMIC_BADGE_PREFIX}sm:${year}:${sid}:tier1`);
+          return t ? `linear-gradient(135deg, ${t.from}, ${t.to})` : undefined;
+        })(),
+        condition: (st) => {
+          const m = (st.seasonMastery || []).find((g) => g.seasonYear === y && g.seasonId === sid) || row;
+          return (Number(m.postCount) || 0) >= 5;
+        },
+        getProgress: (st) => {
+          const m = (st.seasonMastery || []).find((g) => g.seasonYear === y && g.seasonId === sid) || row;
+          return Math.min(100, ((Number(m.postCount) || 0) / 5) * 100);
+        },
+        progressCurrent: postCount,
+        progressTarget: 5,
+        shortCondition: `시즌 실시간 제보 5회(키워드) · ${year} ${sLabel}`,
+      });
+    }
+  });
 
   // 2) 지역 테마 (전국 지역: "활동한 지역만" 자연 노출)
   const regionCounts = s.regionCountsByName && typeof s.regionCountsByName === 'object' ? s.regionCountsByName : {};
@@ -600,40 +705,80 @@ const buildDynamicBadges = (stats) => {
       );
     });
 
-  // 3) 가치 테마 (페인포인트 해결)
-  const v = s.valueSignals48h || {};
-  const valueBadge = (id, count, stages, icon, gradient) => {
-    if (count <= 0) return; // 활동 없으면 미노출
-    const thresholds = [1, 3, 6];
-    const st =
-      count >= thresholds[2] ? { title: stages[2], tier: 3, target: thresholds[2] } :
-      count >= thresholds[1] ? { title: stages[1], tier: 2, target: thresholds[1] } :
-      { title: stages[0], tier: 1, target: thresholds[0] };
-    mk(
-      `value:${id}:tier${st.tier}`,
-      {
-        displayName: st.title,
-        description: '48시간 내 실시간 제보로 실패를 줄여주는 솔루션 테마예요.',
-        icon,
-        category: '가치 테마',
-        difficulty: st.tier,
-        tone: toneForDynamic(`${DYNAMIC_BADGE_PREFIX}value:${id}:tier${st.tier}`),
-        gradientCss: (() => {
-          const t = toneForDynamic(`${DYNAMIC_BADGE_PREFIX}value:${id}:tier${st.tier}`);
-          return t ? `linear-gradient(135deg, ${t.from}, ${t.to})` : undefined;
-        })(),
-        condition: () => count >= st.target,
-        getProgress: () => Math.min(100, (count / st.target) * 100),
-        progressCurrent: count,
-        progressTarget: st.target,
-        progressUnit: '회',
-        shortCondition: `최근 48시간 제보 ${st.target}회`,
-      }
-    );
-  };
-  valueBadge('waiting', Number(v.waiting || 0), ['줄 서기 관찰자', '대기 시간 스나이퍼', '패스트패스 설계자'], '⏱️');
-  valueBadge('photo', Number(v.photo || 0), ['매직아워 마스터', '구도 설계자', '인생샷 디렉터'], '📸');
-  valueBadge('weather', Number(v.weather || 0), ['구름 추적자', '기상 예보관', '맑음의 연금술사'], '🌦️');
+  // 3) 여행 응원(커뮤니티) — session tripSupport
+  const ts = s.tripSupport || {};
+  const safety = Math.max(0, Number(ts.safetySupport) || 0);
+  const cheer = Math.max(0, Number(ts.cheerReactions) || 0);
+  const pathProgress = Math.max(0, Number(ts.pathfinderProgressCount) || 0);
+
+  if (safety > 0) {
+    mk('support:guardian', {
+      displayName: '실시간 가디언',
+      description: '타인이 올린 위험·주의(안전) 맥락의 실시간 글에 응원/댓글을 남기며 집단의 안전 여행을 돕는 역할',
+      icon: '🛡️',
+      category: '여행 응원',
+      difficulty: 2,
+      tone: toneForDynamic(`${DYNAMIC_BADGE_PREFIX}support:guardian`),
+      gradientCss: (() => {
+        const t = toneForDynamic(`${DYNAMIC_BADGE_PREFIX}support:guardian`);
+        return t ? `linear-gradient(135deg, ${t.from}, ${t.to})` : undefined;
+      })(),
+      condition: (st) => (Number((st.tripSupport || {}).safetySupport) || 0) >= 10,
+      getProgress: (st) => {
+        const n = Math.max(0, Number((st.tripSupport || {}).safetySupport) || 0);
+        return Math.min(100, (n / 10) * 100);
+      },
+      progressCurrent: safety,
+      progressTarget: 10,
+      progressUnit: '회',
+      shortCondition: "타인 안전·주의 글 응원/댓글 10회 (post_category safety 등)",
+    });
+  }
+  if (pathProgress > 0) {
+    mk('support:pathfinder', {
+      displayName: '랜선 길잡이',
+      description:
+        '질문(Q&A) 게시에 채택 5(우선) — 채택 UI를 붙이기 전엔, 서로 다른 질문 글에 답을 단 횟수(최대치)로 진행도를 표시합니다.',
+      icon: '🧭',
+      category: '여행 응원',
+      difficulty: 2,
+      tone: toneForDynamic(`${DYNAMIC_BADGE_PREFIX}support:pathfinder`),
+      gradientCss: (() => {
+        const t = toneForDynamic(`${DYNAMIC_BADGE_PREFIX}support:pathfinder`);
+        return t ? `linear-gradient(135deg, ${t.from}, ${t.to})` : undefined;
+      })(),
+      condition: (st) => (Number((st.tripSupport || {}).pathfinderProgressCount) || 0) >= 5,
+      getProgress: (st) => {
+        const n = Math.max(0, Number((st.tripSupport || {}).pathfinderProgressCount) || 0);
+        return Math.min(100, (n / 5) * 100);
+      },
+      progressCurrent: pathProgress,
+      progressTarget: 5,
+      shortCondition: "질문에 채택 5(또는 서로 다른 질문 글 답변 5) — is_accepted·is_question",
+    });
+  }
+  if (cheer > 0) {
+    mk('support:lucky', {
+      displayName: '럭키 메이커',
+      description: '타인의 «라이브저니» 게시글에 응원(좋아요·하트)를 누적. 추적: reaction_type cheer(내부).',
+      icon: '🍀',
+      category: '여행 응원',
+      difficulty: 2,
+      tone: toneForDynamic(`${DYNAMIC_BADGE_PREFIX}support:lucky`),
+      gradientCss: (() => {
+        const t = toneForDynamic(`${DYNAMIC_BADGE_PREFIX}support:lucky`);
+        return t ? `linear-gradient(135deg, ${t.from}, ${t.to})` : undefined;
+      })(),
+      condition: (st) => (Number((st.tripSupport || {}).cheerReactions) || 0) >= 50,
+      getProgress: (st) => {
+        const n = Math.max(0, Number((st.tripSupport || {}).cheerReactions) || 0);
+        return Math.min(100, (n / 50) * 100);
+      },
+      progressCurrent: cheer,
+      progressTarget: 50,
+      shortCondition: "타인 글 응원(좋아요) 50 (reaction: cheer)",
+    });
+  }
 
   return out;
 };
@@ -663,8 +808,9 @@ export const checkNewBadges = (stats) => {
       // 조건 확인
       try {
         const meetsCondition = badgeInfo.condition(stats);
-        
-        if (meetsCondition) {
+        const se = badgeInfo.seasonEarning;
+        const earningOk = !se || isSeasonEarningOpen(se.year, se.id);
+        if (meetsCondition && earningOk) {
           newBadges.push(badgeInfo);
           logger.log(`🎉 새 뱃지 획득 가능: ${badgeName} (${badgeInfo.category} 카테고리)`);
         }
@@ -924,6 +1070,10 @@ export const getAvailableBadges = (stats = null) => {
     if (!b) return false;
     const isEarned = !!b.isEarned || earnedSet.has(String(b.name));
     if (isEarned) return true;
+    const se = b.seasonEarning;
+    if (se && !isSeasonEarningOpen(se.year, se.id)) {
+      return false;
+    }
     if (!stats) return false;
     const cur = typeof b.progressCurrent === 'number' ? b.progressCurrent : 0;
     const prog = typeof b.progress === 'number' ? b.progress : getBadgeProgress(b.name, stats);
@@ -937,9 +1087,9 @@ export const getAvailableBadges = (stats = null) => {
 export const getBadgeStats = () => {
   const earnedBadges = getEarnedBadgesForDisplay();
   const categoryCounts = {
-    '시즌 테마': earnedBadges.filter((b) => b.category === '시즌 테마').length,
+    '계절 한정': earnedBadges.filter((b) => b.category === '계절 한정').length,
     '지역 테마': earnedBadges.filter((b) => b.category === '지역 테마').length,
-    '가치 테마': earnedBadges.filter((b) => b.category === '가치 테마').length,
+    '여행 응원': earnedBadges.filter((b) => b.category === '여행 응원').length,
   };
   return { total: earnedBadges.length, categoryCounts };
 };

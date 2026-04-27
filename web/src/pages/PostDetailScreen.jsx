@@ -25,8 +25,13 @@ import { recordConversion, CONVERSION_TYPES } from '../utils/conversionEvents';
 import { logger } from '../utils/logger';
 import { buildMediaItemsFromPost } from '../utils/postMedia';
 import { tagTranslations } from '../utils/tagTranslations';
-import { getCategoryChipsFromPost } from '../utils/travelCategories';
+import { getCategoryChipsFromPost, isTripSafetyPost, isLiveQuestionPost } from '../utils/travelCategories';
 import { toggleLikeForPost } from '../utils/postLikeActions';
+import {
+  recordTripCheerReaction,
+  recordTripPathfinderAnswerOnPost,
+  recordTripSafetySupportComment,
+} from '../utils/tripSupportActivity';
 import {
   addCommentSupabase,
   deleteCommentSupabase,
@@ -422,6 +427,7 @@ const PostDetailScreen = () => {
 
       // 타인 게시물에 새로 좋아요 → 알림(앱 내)
       if (!prevLiked && finalLiked && post.userId && String(post.userId) !== String(user.id)) {
+        recordTripCheerReaction(user.id);
         const actorName = user.username || user.email?.split('@')[0] || '여행자';
         const thumbRaw = Array.isArray(post.images) && post.images[0] ? post.images[0] : (post.image || post.thumbnail || null);
         notifyLike(actorName, post.location || post.placeName || '게시물', {
@@ -522,6 +528,12 @@ const PostDetailScreen = () => {
       const merged = mergeCommentsWithCache(post.id, [...comments, newComment]);
       setComments(merged);
       setCommentsCacheForPost(post.id, merged);
+    }
+
+    const authorId = post.userId || post.user?.id;
+    if (userId && authorId && String(authorId) !== String(userId)) {
+      if (isTripSafetyPost(post)) recordTripSafetySupportComment(userId);
+      if (isLiveQuestionPost(post)) recordTripPathfinderAnswerOnPost(userId, post.id);
     }
 
     setCommentText('');
