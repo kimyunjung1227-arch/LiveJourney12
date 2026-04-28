@@ -1635,7 +1635,7 @@ const ProfileScreen = () => {
                 <div className="flex-shrink-0">
                   {currentUser?.profileImage && currentUser.profileImage !== 'default' ? (
                     <img
-                      src={currentUser.profileImage}
+                      src={getDisplayImageUrl(currentUser.profileImage)}
                       alt="Profile"
                       className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700"
                     />
@@ -2601,7 +2601,7 @@ const ProfileScreen = () => {
                             {/* 프로필 이미지 */}
                             <div className="w-11 h-11 rounded-full overflow-hidden flex-shrink-0 bg-teal-100 dark:bg-teal-900">
                               {profileImage ? (
-                                <img src={profileImage} alt="" className="w-full h-full object-cover" />
+                                <img src={getDisplayImageUrl(profileImage)} alt="" className="w-full h-full object-cover" />
                               ) : null}
                             </div>
                             {/* 사용자 이름 + 대표 뱃지 */}

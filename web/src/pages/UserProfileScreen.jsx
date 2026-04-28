@@ -710,7 +710,7 @@ const UserProfileScreen = () => {
                 <div className="flex-shrink-0">
                   {user.profileImage ? (
                     <img
-                      src={user.profileImage}
+                      src={getDisplayImageUrl(user.profileImage)}
                       alt="Profile"
                       className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700"
                       loading="eager"
