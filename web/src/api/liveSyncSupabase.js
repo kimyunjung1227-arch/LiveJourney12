@@ -5,6 +5,10 @@ const CACHE_TTL_MS = 60 * 1000;
 const cache = new Map(); // userId -> { pct, ts }
 
 const clampPct = (n, fallback = 35) => {
+  // DB 값이 NULL이면 Number(null) === 0 이 되어 0%로 보이는 문제가 있어,
+  // null/undefined/빈 문자열은 fallback(기본 35)로 처리한다.
+  if (n == null) return fallback;
+  if (typeof n === 'string' && n.trim() === '') return fallback;
   const v = Number(n);
   if (!Number.isFinite(v)) return fallback;
   return Math.max(0, Math.min(100, Math.round(v)));
