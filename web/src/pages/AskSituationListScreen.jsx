@@ -32,6 +32,8 @@ export default function AskSituationListScreen() {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [cursor, setCursor] = useState(null); // created_at
+  const cursorRef = useRef(null);
+  const loadingRef = useRef(false);
   const [myPos, setMyPos] = useState(null);
   const sentinelRef = useRef(null);
   const ioRef = useRef(null);
@@ -61,29 +63,27 @@ export default function AskSituationListScreen() {
   }, [myPos]);
 
   const loadPage = useCallback(async ({ reset = false } = {}) => {
-    if (loading) return;
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setLoading(true);
     try {
-      const before = reset ? null : cursor;
+      const before = reset ? null : cursorRef.current;
       const res = await fetchQuestionPostsPageSupabase({ limit: 20, before, currentUserId: user?.id || null });
       const next = Array.isArray(res?.posts) ? res.posts : [];
-      setCursor(res?.nextBefore || null);
+      const nb = res?.nextBefore || null;
+      cursorRef.current = nb;
+      setCursor(nb);
       setItems((prev) => (reset ? next : [...prev, ...next]));
-      setHasMore(next.length >= 20 && !!res?.nextBefore);
+      setHasMore(next.length >= 20 && !!nb);
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
-  }, [cursor, loading, user?.id]);
+  }, [user?.id]);
 
+  // 초기 로드 + 필터 변경 시 한 번만 목록 갱신 (loadPage 식별자 변화로 이중 요청 나지 않도록 ref 사용)
   useEffect(() => {
-    setCursor(null);
-    setHasMore(true);
-    void loadPage({ reset: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // 필터 변경 시 목록 재로딩
-  useEffect(() => {
+    cursorRef.current = null;
     setCursor(null);
     setHasMore(true);
     void loadPage({ reset: true });

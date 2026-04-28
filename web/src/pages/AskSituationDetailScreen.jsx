@@ -93,7 +93,8 @@ export default function AskSituationDetailScreen() {
   const passed = location.state?.post || null;
 
   const [post, setPost] = useState(passed);
-  const [loading, setLoading] = useState(!passed);
+  const passedMatchesRoute = Boolean(passed && id && String(passed.id) === String(id));
+  const [loading, setLoading] = useState(!passedMatchesRoute);
   const [comments, setComments] = useState([]);
   const [acceptedCommentId, setAcceptedCommentId] = useState(null);
   const [acceptBusyId, setAcceptBusyId] = useState(null);
@@ -131,6 +132,11 @@ export default function AskSituationDetailScreen() {
     return authorId && String(authorId) === String(user.id);
   }, [post, user]);
 
+  const answerImagesStillUploading = useMemo(
+    () => (Array.isArray(answerImageUrls) ? answerImageUrls : []).some((u) => String(u || '').startsWith('blob:')),
+    [answerImageUrls],
+  );
+
   const canEditQuestion = useMemo(() => {
     if (!user || !post) return false;
     if (!isQuestionPost(post)) return false;
@@ -138,25 +144,17 @@ export default function AskSituationDetailScreen() {
     return authorId && String(authorId) === String(user.id);
   }, [post, user]);
 
-  const loadAccepted = useCallback(async (pid) => {
-    try {
-      if (!pid || !isUuid(pid)) return;
-      const { data, error } = await supabase.from('help_answer_accepts').select('comment_id').eq('post_id', pid).maybeSingle();
-      if (error) return;
-      setAcceptedCommentId(data?.comment_id || null);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  const load = useCallback(async () => {
+  const load = useCallback(async ({ background = false } = {}) => {
     const pid = String(id || '').trim();
     if (!isUuid(pid)) return;
-    setLoading(true);
+    if (!background) setLoading(true);
     try {
-      const fresh = await fetchPostByIdSupabase(pid, user?.id || null);
+      const [fresh, rows, acceptRes] = await Promise.all([
+        fetchPostByIdSupabase(pid, user?.id || null, { skipComments: true }),
+        fetchCommentsForPostSupabase(pid),
+        supabase.from('help_answer_accepts').select('comment_id').eq('post_id', pid).maybeSingle(),
+      ]);
       if (fresh) setPost(fresh);
-      const rows = await fetchCommentsForPostSupabase(pid);
       const mapped = (rows || []).map((c) => {
         const payload = decodeAnswerContent(c.content);
         return {
@@ -174,17 +172,24 @@ export default function AskSituationDetailScreen() {
         const me = String(user.id);
         setHasAnsweredByMe(mapped.some((x) => x?.userId && String(x.userId) === me));
       }
-      await loadAccepted(pid);
+      if (!acceptRes?.error) setAcceptedCommentId(acceptRes?.data?.comment_id || null);
     } catch (e) {
       logger.warn('AskSituationDetail load 실패:', e?.message);
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
-  }, [id, loadAccepted, user?.id]);
+  }, [id, user?.id]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load({ background: passedMatchesRoute });
+  }, [load, passedMatchesRoute]);
+
+  /** 라우트 id 변경 시 목록에서 넘긴 state(post)가 이전 글이면 사용하지 않음 */
+  useEffect(() => {
+    const pid = String(id || '').trim();
+    if (passed && String(passed.id) === pid) setPost(passed);
+    else setPost(null);
+  }, [id, passed]);
 
   // 지도(가볍게)
   useEffect(() => {
@@ -222,22 +227,75 @@ export default function AskSituationDetailScreen() {
       alert('로그인 후 답변할 수 있어요.');
       return;
     }
+
+    let baseLen = 0;
+    let slice = [];
+    let localUrls = [];
+
+    setAnswerImageUrls((prev) => {
+      const p = prev || [];
+      baseLen = p.length;
+      const room = Math.max(0, 6 - baseLen);
+      slice = files.slice(0, room);
+      localUrls = slice.map((f) => URL.createObjectURL(f));
+      return [...p, ...localUrls].slice(0, 6);
+    });
+
+    if (slice.length === 0) {
+      try {
+        e.target.value = '';
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+
     setAnswerUploading(true);
     try {
-      const uploaded = [];
-      for (const file of files.slice(0, 6)) {
-        // eslint-disable-next-line no-await-in-loop
-        const res = await uploadImage(file, user.id);
-        const url = res?.imageUrl || res?.url || null;
-        if (url) uploaded.push(getDisplayImageUrl(url));
-      }
-      if (uploaded.length === 0) throw new Error('upload_failed');
-      setAnswerImageUrls((prev) => Array.from(new Set([...(prev || []), ...uploaded])).slice(0, 6));
+      const results = await Promise.all(
+        slice.map((file) =>
+          uploadImage(file, user.id).then(
+            (res) => {
+              const url = res?.imageUrl || res?.url || null;
+              return url ? getDisplayImageUrl(url) : null;
+            },
+            () => null,
+          ),
+        ),
+      );
+      setAnswerImageUrls((prev) => {
+        const next = [...(prev || [])];
+        results.forEach((remote, i) => {
+          const idx = baseLen + i;
+          if (remote && next[idx] === localUrls[i]) next[idx] = remote;
+        });
+        return next;
+      });
+      localUrls.forEach((u) => {
+        try {
+          URL.revokeObjectURL(u);
+        } catch {
+          /* ignore */
+        }
+      });
+      if (!results.some(Boolean)) throw new Error('upload_failed');
     } catch {
+      setAnswerImageUrls((prev) => (prev || []).filter((u) => !localUrls.includes(u)));
+      localUrls.forEach((u) => {
+        try {
+          URL.revokeObjectURL(u);
+        } catch {
+          /* ignore */
+        }
+      });
       alert('사진 업로드에 실패했어요.');
     } finally {
       setAnswerUploading(false);
-      try { e.target.value = ''; } catch { /* ignore */ }
+      try {
+        e.target.value = '';
+      } catch {
+        /* ignore */
+      }
     }
   }, [user?.id]);
 
@@ -406,7 +464,7 @@ export default function AskSituationDetailScreen() {
                 아직 답변이 없어요. 사진과 함께 답변해보세요!
               </div>
             ) : (
-              comments.map((c) => {
+              comments.map((c, cIdx) => {
                 const avatar = c?.avatar || (typeof c.user === 'object' ? c.user?.profileImage : null) || null;
                 const name = (typeof c.user === 'object' ? c.user?.username : null) || '유저';
                 const imgs = Array.isArray(c.imageUrls) ? c.imageUrls.map((u) => getDisplayImageUrl(u)).filter(Boolean) : [];
@@ -457,7 +515,14 @@ export default function AskSituationDetailScreen() {
                               scrollSnapAlign: 'start',
                             }}
                           >
-                            <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                            <img
+                              src={src}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              loading={cIdx === 0 && i === 0 ? 'eager' : 'lazy'}
+                              decoding="async"
+                              fetchPriority={cIdx === 0 && i === 0 ? 'high' : undefined}
+                            />
                           </div>
                         ))}
                       </div>
@@ -504,7 +569,15 @@ export default function AskSituationDetailScreen() {
             className="flex-1 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[12px] font-semibold text-gray-900 placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
             style={{ minWidth: 0 }}
           />
-          <input ref={fileRef} type="file" accept="image/*" multiple onChange={onPickFile} style={{ display: 'none' }} />
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            multiple
+            onChange={onPickFile}
+            style={{ display: 'none' }}
+          />
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
@@ -520,7 +593,7 @@ export default function AskSituationDetailScreen() {
           <button
             type="button"
             onClick={submitAnswer}
-            disabled={answerUploading || hasAnsweredByMe}
+            disabled={answerUploading || answerImagesStillUploading || hasAnsweredByMe}
             className="rounded-2xl px-3.5 py-2.5 text-[12px] font-extrabold text-white disabled:opacity-40"
             style={{ background: '#26C6DA', flexShrink: 0, minHeight: 40 }}
           >

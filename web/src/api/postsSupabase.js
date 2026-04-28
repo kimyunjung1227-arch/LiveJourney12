@@ -328,11 +328,12 @@ export const mapSupabasePostRowToPost = (row, opts = {}) => {
   };
 };
 
-export const fetchPostByIdSupabase = async (postId, currentUserId = null) => {
+export const fetchPostByIdSupabase = async (postId, currentUserId = null, opts = {}) => {
   if (!postId || typeof postId !== 'string') return null;
   const trimmed = postId.trim();
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
   if (!isUuid) return null;
+  const skipComments = opts?.skipComments === true;
   try {
     const { data, error } = await supabase
       .from('posts')
@@ -342,6 +343,9 @@ export const fetchPostByIdSupabase = async (postId, currentUserId = null) => {
     if (error || !data) return null;
     const likedSet = await fetchLikedPostIdsSupabase([trimmed], currentUserId);
     const mapped = mapSupabasePostRowToPost(data, { likedByMe: likedSet.has(trimmed) });
+    if (skipComments) {
+      return mapped ? { ...mapped, comments: mapped?.comments || [] } : null;
+    }
     const liveComments = await fetchCommentsForPostSupabase(trimmed);
     const fromTable = Array.isArray(liveComments) && liveComments.length > 0
       ? liveComments.map((c) => ({
