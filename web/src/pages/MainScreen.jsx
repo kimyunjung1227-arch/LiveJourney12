@@ -1143,7 +1143,7 @@ const MainScreen = () => {
                                             <button
                                                 key={q.id}
                                                 type="button"
-                                                onClick={() => navigate(`/post/${q.id}`, { state: { post: q } })}
+                                            onClick={() => navigate(`/ask-situation/${q.id}`, { state: { post: q } })}
                                                 style={{
                                                     width: '100%',
                                                     textAlign: 'left',

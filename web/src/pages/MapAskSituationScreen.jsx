@@ -162,11 +162,9 @@ export default function MapAskSituationScreen() {
       }
       const uploadedPost = mapSupabasePostRowToPost(res.post);
       logger.log('✅ 현장 질문 등록 완료:', uploadedPost?.id);
-      window.dispatchEvent(new Event('postsUpdated'));
-      window.dispatchEvent(new Event('newPostsAdded'));
       alert('질문이 등록됐어요!');
       if (uploadedPost?.id) {
-        navigate(`/post/${uploadedPost.id}`, { state: { post: uploadedPost } });
+        navigate(`/ask-situation/${uploadedPost.id}`, { state: { post: uploadedPost } });
       } else {
         navigate(-1);
       }

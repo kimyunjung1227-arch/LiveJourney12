@@ -393,6 +393,7 @@ export const fetchPostsByUserIdSupabase = async (userId, currentUserId = null) =
       .from('posts')
       .select('*')
       .eq('user_id', trimmed)
+      .or('category.is.null,category.neq.question')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -418,6 +419,7 @@ export const fetchPostsSupabase = async (currentUserId = null) => {
     const { data, error } = await supabase
       .from('posts')
       .select('*')
+      .or('category.is.null,category.neq.question')
       .order('created_at', { ascending: false });
 
     if (error) throw error;

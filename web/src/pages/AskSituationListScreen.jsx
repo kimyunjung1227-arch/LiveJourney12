@@ -171,7 +171,7 @@ export default function AskSituationListScreen() {
                 <button
                   key={q.id}
                   type="button"
-                  onClick={() => navigate(`/post/${q.id}`, { state: { post: q } })}
+                  onClick={() => navigate(`/ask-situation/${q.id}`, { state: { post: q } })}
                   style={{
                     width: '100%',
                     textAlign: 'left',
@@ -215,24 +215,25 @@ export default function AskSituationListScreen() {
         aria-label="질문 작성"
         style={{
           position: 'fixed',
-          right: 18,
-          bottom: 84,
-          width: 54,
-          height: 54,
+          right: 22,
+          bottom: 118,
+          width: 52,
+          height: 52,
           borderRadius: 9999,
           border: 'none',
           background: '#0ea5e9',
           color: '#fff',
           boxShadow: '0 14px 30px rgba(14,165,233,0.35)',
-          fontSize: 28,
-          fontWeight: 900,
-          lineHeight: '54px',
-          textAlign: 'center',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           cursor: 'pointer',
           zIndex: 50,
         }}
       >
-        +
+        <span className="material-symbols-outlined" style={{ fontSize: 26, fontVariationSettings: "'wght' 300" }}>
+          edit
+        </span>
       </button>
 
       <BottomNavigation />

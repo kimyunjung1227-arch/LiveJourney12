@@ -236,6 +236,10 @@ const PostDetailScreen = () => {
           setAccuracyMarked(hasUserMarkedAccurate(fresh.id));
           setAccuracyCount(getPostAccuracyCount(fresh.id));
           setLoading(false);
+            // 질문 글은 일반 게시물 상세(/post)가 아니라 질문 상세(/ask-situation)에서만 노출
+            if (isLiveQuestionPost(fresh) && String(location?.pathname || '').startsWith('/post/')) {
+              navigate(`/ask-situation/${encodeURIComponent(String(fresh.id))}`, { state: { post: fresh }, replace: true });
+            }
           return;
         }
       }

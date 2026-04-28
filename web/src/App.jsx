@@ -168,6 +168,7 @@ function App() {
                 <Route path="/map" element={<MapScreen />} />
                 <Route path="/map/ask-situation" element={<MapAskSituationScreen />} />
                 <Route path="/ask-situation" element={<AskSituationListScreen />} />
+                <Route path="/ask-situation/:id" element={<PostDetailScreen />} />
                 <Route path="/map/photos" element={<MapPhotoGridScreen />} />
                 <Route path="/profile" element={<ProfileScreen />} />
                 <Route
