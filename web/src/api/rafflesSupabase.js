@@ -152,8 +152,8 @@ export const completeRaffleNow = async (id) => {
       return { success: false, error: '진행 중인 래플만 종료할 수 있습니다.' };
     }
     const category = (row.category && String(row.category).trim()) || '래플 종료';
-    const status_message =
-      (row.status_message && String(row.status_message).trim()) || '관리자에 의해 조기 종료되었습니다.';
+    // 기본 문구 강제 삽입은 UX상 노이즈가 커서 제거(원하면 어드민에서 직접 입력)
+    const status_message = (row.status_message && String(row.status_message).trim()) || null;
     const badge = (row.badge && String(row.badge).trim()) || '미응모';
 
     const { data, error } = await supabase

@@ -263,15 +263,19 @@ const RaffleScreen = () => {
                         <img src={row.image} alt="" className="h-full w-full object-cover" />
                       </div>
                       <div className="relative min-w-0 flex-1 pr-[4.25rem]">
-                        <h3 className="text-sm font-bold leading-tight text-gray-900 dark:text-gray-100 sm:text-[15px]">
+                        <h3 className="text-[13px] font-bold leading-tight text-gray-900 dark:text-gray-100 sm:text-sm">
                           {row.title}
                         </h3>
                         <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 sm:text-[13px]">
                           {row.category}
                         </p>
-                        <p className="mt-1 text-xs leading-snug text-gray-400 dark:text-gray-500 sm:text-[13px]">
-                          {row.statusMessage}
-                        </p>
+                        {row.statusMessage &&
+                          String(row.statusMessage).trim() &&
+                          String(row.statusMessage).trim() !== '관리자에 의해 조기 종료되었습니다.' && (
+                            <p className="mt-1 text-xs leading-snug text-gray-400 dark:text-gray-500 sm:text-[13px]">
+                              {row.statusMessage}
+                            </p>
+                          )}
                         <button
                           type="button"
                           className="mt-2 inline-flex items-center gap-0.5 text-sm font-bold text-gray-900 dark:text-gray-100 sm:text-[15px]"
