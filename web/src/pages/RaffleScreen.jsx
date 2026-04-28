@@ -40,21 +40,18 @@ function ScheduledRaffleStrip({ loading, list, emptyText }) {
           }}
           aria-label="진행 예정 래플"
         >
-          <div className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
-            <div className="relative aspect-square w-full bg-gray-100 dark:bg-gray-800">
-              <img
-                src={item.image}
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover"
-                loading="lazy"
-                decoding="async"
-              />
-            </div>
-            <div className="px-2 py-2">
-              <div className="text-[12px] font-bold leading-snug text-gray-900 dark:text-gray-100 line-clamp-2">
-                {item.title}
-              </div>
-            </div>
+          <div className="relative aspect-square w-full overflow-hidden bg-gray-100 dark:bg-gray-800" style={{ borderRadius: 10 }}>
+            <img
+              src={item.image}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+              loading="lazy"
+              decoding="async"
+              style={{ borderRadius: 10 }}
+            />
+          </div>
+          <div className="mt-2 text-[12px] font-bold leading-snug text-gray-900 dark:text-gray-100 line-clamp-2">
+            {item.title}
           </div>
         </button>
       ))}
