@@ -106,7 +106,7 @@ export default function AskSituationDetailScreen() {
     position: 'fixed',
     left: '50%',
     transform: 'translateX(-50%)',
-    width: 'min(720px, 100vw)',
+    width: 'min(414px, 100vw)',
     zIndex: 60,
   }), []);
 
@@ -304,8 +304,9 @@ export default function AskSituationDetailScreen() {
   const questionText = String(post.content || post.note || '').trim();
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-white">
-      <header className="flex items-center gap-3 border-b border-gray-100 px-4 py-3 pt-12">
+    <div className="screen-layout bg-background-light dark:bg-background-dark min-h-[100dvh]">
+      <div className="screen-content">
+      <header className="flex items-center gap-3 border-b border-gray-100 px-4 py-3 pt-12 bg-white">
         <button type="button" onClick={() => navigate(-1)} className="rounded-full p-2 hover:bg-gray-50" aria-label="뒤로">
           <ArrowLeft className="h-5 w-5 text-gray-800" />
         </button>
@@ -467,6 +468,7 @@ export default function AskSituationDetailScreen() {
       </div>
 
       <BottomNavigation />
+      </div>
     </div>
   );
 }

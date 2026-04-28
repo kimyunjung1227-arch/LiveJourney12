@@ -35,12 +35,12 @@ export default function AskSituationListScreen() {
   const [myPos, setMyPos] = useState(null);
   const sentinelRef = useRef(null);
   const ioRef = useRef(null);
-  // 고정 UI는 "앱 콘텐츠 폭(최대 720px)" 안에서만 위치시키기
+  // 고정 UI는 "앱 콘텐츠 폭(데스크톱에서도 414px 고정)" 안에서만 위치시키기
   const floatingLayerStyle = useMemo(() => ({
     position: 'fixed',
     left: '50%',
     transform: 'translateX(-50%)',
-    width: 'min(720px, 100vw)',
+    width: 'min(414px, 100vw)',
     height: 0,
     pointerEvents: 'none',
     zIndex: 60,
@@ -131,8 +131,9 @@ export default function AskSituationListScreen() {
   }, [filter, ensureMyLocation]);
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-white">
-      <header className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 pt-12">
+    <div className="screen-layout bg-background-light dark:bg-background-dark min-h-[100dvh]">
+      <div className="screen-content">
+      <header className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 pt-12 bg-white">
         <button type="button" onClick={() => navigate(-1)} className="rounded-full p-2 hover:bg-gray-50" aria-label="뒤로">
           <span className="material-symbols-outlined text-[22px]" style={{ fontVariationSettings: "'wght' 300" }}>arrow_back</span>
         </button>
@@ -250,6 +251,7 @@ export default function AskSituationListScreen() {
       </div>
 
       <BottomNavigation />
+      </div>
     </div>
   );
 }
