@@ -23,6 +23,8 @@ import { useAuth } from '../contexts/AuthContext';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import { toggleLikeForPost } from '../utils/postLikeActions';
+import { fetchRafflesForUi } from '../api/rafflesSupabase';
+import { generatePlaceAiBlurb } from '../utils/placeAiBlurb';
 const MainScreen = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -44,6 +46,7 @@ const MainScreen = () => {
     const [recommendationTypesUi, setRecommendationTypesUi] = useState(() => getRecommendationTypesForUi());
     const [hotFeedSlideIndex, setHotFeedSlideIndex] = useState(0);
     const [hotFeedSocialIdx, setHotFeedSocialIdx] = useState(0);
+    const [hasOngoingRaffle, setHasOngoingRaffle] = useState(false);
     const { handleDragStart, hasMovedRef } = useHorizontalDragScroll();
     const videoRefs = useRef(new Map());
     const currentlyPlayingVideo = useRef(null);
@@ -378,7 +381,30 @@ const MainScreen = () => {
     }, [hotFeedPost]);
 
     const hotFeedCardProps = useMemo(
-        () => buildHotFeedCardProps(hotFeedPost, weatherByRegion),
+        () => {
+            const cp = buildHotFeedCardProps(hotFeedPost, weatherByRegion);
+            if (!cp) return null;
+            // ✅ 더보기(/crowded-place)와 동일하게: 장소 AI 블러브를 "설명"으로 우선 사용
+            const placeKey = String(hotFeedPost?._placeKey || cp.title || '').trim();
+            if (!placeKey) return cp;
+            const tagsRaw = Array.isArray(hotFeedPost?.reasonTags) && hotFeedPost.reasonTags.length > 0
+                ? hotFeedPost.reasonTags
+                : (Array.isArray(hotFeedPost?.aiHotTags) ? hotFeedPost.aiHotTags : []);
+            const tags = (tagsRaw || [])
+                .map((t) => String(t || '').replace(/#/g, '').trim())
+                .filter(Boolean)
+                .slice(0, 3)
+                .map((t) => (t.startsWith('#') ? t : `#${t}`));
+            const aiBlurb = generatePlaceAiBlurb(placeKey, {
+                tags,
+                cityDong: cp.cityDongLine || '',
+                tier: cp.hotReasonLabel || '',
+            });
+            return {
+                ...cp,
+                captionForCard: String(aiBlurb || '').trim() || cp.captionForCard,
+            };
+        },
         [hotFeedPost, weatherByRegion]
     );
 
@@ -458,6 +484,29 @@ const MainScreen = () => {
         fetchPosts();
         setUnreadNotificationCount(getUnreadCount());
     }, [fetchPosts]);
+
+    // 진행 중 래플 존재 여부: 메인 상단 "래플" 버튼 강조 + 점 표시
+    useEffect(() => {
+        let cancelled = false;
+        const load = async () => {
+            try {
+                const { ongoing } = await fetchRafflesForUi();
+                if (cancelled) return;
+                setHasOngoingRaffle(Array.isArray(ongoing) && ongoing.length > 0);
+            } catch {
+                if (!cancelled) setHasOngoingRaffle(false);
+            }
+        };
+        load();
+        const onVis = () => {
+            if (document.visibilityState === 'visible') load();
+        };
+        document.addEventListener('visibilitychange', onVis);
+        return () => {
+            cancelled = true;
+            document.removeEventListener('visibilitychange', onVis);
+        };
+    }, []);
 
     // 메인 화면으로 돌아올 때마다 목록 재조회 (좋아요·댓글 DB 반영 확인)
     const prevPathRef = useRef('');
@@ -668,8 +717,8 @@ const MainScreen = () => {
                                 gap: 4,
                                 borderRadius: 9999,
                                 border: 'none',
-                                background: '#F2F2F2',
-                                color: '#757575',
+                                background: hasOngoingRaffle ? 'rgba(38,198,218,0.12)' : '#F2F2F2',
+                                color: hasOngoingRaffle ? '#26C6DA' : '#757575',
                                 fontSize: 10,
                                 fontWeight: 500,
                                 letterSpacing: '-0.02em',
@@ -677,6 +726,7 @@ const MainScreen = () => {
                                 whiteSpace: 'nowrap',
                                 width: 'auto',
                                 minHeight: 24,
+                                position: 'relative',
                             }}
                             aria-label="래플"
                         >
@@ -684,7 +734,7 @@ const MainScreen = () => {
                                 className="material-symbols-outlined"
                                 style={{
                                     fontSize: 14,
-                                    color: '#757575',
+                                    color: hasOngoingRaffle ? '#26C6DA' : '#757575',
                                     fontWeight: 400,
                                     flexShrink: 0,
                                 }}
@@ -693,6 +743,22 @@ const MainScreen = () => {
                                 confirmation_number
                             </span>
                             래플
+                            {hasOngoingRaffle && (
+                                <span
+                                    aria-label="진행 중 래플 있음"
+                                    style={{
+                                        position: 'absolute',
+                                        top: -2,
+                                        right: -2,
+                                        width: 8,
+                                        height: 8,
+                                        borderRadius: 9999,
+                                        background: '#26C6DA',
+                                        border: '2px solid #ffffff',
+                                        boxShadow: '0 0 0 1px rgba(38,198,218,0.25)',
+                                    }}
+                                />
+                            )}
                         </button>
                     </div>
                     {/* 중앙 검색창 */}

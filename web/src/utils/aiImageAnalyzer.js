@@ -238,8 +238,8 @@ export const analyzeImageColors = async (imageFile) => {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
           
-          // 50x50 크기로 샘플링 (더 정확한 분석)
-          const size = 50;
+          // 업로드 태그 추천은 "빠른 체감"이 우선 → 샘플링 크기를 줄여 속도를 확보
+          const size = 24;
           canvas.width = size;
           canvas.height = size;
           
@@ -883,6 +883,27 @@ export async function getPartitionedUploadTags(mediaFile, location = '', note = 
     if (t === locationTag) continue;
     if (mood.includes(t)) continue;
     mood.push(t);
+  }
+
+  // 카테고리 기반 "핵심 태그" 1개는 반드시 포함 (사진과 무관한 분위기/날씨 과다 방지)
+  const catList = Array.isArray(analysis?.categories) ? analysis.categories : [];
+  const catSlugSet = new Set(catList.map((c) => String(c?.category || '').trim()).filter(Boolean));
+  const coreTagByCat = (() => {
+    if (catSlugSet.has('waiting')) return '웨이팅';
+    if (catSlugSet.has('food')) return '맛집';
+    if (catSlugSet.has('landmark')) return '명소';
+    if (catSlugSet.has('bloom')) return '개화정보';
+    return '';
+  })();
+  if (coreTagByCat && !weather.includes(coreTagByCat) && coreTagByCat !== locationTag) {
+    if (!mood.includes(coreTagByCat)) {
+      // mood 3개를 유지하되, 가장 일반적인 단어를 밀어냄
+      const generic = new Set(['아름다운', '평화로운', '낭만적인', '힐링', '여유로운', '즐거운']);
+      const idx = mood.findIndex((x) => generic.has(String(x)));
+      if (idx >= 0) mood.splice(idx, 1);
+      if (mood.length >= 3) mood.pop();
+      mood.unshift(coreTagByCat);
+    }
   }
 
   const moodPool = moodPoolFromColor(colorAnalysis).filter(

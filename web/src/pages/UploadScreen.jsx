@@ -14,6 +14,17 @@ import { getBadgeCongratulationMessage, getBadgeDifficultyEffects } from '../uti
 import { logger } from '../utils/logger';
 import { useExifConsent } from '../contexts/ExifConsentContext';
 import { convertGpsToAddress, extractExifData, isExifCaptureTooOldForUpload } from '../utils/exifExtractor';
+
+const formatUploadDateLine = (raw) => {
+  const d = raw ? new Date(raw) : null;
+  const dt = d && !Number.isNaN(d.getTime()) ? d : new Date();
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const day = String(dt.getDate()).padStart(2, '0');
+  const hh = String(dt.getHours()).padStart(2, '0');
+  const mm = String(dt.getMinutes()).padStart(2, '0');
+  return `📅 ${y}.${m}.${day} ${hh}:${mm}`;
+};
 const UploadScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -312,6 +323,14 @@ const UploadScreen = () => {
       prefetchedExif: exifFirst
         ? { fileKey: exifFileKey, exif: { photoDate: exifFirst.photoDate, dateTimeOriginalRaw: exifFirst.dateTimeOriginalRaw } }
         : prev.prefetchedExif,
+      // ✅ 사진 업로드 시 촬영/업로드 날짜를 설명창(노트) 상단에 자동 삽입
+      note: (() => {
+        if (!isFirstMedia) return prev.note;
+        const base = String(prev.note || '');
+        if (base.trim().length > 0) return base; // 사용자가 이미 입력한 경우는 건드리지 않음
+        const line = formatUploadDateLine(exifFirst?.photoDate || Date.now());
+        return `${line}\n`;
+      })(),
     }));
 
     if (isFirstMedia && (imageFiles.length > 0 || videoFiles.length > 0)) {
