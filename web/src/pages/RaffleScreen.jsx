@@ -6,6 +6,62 @@ import { fetchRafflesForUi } from '../api/rafflesSupabase';
 
 const INITIAL_COUNT = 3;
 
+/** 진행 예정 래플: 작은 카드(사진+제목) 4개/1줄 + 가로 스크롤 */
+function ScheduledRaffleStrip({ loading, list, emptyText }) {
+  if (loading) {
+    return (
+      <p className="rounded-xl border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        불러오는 중...
+      </p>
+    );
+  }
+  if (list.length === 0) {
+    return (
+      <p className="rounded-xl border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        {emptyText}
+      </p>
+    );
+  }
+
+  return (
+    <div
+      className="flex w-full snap-x snap-mandatory gap-2 overflow-x-auto overflow-y-hidden scroll-smooth pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      style={{ WebkitOverflowScrolling: 'touch' }}
+    >
+      {list.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          disabled
+          className="box-border shrink-0 snap-start text-left"
+          style={{
+            width: 'calc((100% - 24px) / 4)', // gap(8px)*3 = 24px
+            minWidth: 86,
+          }}
+          aria-label="진행 예정 래플"
+        >
+          <div className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <div className="relative aspect-square w-full bg-gray-100 dark:bg-gray-800">
+              <img
+                src={item.image}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <div className="px-2 py-2">
+              <div className="text-[12px] font-bold leading-snug text-gray-900 dark:text-gray-100 line-clamp-2">
+                {item.title}
+              </div>
+            </div>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** 진행 예정·진행 중 공통 카드 (가로 스와이프) */
 function OngoingStyleRaffleBlock({ loading, list, emptyText, ctaMode }) {
   if (loading) {
@@ -154,11 +210,10 @@ const RaffleScreen = () => {
               <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-gray-900 dark:text-gray-100 sm:text-[15px]">
                 진행 예정 래플
               </h2>
-              <OngoingStyleRaffleBlock
+              <ScheduledRaffleStrip
                 loading={loading}
                 list={scheduledList}
                 emptyText="진행 예정인 래플이 없습니다."
-                ctaMode="scheduled"
               />
             </section>
 
