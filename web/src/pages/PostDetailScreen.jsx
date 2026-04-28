@@ -1337,7 +1337,7 @@ const PostDetailScreen = () => {
                   {authorAvatar ? (
                     <div
                       className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-10 w-10 flex-shrink-0"
-                      style={{ backgroundImage: `url("${authorAvatar}")` }}
+                      style={{ backgroundImage: `url("${getDisplayImageUrl(authorAvatar)}")` }}
                     />
                   ) : (
                     <div className="rounded-full h-10 w-10 flex-shrink-0 bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-semibold text-gray-700 dark:text-gray-100">
@@ -1755,7 +1755,7 @@ const PostDetailScreen = () => {
                         {resolved.displayAvatar ? (
                           <div
                             className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-8 w-8 flex-shrink-0"
-                            style={{ backgroundImage: `url("${resolved.displayAvatar}")` }}
+                            style={{ backgroundImage: `url("${getDisplayImageUrl(resolved.displayAvatar)}")` }}
                           />
                         ) : (
                           <div className="rounded-full h-8 w-8 flex-shrink-0 bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] font-semibold text-gray-700 dark:text-gray-100">
