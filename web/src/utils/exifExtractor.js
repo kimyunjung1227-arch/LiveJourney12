@@ -1,6 +1,7 @@
 import exifr from 'exifr';
 import { logger } from './logger';
 import { resolveDisplayLocationFromKakaoCoordResult } from './locationFromGeocode';
+import { extractMergedTagsFromExifReader } from './exifReaderExtract';
 
 /**
  * 안드로이드 WebView·크롬 등에서 갤러리 파일의 `type`이 빈 문자열이거나
@@ -303,6 +304,69 @@ const BASE_PARSE_OPTS = {
 };
 
 /**
+ * ExifReader로 충분하지 않을 때만 사용하는 exifr 폴백 (JPEG·PNG·HEIC 등 호환 유지)
+ * @returns {Promise<Record<string, unknown>|null>}
+ */
+async function extractWithExifrLegacy(typedFile, mobile) {
+  const MAX_FULL_PARSE_BYTES = 45 * 1024 * 1024;
+
+  let cachedFullBuffer = null;
+  const getFullArrayBuffer = async () => {
+    if (cachedFullBuffer) return cachedFullBuffer;
+    if (typedFile.size > MAX_FULL_PARSE_BYTES) return null;
+    cachedFullBuffer = await typedFile.arrayBuffer();
+    return cachedFullBuffer;
+  };
+
+  const parseOptsFull = { ...BASE_PARSE_OPTS, firstChunk: false };
+  const parseOptsFirstChunk = {
+    ...BASE_PARSE_OPTS,
+    firstChunk: true,
+    firstChunkSize: mobile ? 2 * 1024 * 1024 : 1024 * 1024,
+  };
+
+  let exifData = null;
+
+  if (mobile && typedFile.size > 0 && typedFile.size <= MAX_FULL_PARSE_BYTES) {
+    try {
+      const ab = await getFullArrayBuffer();
+      if (ab) {
+        exifData = await exifr.parse(ab, parseOptsFull);
+      }
+    } catch (e) {
+      logger.debug('EXIF 모바일 전체 버퍼 파싱 실패:', e);
+    }
+  }
+
+  if (!hasUsefulExifPayload(exifData)) {
+    try {
+      const chunkTry = await exifr.parse(typedFile, parseOptsFirstChunk);
+      if (hasUsefulExifPayload(chunkTry)) {
+        exifData = chunkTry;
+      } else if (!exifData) {
+        exifData = chunkTry;
+      }
+    } catch (e) {
+      logger.debug('EXIF firstChunk 파싱 실패:', e);
+    }
+  }
+
+  if (!hasUsefulExifPayload(exifData) && typedFile.size <= MAX_FULL_PARSE_BYTES) {
+    try {
+      const ab = await getFullArrayBuffer();
+      if (ab) {
+        exifData = await exifr.parse(ab, parseOptsFull);
+      }
+    } catch (e2) {
+      logger.warn('EXIF 전체 파싱 실패:', e2);
+      if (!exifData) exifData = null;
+    }
+  }
+
+  return hasUsefulExifPayload(exifData) ? exifData : null;
+}
+
+/**
  * 이미지 파일에서 EXIF 데이터 추출 (날짜, GPS 좌표 등)
  * @param {File} file - 이미지 파일
  * @param {{ allowed?: boolean }} [options]
@@ -329,70 +393,33 @@ export const extractExifData = async (file, options = {}) => {
 
     const typedFile = ensureTypedImageFileForExif(file);
     const mobile = isTouchMobileWeb();
-    const MAX_FULL_PARSE_BYTES = 45 * 1024 * 1024;
 
-    let cachedFullBuffer = null;
-    const getFullArrayBuffer = async () => {
-      if (cachedFullBuffer) return cachedFullBuffer;
-      if (typedFile.size > MAX_FULL_PARSE_BYTES) return null;
-      cachedFullBuffer = await typedFile.arrayBuffer();
-      return cachedFullBuffer;
-    };
-
-    const parseOptsFull = { ...BASE_PARSE_OPTS, firstChunk: false };
-    const parseOptsFirstChunk = {
-      ...BASE_PARSE_OPTS,
-      firstChunk: true,
-      firstChunkSize: mobile ? 2 * 1024 * 1024 : 1024 * 1024,
-    };
-
-    let exifData = null;
-
-    // 1) 모바일: 45MB 이하이면 전체 버퍼 파싱을 최우선 (고화소·HEIC·EXIF가 파일 뒤쪽인 경우, 앞 청크만으로는 실패)
-    if (mobile && typedFile.size > 0 && typedFile.size <= MAX_FULL_PARSE_BYTES) {
-      try {
-        const ab = await getFullArrayBuffer();
-        if (ab) {
-          exifData = await exifr.parse(ab, parseOptsFull);
-        }
-      } catch (e) {
-        logger.debug('EXIF 모바일 전체 버퍼 파싱 실패:', e);
-      }
+    let readerMerged = null;
+    try {
+      readerMerged = await extractMergedTagsFromExifReader(typedFile);
+    } catch (e) {
+      logger.debug('ExifReader 추출 예외:', e?.message || e);
     }
 
-    // 2) 앞쪽 청크만으로 빠르게 시도 (대용량 메모리 절약)
-    if (!hasUsefulExifPayload(exifData)) {
-      try {
-        const chunkTry = await exifr.parse(typedFile, parseOptsFirstChunk);
-        if (hasUsefulExifPayload(chunkTry)) {
-          exifData = chunkTry;
-        } else if (!exifData) {
-          exifData = chunkTry;
-        }
-      } catch (e) {
-        logger.debug('EXIF firstChunk 파싱 실패:', e);
+    let merged = null;
+    const readerOk = readerMerged && hasUsefulExifPayload(readerMerged);
+    if (readerOk) {
+      const dateBefore = resolveCaptureDate(readerMerged);
+      const gpsBefore = normalizeGpsFromExif(readerMerged);
+      if (dateBefore && gpsBefore) {
+        merged = readerMerged;
+      } else {
+        const exifrPart = await extractWithExifrLegacy(typedFile, mobile);
+        merged = mergeMissingMetadata(readerMerged, exifrPart || {});
       }
+    } else {
+      merged = await extractWithExifrLegacy(typedFile, mobile);
     }
 
-    // 3) 유효 메타가 없으면 전체 파일 파싱 (상한 내)
-    if (!hasUsefulExifPayload(exifData) && typedFile.size <= MAX_FULL_PARSE_BYTES) {
-      try {
-        const ab = await getFullArrayBuffer();
-        if (ab) {
-          exifData = await exifr.parse(ab, parseOptsFull);
-        }
-      } catch (e2) {
-        logger.warn('EXIF 전체 파싱 실패:', e2);
-        if (!exifData) exifData = null;
-      }
-    }
-
-    if (!exifData || !hasUsefulExifPayload(exifData)) {
+    if (!merged || !hasUsefulExifPayload(merged)) {
       logger.debug('EXIF 데이터 없음');
       return null;
     }
-
-    let merged = exifData;
     const dateBefore = resolveCaptureDate(merged);
     let gpsBefore = normalizeGpsFromExif(merged);
     const needsXmp = !dateBefore || !gpsBefore;

@@ -8,6 +8,7 @@ import {
     getPhotoCategoryLabels,
     getPostLocationText,
 } from './hotPlaceDisplay';
+import { getTimeAgo } from './timeUtils';
 
 /**
  * 메인·실시간 핫플 더보기 공통 — 카드에 필요한 props 계산
@@ -83,6 +84,16 @@ export function buildHotFeedCardProps(post, weatherByRegion = {}) {
         || (!!(post.content || '').trim() && (post.content || '').trim() !== (loc ? `${loc}의 모습` : ''));
     const captionForCard = hasUserCaption ? photoCaptionLine : whyHotLine;
     const photoCategoryLabels = getPhotoCategoryLabels(post);
+    const uploadTimeLabel = (() => {
+        if (post.time && typeof post.time === 'string' && post.time.trim()) return post.time.trim();
+        const ts = post.timestamp || post.createdAt || post.photoDate;
+        if (ts == null) return '';
+        try {
+            return getTimeAgo(ts) || '';
+        } catch {
+            return '';
+        }
+    })();
     return {
         post,
         title,
@@ -99,6 +110,7 @@ export function buildHotFeedCardProps(post, weatherByRegion = {}) {
         cityDongLine,
         captionForCard,
         photoCategoryLabels,
+        uploadTimeLabel,
     };
 }
 

@@ -213,7 +213,7 @@ const HotFeedCard = ({
             <div style={{ padding: '8px 2px 2px', background: 'transparent', border: 'none', boxShadow: 'none' }}>
                 <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{title}</h4>
                 <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', background: 'transparent', boxShadow: 'none' }}>{captionForCard}</p>
-                {(hasWeather || displayTags.length > 0) && (
+                {(hasWeather || displayTags.length > 0 || (cardProps.uploadTimeLabel && String(cardProps.uploadTimeLabel).trim())) && (
                     <div
                         style={{
                             display: 'flex',
@@ -242,12 +242,38 @@ const HotFeedCard = ({
                                 </span>
                             ))}
                         </div>
-                        {hasWeather ? (
-                            <div style={{ ...weatherPillStyle, flexShrink: 0 }}>
-                                {weather?.icon && <span>{weather.icon}</span>}
-                                {weather?.temperature && <span>{weather.temperature}</span>}
-                            </div>
-                        ) : null}
+                        <div
+                            style={{
+                                display: 'inline-flex',
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'flex-end',
+                                gap: 6,
+                                flexShrink: 0,
+                                flexWrap: 'wrap',
+                                maxWidth: '48%',
+                            }}
+                        >
+                            {hasWeather ? (
+                                <div style={{ ...weatherPillStyle, flexShrink: 0 }}>
+                                    {weather?.icon && <span>{weather.icon}</span>}
+                                    {weather?.temperature && <span>{weather.temperature}</span>}
+                                    {weather?.condition && weather.condition !== '-' ? <span>{` ${weather.condition}`}</span> : null}
+                                </div>
+                            ) : null}
+                            {cardProps.uploadTimeLabel && String(cardProps.uploadTimeLabel).trim() ? (
+                                <span
+                                    style={{
+                                        fontSize: 11,
+                                        color: '#64748b',
+                                        fontWeight: 600,
+                                        whiteSpace: 'nowrap',
+                                    }}
+                                >
+                                    {String(cardProps.uploadTimeLabel).trim()}
+                                </span>
+                            ) : null}
+                        </div>
                     </div>
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, gap: 8 }}>
