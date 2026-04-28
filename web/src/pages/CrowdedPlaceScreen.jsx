@@ -398,6 +398,12 @@ const CrowdedPlaceScreen = () => {
                                         if (!s || s === '-') return '';
                                         return s.includes('°') ? s : `${s}°C`;
                                     })();
+                                    const uploadLabel =
+                                        (cardProps?.uploadTimeLabel && String(cardProps.uploadTimeLabel).trim()) ||
+                                        formatAgo(getPostTimeMs(post)) ||
+                                        formatAgo(place.latestMs) ||
+                                        '';
+                                    const hasWeatherPill = Boolean(tempText || (cardProps?.weather?.icon && String(cardProps.weather.icon).trim()));
                                     const hotTagChips = (Array.isArray(place.liveTags) ? place.liveTags : [])
                                         .map((t) => {
                                             const raw = String(t || '')
@@ -485,33 +491,50 @@ const CrowdedPlaceScreen = () => {
                                                                 {aiBlurb}
                                                             </p>
                                                         ) : null}
-                                                        {place.rank <= 20 && hotTagChips.length > 0 ? (
-                                                            <div className="mt-2 flex flex-wrap gap-1.5">
-                                                                {hotTagChips.map((tag) => (
-                                                                    <span
-                                                                        key={`${place.key}-${tag}`}
-                                                                        className="max-w-full truncate rounded-full border px-2 py-0.5 text-[11px] font-extrabold text-slate-900 dark:text-slate-100"
-                                                                        style={{
-                                                                            background: 'rgba(38, 198, 218, 0.14)',
-                                                                            borderColor: 'rgba(38, 198, 218, 0.30)',
-                                                                        }}
-                                                                        title={tag}
-                                                                    >
-                                                                        {tag}
-                                                                    </span>
-                                                                ))}
+                                                        {(place.rank <= 20 && hotTagChips.length > 0) || hasWeatherPill || uploadLabel ? (
+                                                            <div className="mt-2 flex w-full min-w-0 flex-row flex-wrap items-center justify-between gap-2">
+                                                                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+                                                                    {place.rank <= 20 &&
+                                                                        hotTagChips.map((tag) => (
+                                                                            <span
+                                                                                key={`${place.key}-${tag}`}
+                                                                                className="max-w-full truncate rounded-full border px-2 py-0.5 text-[11px] font-extrabold text-slate-900 dark:text-slate-100"
+                                                                                style={{
+                                                                                    background: 'rgba(38, 198, 218, 0.14)',
+                                                                                    borderColor: 'rgba(38, 198, 218, 0.30)',
+                                                                                }}
+                                                                                title={tag}
+                                                                            >
+                                                                                {tag}
+                                                                            </span>
+                                                                        ))}
+                                                                </div>
+                                                                <div className="flex max-w-[48%] shrink-0 flex-row flex-wrap items-center justify-end gap-1.5">
+                                                                    {hasWeatherPill ? (
+                                                                        <span
+                                                                            className="inline-flex max-w-full items-center gap-1 truncate rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                                                                            title="기온"
+                                                                        >
+                                                                            {cardProps?.weather?.icon ? (
+                                                                                <span className="shrink-0">{cardProps.weather.icon}</span>
+                                                                            ) : null}
+                                                                            {tempText ? <span className="whitespace-nowrap">{tempText}</span> : null}
+                                                                            {cardProps?.weather?.condition &&
+                                                                            cardProps.weather.condition !== '-' ? (
+                                                                                <span className="hidden truncate sm:inline">
+                                                                                    {` ${cardProps.weather.condition}`}
+                                                                                </span>
+                                                                            ) : null}
+                                                                        </span>
+                                                                    ) : null}
+                                                                    {uploadLabel ? (
+                                                                        <span className="whitespace-nowrap text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
+                                                                            {uploadLabel}
+                                                                        </span>
+                                                                    ) : null}
+                                                                </div>
                                                             </div>
                                                         ) : null}
-                                                        <p className="mt-2 text-[12px] font-medium leading-relaxed text-zinc-600 dark:text-zinc-400">
-                                                            {tempText ? (
-                                                                <>
-                                                                    <span className="mx-1.5 text-zinc-300 dark:text-zinc-600">·</span>
-                                                                    <span>기온 {tempText}</span>
-                                                                </>
-                                                            ) : null}
-                                                            <span className="mx-1.5 text-zinc-300 dark:text-zinc-600">·</span>
-                                                            <span>{formatAgo(place.latestMs)}</span>
-                                                        </p>
                                                         {place.warning ? (
                                                             <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
                                                                 {place.warning}
