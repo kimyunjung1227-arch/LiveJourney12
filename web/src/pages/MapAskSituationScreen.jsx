@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { createPostSupabase, mapSupabasePostRowToPost } from '../api/postsSupabase';
+import { logger } from '../utils/logger';
 
 const STORAGE_KEY = 'mapSituationQuestions_v1';
 
@@ -75,6 +78,7 @@ function haversineM(lat1, lng1, lat2, lng2) {
 
 export default function MapAskSituationScreen() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const mapElRef = useRef(null);
   const mapRef = useRef(null);
   const pickOverlayRef = useRef(null);
@@ -87,6 +91,7 @@ export default function MapAskSituationScreen() {
   const [picking, setPicking] = useState(false);
   const [picked, setPicked] = useState(null); // { lat, lng, name? }
   const [text, setText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestItems, setSuggestItems] = useState([]); // { key, label, address?, lat, lng }
@@ -105,11 +110,71 @@ export default function MapAskSituationScreen() {
     setSuggestOpen(false);
   }, [picked, pickedLabel]);
 
-  const submit = () => {
+  const submit = async () => {
     const q = text.trim();
     if (!q) return;
-    // 서버 운영 전환: localStorage 제거 (문의 draft 저장 비활성화)
-    navigate(-1);
+    if (!user?.id) {
+      alert('로그인이 필요합니다. 로그인 후 다시 시도해 주세요.');
+      return;
+    }
+    if (!picked || !Number.isFinite(Number(picked.lat)) || !Number.isFinite(Number(picked.lng))) {
+      alert('위치를 먼저 선택해 주세요. (검색 또는 지도 선택)');
+      return;
+    }
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const uid = String(user.id).trim();
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uid);
+      const userIdForDb = isUuid ? uid : null;
+      const locationLabel = String(pickedLabel || locationQuery || '').trim() || '현장 질문';
+      const region = locationLabel.split(/\s+/)[0] || '기타';
+
+      const res = await createPostSupabase({
+        userId: userIdForDb,
+        user:
+          userIdForDb && user && typeof user === 'object'
+            ? { id: userIdForDb, username: user.username || user.email?.split('@')?.[0] || '유저', profileImage: user.profileImage || user.avatar_url || null }
+            : { username: user?.username || user?.email?.split('@')?.[0] || '유저' },
+        note: q,
+        content: q,
+        images: [],
+        videos: [],
+        location: locationLabel,
+        detailedLocation: locationLabel,
+        placeName: locationLabel,
+        region,
+        tags: ['질문', region].filter(Boolean),
+        category: 'question',
+        categoryName: '현장 질문',
+        likes: 0,
+        comments: [],
+        coordinates: { lat: Number(picked.lat), lng: Number(picked.lng) },
+        // 지도 핀 좌표는 exif_data.map_pin으로도 저장되어 MapScreen에서 우선 사용
+        exifData: { map_pin: { lat: Number(picked.lat), lng: Number(picked.lng) } },
+        photoDate: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      });
+
+      if (!res?.success || !res?.post) {
+        alert('등록에 실패했어요. 잠시 후 다시 시도해 주세요.');
+        return;
+      }
+      const uploadedPost = mapSupabasePostRowToPost(res.post);
+      logger.log('✅ 현장 질문 등록 완료:', uploadedPost?.id);
+      window.dispatchEvent(new Event('postsUpdated'));
+      window.dispatchEvent(new Event('newPostsAdded'));
+      alert('질문이 등록됐어요!');
+      if (uploadedPost?.id) {
+        navigate(`/post/${uploadedPost.id}`, { state: { post: uploadedPost } });
+      } else {
+        navigate(-1);
+      }
+    } catch (e) {
+      alert('등록 중 오류가 발생했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   /** zoomLevel: 숫자가 작을수록 확대(카카오맵 기본 1~14). 검색 이동 시에만 넘기면 됨 */
@@ -537,10 +602,10 @@ export default function MapAskSituationScreen() {
         <button
           type="button"
           onClick={submit}
-          disabled={!text.trim()}
+          disabled={!text.trim() || submitting}
           className="mt-4 w-full rounded-2xl bg-primary py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-dark disabled:opacity-40"
         >
-          질문 등록하기
+          {submitting ? '등록 중…' : '질문 등록하기'}
         </button>
       </div>
     </div>
