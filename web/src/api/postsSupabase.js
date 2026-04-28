@@ -338,7 +338,7 @@ export const fetchPostByIdSupabase = async (postId, currentUserId = null) => {
       .from('posts')
       .select('*')
       .eq('id', trimmed)
-      .single();
+      .maybeSingle();
     if (error || !data) return null;
     const likedSet = await fetchLikedPostIdsSupabase([trimmed], currentUserId);
     const mapped = mapSupabasePostRowToPost(data, { likedByMe: likedSet.has(trimmed) });

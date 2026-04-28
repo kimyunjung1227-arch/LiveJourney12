@@ -129,23 +129,40 @@ const BottomNavigation = React.memo(() => {
   }, [location.pathname]);
 
   return (
-  <nav
-      className="flex-shrink-0 flex h-16 items-center justify-around"
-      style={{
-        position: 'fixed',
-        bottom: 0,
-        left: '50%',
-        transform: `translateX(-50%) ${isVisible ? 'translateY(0)' : 'translateY(100%)'}`,
-        width: '100%',
-        maxWidth: '414px',
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        boxShadow: 'none',
-        borderTop: '1px solid rgba(242, 244, 247, 0.8)',
-        zIndex: 50,
-        transition: 'transform 0.3s ease-in-out',
-        background: '#ffffff',
-      }}
-    >
+    <>
+      {/* 네비가 숨겨져도 하단 영역에 스크롤 콘텐츠가 비치지 않도록 흰 배경을 고정 */}
+      <div
+        aria-hidden
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '100%',
+          maxWidth: '414px',
+          height: 'calc(64px + env(safe-area-inset-bottom, 0px))',
+          background: '#ffffff',
+          borderTop: '1px solid rgba(242, 244, 247, 0.8)',
+          zIndex: 45,
+          pointerEvents: 'none',
+        }}
+      />
+      <nav
+        className="flex-shrink-0 flex h-16 items-center justify-around"
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: '50%',
+          transform: `translateX(-50%) ${isVisible ? 'translateY(0)' : 'translateY(100%)'}`,
+          width: '100%',
+          maxWidth: '414px',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          boxShadow: 'none',
+          zIndex: 50,
+          transition: 'transform 0.3s ease-in-out',
+          background: '#ffffff',
+        }}
+      >
       <button
       onClick={() => navigate('/main')}
       className={`flex flex-col items-center justify-center gap-1 py-1.5 ${isActive('/main') ? 'text-primary' : 'text-text-subtle-light dark:text-text-subtle-dark hover:text-text-primary-light dark:hover:text-text-primary-dark transition-colors'
@@ -195,7 +212,8 @@ const BottomNavigation = React.memo(() => {
         <span className="material-symbols-outlined" style={{ fontSize: 26 }}>person</span>
         <span className="text-sm font-bold">프로필</span>
       </button>
-    </nav>
+      </nav>
+    </>
   );
 });
 

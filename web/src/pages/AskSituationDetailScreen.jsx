@@ -495,7 +495,8 @@ export default function AskSituationDetailScreen() {
           // BottomNavigation은 h-16(64px) + safe-area 만큼 차지
           bottom: 'calc(64px + env(safe-area-inset-bottom, 0px))',
           padding: '10px 12px',
-          background: '#f1f5f9',
+          // 메인 배경과 동일하게(화이트) + 버튼만 포인트 컬러
+          background: '#ffffff',
           borderTop: '1px solid #eef2f7',
           backdropFilter: 'blur(8px)',
           boxShadow: '0 -10px 24px rgba(15,23,42,0.06)',
