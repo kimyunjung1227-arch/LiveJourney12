@@ -277,32 +277,8 @@ on public.raffle_entries
 for select
 to authenticated
 using (auth.uid() = user_id);
-
-drop policy if exists raffle_entries_insert_own on public.raffle_entries;
-create policy raffle_entries_insert_own
-on public.raffle_entries
-for insert
-to authenticated
-with check (
-  auth.uid() = user_id
-  and tickets >= 1
-  and exists (select 1 from public.raffles r where r.id = raffle_id and r.kind = 'ongoing')
-);
-
-drop policy if exists raffle_entries_update_own on public.raffle_entries;
-create policy raffle_entries_update_own
-on public.raffle_entries
-for update
-to authenticated
-using (
-  auth.uid() = user_id
-  and exists (select 1 from public.raffles r where r.id = raffle_id and r.kind = 'ongoing')
-)
-with check (
-  auth.uid() = user_id
-  and tickets >= 1
-  and exists (select 1 from public.raffles r where r.id = raffle_id and r.kind = 'ongoing')
-);
+-- ⚠️ raffle_entries는 클라이언트가 직접 tickets를 조작할 수 있으므로
+-- INSERT/UPDATE 정책을 두지 않습니다. 응모는 RPC(public.enter_raffle)로만 처리합니다.
 
 create table if not exists public.raffle_winners (
   raffle_id uuid not null references public.raffles(id) on delete cascade,
@@ -326,6 +302,351 @@ on public.raffle_winners
 for select
 to anon, authenticated
 using (exists (select 1 from public.raffles r where r.id = raffle_id and r.kind = 'completed'));
+
+-- ============================================================
+-- 6) 응모권(티켓) 2트랙 + 재충전(쿨타임)
+-- - 활동(휘발): 실시간 도움(Q&A) 답변이 채택되면 1표 적립, 응모 시 즉시 소모
+-- - 뱃지(자산): 보유 뱃지의 raffle_ticket_value 합산, 당첨 전까지 무제한 재사용
+-- - 당첨 시(1등): 뱃지 응모권을 다음 3회 래플 참여 동안 0표로 비활성화(쿨타임)
+--   * 활동 복구: 채택 답변 5회 달성 시 즉시 부활
+-- ============================================================
+
+alter table public.badges
+  add column if not exists raffle_ticket_value integer not null default 0;
+
+create table if not exists public.raffle_user_state (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  badge_cooldown_raffles_remaining integer not null default 0,
+  recharge_help_accepted_count integer not null default 0,
+  last_win_at timestamptz null,
+  updated_at timestamptz not null default now(),
+  constraint raffle_user_state_nonneg check (badge_cooldown_raffles_remaining >= 0 and recharge_help_accepted_count >= 0)
+);
+
+alter table public.raffle_user_state enable row level security;
+
+drop policy if exists raffle_user_state_select_own on public.raffle_user_state;
+create policy raffle_user_state_select_own
+on public.raffle_user_state
+for select
+to authenticated
+using (auth.uid() = user_id);
+
+create table if not exists public.raffle_activity_balances (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  balance integer not null default 0,
+  updated_at timestamptz not null default now(),
+  constraint raffle_activity_balances_nonneg check (balance >= 0)
+);
+
+alter table public.raffle_activity_balances enable row level security;
+
+drop policy if exists raffle_activity_balances_select_own on public.raffle_activity_balances;
+create policy raffle_activity_balances_select_own
+on public.raffle_activity_balances
+for select
+to authenticated
+using (auth.uid() = user_id);
+
+create or replace function public.touch_updated_at_row()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_raffle_user_state_touch on public.raffle_user_state;
+create trigger trg_raffle_user_state_touch
+before update on public.raffle_user_state
+for each row
+execute function public.touch_updated_at_row();
+
+drop trigger if exists trg_raffle_activity_balances_touch on public.raffle_activity_balances;
+create trigger trg_raffle_activity_balances_touch
+before update on public.raffle_activity_balances
+for each row
+execute function public.touch_updated_at_row();
+
+-- Q&A 답변 채택 기록(중복 채택 방지 + 활동표 지급 트리거용)
+create table if not exists public.help_answer_accepts (
+  post_id uuid not null references public.posts(id) on delete cascade,
+  comment_id uuid not null references public.comments(id) on delete cascade,
+  accepted_by uuid not null references auth.users(id) on delete cascade,
+  accepted_user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (post_id, comment_id)
+);
+
+alter table public.help_answer_accepts enable row level security;
+
+drop policy if exists help_answer_accepts_select_owner on public.help_answer_accepts;
+create policy help_answer_accepts_select_owner
+on public.help_answer_accepts
+for select
+to authenticated
+using (
+  exists (
+    select 1 from public.posts p
+    where p.id = post_id and p.user_id = auth.uid()
+  )
+);
+
+drop policy if exists help_answer_accepts_select_accepted_user on public.help_answer_accepts;
+create policy help_answer_accepts_select_accepted_user
+on public.help_answer_accepts
+for select
+to authenticated
+using (accepted_user_id = auth.uid());
+
+-- 내 응모권 현황(뱃지/활동/쿨타임) 조회용
+create or replace function public.get_my_raffle_ticket_status(raffle uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+  badge_total int := 0;
+  badge_active int := 0;
+  activity_balance int := 0;
+  cooldown int := 0;
+  recharge int := 0;
+  raffle_kind text := null;
+begin
+  if uid is null then
+    raise exception 'auth required';
+  end if;
+
+  select r.kind into raffle_kind from public.raffles r where r.id = raffle;
+  if raffle_kind is null then
+    raise exception 'raffle not found';
+  end if;
+
+  select coalesce(sum(greatest(0, b.raffle_ticket_value)), 0)::int
+  into badge_total
+  from public.user_badges ub
+  join public.badges b on b.id = ub.badge_id
+  where ub.user_id = uid;
+
+  select s.badge_cooldown_raffles_remaining, s.recharge_help_accepted_count
+    into cooldown, recharge
+  from public.raffle_user_state s
+  where s.user_id = uid;
+
+  if cooldown is null then
+    cooldown := 0;
+    recharge := 0;
+  end if;
+
+  select a.balance into activity_balance
+  from public.raffle_activity_balances a
+  where a.user_id = uid;
+
+  if activity_balance is null then
+    activity_balance := 0;
+  end if;
+
+  badge_active := case when cooldown > 0 then 0 else badge_total end;
+
+  return jsonb_build_object(
+    'raffleId', raffle,
+    'raffleKind', raffle_kind,
+    'badgeTicketsTotal', badge_total,
+    'badgeTicketsActive', badge_active,
+    'activityTicketsBalance', activity_balance,
+    'cooldownRafflesRemaining', cooldown,
+    'rechargeHelpAcceptedCount', recharge,
+    'rechargeTarget', 5,
+    'totalEffectiveTickets', (badge_active + activity_balance)
+  );
+end;
+$$;
+
+-- 응모: 활동표는 소모 + 쿨타임이면 뱃지표 0으로 반영
+create or replace function public.enter_raffle(raffle uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+  badge_total int := 0;
+  badge_active int := 0;
+  activity_balance int := 0;
+  total_tickets int := 0;
+  cooldown int := 0;
+  recharge int := 0;
+  raffle_kind text := null;
+begin
+  if uid is null then
+    raise exception 'auth required';
+  end if;
+
+  select r.kind into raffle_kind from public.raffles r where r.id = raffle;
+  if raffle_kind is distinct from 'ongoing' then
+    raise exception 'raffle not ongoing';
+  end if;
+
+  insert into public.raffle_user_state(user_id)
+  values (uid)
+  on conflict (user_id) do nothing;
+
+  insert into public.raffle_activity_balances(user_id)
+  values (uid)
+  on conflict (user_id) do nothing;
+
+  select s.badge_cooldown_raffles_remaining, s.recharge_help_accepted_count
+    into cooldown, recharge
+  from public.raffle_user_state s
+  where s.user_id = uid;
+
+  select a.balance into activity_balance
+  from public.raffle_activity_balances a
+  where a.user_id = uid;
+
+  if activity_balance is null then activity_balance := 0; end if;
+
+  select coalesce(sum(greatest(0, b.raffle_ticket_value)), 0)::int
+  into badge_total
+  from public.user_badges ub
+  join public.badges b on b.id = ub.badge_id
+  where ub.user_id = uid;
+
+  badge_active := case when cooldown > 0 then 0 else badge_total end;
+  total_tickets := badge_active + activity_balance;
+
+  if total_tickets <= 0 then
+    raise exception 'no tickets';
+  end if;
+
+  insert into public.raffle_entries(raffle_id, user_id, tickets)
+  values (raffle, uid, total_tickets)
+  on conflict (raffle_id, user_id)
+  do update set tickets = excluded.tickets, updated_at = now();
+
+  update public.raffle_activity_balances
+    set balance = 0
+  where user_id = uid;
+
+  if cooldown > 0 then
+    update public.raffle_user_state
+      set badge_cooldown_raffles_remaining = greatest(0, badge_cooldown_raffles_remaining - 1)
+    where user_id = uid;
+    cooldown := greatest(0, cooldown - 1);
+  end if;
+
+  return jsonb_build_object(
+    'success', true,
+    'raffleId', raffle,
+    'badgeTicketsTotal', badge_total,
+    'badgeTicketsApplied', badge_active,
+    'activityTicketsApplied', activity_balance,
+    'totalTicketsApplied', total_tickets,
+    'cooldownRafflesRemainingAfter', cooldown,
+    'rechargeHelpAcceptedCount', recharge
+  );
+end;
+$$;
+
+-- Q&A: 글 작성자가 답변을 채택하면, 답변자에게 활동표 + 재충전 카운트를 적립
+create or replace function public.accept_help_answer(post uuid, comment uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  uid uuid := auth.uid();
+  post_owner uuid;
+  post_category text;
+  answer_user uuid;
+  inserted boolean := false;
+  cooldown int := 0;
+  recharge int := 0;
+begin
+  if uid is null then
+    raise exception 'auth required';
+  end if;
+
+  select p.user_id, p.category into post_owner, post_category
+  from public.posts p
+  where p.id = post;
+
+  if post_owner is null then
+    raise exception 'post not found';
+  end if;
+  if post_owner <> uid then
+    raise exception 'only post owner can accept';
+  end if;
+  if coalesce(post_category,'') <> 'question' then
+    raise exception 'not a question post';
+  end if;
+
+  select c.user_id into answer_user
+  from public.comments c
+  where c.id = comment and c.post_id = post;
+
+  if answer_user is null then
+    raise exception 'comment not found';
+  end if;
+
+  begin
+    insert into public.help_answer_accepts(post_id, comment_id, accepted_by, accepted_user_id)
+    values (post, comment, uid, answer_user);
+    inserted := true;
+  exception when unique_violation then
+    inserted := false;
+  end;
+
+  if not inserted then
+    return jsonb_build_object('success', true, 'alreadyAccepted', true);
+  end if;
+
+  insert into public.raffle_user_state(user_id)
+  values (answer_user)
+  on conflict (user_id) do nothing;
+
+  insert into public.raffle_activity_balances(user_id)
+  values (answer_user)
+  on conflict (user_id) do nothing;
+
+  update public.raffle_activity_balances
+    set balance = balance + 1
+  where user_id = answer_user;
+
+  select s.badge_cooldown_raffles_remaining, s.recharge_help_accepted_count
+    into cooldown, recharge
+  from public.raffle_user_state s
+  where s.user_id = answer_user;
+
+  if cooldown > 0 then
+    recharge := recharge + 1;
+    if recharge >= 5 then
+      update public.raffle_user_state
+        set badge_cooldown_raffles_remaining = 0,
+            recharge_help_accepted_count = 0
+      where user_id = answer_user;
+    else
+      update public.raffle_user_state
+        set recharge_help_accepted_count = recharge
+      where user_id = answer_user;
+    end if;
+  end if;
+
+  return jsonb_build_object(
+    'success', true,
+    'acceptedUserId', answer_user,
+    'activityTicketGranted', 1,
+    'cooldownRafflesRemaining', cooldown,
+    'rechargeHelpAcceptedCount', case when cooldown > 0 then least(recharge, 5) else 0 end
+  );
+end;
+$$;
 
 create or replace function public.draw_raffle_winners(raffle uuid, max_people integer default 11, per_user_cap integer default 0)
 returns table(rank integer, user_id uuid, tickets integer)
@@ -382,6 +703,8 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  win_user uuid;
 begin
   if exists (select 1 from public.raffle_winners w where w.raffle_id = raffle) then
     return;
@@ -390,6 +713,23 @@ begin
   insert into public.raffle_winners(raffle_id, rank, user_id, tickets)
   select raffle as raffle_id, d.rank, d.user_id, d.tickets
   from public.draw_raffle_winners(raffle, 11, 0) d;
+
+  -- 1등(당첨자)에게 뱃지 응모권 재충전(쿨타임) 적용
+  select w.user_id into win_user
+  from public.raffle_winners w
+  where w.raffle_id = raffle and w.rank = 1;
+
+  if win_user is not null then
+    insert into public.raffle_user_state(user_id)
+    values (win_user)
+    on conflict (user_id) do nothing;
+
+    update public.raffle_user_state
+      set badge_cooldown_raffles_remaining = 3,
+          recharge_help_accepted_count = 0,
+          last_win_at = now()
+    where user_id = win_user;
+  end if;
 end;
 $$;
 

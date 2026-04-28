@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BackButton from '../components/BackButton';
 import BottomNavigation from '../components/BottomNavigation';
-import { fetchRafflesForUi } from '../api/rafflesSupabase';
+import { enterRaffle, fetchRafflesForUi, getMyRaffleTicketStatus } from '../api/rafflesSupabase';
 
 const INITIAL_COUNT = 3;
 
@@ -131,6 +131,47 @@ function OngoingStyleRaffleBlock({ loading, list, emptyText, ctaMode }) {
               ) : (
                 <button
                   type="button"
+                  onClick={async () => {
+                    try {
+                      const st = await getMyRaffleTicketStatus(item.id);
+                      if (!st?.success) {
+                        alert(st?.error || '응모권 정보를 불러오지 못했어요.');
+                        return;
+                      }
+                      const s = st.status || {};
+                      const summary = [
+                        `총 ${s.totalEffectiveTickets ?? 0}표가 응모됩니다.`,
+                        '',
+                        `[현재 나의 응모권 현황]`,
+                        `영구 자산(뱃지): ${s.badgeTicketsActive ?? 0}표 (총 ${s.badgeTicketsTotal ?? 0}표)`,
+                        `활동 보상(답변): ${s.activityTicketsBalance ?? 0}표`,
+                        s.cooldownRafflesRemaining > 0
+                          ? `재충전 모드: 다음 래플 ${s.cooldownRafflesRemaining}회 동안 뱃지 응모권 0표`
+                          : '',
+                        s.cooldownRafflesRemaining > 0
+                          ? `활동 복구: 채택 답변 ${s.rechargeHelpAcceptedCount ?? 0}/${s.rechargeTarget ?? 5}회`
+                          : '',
+                        '',
+                        `응모하시겠어요? (활동 보상 표는 응모 즉시 소모됩니다)`,
+                      ]
+                        .filter(Boolean)
+                        .join('\n');
+                      const ok = window.confirm(summary);
+                      if (!ok) return;
+
+                      const res = await enterRaffle(item.id);
+                      if (!res?.success) {
+                        alert(res?.error || '응모에 실패했어요.');
+                        return;
+                      }
+                      const r = res.result || {};
+                      alert(
+                        `응모 완료!\n\n총 ${r.totalTicketsApplied ?? 0}표가 반영됐어요.\n- 뱃지: ${r.badgeTicketsApplied ?? 0}표\n- 활동(답변): ${r.activityTicketsApplied ?? 0}표 (소모됨)`,
+                      );
+                    } catch (e) {
+                      alert('응모 처리 중 오류가 발생했어요.');
+                    }
+                  }}
                   className="w-full shrink-0 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 py-2.5 text-sm font-bold text-white shadow-sm transition-transform active:scale-[0.98] dark:from-[#00a8cc] dark:to-[#00bdfd]"
                 >
                   응모하기

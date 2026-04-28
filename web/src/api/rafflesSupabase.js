@@ -79,6 +79,35 @@ export const fetchRafflesForUi = async () => {
   return { scheduled, ongoing, completed };
 };
 
+export const getMyRaffleTicketStatus = async (raffleId) => {
+  try {
+    const { data, error } = await supabase.rpc('get_my_raffle_ticket_status', { raffle: raffleId });
+    if (error) throw error;
+    return { success: true, status: data };
+  } catch (e) {
+    logger.warn('getMyRaffleTicketStatus 실패:', e?.message);
+    return { success: false, error: e?.message || '불러오기 실패' };
+  }
+};
+
+export const enterRaffle = async (raffleId) => {
+  try {
+    const { data, error } = await supabase.rpc('enter_raffle', { raffle: raffleId });
+    if (error) throw error;
+    return { success: true, result: data };
+  } catch (e) {
+    logger.warn('enterRaffle 실패:', e?.message);
+    const msg = String(e?.message || '');
+    if (msg.includes('auth required')) {
+      return { success: false, reason: 'no_session', error: '로그인이 필요합니다.' };
+    }
+    if (msg.includes('no tickets')) {
+      return { success: false, reason: 'no_tickets', error: '응모권이 없어요. (뱃지/활동으로 응모권을 모아주세요)' };
+    }
+    return { success: false, error: e?.message || '응모에 실패했습니다.' };
+  }
+};
+
 export const createRaffle = async (payload) => {
   try {
     const duration_days = Math.max(1, Math.floor(Number(payload.duration_days)) || 7);
