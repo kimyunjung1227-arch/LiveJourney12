@@ -32,11 +32,17 @@ function ScheduledRaffleStrip({ loading, list, emptyText }) {
         <button
           key={item.id}
           type="button"
-          disabled
           className="box-border shrink-0 snap-start text-left"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
           style={{
             width: 'calc((100% - 18px) / 4)', // gap(6px)*3 = 18px
-            minWidth: 82,
+            // 4열 레이아웃은 유지하되, 썸네일이 더 넓게 보이도록 최소 폭을 올립니다.
+            minWidth: 96,
+            cursor: 'default',
+            opacity: 1,
           }}
           aria-label="진행 예정 래플"
         >
