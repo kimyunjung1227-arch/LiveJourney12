@@ -226,3 +226,191 @@ drop policy if exists "raffles_delete_admin" on public.raffles;
 create policy "raffles_delete_admin" on public.raffles
 for delete to authenticated
 using (exists (select 1 from public.admin_users au where au.user_id = auth.uid()));
+
+
+-- ============================================================
+-- 5) raffle_entries + raffle_winners (종료 시 자동 추첨)
+-- - raffle_entries: 유저별 응모권(티켓) 수
+-- - raffle_winners: 래플 종료 시 자동 추첨 결과(1=당첨, 2~11=예비)
+-- 추첨 로직(가중치):
+--   각 티켓에 random() 점수를 부여하고, 유저별 최소값(best)을 비교하여 순위를 매김
+--   -> 티켓 수가 많을수록 1등(최소값) 확률이 수학적으로 정직하게 증가
+-- 엣지:
+--   참여자가 11명 미만이면 있는 만큼만 저장
+-- ============================================================
+
+create table if not exists public.raffle_entries (
+  id uuid primary key default gen_random_uuid(),
+  raffle_id uuid not null references public.raffles(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  tickets integer not null default 1,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint raffle_entries_tickets_positive check (tickets >= 1),
+  constraint raffle_entries_unique unique (raffle_id, user_id)
+);
+
+create index if not exists raffle_entries_raffle_id_idx on public.raffle_entries(raffle_id);
+create index if not exists raffle_entries_user_id_idx on public.raffle_entries(user_id);
+
+create or replace function public.touch_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_raffle_entries_touch on public.raffle_entries;
+create trigger trg_raffle_entries_touch
+before update on public.raffle_entries
+for each row
+execute function public.touch_updated_at();
+
+alter table public.raffle_entries enable row level security;
+
+drop policy if exists raffle_entries_select_own on public.raffle_entries;
+create policy raffle_entries_select_own
+on public.raffle_entries
+for select
+to authenticated
+using (auth.uid() = user_id);
+
+drop policy if exists raffle_entries_insert_own on public.raffle_entries;
+create policy raffle_entries_insert_own
+on public.raffle_entries
+for insert
+to authenticated
+with check (
+  auth.uid() = user_id
+  and tickets >= 1
+  and exists (select 1 from public.raffles r where r.id = raffle_id and r.kind = 'ongoing')
+);
+
+drop policy if exists raffle_entries_update_own on public.raffle_entries;
+create policy raffle_entries_update_own
+on public.raffle_entries
+for update
+to authenticated
+using (
+  auth.uid() = user_id
+  and exists (select 1 from public.raffles r where r.id = raffle_id and r.kind = 'ongoing')
+)
+with check (
+  auth.uid() = user_id
+  and tickets >= 1
+  and exists (select 1 from public.raffles r where r.id = raffle_id and r.kind = 'ongoing')
+);
+
+create table if not exists public.raffle_winners (
+  raffle_id uuid not null references public.raffles(id) on delete cascade,
+  rank integer not null,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  tickets integer not null default 1,
+  created_at timestamptz not null default now(),
+  primary key (raffle_id, rank),
+  constraint raffle_winners_rank_range check (rank >= 1 and rank <= 11),
+  constraint raffle_winners_unique_user unique (raffle_id, user_id)
+);
+
+create index if not exists raffle_winners_raffle_id_idx on public.raffle_winners(raffle_id);
+create index if not exists raffle_winners_user_id_idx on public.raffle_winners(user_id);
+
+alter table public.raffle_winners enable row level security;
+
+drop policy if exists raffle_winners_select_completed on public.raffle_winners;
+create policy raffle_winners_select_completed
+on public.raffle_winners
+for select
+to anon, authenticated
+using (exists (select 1 from public.raffles r where r.id = raffle_id and r.kind = 'completed'));
+
+create or replace function public.draw_raffle_winners(raffle uuid, max_people integer default 11, per_user_cap integer default 0)
+returns table(rank integer, user_id uuid, tickets integer)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cap integer := per_user_cap;
+begin
+  return query
+  with participants as (
+    select
+      e.user_id,
+      greatest(1, least(
+        case when cap is null or cap <= 0 then e.tickets else cap end,
+        e.tickets
+      )) as tickets
+    from public.raffle_entries e
+    where e.raffle_id = raffle
+  ),
+  expanded as (
+    select
+      p.user_id,
+      p.tickets,
+      random() as ticket_score
+    from participants p
+    join lateral generate_series(1, p.tickets) g(n) on true
+  ),
+  scored as (
+    select
+      e.user_id,
+      max(e.tickets) as tickets,
+      min(e.ticket_score) as best_score
+    from expanded e
+    group by e.user_id
+  ),
+  ordered as (
+    select
+      (row_number() over (order by s.best_score asc))::int as rank,
+      s.user_id,
+      s.tickets
+    from scored s
+    order by s.best_score asc
+    limit greatest(1, least(max_people, 11))
+  )
+  select o.rank, o.user_id, o.tickets from ordered o;
+end;
+$$;
+
+create or replace function public.draw_raffle_if_needed(raffle uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if exists (select 1 from public.raffle_winners w where w.raffle_id = raffle) then
+    return;
+  end if;
+
+  insert into public.raffle_winners(raffle_id, rank, user_id, tickets)
+  select raffle as raffle_id, d.rank, d.user_id, d.tickets
+  from public.draw_raffle_winners(raffle, 11, 0) d;
+end;
+$$;
+
+create or replace function public.trg_raffles_auto_draw()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if (tg_op = 'UPDATE') then
+    if new.kind = 'completed' and (old.kind is distinct from new.kind) then
+      perform public.draw_raffle_if_needed(new.id);
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_raffles_auto_draw on public.raffles;
+create trigger trg_raffles_auto_draw
+after update of kind on public.raffles
+for each row
+execute function public.trg_raffles_auto_draw();
