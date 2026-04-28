@@ -35,6 +35,8 @@ export default function AskSituationListScreen() {
   const [myPos, setMyPos] = useState(null);
   const sentinelRef = useRef(null);
   const ioRef = useRef(null);
+  // 고정 버튼이 뷰포트 밖으로 튀지 않도록(센터 정렬 레이아웃) 콘텐츠 폭(720) 기준으로 우측 여백을 제한
+  const floatingRight = 'max(16px, calc(50% - 360px + 16px))';
 
   const ensureMyLocation = useCallback(async () => {
     if (myPos) return myPos;
@@ -205,7 +207,8 @@ export default function AskSituationListScreen() {
           </div>
         )}
         <div ref={sentinelRef} style={{ height: 1 }} />
-        {loading ? <div className="mt-3 text-center text-[12px] text-gray-400">불러오는 중…</div> : null}
+        {/* 중앙 로딩 문구는 UX 상 거슬려 제거. 필요 시 무한스크롤 시점에만 미세한 로딩을 표시 */}
+        {loading && filtered.length > 0 ? <div className="mt-3 text-center text-[12px] text-gray-300"> </div> : null}
       </div>
 
       {/* FAB: 질문 작성 */}
@@ -215,7 +218,7 @@ export default function AskSituationListScreen() {
         aria-label="질문 작성"
         style={{
           position: 'fixed',
-          right: 18,
+          right: floatingRight,
           bottom: 94,
           width: 46,
           height: 46,

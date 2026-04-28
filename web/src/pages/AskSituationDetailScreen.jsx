@@ -391,7 +391,7 @@ export default function AskSituationDetailScreen() {
                         className="mt-3 w-full rounded-2xl py-2.5 text-[13px] font-extrabold text-white disabled:opacity-40"
                         style={{ background: '#0ea5e9' }}
                       >
-                        {acceptBusyId === c.id ? '채택 중…' : '채택하기'}
+                        {acceptBusyId === c.id ? '라이브픽 처리 중…' : '라이브픽'}
                       </button>
                     ) : null}
                   </div>
