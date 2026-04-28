@@ -488,20 +488,8 @@ export default function AskSituationDetailScreen() {
         </div>
       </div>
 
-      {/* 하단: 답변 입력(카메라) */}
-      <div
-        style={{
-          ...floatingLayerStyle,
-          // BottomNavigation은 h-16(64px) + safe-area 만큼 차지
-          bottom: 'calc(64px + env(safe-area-inset-bottom, 0px))',
-          padding: '10px 12px',
-          // 메인 배경과 동일하게(화이트) + 버튼만 포인트 컬러
-          background: '#ffffff',
-          borderTop: '1px solid #eef2f7',
-          backdropFilter: 'blur(8px)',
-          boxShadow: '0 -10px 24px rgba(15,23,42,0.06)',
-        }}
-      >
+      {/* 답변 입력(카메라) — 고정(fixed) 대신 본문과 함께 스크롤되도록 하단 섹션으로 배치 */}
+      <div style={{ marginTop: 14, paddingBottom: 'calc(64px + env(safe-area-inset-bottom, 0px) + 14px)' }}>
         <div
           className="flex items-center gap-2"
           style={{
@@ -534,7 +522,6 @@ export default function AskSituationDetailScreen() {
             onClick={submitAnswer}
             disabled={answerUploading || hasAnsweredByMe}
             className="rounded-2xl px-3.5 py-2.5 text-[12px] font-extrabold text-white disabled:opacity-40"
-            style={{ background: '#26C6DA' }}
             style={{ background: '#26C6DA', flexShrink: 0, minHeight: 40 }}
           >
             등록
