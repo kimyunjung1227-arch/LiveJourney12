@@ -135,6 +135,65 @@ const haversineKm = (a, b) => {
   return R * c;
 };
 
+function metersToLatLngDeltaMeters(meters, atLat) {
+  const lat = Number(atLat) || 0;
+  const dLat = meters / 111_320;
+  const dLng = meters / (111_320 * Math.max(0.2, Math.cos((lat * Math.PI) / 180)));
+  return { dLat, dLng };
+}
+
+/**
+ * 같은 좌표로 겹치는 핀을 주변으로 퍼지게(spiderfy) 배치.
+ * - 좌표를 소수점 5자리 단위로 묶어(약 1m 단위) "같은 위치"를 판단
+ * - 그룹 내 index에 따라 원형으로 오프셋(미터) 부여
+ */
+function buildSpreadCoordsByPostId(posts) {
+  const list = Array.isArray(posts) ? posts : [];
+  const groups = new Map(); // key -> post[]
+  const keyOf = (pos) => {
+    const lat = Number(pos?.lat);
+    const lng = Number(pos?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return '';
+    return `${lat.toFixed(5)},${lng.toFixed(5)}`;
+  };
+
+  for (const p of list) {
+    const pos = p?.__coords;
+    const k = keyOf(pos);
+    if (!k) continue;
+    const arr = groups.get(k);
+    if (arr) arr.push(p);
+    else groups.set(k, [p]);
+  }
+
+  const out = new Map(); // postId -> {lat,lng}
+  for (const [, arrRaw] of groups) {
+    const arr = (arrRaw || []).slice().sort((a, b) => String(a?.id || '').localeCompare(String(b?.id || '')));
+    if (arr.length <= 1) continue;
+    const base = arr[0]?.__coords;
+    if (!base) continue;
+
+    // 핀 2~6개는 한 바퀴에 배치, 더 많으면 반경을 조금씩 늘리며 분산
+    for (let i = 0; i < arr.length; i += 1) {
+      const p = arr[i];
+      const id = p?.id != null ? String(p.id) : '';
+      if (!id) continue;
+
+      const ring = Math.floor(i / 8); // 0,1,2...
+      const idxInRing = i % 8;
+      const n = Math.min(8, arr.length - ring * 8);
+      const angle = (2 * Math.PI * idxInRing) / Math.max(1, n);
+      const radiusM = 12 + ring * 10; // 12m, 22m, 32m...
+      const { dLat, dLng } = metersToLatLngDeltaMeters(radiusM, base.lat);
+      const lat = base.lat + Math.sin(angle) * dLat;
+      const lng = base.lng + Math.cos(angle) * dLng;
+      out.set(id, { lat, lng });
+    }
+  }
+
+  return out;
+}
+
 const extractCoordsFromPost = (post) => {
   /** Supabase에 저장된 업로드 시 확정 좌표(모든 기기 동일) */
   const mp = post?.exifData?.map_pin;
@@ -777,10 +836,12 @@ const MapScreen = () => {
       postOverlaysRef.current = [];
 
       const kakao = window.kakao;
+      const spread = buildSpreadCoordsByPostId(postsInViewport);
 
       postsInViewport.forEach((p) => {
         const pos = p?.__coords;
         if (!pos) return;
+        const spreadPos = spread.get(String(p.id)) || pos;
 
         const thumbRaw = p.thumbnail || (Array.isArray(p.images) ? p.images[0] : '');
         const thumb = escapeHtmlAttr(getDisplayImageUrl(thumbRaw));
@@ -806,7 +867,7 @@ const MapScreen = () => {
         });
 
         const overlay = new kakao.maps.CustomOverlay({
-          position: new kakao.maps.LatLng(pos.lat, pos.lng),
+          position: new kakao.maps.LatLng(spreadPos.lat, spreadPos.lng),
           content: el,
           // 좌표에 더 정확히 맞게: 하단 중앙을 기준으로 앵커링
           yAnchor: 1,
