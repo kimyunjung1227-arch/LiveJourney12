@@ -35,8 +35,16 @@ export default function AskSituationListScreen() {
   const [myPos, setMyPos] = useState(null);
   const sentinelRef = useRef(null);
   const ioRef = useRef(null);
-  // 고정 버튼이 뷰포트 밖으로 튀지 않도록(센터 정렬 레이아웃) 콘텐츠 폭(720) 기준으로 우측 여백을 제한
-  const floatingRight = 'max(16px, calc(50% - 360px + 16px))';
+  // 고정 UI는 "앱 콘텐츠 폭(최대 720px)" 안에서만 위치시키기
+  const floatingLayerStyle = useMemo(() => ({
+    position: 'fixed',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    width: 'min(720px, 100vw)',
+    height: 0,
+    pointerEvents: 'none',
+    zIndex: 60,
+  }), []);
 
   const ensureMyLocation = useCallback(async () => {
     if (myPos) return myPos;
@@ -212,32 +220,34 @@ export default function AskSituationListScreen() {
       </div>
 
       {/* FAB: 질문 작성 */}
-      <button
-        type="button"
-        onClick={() => navigate('/map/ask-situation')}
-        aria-label="질문 작성"
-        style={{
-          position: 'fixed',
-          right: floatingRight,
-          bottom: 94,
-          width: 46,
-          height: 46,
-          borderRadius: 9999,
-          border: '1px solid #e2e8f0',
-          background: '#f1f5f9',
-          color: '#0ea5e9',
-          boxShadow: '0 10px 22px rgba(15,23,42,0.10)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          zIndex: 50,
-        }}
-      >
-        <span className="material-symbols-outlined" style={{ fontSize: 26, fontVariationSettings: "'wght' 300" }}>
-          edit
-        </span>
-      </button>
+      <div style={{ ...floatingLayerStyle, bottom: 64 }}>
+        <button
+          type="button"
+          onClick={() => navigate('/map/ask-situation')}
+          aria-label="질문 작성"
+          style={{
+            position: 'absolute',
+            right: 16,
+            bottom: 30,
+            width: 46,
+            height: 46,
+            borderRadius: 9999,
+            border: '1px solid #e2e8f0',
+            background: '#f1f5f9',
+            color: '#0ea5e9',
+            boxShadow: '0 10px 22px rgba(15,23,42,0.10)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            pointerEvents: 'auto',
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 24, fontVariationSettings: "'wght' 300" }}>
+            edit
+          </span>
+        </button>
+      </div>
 
       <BottomNavigation />
     </div>

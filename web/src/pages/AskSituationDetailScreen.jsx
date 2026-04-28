@@ -102,6 +102,13 @@ export default function AskSituationDetailScreen() {
   const mapRef = useRef(null);
   const markerRef = useRef(null);
   const [mapErr, setMapErr] = useState(null);
+  const floatingLayerStyle = useMemo(() => ({
+    position: 'fixed',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    width: 'min(720px, 100vw)',
+    zIndex: 60,
+  }), []);
 
   const coords = useMemo(() => {
     const c = post?.coordinates || post?.exifData?.map_pin || null;
@@ -405,18 +412,15 @@ export default function AskSituationDetailScreen() {
       {/* 하단: 답변 입력(카메라) */}
       <div
         style={{
-          position: 'fixed',
-          left: 0,
-          right: 0,
+          ...floatingLayerStyle,
           bottom: 64,
           padding: '10px 12px',
           background: 'rgba(255,255,255,0.96)',
           borderTop: '1px solid #eef2f7',
           backdropFilter: 'blur(8px)',
-          zIndex: 60,
         }}
       >
-        <div className="mx-auto flex max-w-[720px] items-center gap-2">
+        <div className="flex items-center gap-2">
           <input
             value={answerText}
             onChange={(e) => setAnswerText(e.target.value)}
@@ -446,7 +450,7 @@ export default function AskSituationDetailScreen() {
           </button>
         </div>
         {answerImageUrl ? (
-          <div className="mx-auto mt-2 max-w-[720px]">
+          <div className="mt-2">
             <div className="flex items-center justify-between rounded-2xl border border-gray-100 bg-gray-50 px-3 py-2">
               <div className="flex items-center gap-2 min-w-0">
                 <div className="h-10 w-10 overflow-hidden rounded-xl bg-gray-200 flex-shrink-0">
