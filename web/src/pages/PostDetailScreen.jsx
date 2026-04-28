@@ -81,7 +81,8 @@ const PostDetailScreen = () => {
   const [accuracyCount, setAccuracyCount] = useState(0);
   const [acceptedCommentId, setAcceptedCommentId] = useState(null);
   const [acceptBusyId, setAcceptBusyId] = useState(null);
-  const [authorLiveSync, setAuthorLiveSync] = useState(null);
+  // 라이브싱크는 로딩 전에도 UX상 "기본 35%"에서 시작
+  const [authorLiveSync, setAuthorLiveSync] = useState(35);
   const [authorTrustGrade, setAuthorTrustGrade] = useState(null);
   const [weatherInfo, setWeatherInfo] = useState({
     icon: '☀️',
@@ -1359,7 +1360,7 @@ const PostDetailScreen = () => {
                     </div>
                     {(authorLiveSync != null || authorTrustGrade) && (
                       <p className="mt-0.5 text-[11px] text-text-secondary-light dark:text-text-secondary-dark truncate">
-                        라이브 싱크 <span className="font-semibold text-gray-700 dark:text-gray-300">{authorLiveSync ?? 0}%</span>
+                        라이브 싱크 <span className="font-semibold text-gray-700 dark:text-gray-300">{typeof authorLiveSync === 'number' ? authorLiveSync : 35}%</span>
                         {authorTrustGrade ? (
                           <span className="ml-1 text-gray-600 dark:text-gray-400">
                             {authorTrustGrade.icon} {authorTrustGrade.name}
