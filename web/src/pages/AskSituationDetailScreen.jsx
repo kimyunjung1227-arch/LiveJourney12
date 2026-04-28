@@ -14,11 +14,13 @@ const isUuid = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f
 const isQuestionPost = (p) => String(p?.category || '').toLowerCase() === 'question';
 
 // DB 스키마 변경 없이 "답변 사진"을 저장하기 위한 포맷(JSON 문자열)
-const encodeAnswerContent = ({ text, imageUrl }) => {
+const encodeAnswerContent = ({ text, imageUrl, imageUrls }) => {
   const t = String(text || '').trim();
-  const img = imageUrl ? String(imageUrl).trim() : '';
-  if (!img) return t;
-  return JSON.stringify({ t, img });
+  const imgs = Array.isArray(imageUrls)
+    ? imageUrls.map((u) => String(u || '').trim()).filter(Boolean)
+    : (imageUrl ? [String(imageUrl).trim()] : []);
+  if (imgs.length === 0) return t;
+  return JSON.stringify({ t, imgs });
 };
 
 const decodeAnswerContent = (raw) => {
@@ -30,7 +32,10 @@ const decodeAnswerContent = (raw) => {
     const obj = JSON.parse(trimmed);
     const text = typeof obj?.t === 'string' ? obj.t : (typeof obj?.text === 'string' ? obj.text : '');
     const imageUrl = typeof obj?.img === 'string' && obj.img.trim() ? obj.img.trim() : null;
-    return { text: String(text || '').trim(), imageUrl };
+    const imageUrls = Array.isArray(obj?.imgs)
+      ? obj.imgs.map((u) => String(u || '').trim()).filter(Boolean)
+      : (imageUrl ? [imageUrl] : []);
+    return { text: String(text || '').trim(), imageUrl, imageUrls };
   } catch {
     return { text: trimmed, imageUrl: null };
   }
@@ -95,7 +100,8 @@ export default function AskSituationDetailScreen() {
 
   const [answerText, setAnswerText] = useState('');
   const [answerUploading, setAnswerUploading] = useState(false);
-  const [answerImageUrl, setAnswerImageUrl] = useState(null);
+  const [answerImageUrls, setAnswerImageUrls] = useState([]); // 여러 장 업로드 지원
+  const [hasAnsweredByMe, setHasAnsweredByMe] = useState(false);
   const fileRef = useRef(null);
 
   const mapElRef = useRef(null);
@@ -153,10 +159,14 @@ export default function AskSituationDetailScreen() {
           createdAt: c.created_at || null,
           avatar: c.avatar_url || null,
           text: payload.text,
-          imageUrl: payload.imageUrl,
+          imageUrls: Array.isArray(payload.imageUrls) ? payload.imageUrls : (payload.imageUrl ? [payload.imageUrl] : []),
         };
       });
       setComments(mapped);
+      if (user?.id) {
+        const me = String(user.id);
+        setHasAnsweredByMe(mapped.some((x) => x?.userId && String(x.userId) === me));
+      }
       await loadAccepted(pid);
     } catch (e) {
       logger.warn('AskSituationDetail load 실패:', e?.message);
@@ -199,18 +209,23 @@ export default function AskSituationDetailScreen() {
   }, [coords]);
 
   const onPickFile = useCallback(async (e) => {
-    const file = e?.target?.files?.[0];
-    if (!file) return;
+    const files = Array.from(e?.target?.files || []).filter(Boolean);
+    if (files.length === 0) return;
     if (!user?.id) {
       alert('로그인 후 답변할 수 있어요.');
       return;
     }
     setAnswerUploading(true);
     try {
-      const res = await uploadImage(file, user.id);
-      const url = res?.imageUrl || res?.url || null;
-      if (!url) throw new Error('upload_failed');
-      setAnswerImageUrl(getDisplayImageUrl(url));
+      const uploaded = [];
+      for (const file of files.slice(0, 6)) {
+        // eslint-disable-next-line no-await-in-loop
+        const res = await uploadImage(file, user.id);
+        const url = res?.imageUrl || res?.url || null;
+        if (url) uploaded.push(getDisplayImageUrl(url));
+      }
+      if (uploaded.length === 0) throw new Error('upload_failed');
+      setAnswerImageUrls((prev) => Array.from(new Set([...(prev || []), ...uploaded])).slice(0, 6));
     } catch {
       alert('사진 업로드에 실패했어요.');
     } finally {
@@ -225,13 +240,30 @@ export default function AskSituationDetailScreen() {
       alert('로그인 후 답변할 수 있어요.');
       return;
     }
+    if (hasAnsweredByMe) {
+      alert('이 질문에는 이미 답변을 등록했어요. (답변은 1회만 가능해요)');
+      return;
+    }
     const text = String(answerText || '').trim();
-    if (!text && !answerImageUrl) {
+    if (!text && (!Array.isArray(answerImageUrls) || answerImageUrls.length === 0)) {
       alert('답변 내용을 입력하거나 사진을 첨부해 주세요.');
       return;
     }
     try {
-      const payload = encodeAnswerContent({ text, imageUrl: answerImageUrl });
+      // 서버 중복 방지(베스트 에포트): 이미 내 답변이 있으면 차단
+      const { data: existing } = await supabase
+        .from('post_comments')
+        .select('id')
+        .eq('post_id', String(post.id))
+        .eq('user_id', String(user.id))
+        .limit(1);
+      if (Array.isArray(existing) && existing.length > 0) {
+        setHasAnsweredByMe(true);
+        alert('이 질문에는 이미 답변을 등록했어요. (답변은 1회만 가능해요)');
+        return;
+      }
+
+      const payload = encodeAnswerContent({ text, imageUrl: null, imageUrls: answerImageUrls });
       const { data, error } = await supabase.from('post_comments').insert({
         post_id: String(post.id),
         user_id: String(user.id),
@@ -241,7 +273,8 @@ export default function AskSituationDetailScreen() {
       }).select('*').single();
       if (error) throw error;
       setAnswerText('');
-      setAnswerImageUrl(null);
+      setAnswerImageUrls([]);
+      setHasAnsweredByMe(true);
       setComments((prev) => ([
         ...prev,
         {
@@ -251,14 +284,14 @@ export default function AskSituationDetailScreen() {
           createdAt: data.created_at || null,
           avatar: user.profileImage || null,
           text,
-          imageUrl: answerImageUrl,
+          imageUrls: Array.isArray(answerImageUrls) ? answerImageUrls : [],
         },
       ]));
     } catch (e) {
       alert('답변 등록에 실패했어요.');
       logger.warn('submitAnswer 실패:', e?.message);
     }
-  }, [answerImageUrl, answerText, post?.id, user]);
+  }, [answerImageUrls, answerText, hasAnsweredByMe, post?.id, user]);
 
   const acceptAnswer = useCallback(async (comment) => {
     if (!canAccept || !post?.id || !comment?.id) return;
@@ -334,7 +367,7 @@ export default function AskSituationDetailScreen() {
         {/* 내용 */}
         <div className="mb-4">
           <div className="text-[12px] font-extrabold text-gray-700">내용</div>
-          <div className="mt-1 rounded-2xl border border-gray-200 bg-white p-4 text-[15px] font-extrabold leading-relaxed text-gray-900">
+          <div className="mt-1 rounded-2xl border border-gray-200 bg-white p-4 text-[14px] font-extrabold leading-relaxed text-gray-900">
             {questionText || '질문 내용이 없어요.'}
           </div>
           <div className="mt-2 text-[12px] font-bold" style={{ color: acceptedCommentId ? '#10b981' : '#94a3b8' }}>
@@ -354,7 +387,7 @@ export default function AskSituationDetailScreen() {
               comments.map((c) => {
                 const avatar = c?.avatar || (typeof c.user === 'object' ? c.user?.profileImage : null) || null;
                 const name = (typeof c.user === 'object' ? c.user?.username : null) || '유저';
-                const img = c.imageUrl ? getDisplayImageUrl(c.imageUrl) : null;
+                const imgs = Array.isArray(c.imageUrls) ? c.imageUrls.map((u) => getDisplayImageUrl(u)).filter(Boolean) : [];
                 const accepted = acceptedCommentId && String(acceptedCommentId) === String(c.id);
                 return (
                   <div
@@ -379,14 +412,18 @@ export default function AskSituationDetailScreen() {
                       ) : null}
                     </div>
 
-                    {img ? (
-                      <div className="mt-2 overflow-hidden rounded-xl bg-gray-100" style={{ width: '100%', height: 180 }}>
-                        <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                    {imgs.length > 0 ? (
+                      <div className="mt-2 flex gap-2 overflow-x-auto hide-scrollbar" style={{ width: '100%' }}>
+                        {imgs.slice(0, 6).map((src, i) => (
+                          <div key={`${c.id}-img-${i}`} className="overflow-hidden rounded-xl bg-gray-100" style={{ width: 180, height: 140, flex: '0 0 auto' }}>
+                            <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                          </div>
+                        ))}
                       </div>
                     ) : null}
 
                     {c.text ? (
-                      <div className="mt-2 text-[13px] font-semibold leading-relaxed text-gray-800">
+                      <div className="mt-2 text-[12px] font-semibold leading-relaxed text-gray-800">
                         {c.text}
                       </div>
                     ) : null}
@@ -414,11 +451,13 @@ export default function AskSituationDetailScreen() {
       <div
         style={{
           ...floatingLayerStyle,
-          bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
+          // BottomNavigation은 h-16(64px) + safe-area 만큼 차지
+          bottom: 'calc(64px + env(safe-area-inset-bottom, 0px))',
           padding: '10px 12px',
-          background: 'rgba(255,255,255,0.96)',
+          background: '#f1f5f9',
           borderTop: '1px solid #eef2f7',
           backdropFilter: 'blur(8px)',
+          boxShadow: '0 -10px 24px rgba(15,23,42,0.06)',
         }}
       >
         <div className="flex items-center gap-2">
@@ -426,15 +465,16 @@ export default function AskSituationDetailScreen() {
             value={answerText}
             onChange={(e) => setAnswerText(e.target.value)}
             placeholder="사진과 함께 답변하면 채택 확률이 높아져요!"
-            className="flex-1 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[13px] font-semibold text-gray-900 placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            disabled={hasAnsweredByMe}
+            className="flex-1 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[12px] font-semibold text-gray-900 placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
           />
-          <input ref={fileRef} type="file" accept="image/*" onChange={onPickFile} style={{ display: 'none' }} />
+          <input ref={fileRef} type="file" accept="image/*" multiple onChange={onPickFile} style={{ display: 'none' }} />
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={answerUploading}
             aria-label="사진 첨부"
-            className="rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 disabled:opacity-40"
+            className="rounded-2xl border border-gray-200 bg-white px-3 py-3 disabled:opacity-40"
           >
             <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#0ea5e9', fontVariationSettings: "'wght' 300" }}>
               photo_camera
@@ -443,24 +483,26 @@ export default function AskSituationDetailScreen() {
           <button
             type="button"
             onClick={submitAnswer}
-            disabled={answerUploading}
-            className="rounded-2xl px-4 py-3 text-[13px] font-extrabold text-white disabled:opacity-40"
-            style={{ background: '#0ea5e9' }}
+            disabled={answerUploading || hasAnsweredByMe}
+            className="rounded-2xl px-4 py-3 text-[12px] font-extrabold text-white disabled:opacity-40"
+            style={{ background: '#26C6DA' }}
           >
             등록
           </button>
         </div>
-        {answerImageUrl ? (
+        {Array.isArray(answerImageUrls) && answerImageUrls.length > 0 ? (
           <div className="mt-2">
-            <div className="flex items-center justify-between rounded-2xl border border-gray-100 bg-gray-50 px-3 py-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="h-10 w-10 overflow-hidden rounded-xl bg-gray-200 flex-shrink-0">
-                  <img src={getDisplayImageUrl(answerImageUrl)} alt="" className="h-full w-full object-cover" />
-                </div>
-                <div className="truncate text-[12px] font-bold text-gray-700">사진이 첨부됐어요</div>
+            <div className="flex items-center justify-between gap-2 rounded-2xl border border-gray-200 bg-white px-3 py-2">
+              <div className="flex items-center gap-2 min-w-0 overflow-x-auto hide-scrollbar">
+                {answerImageUrls.slice(0, 6).map((u, i) => (
+                  <div key={`pick-${i}`} className="h-10 w-10 overflow-hidden rounded-xl bg-gray-200 flex-shrink-0">
+                    <img src={getDisplayImageUrl(u)} alt="" className="h-full w-full object-cover" />
+                  </div>
+                ))}
+                <div className="truncate text-[12px] font-bold text-gray-700">{`${answerImageUrls.length}장 첨부됨`}</div>
               </div>
-              <button type="button" onClick={() => setAnswerImageUrl(null)} className="text-[12px] font-extrabold text-gray-500">
-                제거
+              <button type="button" onClick={() => setAnswerImageUrls([])} className="text-[12px] font-extrabold text-gray-500">
+                전체 제거
               </button>
             </div>
           </div>
