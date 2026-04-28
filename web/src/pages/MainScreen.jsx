@@ -991,10 +991,15 @@ const MainScreen = () => {
                                                                     border: '1px solid rgba(38, 198, 218, 0.30)',
                                                                     padding: '3px 9px',
                                                                     borderRadius: '999px',
-                                                                    maxWidth: 'calc((100% - 6px) / 2)',
+                                                                    flex: '1 1 0px',
+                                                                    width: 0,
+                                                                    minWidth: 0,
                                                                     overflow: 'hidden',
                                                                     textOverflow: 'ellipsis',
                                                                     whiteSpace: 'nowrap',
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
                                                                 }}
                                                             >
                                                                 {formatHotTag(tag)}
@@ -1012,10 +1017,15 @@ const MainScreen = () => {
                                                                         border: '1px solid rgba(38, 198, 218, 0.30)',
                                                                         padding: '3px 9px',
                                                                         borderRadius: '999px',
-                                                                    maxWidth: 'calc((100% - 6px) / 2)',
+                                                                    flex: '1 1 0px',
+                                                                    width: 0,
+                                                                    minWidth: 0,
                                                                         overflow: 'hidden',
                                                                         textOverflow: 'ellipsis',
                                                                         whiteSpace: 'nowrap',
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        justifyContent: 'center',
                                                                     }}
                                                                 >
                                                                     {formatHotTag(tag)}
