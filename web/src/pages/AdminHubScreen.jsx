@@ -17,13 +17,6 @@ const tiles = [
     path: '/admin/posts',
   },
   {
-    id: 'recommended-filters',
-    title: '꼭 가야 할 곳 필터',
-    desc: '메인 추천 섹션 필터 이름·순서·노출',
-    icon: 'tune',
-    path: '/admin/recommended-filters',
-  },
-  {
     id: 'magazine-publish',
     title: '매거진 발행',
     desc: '발행 매거진 생성/수정',

@@ -744,20 +744,47 @@ const MainScreen = () => {
                             </span>
                             래플
                             {hasOngoingRaffle && (
-                                <span
-                                    aria-label="진행 중 래플 있음"
-                                    style={{
-                                        position: 'absolute',
-                                        top: -2,
-                                        right: -2,
-                                        width: 8,
-                                        height: 8,
-                                        borderRadius: 9999,
-                                        background: '#26C6DA',
-                                        border: '2px solid #ffffff',
-                                        boxShadow: '0 0 0 1px rgba(38,198,218,0.25)',
-                                    }}
-                                />
+                                <>
+                                    <span
+                                        aria-label="진행 중 래플 있음"
+                                        style={{
+                                            position: 'absolute',
+                                            top: -2,
+                                            right: -2,
+                                            width: 8,
+                                            height: 8,
+                                            borderRadius: 9999,
+                                            background: '#26C6DA',
+                                            border: '2px solid #ffffff',
+                                            boxShadow: '0 0 0 1px rgba(38,198,218,0.25)',
+                                            zIndex: 2,
+                                        }}
+                                    />
+                                    <span
+                                        aria-hidden
+                                        style={{
+                                            position: 'absolute',
+                                            top: -2,
+                                            right: -2,
+                                            width: 8,
+                                            height: 8,
+                                            borderRadius: 9999,
+                                            border: '1px solid rgba(38,198,218,0.55)',
+                                            background: 'transparent',
+                                            transformOrigin: 'center',
+                                            animation: 'raffleDotWave 1.6s ease-out infinite',
+                                            zIndex: 1,
+                                            pointerEvents: 'none',
+                                        }}
+                                    />
+                                    <style>{`
+                                      @keyframes raffleDotWave {
+                                        0% { transform: scale(1); opacity: 0.60; }
+                                        70% { transform: scale(2.4); opacity: 0.00; }
+                                        100% { transform: scale(2.4); opacity: 0.00; }
+                                      }
+                                    `}</style>
+                                </>
                             )}
                         </button>
                     </div>

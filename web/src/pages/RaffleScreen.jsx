@@ -54,7 +54,10 @@ function OngoingStyleRaffleBlock({ loading, list, emptyText, ctaMode }) {
                 <h3 className="text-base font-bold leading-snug text-gray-900 dark:text-gray-100 sm:text-[17px]">
                   {item.title}
                 </h3>
-                <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400 sm:text-[15px]">
+                <p
+                  className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400 sm:text-[15px]"
+                  style={{ whiteSpace: 'pre-wrap', wordBreak: 'keep-all' }}
+                >
                   {item.desc}
                 </p>
               </div>

@@ -96,7 +96,6 @@ const AdminNoticesScreen = lazyWithRecover(() => import('./pages/AdminNoticesScr
 const AdminPublishedMagazinesScreen = lazyWithRecover(() => import('./pages/AdminPublishedMagazinesScreen'))
 const AdminRafflesScreen = lazyWithRecover(() => import('./pages/AdminRafflesScreen'))
 const AdminRaffleDetailScreen = lazyWithRecover(() => import('./pages/AdminRaffleDetailScreen'))
-const AdminRecommendedFiltersScreen = lazyWithRecover(() => import('./pages/AdminRecommendedFiltersScreen'))
 
 function App() {
   // StatusBar 초기화 (앱 시작 시 한 번만)
@@ -263,16 +262,6 @@ function App() {
                     <ProtectedRoute>
                       <AdminRoute>
                         <AdminRaffleDetailScreen />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/recommended-filters"
-                  element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminRecommendedFiltersScreen />
                       </AdminRoute>
                     </ProtectedRoute>
                   }
