@@ -2,7 +2,7 @@ import api from './axios';
 import { logger } from '../utils/logger';
 import { supabase, SUPABASE_PROJECT_URL, SUPABASE_ANON_KEY } from '../utils/supabaseClient';
 import { getApiBasePath } from '../utils/apiBase';
-import * as exifr from 'exifr';
+import { extractExifData, ensureTypedImageFileForExif, isTouchMobileWeb } from '../utils/exifExtractor';
 
 const API_BASE = getApiBasePath();
 const UPLOAD_ORIGIN = API_BASE.replace(/\/api\/?$/, '') || (typeof window !== 'undefined' ? window.location.origin : '');
@@ -244,40 +244,26 @@ const fileToBase64 = (file) => {
 
 /**
  * 업로드 직전 원본 파일에서 "실시간감"에 필요한 최소 메타데이터만 추출
- * - 고객이 체감하는 핵심: 언제(촬영시간), 어디서(위치)
+ * - 모바일 WebView/Safari 에서 type 이 비거나 octet-stream 인 경우가 많아 extractExifData 경로로 통일
  * - stripImageMetadata()로 메타데이터를 제거하기 전에 호출해야 함
  */
 const extractRealtimeMeta = async (file) => {
   try {
-    if (!file || !file.type?.startsWith('image/')) return null;
-    if (file.type === 'image/svg+xml') return null;
+    if (!file || !(file instanceof Blob)) return null;
+    const t = String(file.type || '').toLowerCase();
+    if (t === 'image/svg+xml') return null;
+    if (t.startsWith('video/')) return null;
 
-    const toIsoString = (v) => {
-      try {
-        if (!v) return null;
-        if (v instanceof Date && !Number.isNaN(v.getTime())) return v.toISOString();
-        const d = new Date(v);
-        return Number.isNaN(d.getTime()) ? null : d.toISOString();
-      } catch {
-        return null;
-      }
-    };
+    const ex = await extractExifData(file, { allowed: true });
+    if (!ex) return null;
 
-    const [dateRaw, gpsRaw] = await Promise.all([
-      exifr.parse(file, { exif: true, gps: false, xmp: true, tiff: false, ifd0: false, mergeOutput: true, translateValues: true, reviveValues: true }),
-      exifr.gps(file),
-    ]);
-
-    const takenAt =
-      toIsoString(dateRaw?.DateTimeOriginal || dateRaw?.dateTimeOriginal || dateRaw?.CreateDate || dateRaw?.createDate) ||
-      null;
-
+    const takenAt = ex.photoDate || null;
     const gps =
-      gpsRaw && typeof gpsRaw === 'object' && Number.isFinite(gpsRaw.latitude) && Number.isFinite(gpsRaw.longitude)
+      ex.gpsCoordinates && Number.isFinite(Number(ex.gpsCoordinates.lat)) && Number.isFinite(Number(ex.gpsCoordinates.lng))
         ? {
-            latitude: gpsRaw.latitude,
-            longitude: gpsRaw.longitude,
-            altitude: Number.isFinite(gpsRaw.altitude) ? gpsRaw.altitude : null,
+            latitude: Number(ex.gpsCoordinates.lat),
+            longitude: Number(ex.gpsCoordinates.lng),
+            altitude: ex.gpsAltitude != null && Number.isFinite(Number(ex.gpsAltitude)) ? Number(ex.gpsAltitude) : null,
           }
         : null;
 
@@ -287,6 +273,44 @@ const extractRealtimeMeta = async (file) => {
     logger.warn('메타데이터 추출 실패(무시하고 업로드 진행):', e?.message || e);
     return null;
   }
+};
+
+/** 메타 추출 대기 시간 — 모바일은 전체 버퍼 파싱까지 여유 있게 */
+const metaExtractionTimeoutMs = () => {
+  try {
+    return isTouchMobileWeb() ? 45_000 : 22_000;
+  } catch {
+    return 22_000;
+  }
+};
+
+/** uploadImage()가 반환하는 meta 를 게시물 exifData 형태로 변환 (선택 필드) */
+export const uploadMetaToExifShape = (meta) => {
+  if (!meta || typeof meta !== 'object') return null;
+  const { takenAt, gps } = meta;
+  if (!takenAt && !gps) return null;
+  const lat = gps?.latitude;
+  const lng = gps?.longitude;
+  const coords =
+    Number.isFinite(Number(lat)) && Number.isFinite(Number(lng)) ? { lat: Number(lat), lng: Number(lng) } : null;
+  const ts = takenAt ? new Date(takenAt).getTime() : null;
+  return {
+    photoDate: takenAt || null,
+    photoTimestamp: Number.isFinite(ts) ? ts : null,
+    dateTimeOriginal: null,
+    createDate: null,
+    dateTimeOriginalRaw: null,
+    gpsCoordinates: coords,
+    gpsLatitude: coords ? coords.lat : null,
+    gpsLongitude: coords ? coords.lng : null,
+    gpsAltitude: gps?.altitude != null && Number.isFinite(Number(gps.altitude)) ? Number(gps.altitude) : null,
+    cameraMake: null,
+    cameraModel: null,
+    imageWidth: null,
+    imageHeight: null,
+    orientation: null,
+    raw: { fromUploadMeta: true },
+  };
 };
 
 const withTimeout = async (promise, ms, fallback = null) => {
@@ -311,11 +335,12 @@ const shouldStripImageMetadata =
  * 디코드 후 재인코딩하여 EXIF/GPS 등 파일 내 메타데이터 제거 (업로드 직전에 사용)
  */
 const stripImageMetadata = async (file) => {
-  if (!file || !file.type?.startsWith('image/')) return file;
-  if (file.type === 'image/svg+xml') return file;
+  const typed = ensureTypedImageFileForExif(file);
+  if (!typed || !String(typed.type || '').toLowerCase().startsWith('image/')) return file;
+  if (typed.type === 'image/svg+xml') return file;
 
   try {
-    const bitmap = await createImageBitmap(file);
+    const bitmap = await createImageBitmap(typed);
     const canvas = document.createElement('canvas');
     canvas.width = bitmap.width;
     canvas.height = bitmap.height;
@@ -324,19 +349,19 @@ const stripImageMetadata = async (file) => {
       bitmap.close();
       return file;
     }
-    if (file.type === 'image/png' || file.type === 'image/webp' || file.type === 'image/gif') {
+    if (typed.type === 'image/png' || typed.type === 'image/webp' || typed.type === 'image/gif') {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
     ctx.drawImage(bitmap, 0, 0);
     bitmap.close();
 
-    const baseName = (file.name || 'image').replace(/\.[^.]+$/, '');
+    const baseName = (typed.name || 'image').replace(/\.[^.]+$/, '');
     let mimeType = 'image/jpeg';
     let quality = 0.92;
-    if (file.type === 'image/png') {
+    if (typed.type === 'image/png') {
       mimeType = 'image/png';
       quality = undefined;
-    } else if (file.type === 'image/webp') {
+    } else if (typed.type === 'image/webp') {
       mimeType = 'image/webp';
     }
 
@@ -439,7 +464,7 @@ const uploadImageToSupabase = async (file, retry = false) => {
 export const uploadImage = async (file) => {
   let safeFile = file;
   try {
-    const meta = await withTimeout(extractRealtimeMeta(file), 700, null);
+    const meta = await withTimeout(extractRealtimeMeta(file), metaExtractionTimeoutMs(), null);
     if (shouldStripImageMetadata) {
       safeFile = await stripImageMetadata(file);
     }
@@ -471,7 +496,8 @@ export const uploadImage = async (file) => {
 // 다중 이미지 업로드
 export const uploadImages = async (files) => {
   try {
-    const metas = await Promise.all(files.map((f) => withTimeout(extractRealtimeMeta(f), 700, null)));
+    const ms = metaExtractionTimeoutMs();
+    const metas = await Promise.all(files.map((f) => withTimeout(extractRealtimeMeta(f), ms, null)));
     const safeFiles = shouldStripImageMetadata
       ? await Promise.all(files.map((f) => stripImageMetadata(f)))
       : files;
@@ -497,7 +523,7 @@ export const uploadImages = async (files) => {
 // 프로필 이미지 업로드
 export const uploadProfileImage = async (file) => {
   try {
-    const meta = await withTimeout(extractRealtimeMeta(file), 700, null);
+    const meta = await withTimeout(extractRealtimeMeta(file), metaExtractionTimeoutMs(), null);
     const safeFile = shouldStripImageMetadata ? await stripImageMetadata(file) : file;
     const formData = new FormData();
     formData.append('profile', safeFile);

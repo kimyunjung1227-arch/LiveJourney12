@@ -21,7 +21,7 @@ function isLikelyRasterImageFile(file) {
 }
 
 /** 핸드폰 브라우저(Safari/Chrome)에서 EXIF 경로를 따로 탐 — 데스크톱과 동일 로직도 유지 */
-function isTouchMobileWeb() {
+export function isTouchMobileWeb() {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent || '';
   const coarse =
@@ -49,7 +49,7 @@ function inferImageMimeFromName(name) {
  * @param {File|Blob} file
  * @returns {File}
  */
-function ensureTypedImageFileForExif(file) {
+export function ensureTypedImageFileForExif(file) {
   if (!file || !(file instanceof Blob)) return file;
   const name = 'name' in file && typeof file.name === 'string' ? file.name : 'image.jpg';
   const t = String(file.type || '').toLowerCase();
@@ -330,9 +330,6 @@ export const extractExifData = async (file, options = {}) => {
     const typedFile = ensureTypedImageFileForExif(file);
     const mobile = isTouchMobileWeb();
     const MAX_FULL_PARSE_BYTES = 45 * 1024 * 1024;
-    /** 작은 파일은 한 번에 버퍼를 읽어 파싱하는 편이 모바일 Safari 에서 더 안정적·빠름 */
-    /** 고해상도 폰 사진 EXIF 블록이 크거나 뒤쪽에 붙는 경우까지 한 번에 읽기 */
-    const MOBILE_SMALL_FULL_PARSE_BYTES = 12 * 1024 * 1024;
 
     let cachedFullBuffer = null;
     const getFullArrayBuffer = async () => {
@@ -351,15 +348,15 @@ export const extractExifData = async (file, options = {}) => {
 
     let exifData = null;
 
-    // 1) 모바일 + 소용량: 전체 파일을 한 번에 파싱 (앞쪽 청크만으로는 못 잡는 메타·HEIC 등)
-    if (mobile && typedFile.size > 0 && typedFile.size <= MOBILE_SMALL_FULL_PARSE_BYTES) {
+    // 1) 모바일: 45MB 이하이면 전체 버퍼 파싱을 최우선 (고화소·HEIC·EXIF가 파일 뒤쪽인 경우, 앞 청크만으로는 실패)
+    if (mobile && typedFile.size > 0 && typedFile.size <= MAX_FULL_PARSE_BYTES) {
       try {
         const ab = await getFullArrayBuffer();
         if (ab) {
           exifData = await exifr.parse(ab, parseOptsFull);
         }
       } catch (e) {
-        logger.debug('EXIF 모바일 소용량 전체 파싱 실패:', e);
+        logger.debug('EXIF 모바일 전체 버퍼 파싱 실패:', e);
       }
     }
 

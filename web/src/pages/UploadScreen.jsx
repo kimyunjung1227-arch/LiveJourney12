@@ -1,7 +1,7 @@
 ﻿import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
-import { uploadImage } from '../api/upload';
+import { uploadImage, uploadMetaToExifShape } from '../api/upload';
 import { createPostSupabase, getMergedMyPostsForStats, mapSupabasePostRowToPost } from '../api/postsSupabase';
 import { useAuth } from '../contexts/AuthContext';
 import { notifyBadge } from '../utils/notifications';
@@ -296,8 +296,8 @@ const UploadScreen = () => {
           if (ex) {
             exifFirst = ex;
             exifFileKey = `${f.name}:${f.size}:${f.lastModified}`;
+            break;
           }
-          break;
         }
       } catch (err) {
         logger.warn('EXIF 추출 실패(무시):', err);
@@ -574,6 +574,7 @@ const UploadScreen = () => {
       
       const uploadedImageUrls = [];
       const uploadedVideoUrls = [];
+      let exifRecoveredFromUpload = null;
       
       const aiCategory = formData.aiCategory || 'scenic';
       const aiCategoryName = formData.aiCategoryName || '추천 장소';
@@ -594,6 +595,10 @@ const UploadScreen = () => {
             const uploadResult = await uploadImage(file);
             if (uploadResult.success && uploadResult.url) {
               uploadedImageUrls.push(uploadResult.url);
+              if (!exifRecoveredFromUpload && uploadResult.meta) {
+                const shaped = uploadMetaToExifShape(uploadResult.meta);
+                if (shaped) exifRecoveredFromUpload = shaped;
+              }
             }
           } catch (uploadError) {
             logger.warn('이미지 업로드 실패:', uploadError?.message || uploadError);
@@ -647,6 +652,28 @@ const UploadScreen = () => {
 
       setUploadProgress(78);
 
+      const hasMeaningfulPrefetchedExif = Boolean(
+        formData.exifData &&
+          (formData.exifData.photoDate ||
+            (formData.exifData.gpsCoordinates &&
+              Number.isFinite(Number(formData.exifData.gpsCoordinates.lat)) &&
+              Number.isFinite(Number(formData.exifData.gpsCoordinates.lng)))),
+      );
+      const effectiveExif = hasMeaningfulPrefetchedExif ? formData.exifData : exifRecoveredFromUpload || formData.exifData;
+
+      if (
+        effectiveExif?.photoDate &&
+        isExifCaptureTooOldForUpload(effectiveExif.photoDate, {
+          isInAppCamera: false,
+          hasOnlyVideo: formData.imageFiles.length === 0,
+        })
+      ) {
+        alert('촬영 후 48시간이 지난 사진은 업로드할 수 없습니다.');
+        setUploading(false);
+        setUploadProgress(0);
+        return;
+      }
+
       const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
       const currentUser = user || savedUser;
       const username = currentUser?.username || currentUser?.email?.split('@')[0] || '모사모';
@@ -679,8 +706,8 @@ const UploadScreen = () => {
         categoryName: aiCategoryName,
         likes: 0,
         coordinates: formData.coordinates,
-        photoDate: formData?.exifData?.photoDate || null,
-        exifData: formData?.exifData || null,
+        photoDate: effectiveExif?.photoDate || null,
+        exifData: effectiveExif || null,
         createdAt: new Date().toISOString(),
         comments: [],
       });
