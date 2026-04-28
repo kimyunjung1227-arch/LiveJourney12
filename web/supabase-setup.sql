@@ -166,3 +166,63 @@ for insert to anon, authenticated with check (bucket_id = 'post-images');
 drop policy if exists "allow_public_read_post_images" on storage.objects;
 create policy "allow_public_read_post_images" on storage.objects
 for select to anon, authenticated using (bucket_id = 'post-images');
+
+
+-- ============================================================
+-- 4) raffles + admin_users (관리자 래플 운영)
+-- - raffles: 전체 공개 조회, 관리자만 생성/수정/삭제
+-- - admin_users: 관리자 표(대시보드에서만 추가 권장), 본인 행만 조회 가능
+--   ⚠️ admin_users RLS 정책에서 admin_users를 다시 조회하면 "infinite recursion"이 발생할 수 있어 금지
+-- ============================================================
+create table if not exists public.admin_users (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+alter table public.admin_users enable row level security;
+
+drop policy if exists "admin_users_select_own" on public.admin_users;
+create policy "admin_users_select_own" on public.admin_users
+for select to authenticated
+using (auth.uid() = user_id);
+
+-- INSERT/UPDATE/DELETE 정책은 두지 않습니다(대시보드/service role로만 관리 권장).
+
+create table if not exists public.raffles (
+  id uuid primary key default gen_random_uuid(),
+  kind text not null default 'scheduled',
+  title text not null default '',
+  image_url text not null default '',
+  description text not null default '',
+  duration_days integer not null default 7,
+  days_left text null,
+  category text null,
+  status_message text null,
+  badge text null,
+  starts_at timestamptz null,
+  ends_at timestamptz null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.raffles enable row level security;
+
+drop policy if exists "raffles_select_all" on public.raffles;
+create policy "raffles_select_all" on public.raffles
+for select to anon, authenticated
+using (true);
+
+drop policy if exists "raffles_insert_admin" on public.raffles;
+create policy "raffles_insert_admin" on public.raffles
+for insert to authenticated
+with check (exists (select 1 from public.admin_users au where au.user_id = auth.uid()));
+
+drop policy if exists "raffles_update_admin" on public.raffles;
+create policy "raffles_update_admin" on public.raffles
+for update to authenticated
+using (exists (select 1 from public.admin_users au where au.user_id = auth.uid()))
+with check (exists (select 1 from public.admin_users au where au.user_id = auth.uid()));
+
+drop policy if exists "raffles_delete_admin" on public.raffles;
+create policy "raffles_delete_admin" on public.raffles
+for delete to authenticated
+using (exists (select 1 from public.admin_users au where au.user_id = auth.uid()));
