@@ -25,7 +25,7 @@ function ScheduledRaffleStrip({ loading, list, emptyText }) {
 
   return (
     <div
-      className="flex w-full snap-x snap-mandatory gap-2 overflow-x-auto overflow-y-hidden scroll-smooth pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="flex w-full snap-x snap-mandatory gap-1.5 overflow-x-auto overflow-y-hidden scroll-smooth pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       style={{ WebkitOverflowScrolling: 'touch' }}
     >
       {list.map((item) => (
@@ -35,8 +35,8 @@ function ScheduledRaffleStrip({ loading, list, emptyText }) {
           disabled
           className="box-border shrink-0 snap-start text-left"
           style={{
-            width: 'calc((100% - 24px) / 4)', // gap(8px)*3 = 24px
-            minWidth: 76,
+            width: 'calc((100% - 18px) / 4)', // gap(6px)*3 = 18px
+            minWidth: 82,
           }}
           aria-label="진행 예정 래플"
         >
@@ -184,7 +184,7 @@ const RaffleScreen = () => {
 
           <div className="px-3 pt-3 space-y-4 text-[14px] sm:px-4 sm:text-[15px]">
             <section>
-              <p className="text-[15px] leading-relaxed text-gray-700 dark:text-gray-300 sm:text-base">
+              <p className="text-[13px] leading-relaxed text-gray-700 dark:text-gray-300 sm:text-sm">
                 래플은 실시간으로 업로드한 여행 기록이 쌓일수록 응모 기회가 늘어나고, 그 결과가 리워드로 돌아오는 이벤트예요.
                 참여 방법과 당첨 안내는 아래 문서에서 한 번에 확인할 수 있어요.
               </p>
