@@ -874,7 +874,10 @@ export async function getPartitionedUploadTags(mediaFile, location = '', note = 
     else break;
   }
 
-  const locationTag = pickLocationSlotTag(raw, location);
+  // 지역 슬롯은 "사용자 입력 위치/지역"을 그대로 우선 사용 (요구사항: 입력한 지역과 동일한 태그 추천)
+  const locStr = String(location || '').trim();
+  const regionFromInput = locStr ? locStr.split(/\s+/).filter(Boolean)[0] : '';
+  const locationTag = regionFromInput || pickLocationSlotTag(raw, location);
 
   const mood = [];
   for (const t of raw) {
@@ -935,6 +938,7 @@ export async function getPartitionedUploadTags(mediaFile, location = '', note = 
     else break;
   }
 
+  // 구성 규칙: 날씨 2 + 지역 1 + 분위기/시즌/테마 3 (총 6)
   const tags = [...weather.slice(0, 2), locationTag, ...mood.slice(0, 3)];
   return {
     ...analysis,

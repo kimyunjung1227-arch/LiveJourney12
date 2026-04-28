@@ -21,9 +21,7 @@ const formatUploadDateLine = (raw) => {
   const y = dt.getFullYear();
   const m = String(dt.getMonth() + 1).padStart(2, '0');
   const day = String(dt.getDate()).padStart(2, '0');
-  const hh = String(dt.getHours()).padStart(2, '0');
-  const mm = String(dt.getMinutes()).padStart(2, '0');
-  return `📅 ${y}.${m}.${day} ${hh}:${mm}`;
+  return `📅 ${y}.${m}.${day}`;
 };
 const UploadScreen = () => {
   const navigate = useNavigate();

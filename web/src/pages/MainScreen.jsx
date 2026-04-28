@@ -597,29 +597,38 @@ const MainScreen = () => {
     }, [fetchPosts]);
 
     // 게시물에 날씨가 없을 때 지역 기준으로 기온 조회 (카드에 기온 표시용)
+    // ⚠️ 업로드 시각 기준으로 "고정"하려면, 조회 시 base_time을 post.captured_at(또는 post.created_at) 기준으로 계산해야 함.
+    // 현재 getWeatherByRegion은 "현재 시각" 기반이므로, 아래는 fallback(레거시)로만 사용하고
+    // 우선 업로드 시점에 weatherSnapshot을 저장하는 경로를 강화합니다(UploadScreen/DB 저장 쪽).
     useEffect(() => {
-        const regions = new Set();
+        const targets = [];
+        const seen = new Set();
         [...realtimeData, ...crowdedData].forEach((p) => {
             if (!p || p.weather || p.weatherSnapshot) return;
             const r = (p.region || p.location || '').trim().split(/\s+/)[0] || p.region || p.location;
             if (!r) return;
-            if (weatherByRegion?.[r]) return;
-            regions.add(r);
+            const at = p.photoDate || p.captured_at || p.capturedAt || p.createdAt || p.timestamp || p.time || null;
+            const ms = at ? new Date(at).getTime() : 0;
+            const key = ms ? `${r}::${ms}` : r;
+            if (seen.has(key)) return;
+            if (weatherByRegion?.[key]) return;
+            seen.add(key);
+            targets.push({ region: r, at: ms || null, key });
         });
-        if (regions.size === 0) return;
+        if (targets.length === 0) return;
         let cancelled = false;
         const map = {};
         Promise.all(
-            Array.from(regions).map(async (region) => {
+            targets.map(async ({ region, at, key }) => {
                 try {
-                    const res = await getWeatherByRegion(region);
-                    if (!cancelled && res?.success && res.weather) return { region, weather: res.weather };
+                    const res = await getWeatherByRegion(region, false, { at: at || undefined });
+                    if (!cancelled && res?.success && res.weather) return { key, weather: res.weather };
                 } catch (_) {}
                 return null;
             })
         ).then((results) => {
             if (cancelled) return;
-            results.forEach((r) => { if (r) map[r.region] = r.weather; });
+            results.forEach((r) => { if (r) map[r.key] = r.weather; });
             setWeatherByRegion((prev) => ({ ...prev, ...map }));
         });
         return () => { cancelled = true; };
@@ -867,7 +876,8 @@ const MainScreen = () => {
                                 ? null
                                 : getDisplayImageUrl(Array.isArray(post.images) && post.images.length > 0 ? post.images[0] : (post.image || post.thumbnail || ''));
                             const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
-                            const weather = post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
+                            const fixedAt = post.photoDate || post.captured_at || post.capturedAt || post.createdAt || post.timestamp || post.time || null;
+                            const weather = post.weatherSnapshot || post.weather || (weatherByRegion ? weatherByRegion[`${regionKey}::${fixedAt ? new Date(fixedAt).getTime() : ''}`] : null) || weatherByRegion[regionKey] || null;
                             const hasWeather = weather && (weather.icon || weather.temperature);
                             const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
                             const commentCount = Math.max(
@@ -960,11 +970,13 @@ const MainScreen = () => {
                                                 <div
                                                     style={{
                                                         display: 'flex',
-                                                        flexWrap: 'wrap',
+                                                        flexDirection: 'row',
+                                                        flexWrap: 'nowrap',
                                                         gap: 6,
                                                         flex: 1,
                                                         minWidth: 0,
                                                         alignItems: 'center',
+                                                        overflow: 'hidden',
                                                     }}
                                                 >
                                                     {Array.isArray(post.reasonTags) && post.reasonTags.length > 0
@@ -979,7 +991,7 @@ const MainScreen = () => {
                                                                     border: '1px solid rgba(38, 198, 218, 0.30)',
                                                                     padding: '3px 9px',
                                                                     borderRadius: '999px',
-                                                                    maxWidth: '100%',
+                                                                    maxWidth: 'calc((100% - 6px) / 2)',
                                                                     overflow: 'hidden',
                                                                     textOverflow: 'ellipsis',
                                                                     whiteSpace: 'nowrap',
@@ -1000,7 +1012,7 @@ const MainScreen = () => {
                                                                         border: '1px solid rgba(38, 198, 218, 0.30)',
                                                                         padding: '3px 9px',
                                                                         borderRadius: '999px',
-                                                                        maxWidth: '100%',
+                                                                    maxWidth: 'calc((100% - 6px) / 2)',
                                                                         overflow: 'hidden',
                                                                         textOverflow: 'ellipsis',
                                                                         whiteSpace: 'nowrap',

@@ -164,11 +164,60 @@ function normalizeKmaResultCode(header) {
   return String(raw).trim();
 }
 
-export const getWeatherByRegion = async (regionName, forceRefresh = false) => {
+function getKstPartsForDate(dateLike) {
+  const d = dateLike instanceof Date ? dateLike : new Date(dateLike);
+  const dt = !Number.isNaN(d.getTime()) ? d : new Date();
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false,
+  }).formatToParts(dt);
+  const g = (t) => parseInt(parts.find((p) => p.type === t)?.value ?? '0', 10);
+  return { Y: g('year'), M: g('month'), D: g('day'), H: g('hour'), Min: g('minute') };
+}
+
+/** 업로드(촬영) 시각 기준으로 base_date/base_time 계산 */
+function getKstNcstBaseDateTimeForDate(dateLike, hoursBack = 0) {
+  const { Y: y0, M: m0, D: d0, H: h0, Min } = getKstPartsForDate(dateLike);
+  let Y = y0;
+  let M = m0;
+  let D = d0;
+  let H = h0;
+
+  // 초단기실황 생성/지연: 분이 40 미만이면 이전 시각을 쓰는 편이 안전
+  if (Min < 40) {
+    H -= 1;
+  }
+  H -= hoursBack;
+
+  while (H < 0) {
+    H += 24;
+    const dt = new Date(Date.UTC(Y, M - 1, D));
+    dt.setUTCDate(dt.getUTCDate() - 1);
+    Y = dt.getUTCFullYear();
+    M = dt.getUTCMonth() + 1;
+    D = dt.getUTCDate();
+  }
+
+  return {
+    baseDate: `${Y}${pad2(M)}${pad2(D)}`,
+    baseTime: `${pad2(H)}00`,
+  };
+}
+
+export const getWeatherByRegion = async (regionName, forceRefresh = false, opts = {}) => {
   logger.log('🌦️ 날씨 API 호출 시작:', regionName);
 
+  const fixedAt = opts?.at ? new Date(opts.at) : null;
+  const fixedAtMs = fixedAt && !Number.isNaN(fixedAt.getTime()) ? fixedAt.getTime() : 0;
+  const cacheKey = fixedAtMs ? `${regionName}::${fixedAtMs}` : regionName;
+
   if (!forceRefresh) {
-    const cached = weatherCache.get(regionName);
+    const cached = weatherCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
       logger.log(`⚡ 캐시된 날씨 정보 즉시 반환: ${regionName}`);
       return cached.data;
@@ -186,7 +235,9 @@ export const getWeatherByRegion = async (regionName, forceRefresh = false) => {
     let lastError = 'API 응답 실패';
 
     for (let hoursBack = 0; hoursBack < 4; hoursBack += 1) {
-      const { baseDate, baseTime } = getKstNcstBaseDateTime(hoursBack);
+      const { baseDate, baseTime } = fixedAtMs
+        ? getKstNcstBaseDateTimeForDate(fixedAt, hoursBack)
+        : getKstNcstBaseDateTime(hoursBack);
       logger.log(`📅 기준시각(KST) 시도 ${hoursBack}: ${baseDate} ${baseTime}`);
 
       const params = new URLSearchParams({
@@ -324,7 +375,7 @@ export const getWeatherByRegion = async (regionName, forceRefresh = false) => {
         },
       };
 
-      weatherCache.set(regionName, { data: result, timestamp: Date.now() });
+      weatherCache.set(cacheKey, { data: result, timestamp: Date.now() });
       logger.log(`✅ 기상청 성공: ${regionName} — ${temperature}℃ ${sky}`);
       return result;
     }
@@ -332,7 +383,7 @@ export const getWeatherByRegion = async (regionName, forceRefresh = false) => {
     throw new Error(lastError || '해당 지역 최신 관측 데이터를 찾지 못했습니다.');
   } catch (error) {
     logger.error(`❌ 기상청 API 실패: ${regionName}`, error.message);
-    const cached = weatherCache.get(regionName);
+    const cached = weatherCache.get(cacheKey);
     if (cached) {
       logger.log(`🔄 캐시 반환: ${regionName}`);
       return cached.data;
