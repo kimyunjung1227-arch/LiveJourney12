@@ -12,6 +12,10 @@ const MAX_PICK_DISTANCE_M = 90;
 
 const getKakaoAppKey = () => String(import.meta.env.VITE_KAKAO_MAP_API_KEY || '').trim();
 
+const SUGGEST_DEBOUNCE_MS = 220;
+const SUGGEST_MIN_CHARS = 2;
+const SUGGEST_LIMIT = 8;
+
 const loadKakaoSdkOnce = (appKey) =>
   new Promise((resolve, reject) => {
     const key = String(appKey || '').trim();
@@ -75,12 +79,18 @@ export default function MapAskSituationScreen() {
   const mapRef = useRef(null);
   const pickOverlayRef = useRef(null);
   const mapClickListenerRef = useRef(null);
+  const suggestTimerRef = useRef(0);
+  const suggestReqIdRef = useRef(0);
 
   const [sdkError, setSdkError] = useState('');
   const [locationQuery, setLocationQuery] = useState('');
   const [picking, setPicking] = useState(false);
   const [picked, setPicked] = useState(null); // { lat, lng, name? }
   const [text, setText] = useState('');
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestItems, setSuggestItems] = useState([]); // { key, label, address?, lat, lng }
+  const [geoStatus, setGeoStatus] = useState({ tried: false, ok: false });
 
   const pickedLabel = useMemo(() => {
     if (!picked) return '';
@@ -92,6 +102,7 @@ export default function MapAskSituationScreen() {
   useEffect(() => {
     if (!picked) return;
     setLocationQuery(pickedLabel);
+    setSuggestOpen(false);
   }, [picked, pickedLabel]);
 
   const submit = () => {
@@ -132,6 +143,40 @@ export default function MapAskSituationScreen() {
     }
     map.panTo(pos);
   }, []);
+
+  const centerToMyLocation = useCallback(
+    (opts = {}) =>
+      new Promise((resolve) => {
+        const map = mapRef.current;
+        if (!navigator?.geolocation) {
+          resolve(null);
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+              resolve(null);
+              return;
+            }
+            try {
+              if (map && window.kakao?.maps) {
+                const kakao = window.kakao;
+                const p = new kakao.maps.LatLng(lat, lng);
+                map.setCenter(p);
+              }
+            } catch {
+              /* ignore */
+            }
+            resolve({ lat, lng });
+          },
+          () => resolve(null),
+          { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000, ...opts },
+        );
+      }),
+    [],
+  );
 
   const clearPickOverlay = useCallback(() => {
     if (pickOverlayRef.current) {
@@ -237,6 +282,67 @@ export default function MapAskSituationScreen() {
     [setPickOverlayAt],
   );
 
+  const runSuggest = useCallback(
+    async (q) => {
+      const query = String(q || '').trim();
+      if (!query || query.length < SUGGEST_MIN_CHARS) {
+        setSuggestItems([]);
+        setSuggestLoading(false);
+        return;
+      }
+      if (!window.kakao?.maps?.services) return;
+
+      const reqId = (suggestReqIdRef.current += 1);
+      setSuggestLoading(true);
+
+      try {
+        const places = new window.kakao.maps.services.Places();
+        places.keywordSearch(
+          query,
+          (data, status) => {
+            if (reqId !== suggestReqIdRef.current) return;
+            setSuggestLoading(false);
+            if (status !== window.kakao.maps.services.Status.OK || !Array.isArray(data) || data.length === 0) {
+              setSuggestItems([]);
+              return;
+            }
+            const out = [];
+            for (const it of data.slice(0, SUGGEST_LIMIT)) {
+              const lat = Number(it.y);
+              const lng = Number(it.x);
+              if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+              const label = String(it.place_name || it.address_name || '').trim() || query;
+              out.push({
+                key: String(it.id || `${lng}|${lat}|${label}`),
+                label,
+                address: String(it.road_address_name || it.address_name || '').trim(),
+                lat,
+                lng,
+              });
+            }
+            setSuggestItems(out);
+          },
+          { size: SUGGEST_LIMIT },
+        );
+      } catch {
+        if (reqId !== suggestReqIdRef.current) return;
+        setSuggestLoading(false);
+        setSuggestItems([]);
+      }
+    },
+    [setSuggestItems],
+  );
+
+  const scheduleSuggest = useCallback(
+    (q) => {
+      if (suggestTimerRef.current) window.clearTimeout(suggestTimerRef.current);
+      suggestTimerRef.current = window.setTimeout(() => {
+        void runSuggest(q);
+      }, SUGGEST_DEBOUNCE_MS);
+    },
+    [runSuggest],
+  );
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -251,6 +357,9 @@ export default function MapAskSituationScreen() {
           level: 6,
         });
         mapRef.current = map;
+        // 지도선택 UX: 시작은 GPS 중심이 더 자연스러움(권한 거부 시 서울 기본 유지)
+        const loc = await centerToMyLocation();
+        setGeoStatus({ tried: true, ok: Boolean(loc) });
       } catch (e) {
         if (cancelled) return;
         setSdkError(e?.message || String(e));
@@ -260,7 +369,7 @@ export default function MapAskSituationScreen() {
       cancelled = true;
       mapRef.current = null;
     };
-  }, []);
+  }, [centerToMyLocation]);
 
   /** 지도선택 모드: 지도에 보이는 장소(등록 POI) 근처만 탭으로 지정 — 빈 땅은 무시 */
   useEffect(() => {
@@ -310,6 +419,7 @@ export default function MapAskSituationScreen() {
   useEffect(() => {
     return () => {
       clearPickOverlay();
+      if (suggestTimerRef.current) window.clearTimeout(suggestTimerRef.current);
     };
   }, [clearPickOverlay]);
 
@@ -330,20 +440,69 @@ export default function MapAskSituationScreen() {
           <div className="relative flex-1">
             <input
               value={locationQuery}
-              onChange={(e) => setLocationQuery(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setLocationQuery(v);
+                setSuggestOpen(true);
+                scheduleSuggest(v);
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   void keywordSearch(locationQuery);
                 }
               }}
+              onFocus={() => {
+                setSuggestOpen(true);
+                scheduleSuggest(locationQuery);
+              }}
               placeholder="위치 입력 (예: 여의도 한강공원)"
               className="w-full rounded-full border border-gray-200 bg-white py-3 pl-4 pr-4 text-sm text-gray-900 placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
+
+            {suggestOpen && (String(locationQuery || '').trim().length >= SUGGEST_MIN_CHARS || suggestLoading) ? (
+              <div
+                className="absolute left-0 right-0 top-[52px] z-[60] overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-xl"
+                onMouseDown={(e) => e.preventDefault()}
+                role="listbox"
+                aria-label="위치 자동 추천"
+              >
+                {suggestLoading ? (
+                  <div className="px-4 py-3 text-[12px] text-gray-500">추천 검색 중…</div>
+                ) : suggestItems.length === 0 ? (
+                  <div className="px-4 py-3 text-[12px] text-gray-500">추천 결과가 없어요</div>
+                ) : (
+                  <div className="max-h-[260px] overflow-y-auto divide-y divide-gray-100">
+                    {suggestItems.map((it) => (
+                      <button
+                        key={it.key}
+                        type="button"
+                        className="w-full px-4 py-3 text-left hover:bg-gray-50"
+                        onClick={() => {
+                          setPickOverlayAt(it.lat, it.lng, 3);
+                          setPicked({ lat: it.lat, lng: it.lng, name: it.label });
+                          setSuggestOpen(false);
+                        }}
+                      >
+                        <div className="truncate text-sm font-semibold text-gray-900">{it.label}</div>
+                        {it.address ? <div className="mt-0.5 truncate text-[12px] text-gray-500">{it.address}</div> : null}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
           </div>
           <button
             type="button"
-            onClick={() => setPicking((v) => !v)}
+            onClick={() => {
+              setPicking((v) => !v);
+              // 지도 선택하기를 켜는 순간에는 GPS 중심으로 시작하는 게 UX상 가장 자연스러움
+              if (!picking) {
+                void centerToMyLocation();
+                setGeoStatus((s) => ({ tried: true, ok: s.ok || false }));
+              }
+            }}
             className={`rounded-full border px-3.5 py-3 text-sm font-semibold shadow-sm ${
               picking ? 'border-primary bg-primary-10 text-primary' : 'border-gray-200 bg-white text-gray-900'
             }`}
@@ -362,6 +521,9 @@ export default function MapAskSituationScreen() {
         <div className="mb-3 overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
           {sdkError ? (
             <div className="px-3 py-2 text-[11px] text-red-600">{`지도 로드 실패: ${sdkError}`}</div>
+          ) : null}
+          {!sdkError && geoStatus.tried && !geoStatus.ok ? (
+            <div className="px-3 py-2 text-[11px] text-gray-500">내 위치 권한이 없어서 서울 기준으로 시작했어요.</div>
           ) : null}
           <div ref={mapElRef} className="h-[220px] w-full" />
         </div>
