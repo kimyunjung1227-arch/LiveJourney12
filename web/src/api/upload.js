@@ -106,6 +106,18 @@ const upgradeSupabaseHttpToHttps = (url) => {
   }
 };
 
+/** 카카오 CDN 등 외부 이미지의 http 링크도 HTTPS로 승격 (Mixed Content 방지) */
+const upgradeKnownHttpToHttps = (url) => {
+  if (!url || typeof url !== 'string') return url;
+  const s = url.trim();
+  if (!s.startsWith('http://')) return url;
+  // 카카오 CDN(이미지가 http로 내려오는 케이스)
+  if (s.startsWith('http://k.kakaocdn.net/')) return `https://k.kakaocdn.net/${s.slice('http://k.kakaocdn.net/'.length)}`;
+  if (s.startsWith('http://t1.kakaocdn.net/')) return `https://t1.kakaocdn.net/${s.slice('http://t1.kakaocdn.net/'.length)}`;
+  // 그 외는 기존 로직(https 승격)
+  return upgradeSupabaseHttpToHttps(s);
+};
+
 const IMAGE_FILE_EXT = /\.(jpe?g|png|webp|avif|bmp)(\?|#|$)/i;
 
 /** 카드·피드 등에서 불필요하게 큰 원본 대신 적당한 폭만 요청 */
@@ -207,9 +219,9 @@ export const getDisplayImageUrl = (url, opts) => {
   let resolved;
   const fromBucket = resolveSupabaseBucketRelativePath(reTrimmed);
   if (fromBucket) {
-    resolved = upgradeSupabaseHttpToHttps(fromBucket);
+    resolved = upgradeKnownHttpToHttps(fromBucket);
   } else if (reTrimmed.startsWith('http://') || reTrimmed.startsWith('https://')) {
-    resolved = upgradeSupabaseHttpToHttps(reTrimmed);
+    resolved = upgradeKnownHttpToHttps(reTrimmed);
   } else if (reTrimmed.startsWith('/')) {
     resolved = `${UPLOAD_ORIGIN}${reTrimmed}`;
   } else {
@@ -217,7 +229,7 @@ export const getDisplayImageUrl = (url, opts) => {
   }
 
   const sized = applySupabaseImageResize(resolved, opts) || PLACEHOLDER_IMAGE;
-  return upgradeSupabaseHttpToHttps(sized);
+  return upgradeKnownHttpToHttps(sized);
 };
 
 // 이미지를 Base64로 변환

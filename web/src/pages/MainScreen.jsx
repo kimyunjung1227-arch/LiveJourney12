@@ -412,12 +412,12 @@ const MainScreen = () => {
         setHotFeedSlideIndex(0);
     }, [crowdedIdsKey]);
 
-    // 핫플이 여러 개일 때 순차(라운드로빈) 자동 전환
+    // 핫플이 여러 개일 때 순차(라운드로빈) 자동 전환 (너무 빠르면 UX가 불안정해 보여 속도 완화)
     useEffect(() => {
         if (crowdedData.length <= 1) return undefined;
         const id = setInterval(() => {
             setHotFeedSlideIndex((n) => (n + 1) % crowdedData.length);
-        }, 4500);
+        }, 9000);
         return () => clearInterval(id);
     }, [crowdedData.length, crowdedIdsKey]);
 
@@ -425,12 +425,12 @@ const MainScreen = () => {
         setHotFeedSocialIdx(0);
     }, [hotFeedPost?.id, crowdedIdsKey]);
 
-    // 조회수·좋아요·사진 찍는 중 문구 순차 표시
+    // 조회수·좋아요·사진 찍는 중 문구 순차 표시 (전환 속도 완화)
     useEffect(() => {
         if (!hotFeedPost) return undefined;
         const id = setInterval(() => {
             setHotFeedSocialIdx((i) => (i + 1) % 3);
-        }, 2800);
+        }, 4800);
         return () => clearInterval(id);
     }, [hotFeedPost?.id]);
 
