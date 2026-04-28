@@ -414,7 +414,7 @@ export default function AskSituationDetailScreen() {
       <div
         style={{
           ...floatingLayerStyle,
-          bottom: 64,
+          bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
           padding: '10px 12px',
           background: 'rgba(255,255,255,0.96)',
           borderTop: '1px solid #eef2f7',
