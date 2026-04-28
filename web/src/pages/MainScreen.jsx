@@ -9,7 +9,7 @@ import { getRecommendedRegions, getRecommendationTypesForUi } from '../utils/rec
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import './MainScreen.css';
 import { getCombinedPosts } from '../utils/mockData';
-import { fetchPostsSupabase } from '../api/postsSupabase';
+import { fetchPostsSupabase, fetchQuestionPostsSupabase } from '../api/postsSupabase';
 import { getDisplayImageUrl } from '../api/upload';
 import { getMapThumbnailUri } from '../utils/postMedia';
 import { getPostAccuracyCount } from '../utils/socialInteractions';
@@ -38,6 +38,7 @@ const MainScreen = () => {
     const [weatherByRegion, setWeatherByRegion] = useState({});
     const [allPostsForRecommend, setAllPostsForRecommend] = useState([]);
     const [publishedMagazines, setPublishedMagazines] = useState([]);
+    const [askSituationPreview, setAskSituationPreview] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
@@ -172,6 +173,18 @@ const MainScreen = () => {
             setLoading(false);
         }
     }, [loadMockData]);
+
+    // 메인: 현지 상황 질문(텍스트) 미리보기 3~4개
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            const rows = await fetchQuestionPostsSupabase({ limit: 4, currentUserId: user?.id || null });
+            if (!cancelled) setAskSituationPreview(Array.isArray(rows) ? rows : []);
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [user?.id]);
 
     useEffect(() => {
         let alive = true;
@@ -1098,6 +1111,67 @@ const MainScreen = () => {
                                         />
                                     );
                                 })()
+                            )}
+                        </div>
+
+                        {/* 현지 상황 물어보기 — 텍스트 전용 질문 리스트 */}
+                        <div style={{ marginBottom: '18px', paddingBottom: '14px', background: '#ffffff' }}>
+                            <div style={{ padding: '0 0 8px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff' }}>
+                                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#111827' }}>지금 여기 어때요?</h3>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate('/ask-situation')}
+                                    className="border-none bg-transparent text-primary hover:text-primary-dark dark:hover:text-primary-soft text-sm font-semibold cursor-pointer py-1.5 px-2 min-h-[36px] flex items-center gap-0.5"
+                                >
+                                    <span>더보기</span>
+                                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>chevron_right</span>
+                                </button>
+                            </div>
+                            {askSituationPreview.length === 0 ? (
+                                <div style={{ padding: '10px 12px', borderRadius: 14, border: '1px solid #f1f5f9', background: '#fafafa', color: '#94a3b8', fontSize: 13 }}>
+                                    아직 질문이 없어요. 궁금한 현지 상황을 물어보세요!
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                    {askSituationPreview.slice(0, 4).map((q) => {
+                                        const where = String(q.location || q.region || '').trim();
+                                        const head = where ? `${where} ` : '';
+                                        const text = String(q.content || q.note || '').trim();
+                                        const commentCount = Math.max(0, Number(q.commentCount ?? q.commentsCount ?? 0) || 0);
+                                        const right = commentCount > 0 ? `답변 ${commentCount}개` : getTimeAgo(q.photoDate || q.timestamp || q.createdAt);
+                                        return (
+                                            <button
+                                                key={q.id}
+                                                type="button"
+                                                onClick={() => navigate(`/post/${q.id}`, { state: { post: q } })}
+                                                style={{
+                                                    width: '100%',
+                                                    textAlign: 'left',
+                                                    border: '1px solid #eef2f7',
+                                                    background: '#ffffff',
+                                                    borderRadius: 16,
+                                                    padding: '12px 12px',
+                                                    cursor: 'pointer',
+                                                    boxShadow: '0 1px 4px rgba(15,23,42,0.03)',
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                                                    <div style={{ minWidth: 0, flex: 1 }}>
+                                                        <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', lineHeight: 1.35, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                                                            {head}{text || '현지 상황이 궁금해요'}
+                                                        </div>
+                                                        <div style={{ marginTop: 6, fontSize: 12, color: q.hasAcceptedAnswer ? '#10b981' : '#94a3b8', fontWeight: 700 }}>
+                                                            {q.hasAcceptedAnswer ? '채택 완료' : '답변 대기 중'}
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ fontSize: 12, color: '#6b7280', fontWeight: 700, flexShrink: 0, paddingTop: 2, whiteSpace: 'nowrap' }}>
+                                                        {right}
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             )}
                         </div>
 

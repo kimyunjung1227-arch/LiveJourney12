@@ -54,6 +54,7 @@ const UploadScreen = lazyWithRecover(() => import('./pages/UploadScreen'))
 const MapScreen = lazyWithRecover(() => import('./pages/MapScreen'))
 const MapAskSituationScreen = lazyWithRecover(() => import('./pages/MapAskSituationScreen'))
 const MapPhotoGridScreen = lazyWithRecover(() => import('./pages/MapPhotoGridScreen'))
+const AskSituationListScreen = lazyWithRecover(() => import('./pages/AskSituationListScreen'))
 const ProfileScreen = lazyWithRecover(() => import('./pages/ProfileScreen'))
 const EarnedBadgesScreen = lazyWithRecover(() => import('./pages/EarnedBadgesScreen'))
 const UserProfileScreen = lazyWithRecover(() => import('./pages/UserProfileScreen'))
@@ -166,6 +167,7 @@ function App() {
                 <Route path="/upload/guide" element={<UploadGuideScreen />} />
                 <Route path="/map" element={<MapScreen />} />
                 <Route path="/map/ask-situation" element={<MapAskSituationScreen />} />
+                <Route path="/ask-situation" element={<AskSituationListScreen />} />
                 <Route path="/map/photos" element={<MapPhotoGridScreen />} />
                 <Route path="/profile" element={<ProfileScreen />} />
                 <Route

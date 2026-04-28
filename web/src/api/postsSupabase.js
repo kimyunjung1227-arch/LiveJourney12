@@ -433,4 +433,80 @@ export const fetchPostsSupabase = async (currentUserId = null) => {
   }
 };
 
+/**
+ * 현지 상황 질문( category='question' ) 최신 N개 조회 (텍스트 섹션/리스트용)
+ * - help_answer_accepts 존재 여부로 채택 완료 상태를 함께 내려준다.
+ */
+export const fetchQuestionPostsSupabase = async ({ limit = 4, currentUserId = null } = {}) => {
+  const safeLimit = Math.max(1, Math.min(50, Number(limit) || 4));
+  try {
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('category', 'question')
+      .order('created_at', { ascending: false })
+      .limit(safeLimit);
+    if (error) throw error;
+    const rows = Array.isArray(data) ? data : [];
+    const ids = rows.map((r) => r.id).filter(Boolean);
+    const likedSet = await fetchLikedPostIdsSupabase(ids, currentUserId);
+    const mapped = rows.map((r) => mapSupabasePostRowToPost(r, { likedByMe: likedSet.has(String(r.id)) })).filter(Boolean);
+
+    let acceptedSet = new Set();
+    if (ids.length > 0) {
+      const { data: acc } = await supabase
+        .from('help_answer_accepts')
+        .select('post_id')
+        .in('post_id', ids);
+      if (Array.isArray(acc)) acceptedSet = new Set(acc.map((x) => String(x.post_id)));
+    }
+    return mapped.map((p) => ({ ...p, hasAcceptedAnswer: acceptedSet.has(String(p.id)) }));
+  } catch (e) {
+    logger.warn('fetchQuestionPostsSupabase 실패:', e?.message);
+    return [];
+  }
+};
+
+/**
+ * 현지 상황 질문 리스트 페이징 조회
+ * @param {{ limit?: number, before?: string|null, currentUserId?: string|null }} opts
+ * before: created_at 기준 커서(이 값보다 과거를 조회)
+ */
+export const fetchQuestionPostsPageSupabase = async ({ limit = 20, before = null, currentUserId = null } = {}) => {
+  const safeLimit = Math.max(5, Math.min(50, Number(limit) || 20));
+  try {
+    let q = supabase
+      .from('posts')
+      .select('*')
+      .eq('category', 'question')
+      .order('created_at', { ascending: false })
+      .limit(safeLimit);
+    if (before) {
+      q = q.lt('created_at', before);
+    }
+    const { data, error } = await q;
+    if (error) throw error;
+    const rows = Array.isArray(data) ? data : [];
+    const ids = rows.map((r) => r.id).filter(Boolean);
+    const likedSet = await fetchLikedPostIdsSupabase(ids, currentUserId);
+    const mapped = rows.map((r) => mapSupabasePostRowToPost(r, { likedByMe: likedSet.has(String(r.id)) })).filter(Boolean);
+
+    let acceptedSet = new Set();
+    if (ids.length > 0) {
+      const { data: acc } = await supabase
+        .from('help_answer_accepts')
+        .select('post_id')
+        .in('post_id', ids);
+      if (Array.isArray(acc)) acceptedSet = new Set(acc.map((x) => String(x.post_id)));
+    }
+
+    const out = mapped.map((p) => ({ ...p, hasAcceptedAnswer: acceptedSet.has(String(p.id)) }));
+    const nextBefore = rows.length > 0 ? rows[rows.length - 1].created_at : null;
+    return { posts: out, nextBefore };
+  } catch (e) {
+    logger.warn('fetchQuestionPostsPageSupabase 실패:', e?.message);
+    return { posts: [], nextBefore: null };
+  }
+};
+
 
