@@ -131,6 +131,13 @@ export default function AskSituationDetailScreen() {
     return authorId && String(authorId) === String(user.id);
   }, [post, user]);
 
+  const canEditQuestion = useMemo(() => {
+    if (!user || !post) return false;
+    if (!isQuestionPost(post)) return false;
+    const authorId = String(post.userId || post.user?.id || post.user_id || '').trim();
+    return authorId && String(authorId) === String(user.id);
+  }, [post, user]);
+
   const loadAccepted = useCallback(async (pid) => {
     try {
       if (!pid || !isUuid(pid)) return;
@@ -339,14 +346,29 @@ export default function AskSituationDetailScreen() {
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark min-h-[100dvh]">
       <div className="screen-content">
-      <header className="flex items-center gap-3 border-b border-gray-100 px-4 py-3 pt-12 bg-white">
+      <header className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 pt-12 bg-white">
+        <div className="flex items-center gap-3">
         <button type="button" onClick={() => navigate(-1)} className="rounded-full p-2 hover:bg-gray-50" aria-label="뒤로">
           <ArrowLeft className="h-5 w-5 text-gray-800" />
         </button>
         <h1 className="text-base font-bold text-gray-900">현장 상황 질문</h1>
+        </div>
+        {canEditQuestion ? (
+          <button
+            type="button"
+            onClick={() => navigate(`/ask-situation/${encodeURIComponent(String(post.id))}/edit`, { state: { post } })}
+            className="text-[13px] font-extrabold text-gray-700"
+            style={{ minHeight: 36 }}
+          >
+            수정
+          </button>
+        ) : (
+          <div style={{ width: 44 }} />
+        )}
       </header>
 
-      <div className="flex-1 px-4 py-4 pb-28">
+      {/* 하단 고정 답변바 + 네비가 가리는 영역을 방지하기 위해 충분한 패딩 확보 */}
+      <div className="flex-1 px-4 py-4" style={{ paddingBottom: 240 }}>
         {/* 위치 */}
         <div className="mb-3">
           <div className="text-[12px] font-extrabold text-gray-700">위치</div>
@@ -413,9 +435,28 @@ export default function AskSituationDetailScreen() {
                     </div>
 
                     {imgs.length > 0 ? (
-                      <div className="mt-2 flex gap-2 overflow-x-auto hide-scrollbar" style={{ width: '100%' }}>
+                      <div
+                        className="mt-2 flex gap-2 overflow-x-auto hide-scrollbar"
+                        style={{
+                          width: '100%',
+                          scrollSnapType: 'x mandatory',
+                          WebkitOverflowScrolling: 'touch',
+                        }}
+                      >
                         {imgs.slice(0, 6).map((src, i) => (
-                          <div key={`${c.id}-img-${i}`} className="overflow-hidden rounded-xl bg-gray-100" style={{ width: 180, height: 140, flex: '0 0 auto' }}>
+                          <div
+                            key={`${c.id}-img-${i}`}
+                            style={{
+                              width: imgs.length === 1 ? '100%' : '78%',
+                              maxWidth: '100%',
+                              height: 180,
+                              flex: '0 0 auto',
+                              overflow: 'hidden',
+                              borderRadius: 12, // 살짝 라운드
+                              background: '#f1f5f9',
+                              scrollSnapAlign: 'start',
+                            }}
+                          >
                             <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
                           </div>
                         ))}
@@ -460,13 +501,19 @@ export default function AskSituationDetailScreen() {
           boxShadow: '0 -10px 24px rgba(15,23,42,0.06)',
         }}
       >
-        <div className="flex items-center gap-2">
+        <div
+          className="flex items-center gap-2"
+          style={{
+            flexWrap: 'nowrap',
+          }}
+        >
           <input
             value={answerText}
             onChange={(e) => setAnswerText(e.target.value)}
             placeholder="사진과 함께 답변하면 채택 확률이 높아져요!"
             disabled={hasAnsweredByMe}
             className="flex-1 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[12px] font-semibold text-gray-900 placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+            style={{ minWidth: 0 }}
           />
           <input ref={fileRef} type="file" accept="image/*" multiple onChange={onPickFile} style={{ display: 'none' }} />
           <button
@@ -474,7 +521,8 @@ export default function AskSituationDetailScreen() {
             onClick={() => fileRef.current?.click()}
             disabled={answerUploading}
             aria-label="사진 첨부"
-            className="rounded-2xl border border-gray-200 bg-white px-3 py-3 disabled:opacity-40"
+            className="rounded-2xl border border-gray-200 bg-white px-2.5 py-2.5 disabled:opacity-40"
+            style={{ flexShrink: 0, minHeight: 40 }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#0ea5e9', fontVariationSettings: "'wght' 300" }}>
               photo_camera
@@ -484,8 +532,9 @@ export default function AskSituationDetailScreen() {
             type="button"
             onClick={submitAnswer}
             disabled={answerUploading || hasAnsweredByMe}
-            className="rounded-2xl px-4 py-3 text-[12px] font-extrabold text-white disabled:opacity-40"
+            className="rounded-2xl px-3.5 py-2.5 text-[12px] font-extrabold text-white disabled:opacity-40"
             style={{ background: '#26C6DA' }}
+            style={{ background: '#26C6DA', flexShrink: 0, minHeight: 40 }}
           >
             등록
           </button>
