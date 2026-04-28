@@ -49,7 +49,6 @@ const t = {
   refresh: '\uc0c8\ub85c\uace0\uce68',
   situationCta: '\uc9c0\uae08 \uc0c1\ud669 \uc54c\uc544\ubcf4\uae30',
   chipBloom: '\uac1c\ud654\uc815\ubcf4',
-  chipFood: '\ub9db\uc9d1\uc815\ubcf4',
   chipPlaces: '\uac00\ubcfc\ub9cc\ud55c\uacf3',
   myLocation: '\ub0b4 \uc704\uce58',
   sheetToggle: '\ubc14\ud2f7\uc2dc\ud2b8 \ud655\uc7a5/\ucd95\uc18c',
@@ -61,7 +60,7 @@ const t = {
   emptyLoading: '\uac8c\uc2dc\ubb3c\uc744 \ubd88\ub7ec\uc624\ub294 \uc911...',
   emptyNone: '\ud45c\uc2dc\ud560 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4',
   emptyHint:
-    '\ud544\ud130\ub97c \ubc14\uafb8\uac70\ub098 \uc9c0\ub3c4\ub97c \uc62e\uaca8 \ubcf4\uc138\uc694. \uac1c\ud654/\ub9db\uc9d1/\uba85\uc18c\ub294 \uae0d\uc81c/\ub0b4\uc6a9\uc5d0 \uad00\ub828 \ud0a4\uc6cc\ub4dc\uac00 \uc788\uc73c\uba74 \uac80\uc0c9\ub429\ub2c8\ub2e4.',
+    '\ud544\ud130\ub97c \ubc14\uafb8\uac70\ub098 \uc9c0\ub3c4\ub97c \uc62e\uaca8 \ubcf4\uc138\uc694. \uac1c\ud654/\uba85\uc18c\ub294 \uae0d\uc81c/\ub0b4\uc6a9\uc5d0 \uad00\ub828 \ud0a4\uc6cc\ub4dc\uac00 \uc788\uc73c\uba74 \uac80\uc0c9\ub429\ub2c8\ub2e4.',
 };
 
 const readGeoCache = () => {
@@ -213,9 +212,6 @@ function postTextBlob(post) {
     .toLowerCase();
 }
 
-/**
- * @param {'bloom'|'food'|'places'} chip
- */
 function matchesMapFilter(post, selectedFilters) {
   if (!Array.isArray(selectedFilters) || selectedFilters.length === 0) return true;
   const blob = postTextBlob(post);
@@ -230,20 +226,6 @@ function matchesMapFilter(post, selectedFilters) {
       'cherry',
       'sakura',
       '\uaf43\ub180\uc774',
-    ].some((k) => blob.includes(k.toLowerCase()));
-  const matchFood = () =>
-    [
-      '\ub9db\uc9d1',
-      '\uc74c\uc2dd',
-      '\uc2dd\ub2f9',
-      '\uce74\ud398',
-      '\ub808\uc2a4\ud1a0\ub791',
-      'food',
-      '\uba39',
-      '\ub514\uc800\ud2b8',
-      '\ube0c\ub7f0\uce58',
-      'cafe',
-      'restaurant',
     ].some((k) => blob.includes(k.toLowerCase()));
   const matchPlaces = () =>
     [
@@ -265,7 +247,6 @@ function matchesMapFilter(post, selectedFilters) {
 
   return selectedFilters.some((f) => {
     if (f === 'bloom') return matchBloom();
-    if (f === 'food') return matchFood();
     if (f === 'places') return matchPlaces();
     return true;
   });
@@ -290,7 +271,6 @@ const chipStyle = (active) => ({
 
 const iconColorForFilter = (key, active) => {
   if (key === 'bloom') return '#ec4899'; // pink
-  if (key === 'food') return '#f97316'; // orange
   if (key === 'places') return '#6366f1'; // indigo
   return '#64748b';
 };
@@ -1121,15 +1101,6 @@ const MapScreen = () => {
           >
             {msIcon('local_florist', { color: iconColorForFilter('bloom', selectedFilters.includes('bloom')) })}
             <span>{t.chipBloom}</span>
-          </button>
-          <button
-            type="button"
-            className={chipClass(selectedFilters.includes('food'))}
-            style={chipStyle(selectedFilters.includes('food'))}
-            onClick={() => toggleFilter('food')}
-          >
-            {msIcon('restaurant', { color: iconColorForFilter('food', selectedFilters.includes('food')) })}
-            <span>{t.chipFood}</span>
           </button>
           <button
             type="button"
