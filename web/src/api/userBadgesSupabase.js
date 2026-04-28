@@ -40,12 +40,23 @@ export const saveUserBadgeSupabase = async (userId, badge) => {
   const code = String(badge?.name || '').trim();
   if (!isValidUuid(uid) || !code) return { success: false };
   try {
+    const raffle_ticket_value = (() => {
+      // dyn:*:*:tierN 패턴은 트랙 공통(장르별 활동 등급)으로 1/5/10 부여
+      const m = code.match(/:tier(\d+)$/);
+      const tier = m ? Number(m[1]) : 0;
+      if (tier === 1) return 1;
+      if (tier === 2) return 5;
+      if (tier === 3) return 10;
+      return 0;
+    })();
+
     // 1) badges에 code가 없으면 생성 (badges 테이블이 비어있어도 자동 채움)
     const badgeRow = {
       code,
       name: String(badge?.title || badge?.label || badge?.name || code),
       description: badge?.description ? String(badge.description) : null,
       icon: badge?.icon ? String(badge.icon) : null,
+      raffle_ticket_value,
     };
 
     const { data: badgeData, error: badgeErr } = await supabase

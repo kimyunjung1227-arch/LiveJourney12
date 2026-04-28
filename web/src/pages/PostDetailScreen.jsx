@@ -31,6 +31,7 @@ import {
   recordTripCheerReaction,
   recordTripPathfinderAnswerOnPost,
   recordTripSafetySupportComment,
+  recordTripAcceptedPathfinder,
 } from '../utils/tripSupportActivity';
 import {
   addCommentSupabase,
@@ -38,6 +39,7 @@ import {
   fetchCommentsForPostSupabase,
   updateCommentSupabase,
 } from '../api/socialSupabase';
+import { supabase } from '../utils/supabaseClient';
 import 'swiper/css';
 
 // 서버 운영 전환: 로컬 저장소 없이 세션 내 신고만 기록
@@ -77,6 +79,8 @@ const PostDetailScreen = () => {
   const [isFollowAuthor, setIsFollowAuthor] = useState(false);
   const [accuracyMarked, setAccuracyMarked] = useState(false);
   const [accuracyCount, setAccuracyCount] = useState(0);
+  const [acceptedCommentId, setAcceptedCommentId] = useState(null);
+  const [acceptBusyId, setAcceptBusyId] = useState(null);
   const [authorLiveSync, setAuthorLiveSync] = useState(null);
   const [authorTrustGrade, setAuthorTrustGrade] = useState(null);
   const [weatherInfo, setWeatherInfo] = useState({
@@ -540,6 +544,54 @@ const PostDetailScreen = () => {
   }, [post, commentText, user, comments]);
 
   const isSupabasePost = post && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(post.id || '').trim());
+
+  const canAcceptAnswer =
+    !!user &&
+    !!post &&
+    isSupabasePost &&
+    isLiveQuestionPost(post) &&
+    String(post.user_id || post.userId || post.authorId || '') === String(user.id);
+
+  const loadAcceptedAnswer = useCallback(async () => {
+    try {
+      if (!canAcceptAnswer) return;
+      const { data, error } = await supabase.from('help_answer_accepts').select('comment_id').eq('post_id', post.id).maybeSingle();
+      if (error) return;
+      setAcceptedCommentId(data?.comment_id || null);
+    } catch {
+      /* ignore */
+    }
+  }, [canAcceptAnswer, post?.id]);
+
+  useEffect(() => {
+    void loadAcceptedAnswer();
+  }, [loadAcceptedAnswer]);
+
+  const handleAcceptAnswer = useCallback(
+    async (comment) => {
+      if (!canAcceptAnswer || !comment?.id) return;
+      if (acceptedCommentId) return;
+      setAcceptBusyId(comment.id);
+      try {
+        const { data, error } = await supabase.rpc('accept_help_answer', { post: post.id, comment: comment.id });
+        if (error) throw error;
+        if (data?.commentId) setAcceptedCommentId(data.commentId);
+        if (data?.acceptedUserId) {
+          // 여행 응원(랜선 길잡이) 뱃지용: 채택 활동을 세션 누적에 반영
+          recordTripAcceptedPathfinder(data.acceptedUserId);
+        }
+        if (data?.alreadyAccepted) {
+          // 이미 채택된 경우에도 상태 동기화
+          setAcceptedCommentId(data?.commentId || acceptedCommentId || comment.id);
+        }
+      } catch (e) {
+        alert('채택 처리에 실패했어요. 잠시 후 다시 시도해 주세요.');
+      } finally {
+        setAcceptBusyId(null);
+      }
+    },
+    [canAcceptAnswer, post?.id, acceptedCommentId],
+  );
   const isPostAuthor = post && user && String(post.userId || post.user?.id || post.user) === String(user.id);
 
   const handleDeleteComment = useCallback(async (commentId) => {
@@ -1740,6 +1792,35 @@ const PostDetailScreen = () => {
                               </div>
                             )}
                           </div>
+                          {!isEditing && canAcceptAnswer && (
+                            <div className="mt-2 flex items-center gap-2">
+                              {acceptedCommentId === comment.id ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-primary-10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+                                  <span className="material-symbols-outlined text-[16px]" aria-hidden style={{ fontVariationSettings: "'wght' 300" }}>
+                                    verified
+                                  </span>
+                                  채택된 답변
+                                </span>
+                              ) : acceptedCommentId ? null : (
+                                <button
+                                  type="button"
+                                  disabled={acceptBusyId === comment.id}
+                                  onClick={() => void handleAcceptAnswer(comment)}
+                                  className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-white px-2.5 py-1 text-[11px] font-semibold text-primary shadow-sm hover:bg-primary-10 disabled:opacity-50"
+                                >
+                                  <span className="material-symbols-outlined text-[16px]" aria-hidden style={{ fontVariationSettings: "'wght' 300" }}>
+                                    done
+                                  </span>
+                                  {acceptBusyId === comment.id ? '채택 중…' : '답변 채택'}
+                                </button>
+                              )}
+                              {acceptedCommentId && acceptedCommentId !== comment.id ? null : (
+                                <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                                  채택 시 답변자에게 응모권 1표가 지급돼요
+                                </span>
+                              )}
+                            </div>
+                          )}
                           {!isEditing && (
                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                               {getTimeAgo(comment.timestamp ?? comment.createdAt ?? null)}

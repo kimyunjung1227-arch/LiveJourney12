@@ -314,6 +314,16 @@ using (exists (select 1 from public.raffles r where r.id = raffle_id and r.kind 
 alter table public.badges
   add column if not exists raffle_ticket_value integer not null default 0;
 
+-- 기존 dyn:* 뱃지는 tier 기반으로 1/5/10 자동 부여(장르별 활동 등급용)
+update public.badges
+set raffle_ticket_value = case
+  when code like 'dyn:%:tier1' then 1
+  when code like 'dyn:%:tier2' then 5
+  when code like 'dyn:%:tier3' then 10
+  else raffle_ticket_value
+end
+where raffle_ticket_value = 0;
+
 create table if not exists public.raffle_user_state (
   user_id uuid primary key references auth.users(id) on delete cascade,
   badge_cooldown_raffles_remaining integer not null default 0,
@@ -377,7 +387,8 @@ create table if not exists public.help_answer_accepts (
   accepted_by uuid not null references auth.users(id) on delete cascade,
   accepted_user_id uuid not null references auth.users(id) on delete cascade,
   created_at timestamptz not null default now(),
-  primary key (post_id, comment_id)
+  primary key (post_id, comment_id),
+  constraint help_answer_accepts_one_per_post unique (post_id)
 );
 
 alter table public.help_answer_accepts enable row level security;
@@ -565,9 +576,9 @@ declare
   post_owner uuid;
   post_category text;
   answer_user uuid;
-  inserted boolean := false;
   cooldown int := 0;
   recharge int := 0;
+  existing_comment uuid;
 begin
   if uid is null then
     raise exception 'auth required';
@@ -587,6 +598,15 @@ begin
     raise exception 'not a question post';
   end if;
 
+  -- 이미 채택된 답변이 있으면 즉시 반환
+  select h.comment_id into existing_comment
+  from public.help_answer_accepts h
+  where h.post_id = post;
+
+  if existing_comment is not null then
+    return jsonb_build_object('success', true, 'alreadyAccepted', true, 'commentId', existing_comment);
+  end if;
+
   select c.user_id into answer_user
   from public.comments c
   where c.id = comment and c.post_id = post;
@@ -595,17 +615,8 @@ begin
     raise exception 'comment not found';
   end if;
 
-  begin
-    insert into public.help_answer_accepts(post_id, comment_id, accepted_by, accepted_user_id)
-    values (post, comment, uid, answer_user);
-    inserted := true;
-  exception when unique_violation then
-    inserted := false;
-  end;
-
-  if not inserted then
-    return jsonb_build_object('success', true, 'alreadyAccepted', true);
-  end if;
+  insert into public.help_answer_accepts(post_id, comment_id, accepted_by, accepted_user_id)
+  values (post, comment, uid, answer_user);
 
   insert into public.raffle_user_state(user_id)
   values (answer_user)
@@ -641,6 +652,7 @@ begin
   return jsonb_build_object(
     'success', true,
     'acceptedUserId', answer_user,
+    'commentId', comment,
     'activityTicketGranted', 1,
     'cooldownRafflesRemaining', cooldown,
     'rechargeHelpAcceptedCount', case when cooldown > 0 then least(recharge, 5) else 0 end
