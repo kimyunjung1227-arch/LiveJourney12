@@ -125,6 +125,61 @@ export default function AskSituationDetailScreen() {
     return { lat, lng };
   }, [post]);
 
+  // 답변 사진 스트립: 데스크톱에서도 마우스 드래그로 좌우 슬라이드(수평 스크롤) 가능하게
+  const dragStateRef = useRef(null);
+  const onAnswerImageStripMouseDown = useCallback((e) => {
+    if (!e?.currentTarget) return;
+    if (e.button != null && e.button !== 0) return; // 좌클릭만
+    const el = e.currentTarget;
+    dragStateRef.current = {
+      el,
+      startX: e.clientX,
+      startScrollLeft: el.scrollLeft,
+      moved: false,
+    };
+    try {
+      el.style.cursor = 'grabbing';
+      el.style.userSelect = 'none';
+    } catch {
+      /* ignore */
+    }
+
+    const onMove = (ev) => {
+      const st = dragStateRef.current;
+      if (!st || st.el !== el) return;
+      const dx = ev.clientX - st.startX;
+      if (Math.abs(dx) > 3) st.moved = true;
+      st.el.scrollLeft = st.startScrollLeft - dx;
+      ev.preventDefault?.();
+    };
+    const onUp = () => {
+      const st = dragStateRef.current;
+      dragStateRef.current = null;
+      try {
+        el.style.cursor = 'grab';
+        el.style.userSelect = '';
+      } catch {
+        /* ignore */
+      }
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      // 드래그로 스크롤한 경우 클릭(이미지 열기 등) 오동작 방지용
+      if (st?.moved) {
+        try {
+          el.dataset.dragged = '1';
+          setTimeout(() => {
+            try { delete el.dataset.dragged; } catch { /* ignore */ }
+          }, 0);
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, []);
+
   const canAccept = useMemo(() => {
     if (!user || !post) return false;
     if (!isQuestionPost(post)) return false;
@@ -495,10 +550,12 @@ export default function AskSituationDetailScreen() {
                     {imgs.length > 0 ? (
                       <div
                         className="mt-2 flex gap-2 overflow-x-auto hide-scrollbar"
+                        onMouseDown={onAnswerImageStripMouseDown}
                         style={{
                           width: '100%',
                           scrollSnapType: 'x mandatory',
                           WebkitOverflowScrolling: 'touch',
+                          cursor: 'grab',
                         }}
                       >
                         {imgs.slice(0, 6).map((src, i) => (
