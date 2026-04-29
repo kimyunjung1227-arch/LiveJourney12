@@ -14,6 +14,7 @@ import {
 import { getTimeAgo } from '../utils/timeUtils';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
+import { getValidWeatherSnapshot } from '../utils/weatherSnapshot';
 import {
   feedGridCardBoxFlat,
   feedGridImageBoxFlat,
@@ -473,7 +474,8 @@ export default function HotplaceLiveFeedScreen() {
                   const cover = getGridCoverDisplay(post, getDisplayImageUrl);
                   const regionKey =
                     (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
-                  const weather = post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
+                  const snap = getValidWeatherSnapshot(post);
+                  const weather = snap || post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
                   const hasWeather = weather && (weather.icon || weather.temperature);
                   const status = getPhotoStatusFromPost(post);
                   const timeLabel =

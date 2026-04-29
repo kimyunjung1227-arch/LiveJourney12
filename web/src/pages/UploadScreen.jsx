@@ -14,6 +14,7 @@ import { getBadgeCongratulationMessage, getBadgeDifficultyEffects } from '../uti
 import { logger } from '../utils/logger';
 import { useExifConsent } from '../contexts/ExifConsentContext';
 import { convertGpsToAddress, extractExifData, isExifCaptureTooOldForUpload } from '../utils/exifExtractor';
+import { getWeatherByRegion } from '../api/weather';
 
 const formatUploadDateLine = (raw) => {
   const d = raw ? new Date(raw) : null;
@@ -683,6 +684,23 @@ const UploadScreen = () => {
 
       const region = formData.location?.split(/\s+/)[0] || '기타';
 
+      // 업로드 "당시" 기온을 posts.weather(jsonb)에 스냅샷으로 저장.
+      // - 이후 48시간 동안은 이 값만 표시(기상청 과거조회 실패/제한 회피)
+      // - 실패해도 업로드는 계속 진행
+      let weatherSnapshot = null;
+      try {
+        const w = await getWeatherByRegion(region, false);
+        if (w?.success && w?.weather) {
+          weatherSnapshot = {
+            ...w.weather,
+            observedAt: new Date().toISOString(),
+            source: 'kma_ultra_ncst',
+          };
+        }
+      } catch (e) {
+        logger.warn('업로드 시점 날씨 스냅샷 실패:', e?.message || e);
+      }
+
       const supResult = await createPostSupabase({
         userId: userIdForDb,
         user:
@@ -708,6 +726,7 @@ const UploadScreen = () => {
         coordinates: formData.coordinates,
         photoDate: effectiveExif?.photoDate || null,
         exifData: effectiveExif || null,
+        weatherSnapshot,
         createdAt: new Date().toISOString(),
         comments: [],
       });

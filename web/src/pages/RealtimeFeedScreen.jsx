@@ -15,6 +15,7 @@ import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { useAuth } from '../contexts/AuthContext';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
+import { getValidWeatherSnapshot } from '../utils/weatherSnapshot';
 import {
   feedGridCardBoxFlat,
   feedGridImageBoxFlat,
@@ -216,7 +217,8 @@ const RealtimeFeedScreen = () => {
           >
             {displayedPosts.map((post, index) => {
               const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
-              const weather = post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
+              const snap = getValidWeatherSnapshot(post);
+              const weather = snap || post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
               const hasWeather = weather && (weather.icon || weather.temperature);
               const status = getPhotoStatusFromPost(post);
               return (

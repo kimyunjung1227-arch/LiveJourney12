@@ -13,6 +13,7 @@ import {
 } from '../api/postsSupabase';
 import { useAuth } from '../contexts/AuthContext';
 import { getWeatherByRegion } from '../api/weather';
+import { getValidWeatherSnapshot } from '../utils/weatherSnapshot';
 import { getTimeAgo } from '../utils/dateUtils';
 import { addComment, deleteCommentFromPost, updateCommentInPost, getPostAccuracyCount, hasUserMarkedAccurate, toggleAccuracyFeedback } from '../utils/socialInteractions';
 import { getBadgeDisplayName, getEarnedBadgesForUser } from '../utils/badgeSystem';
@@ -1081,13 +1082,13 @@ const PostDetailScreen = () => {
     return () => document.removeEventListener('mousedown', onDoc);
   }, [showAuthorPostMenu, showShareMenu]);
 
-  // 날씨 정보: 항상 업로드 시점(사용자가 올린 시간) 기준으로 표시. 시간이 지나도 업로드 당시 날씨 유지
+  // 날씨 정보: 업로드 시점 스냅샷을 최대 48시간까지 유지(그 이후엔 현재 날씨로 fallback)
   useEffect(() => {
     if (!post) return;
 
-    const frozen = post.weatherSnapshot || post.weather;
+    const frozen = getValidWeatherSnapshot(post);
     if (frozen) {
-      // 저장된 업로드 시점 날씨 스냅샷 (시간이 지나도 변경하지 않음)
+      // 저장된 업로드 시점 날씨 스냅샷 (48시간 TTL)
       setWeatherInfo({
         icon: frozen.icon,
         condition: frozen.condition,
@@ -1499,8 +1500,8 @@ const PostDetailScreen = () => {
                         {weatherInfo.temperature
                           ? `${weatherInfo.condition}, ${weatherInfo.temperature}`
                           : weatherInfo.condition}
-                        {(post?.weatherSnapshot || post?.weather) ? (
-                          <span className="ml-1 text-xs font-normal text-gray-400">(업로드 시점 기록, 고정)</span>
+                        {getValidWeatherSnapshot(post) ? (
+                          <span className="ml-1 text-xs font-normal text-gray-400">(업로드 시점 기록, 48시간 유지)</span>
                         ) : null}
                       </span>
                     </>

@@ -25,6 +25,7 @@ import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import { toggleLikeForPost } from '../utils/postLikeActions';
 import { fetchRafflesForUi } from '../api/rafflesSupabase';
 import { generatePlaceAiBlurb } from '../utils/placeAiBlurb';
+import { getValidWeatherSnapshot } from '../utils/weatherSnapshot';
 const MainScreen = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -634,7 +635,9 @@ const MainScreen = () => {
         Promise.all(
             targets.map(async ({ region, at, key }) => {
                 try {
-                    const res = await getWeatherByRegion(region, false, { at: at || undefined });
+                    // 레거시 fallback: 게시물에 스냅샷(weather)이 없을 때만 "현재 날씨"를 채워준다.
+                    // 과거 시각(at) 조회는 기상청/프록시 제한(최근 1일 등) 때문에 실패할 수 있어 사용하지 않는다.
+                    const res = await getWeatherByRegion(region, false);
                     if (!cancelled && res?.success && res.weather) return { key, weather: res.weather };
                 } catch (_) {}
                 return null;
@@ -890,7 +893,16 @@ const MainScreen = () => {
                                 : getDisplayImageUrl(Array.isArray(post.images) && post.images.length > 0 ? post.images[0] : (post.image || post.thumbnail || ''));
                             const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
                             const fixedAt = post.photoDate || post.captured_at || post.capturedAt || post.createdAt || post.timestamp || post.time || null;
-                            const weather = post.weatherSnapshot || post.weather || (weatherByRegion ? weatherByRegion[`${regionKey}::${fixedAt ? new Date(fixedAt).getTime() : ''}`] : null) || weatherByRegion[regionKey] || null;
+                            const snap = getValidWeatherSnapshot(post);
+                            const weather =
+                                snap ||
+                                post.weatherSnapshot ||
+                                post.weather ||
+                                (weatherByRegion
+                                    ? weatherByRegion[`${regionKey}::${fixedAt ? new Date(fixedAt).getTime() : ''}`]
+                                    : null) ||
+                                weatherByRegion[regionKey] ||
+                                null;
                             const hasWeather = weather && (weather.icon || weather.temperature);
                             const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
                             const commentCount = Math.max(

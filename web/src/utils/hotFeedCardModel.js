@@ -9,6 +9,7 @@ import {
     getPostLocationText,
 } from './hotPlaceDisplay';
 import { getTimeAgo } from './timeUtils';
+import { getValidWeatherSnapshot } from './weatherSnapshot';
 
 /**
  * 메인·실시간 핫플 더보기 공통 — 카드에 필요한 props 계산
@@ -21,7 +22,8 @@ export function buildHotFeedCardProps(post, weatherByRegion = {}) {
         String(post.region || locText || '')
             .trim()
             .split(/\s+/)[0] || post.region || locText;
-    const weather = post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
+    const snap = getValidWeatherSnapshot(post);
+    const weather = snap || post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
     const hasWeather = weather && (weather.icon || weather.temperature);
     const likeCount = Number(post.likes ?? post.likeCount ?? 0) || 0;
     const commentCount = Math.max(
