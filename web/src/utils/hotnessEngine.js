@@ -165,12 +165,30 @@ export const computeHotness = (post, allPosts, conversionMap, maxConversion) => 
   const time = getTimeFreshness(post);
   const density = getDensityScore(post, allPosts);
   const conversion = getConversionScore(post.id, conversionMap || {}, maxConversion || 1);
-  const hotness = time * density + conversion;
+  const isOldCapture = (() => {
+    try {
+      if (post?.exifData && typeof post.exifData === 'object' && post.exifData.oldCapture === true) return true;
+      const capturedRaw = post?.exifData?.photoDate || post?.photoDate || null;
+      const createdRaw = post?.timestamp || post?.createdAt || null;
+      if (!capturedRaw || !createdRaw) return false;
+      const cap = new Date(capturedRaw).getTime();
+      const up = new Date(createdRaw).getTime();
+      if (!Number.isFinite(cap) || !Number.isFinite(up)) return false;
+      const gap = up - cap;
+      return Number.isFinite(gap) && gap > 48 * 60 * 60 * 1000;
+    } catch {
+      return false;
+    }
+  })();
+  // 오래된 촬영본 업로드는 "현장성"이 낮으므로 핫플 노출에서 강하게 감점
+  const oldPenalty = isOldCapture ? 0.18 : 1;
+  const hotness = (time * density + conversion) * oldPenalty;
   return {
     hotness,
     time,
     density,
     conversion,
+    oldPenalty,
   };
 };
 

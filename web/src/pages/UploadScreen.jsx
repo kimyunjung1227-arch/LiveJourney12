@@ -81,7 +81,24 @@ const UploadScreen = () => {
     const f = sourceFile;
     const exifFileKey = f ? `${f.name}:${f.size}:${f.lastModified}` : '';
 
-    setUploadExifBadge(computeUploadExifBadge(exifFirst?.photoDate || null));
+    // 48시간 초과 촬영본은 "실시간 인증" 배지 대상이 아님 + 사용자 선택권 제공
+    if (exifFirst?.photoDate && !exifFirst?.oldCapture) {
+      try {
+        const ageMs = Date.now() - new Date(exifFirst.photoDate).getTime();
+        const isOld = Number.isFinite(ageMs) && ageMs > 48 * 60 * 60 * 1000;
+        if (isOld) {
+          const ok = window.confirm("이 사진은 시간이 조금 지났네요! '실시간 인증' 배지를 받을 수 없지만 업로드할까요?");
+          if (!ok) return;
+          exifFirst.oldCapture = true;
+          const ageHours = Math.max(0, ageMs / (60 * 60 * 1000));
+          exifFirst.oldCaptureAgeHours = Math.round(ageHours * 10) / 10;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    setUploadExifBadge(exifFirst?.oldCapture ? null : computeUploadExifBadge(exifFirst?.photoDate || null));
 
     setFormData((prev) => ({
       ...prev,
@@ -330,21 +347,31 @@ const UploadScreen = () => {
       }
     });
 
-    // EXIF: 첫 사진 업로드 시 메타데이터(촬영 시각/위치) 즉시 반영 + 48시간 초과 차단
+    // EXIF: 첫 사진 업로드 시 메타데이터(촬영 시각/위치) 즉시 반영
     let exifFirst = null;
     let exifFileKey = '';
     if (imageFiles.length > 0 && exifAllowed) {
       setExifExtracting(true);
       try {
-        // 첫 유효 이미지 찾기 (48h 초과면 제외)
+        // 첫 유효 이미지 찾기 (48h 초과면 경고 후 선택권 제공)
         for (let i = 0; i < imageFiles.length; i += 1) {
           const f = imageFiles[i];
           const ex = await extractExifData(f, { allowed: true });
           if (ex?.photoDate && isExifCaptureTooOldForUpload(ex.photoDate, { isInAppCamera: false, hasOnlyVideo: false })) {
-            alert('촬영 후 48시간이 지난 사진은 업로드할 수 없습니다.');
-            imageFiles.splice(i, 1);
-            i -= 1;
-            continue;
+            const ok = window.confirm("이 사진은 시간이 조금 지났네요! '실시간 인증' 배지를 받을 수 없지만 업로드할까요?");
+            if (!ok) {
+              imageFiles.splice(i, 1);
+              i -= 1;
+              continue;
+            }
+            try {
+              const ageMs = Date.now() - new Date(ex.photoDate).getTime();
+              const ageHours = Number.isFinite(ageMs) ? Math.max(0, ageMs / (60 * 60 * 1000)) : null;
+              ex.oldCapture = true;
+              if (ageHours != null) ex.oldCaptureAgeHours = Math.round(ageHours * 10) / 10;
+            } catch {
+              ex.oldCapture = true;
+            }
           }
           if (ex) {
             exifFirst = ex;
@@ -376,7 +403,7 @@ const UploadScreen = () => {
         : prev.prefetchedExif,
     }));
 
-    setUploadExifBadge(computeUploadExifBadge(exifFirst?.photoDate || null));
+    setUploadExifBadge(exifFirst?.oldCapture ? null : computeUploadExifBadge(exifFirst?.photoDate || null));
 
     if (isFirstMedia && (imageFiles.length > 0 || videoFiles.length > 0)) {
       // ✅ 사진 EXIF GPS가 있으면 "그 위치"를 최우선으로 위치 입력칸에 반영
@@ -637,17 +664,7 @@ const UploadScreen = () => {
       return;
     }
 
-    // 촬영시간(EXIF) 기준 48시간 초과면 업로드 차단
-    if (
-      formData?.exifData?.photoDate &&
-      isExifCaptureTooOldForUpload(formData.exifData.photoDate, {
-        isInAppCamera: false,
-        hasOnlyVideo: formData.imageFiles.length === 0,
-      })
-    ) {
-      alert('촬영 후 48시간이 지난 사진은 업로드할 수 없습니다.');
-      return;
-    }
+    // 촬영시간(EXIF) 48시간 초과 업로드는 "선택권"으로 허용 (배지/노출/점수에서 불리)
 
     logger.log('Validation passed - proceeding with upload');
 
@@ -744,18 +761,7 @@ const UploadScreen = () => {
       );
       const effectiveExif = hasMeaningfulPrefetchedExif ? formData.exifData : exifRecoveredFromUpload || formData.exifData;
 
-      if (
-        effectiveExif?.photoDate &&
-        isExifCaptureTooOldForUpload(effectiveExif.photoDate, {
-          isInAppCamera: false,
-          hasOnlyVideo: formData.imageFiles.length === 0,
-        })
-      ) {
-        alert('촬영 후 48시간이 지난 사진은 업로드할 수 없습니다.');
-        setUploading(false);
-        setUploadProgress(0);
-        return;
-      }
+      // effectiveExif가 오래된 촬영본이어도 업로드는 허용
 
       const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
       const currentUser = user || savedUser;
