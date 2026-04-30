@@ -21,7 +21,7 @@ export default function ExifConsentModal({ onGrant, onDecline }) {
           품질 향상에만 사용합니다. 동의하지 않으면 해당 정보는 읽지 않으며, 사진 업로드는 그대로 가능합니다.
         </p>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          선택 내용은 이 기기 브라우저에 저장되며, 로그인 상태인 경우 계정에도 동기화될 수 있어요.
+          선택 내용은 로그인 계정(profiles)에 저장됩니다.
         </p>
         <div className="flex flex-col sm:flex-row gap-2 pt-2">
           <button

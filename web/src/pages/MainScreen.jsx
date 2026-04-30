@@ -20,6 +20,8 @@ import HotFeedCard from '../components/HotFeedCard';
 import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCardModel';
 import { buildPlaceStatsMap, selectPostsForPlaceStats, transformPostForHotFeed } from '../utils/hotFeedPostTransform';
 import { useAuth } from '../contexts/AuthContext';
+import { useExifConsent } from '../contexts/ExifConsentContext';
+import ExifConsentSheet from '../components/ExifConsentSheet';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import { toggleLikeForPost } from '../utils/postLikeActions';
@@ -30,7 +32,8 @@ import { useLoginGate } from '../hooks/useLoginGate';
 const MainScreen = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { user } = useAuth();
+    const { user, authLoading } = useAuth();
+    const { consentResolved, consentLoading, grantExifConsent, declineExifConsent } = useExifConsent();
     const requireLogin = useLoginGate();
     const [selectedTag, setSelectedTag] = useState(null);
     const [popularTags, setPopularTags] = useState([]);
@@ -917,7 +920,16 @@ const MainScreen = () => {
                             return (
                                 <div
                                     key={post.id}
-                                    onClick={withDragCheck(() => navigate(`/post/${post.id}`, { state: { post, allPosts: realtimeData } }))}
+                                    onClick={withDragCheck(() => {
+                                        const idx = realtimeData.findIndex((p) => String(p?.id) === String(post?.id));
+                                        navigate(`/post/${post.id}`, {
+                                            state: {
+                                                post,
+                                                allPosts: realtimeData,
+                                                currentPostIndex: idx >= 0 ? idx : 0,
+                                            },
+                                        });
+                                    })}
                                     style={{
                                         minWidth: '52%',
                                         width: '52%',
@@ -1116,7 +1128,16 @@ const MainScreen = () => {
                                             key={`${post.id}-${slideIdx}`}
                                             cardProps={hotFeedCardProps}
                                             socialText={socialText}
-                                            onCardClick={withDragCheck(() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } }))}
+                                            onCardClick={withDragCheck(() => {
+                                                const idx = crowdedData.findIndex((p) => String(p?.id) === String(post?.id));
+                                                navigate(`/post/${post.id}`, {
+                                                    state: {
+                                                        post,
+                                                        allPosts: crowdedData,
+                                                        currentPostIndex: idx >= 0 ? idx : 0,
+                                                    },
+                                                });
+                                            })}
                                             showLike={false}
                                             videoPosterUrl={hotFeedVideoPoster}
                                         />
@@ -1244,6 +1265,9 @@ const MainScreen = () => {
 
             </div>
 
+            {!authLoading && user && !consentLoading && !consentResolved ? (
+                <ExifConsentSheet onGrant={grantExifConsent} onDecline={declineExifConsent} />
+            ) : null}
             <BottomNavigation />
         </div >
     );
