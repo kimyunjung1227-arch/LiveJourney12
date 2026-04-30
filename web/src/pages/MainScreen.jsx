@@ -26,10 +26,12 @@ import { toggleLikeForPost } from '../utils/postLikeActions';
 import { fetchRafflesForUi } from '../api/rafflesSupabase';
 import { generatePlaceAiBlurb } from '../utils/placeAiBlurb';
 import { getValidWeatherSnapshot } from '../utils/weatherSnapshot';
+import { useLoginGate } from '../hooks/useLoginGate';
 const MainScreen = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { user } = useAuth();
+    const requireLogin = useLoginGate();
     const [selectedTag, setSelectedTag] = useState(null);
     const [popularTags, setPopularTags] = useState([]);
 
@@ -450,10 +452,7 @@ const MainScreen = () => {
 
     const handleHotFeedLike = useCallback(async (e, post) => {
         e.stopPropagation();
-        if (!user?.id) {
-            alert('로그인 후 좋아요를 누를 수 있어요.');
-            return;
-        }
+        if (!requireLogin('좋아요')) return;
         const prevLiked = !!post.likedByMe;
         const prevCount = Math.max(0, Number(post.likes ?? post.likeCount ?? 0) || 0);
         const optimisticLiked = !prevLiked;
@@ -492,7 +491,7 @@ const MainScreen = () => {
         if (res?.reason && res.reason !== 'non_uuid') {
             alert(res.reason === 'no_session' ? '로그인 세션이 없어요. 다시 로그인 후 시도해 주세요.' : '좋아요 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
         }
-    }, [user?.id]);
+    }, [user?.id, requireLogin]);
 
     useEffect(() => {
         fetchPosts();

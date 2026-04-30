@@ -8,6 +8,7 @@ import { fetchCommentsForPostSupabase } from '../api/socialSupabase';
 import { supabase } from '../utils/supabaseClient';
 import { uploadImage, getDisplayImageUrl } from '../api/upload';
 import { logger } from '../utils/logger';
+import { useLoginGate } from '../hooks/useLoginGate';
 
 const isUuid = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
 
@@ -90,6 +91,7 @@ export default function AskSituationDetailScreen() {
   const { id } = useParams();
   const location = useLocation();
   const { user } = useAuth();
+  const requireLogin = useLoginGate();
   const passed = location.state?.post || null;
 
   const [post, setPost] = useState(passed);
@@ -278,10 +280,7 @@ export default function AskSituationDetailScreen() {
   const onPickFile = useCallback(async (e) => {
     const files = Array.from(e?.target?.files || []).filter(Boolean);
     if (files.length === 0) return;
-    if (!user?.id) {
-      alert('로그인 후 답변할 수 있어요.');
-      return;
-    }
+    if (!requireLogin('답변 등록')) return;
 
     let baseLen = 0;
     let slice = [];
@@ -352,14 +351,11 @@ export default function AskSituationDetailScreen() {
         /* ignore */
       }
     }
-  }, [user?.id]);
+  }, [user?.id, requireLogin]);
 
   const submitAnswer = useCallback(async () => {
     if (!post?.id || !isUuid(String(post.id))) return;
-    if (!user?.id) {
-      alert('로그인 후 답변할 수 있어요.');
-      return;
-    }
+    if (!requireLogin('답변 등록')) return;
     if (hasAnsweredByMe) {
       alert('이 질문에는 이미 답변을 등록했어요. (답변은 1회만 가능해요)');
       return;
@@ -411,7 +407,7 @@ export default function AskSituationDetailScreen() {
       alert('답변 등록에 실패했어요.');
       logger.warn('submitAnswer 실패:', e?.message);
     }
-  }, [answerImageUrls, answerText, hasAnsweredByMe, post?.id, user]);
+  }, [answerImageUrls, answerText, hasAnsweredByMe, post?.id, user, requireLogin]);
 
   const acceptAnswer = useCallback(async (comment) => {
     if (!canAccept || !post?.id || !comment?.id) return;

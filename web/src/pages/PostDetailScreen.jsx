@@ -28,6 +28,7 @@ import { buildMediaItemsFromPost } from '../utils/postMedia';
 import { tagTranslations } from '../utils/tagTranslations';
 import { getCategoryChipsFromPost, isTripSafetyPost, isLiveQuestionPost } from '../utils/travelCategories';
 import { toggleLikeForPost } from '../utils/postLikeActions';
+import { useLoginGate } from '../hooks/useLoginGate';
 import {
   recordTripCheerReaction,
   recordTripPathfinderAnswerOnPost,
@@ -51,6 +52,7 @@ const PostDetailScreen = () => {
   const location = useLocation();
   const { id: postId } = useParams();
   const { user } = useAuth();
+  const requireLogin = useLoginGate();
   const {
     post: passedPost,
     fromMap,
@@ -404,10 +406,7 @@ const PostDetailScreen = () => {
   // 좋아요 처리: React state로 optimistic, 서버(Supabase)가 단일 진실.
   const handleLike = useCallback(async () => {
     if (!post?.id) return;
-    if (!user?.id) {
-      alert('로그인 후 좋아요를 누를 수 있어요.');
-      return;
-    }
+    if (!requireLogin('좋아요')) return;
     if (likeBusyRef.current) return;
     likeBusyRef.current = true;
 
@@ -458,7 +457,7 @@ const PostDetailScreen = () => {
     if (serverRes?.reason && serverRes.reason !== 'non_uuid') {
       alert(serverRes.reason === 'no_session' ? '로그인 세션이 없어요. 다시 로그인 후 시도해 주세요.' : '좋아요 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
     }
-  }, [post, liked, likeCount, user?.id, user?.username, user?.email, user?.profileImage]);
+  }, [post, liked, likeCount, user?.id, user?.username, user?.email, user?.profileImage, requireLogin]);
 
 
   // 이미지 스와이프 (useCallback)

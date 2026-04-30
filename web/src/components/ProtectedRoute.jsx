@@ -22,8 +22,8 @@ const ProtectedRoute = ({ children }) => {
     return children;
   }
 
-  // 로그인이 필요한 페이지 접근 시, 프로필 탭으로 보내서 거기서 로그인 가능하도록
-  return <Navigate to="/profile" replace />;
+  // 로그인 유도: StartScreen(로그인)으로 이동
+  return <Navigate to="/start" replace />;
 };
 
 export default ProtectedRoute;

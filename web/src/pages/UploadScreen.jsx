@@ -15,6 +15,7 @@ import { logger } from '../utils/logger';
 import { useExifConsent } from '../contexts/ExifConsentContext';
 import { convertGpsToAddress, extractExifData, isExifCaptureTooOldForUpload } from '../utils/exifExtractor';
 import { getWeatherByRegion } from '../api/weather';
+import { useLoginGate } from '../hooks/useLoginGate';
 
 const formatUploadDateLine = (raw) => {
   const d = raw ? new Date(raw) : null;
@@ -28,6 +29,7 @@ const UploadScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const requireLogin = useLoginGate();
   const { exifAllowed } = useExifConsent();
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -648,6 +650,8 @@ const UploadScreen = () => {
     logger.log('Upload started!');
     logger.debug('Image count:', formData.images.length);
     logger.debug('Location:', formData.location);
+
+    if (!requireLogin('업로드')) return;
     
     if (formData.images.length === 0 && formData.videos.length === 0) {
       alert('사진 또는 동영상을 추가해주세요');
@@ -882,7 +886,7 @@ const UploadScreen = () => {
       setUploading(false);
       setUploadProgress(0);
     }
-  }, [formData, user, navigate, checkAndAwardBadge]);
+  }, [formData, user, navigate, checkAndAwardBadge, requireLogin]);
 
   const hasMedia = formData.images.length > 0 || formData.videos.length > 0;
   const noteFilled = String(formData.note || '').trim().length > 0;

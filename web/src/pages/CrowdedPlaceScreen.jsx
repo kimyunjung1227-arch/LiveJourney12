@@ -17,6 +17,7 @@ import { getWeatherByRegion } from '../api/weather';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
 import { generatePlaceAiBlurb } from '../utils/placeAiBlurb';
+import { useLoginGate } from '../hooks/useLoginGate';
 
 const PRIMARY_HEX = '#26C6DA';
 
@@ -66,6 +67,7 @@ const formatAgo = (ms) => {
 const CrowdedPlaceScreen = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const requireLogin = useLoginGate();
     const [crowdedData, setCrowdedData] = useState([]);
     const [allHotPosts, setAllHotPosts] = useState([]);
     const [refreshKey, setRefreshKey] = useState(0);
@@ -148,10 +150,7 @@ const CrowdedPlaceScreen = () => {
 
     const handleHotFeedLike = useCallback(async (e, post) => {
         e.stopPropagation();
-        if (!user?.id) {
-            alert('로그인 후 좋아요를 누를 수 있어요.');
-            return;
-        }
+        if (!requireLogin('좋아요')) return;
         const prevLiked = !!post.likedByMe;
         const prevCount = Math.max(0, Number(post.likes ?? post.likeCount ?? 0) || 0);
         const optimisticLiked = !prevLiked;
@@ -190,7 +189,7 @@ const CrowdedPlaceScreen = () => {
         if (serverRes?.reason && serverRes.reason !== 'non_uuid') {
             alert(serverRes.reason === 'no_session' ? '로그인 세션이 없어요. 다시 로그인 후 시도해 주세요.' : '좋아요 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
         }
-    }, [user?.id]);
+    }, [user?.id, requireLogin]);
 
     useEffect(() => {
         const handler = () => setRefreshKey((k) => k + 1);
