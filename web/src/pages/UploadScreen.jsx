@@ -51,11 +51,56 @@ const UploadScreen = () => {
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [loadingAITags, setLoadingAITags] = useState(false);
   const [exifExtracting, setExifExtracting] = useState(false);
+  const [uploadExifBadge, setUploadExifBadge] = useState(null); // 'LIVE' | 'VERIFIED' | null
   const [showBadgeModal, setShowBadgeModal] = useState(false);
   const [earnedBadge, setEarnedBadge] = useState(null);
   /** 미디어를 모두 지우기 전까지 AI 자동 태그는 최초 1회만 */
   const initialAiSuggestDoneRef = useRef(null);
   const noteAreaRef = useRef(null);
+
+  const computeUploadExifBadge = useCallback((photoDateIso) => {
+    if (!photoDateIso) return null;
+    const t = new Date(photoDateIso).getTime();
+    if (!Number.isFinite(t)) return null;
+    const diff = Date.now() - t;
+    if (!Number.isFinite(diff) || diff < 0) return null;
+    // photoStatus.ts와 동일 기준: 3시간 이내 LIVE, 30시간 이내 VERIFIED
+    if (diff <= 3 * 60 * 60 * 1000) return 'LIVE';
+    if (diff <= 30 * 60 * 60 * 1000) return 'VERIFIED';
+    return null;
+  }, []);
+
+  const applyExtractedExifToForm = useCallback(async (exifFirst, sourceFile) => {
+    if (!exifFirst) return;
+    const f = sourceFile;
+    const exifFileKey = f ? `${f.name}:${f.size}:${f.lastModified}` : '';
+
+    setUploadExifBadge(computeUploadExifBadge(exifFirst?.photoDate || null));
+
+    setFormData((prev) => ({
+      ...prev,
+      photoDate: exifFirst?.photoDate || prev.photoDate,
+      exifData: exifFirst ? { ...exifFirst } : prev.exifData,
+      prefetchedExif: exifFirst && exifFileKey
+        ? { fileKey: exifFileKey, exif: { photoDate: exifFirst.photoDate, dateTimeOriginalRaw: exifFirst.dateTimeOriginalRaw } }
+        : prev.prefetchedExif,
+    }));
+
+    // EXIF GPS가 있으면 그 위치를 우선 사용 (처음 1회만)
+    if (exifFirst?.gpsCoordinates?.lat != null && exifFirst?.gpsCoordinates?.lng != null) {
+      const lat = Number(exifFirst.gpsCoordinates.lat);
+      const lng = Number(exifFirst.gpsCoordinates.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        const exifLoc = await convertGpsToAddress(lat, lng);
+        setFormData((prev) => ({
+          ...prev,
+          location: exifLoc || prev.location,
+          coordinates: { lat, lng },
+          verifiedLocation: exifLoc || prev.verifiedLocation || null,
+        }));
+      }
+    }
+  }, [computeUploadExifBadge]);
 
   const growNoteArea = useCallback(() => {
     const el = noteAreaRef.current;
@@ -332,6 +377,8 @@ const UploadScreen = () => {
       })(),
     }));
 
+    setUploadExifBadge(computeUploadExifBadge(exifFirst?.photoDate || null));
+
     if (isFirstMedia && (imageFiles.length > 0 || videoFiles.length > 0)) {
       // EXIF GPS가 있으면 그 위치를 우선 사용하고, 없으면 현재 위치로 폴백
       if (exifFirst?.gpsCoordinates?.lat != null && exifFirst?.gpsCoordinates?.lng != null) {
@@ -364,9 +411,47 @@ const UploadScreen = () => {
     }
   }, [formData.images.length, formData.videos.length, formData.location, formData.note, exifAllowed, getCurrentLocation, analyzeImageAndGenerateTags]);
 
+  // ✅ 동의가 "나중에" 완료된 경우(첫 진입 모달 등): 이미 선택된 첫 사진에 대해 EXIF를 즉시 재추출
+  useEffect(() => {
+    const first = formData.imageFiles?.[0] || null;
+    if (!first) return;
+    if (!exifAllowed) return;
+    if (exifExtracting) return;
+    const hasMeaningful = Boolean(
+      formData?.exifData &&
+        (formData.exifData.photoDate ||
+          (formData.exifData.gpsCoordinates &&
+            Number.isFinite(Number(formData.exifData.gpsCoordinates.lat)) &&
+            Number.isFinite(Number(formData.exifData.gpsCoordinates.lng)))),
+    );
+    if (hasMeaningful) return;
+
+    let cancelled = false;
+    setExifExtracting(true);
+    (async () => {
+      try {
+        const ex = await extractExifData(first, { allowed: true });
+        if (cancelled || !ex) return;
+        if (ex?.photoDate && isExifCaptureTooOldForUpload(ex.photoDate, { isInAppCamera: false, hasOnlyVideo: false })) {
+          return;
+        }
+        await applyExtractedExifToForm(ex, first);
+      } catch (e) {
+        logger.warn('EXIF 재추출 실패(무시):', e?.message || e);
+      } finally {
+        if (!cancelled) setExifExtracting(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [exifAllowed, formData.imageFiles, formData.exifData, exifExtracting, applyExtractedExifToForm]);
+
   useEffect(() => {
     if (formData.imageFiles.length === 0 && formData.videoFiles.length === 0) {
       initialAiSuggestDoneRef.current = null;
+      setUploadExifBadge(null);
     }
   }, [formData.imageFiles.length, formData.videoFiles.length]);
 
@@ -944,6 +1029,30 @@ const UploadScreen = () => {
                         alt={`preview-${index}`} 
                         className="w-full h-full object-contain" 
                       />
+                      {/* 첫 이미지: EXIF 기반 LIVE/최근 인증 뱃지 */}
+                      {index === 0 && uploadExifBadge && (
+                        <div
+                          className="absolute bottom-1 left-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold"
+                          style={{
+                            background: uploadExifBadge === 'LIVE' ? 'rgba(14,165,233,0.92)' : 'rgba(148,163,184,0.92)',
+                            color: '#fff',
+                            boxShadow: '0 1px 6px rgba(15,23,42,0.14)',
+                          }}
+                        >
+                          {uploadExifBadge === 'LIVE' ? '현장 LIVE' : '최근 인증'}
+                        </div>
+                      )}
+                      {/* EXIF 추출 중 표시 */}
+                      {index === 0 && exifAllowed && exifExtracting && (
+                        <div
+                          className="absolute inset-0 flex items-center justify-center"
+                          style={{ background: 'rgba(15,23,42,0.18)' }}
+                        >
+                          <div className="rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-extrabold text-gray-700">
+                            촬영정보 추출 중…
+                          </div>
+                        </div>
+                      )}
                       <button
                         type="button"
                         onClick={(e) => {
