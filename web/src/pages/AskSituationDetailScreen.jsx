@@ -481,7 +481,7 @@ export default function AskSituationDetailScreen() {
       </header>
 
       {/* 하단 고정 답변바 + 네비가 가리는 영역을 방지하기 위해 충분한 패딩 확보 */}
-      <div className="flex-1 px-4 py-4" style={{ paddingBottom: 240 }}>
+      <div className="flex-1 px-4 py-4" style={{ paddingBottom: 110 }}>
         {/* 위치 */}
         <div className="mb-3">
           <div className="text-[12px] font-extrabold text-gray-700">위치</div>
@@ -608,72 +608,72 @@ export default function AskSituationDetailScreen() {
             )}
           </div>
         </div>
-      </div>
 
-      {/* 답변 입력(카메라) — 고정(fixed) 대신 본문과 함께 스크롤되도록 하단 섹션으로 배치 */}
-      <div style={{ marginTop: 14, paddingBottom: 'calc(64px + env(safe-area-inset-bottom, 0px) + 14px)' }}>
-        <div
-          className="flex items-center gap-2"
-          style={{
-            flexWrap: 'nowrap',
-          }}
-        >
-          <input
-            value={answerText}
-            onChange={(e) => setAnswerText(e.target.value)}
-            placeholder="사진과 함께 답변하면 채택 확률이 높아져요!"
-            disabled={hasAnsweredByMe}
-            className="flex-1 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[12px] font-semibold text-gray-900 placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
-            style={{ minWidth: 0 }}
-          />
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            multiple
-            onChange={onPickFile}
-            style={{ display: 'none' }}
-          />
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            disabled={answerUploading}
-            aria-label="사진 첨부"
-            className="rounded-2xl border border-gray-200 bg-white px-2.5 py-2.5 disabled:opacity-40"
-            style={{ flexShrink: 0, minHeight: 40 }}
+        {/* 답변 입력 — 답변 리스트 바로 아래에 붙여서 거리 최소화 */}
+        <div style={{ marginTop: 14 }}>
+          <div
+            className="flex items-center gap-2"
+            style={{
+              flexWrap: 'nowrap',
+            }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#0ea5e9', fontVariationSettings: "'wght' 300" }}>
-              photo_camera
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={submitAnswer}
-            disabled={answerUploading || answerImagesStillUploading || hasAnsweredByMe}
-            className="rounded-2xl px-3.5 py-2.5 text-[12px] font-extrabold text-white disabled:opacity-40"
-            style={{ background: '#26C6DA', flexShrink: 0, minHeight: 40 }}
-          >
-            등록
-          </button>
-        </div>
-        {Array.isArray(answerImageUrls) && answerImageUrls.length > 0 ? (
-          <div className="mt-2">
-            <div className="flex items-center justify-between gap-2 rounded-2xl border border-gray-200 bg-white px-3 py-2">
-              <div className="flex items-center gap-2 min-w-0 overflow-x-auto hide-scrollbar">
-                {answerImageUrls.slice(0, 6).map((u, i) => (
-                  <div key={`pick-${i}`} className="h-10 w-10 overflow-hidden rounded-xl bg-gray-200 flex-shrink-0">
-                    <img src={getDisplayImageUrl(u)} alt="" className="h-full w-full object-cover" />
-                  </div>
-                ))}
-                <div className="truncate text-[12px] font-bold text-gray-700">{`${answerImageUrls.length}장 첨부됨`}</div>
-              </div>
-              <button type="button" onClick={() => setAnswerImageUrls([])} className="text-[12px] font-extrabold text-gray-500">
-                전체 제거
-              </button>
-            </div>
+            <input
+              value={answerText}
+              onChange={(e) => setAnswerText(e.target.value)}
+              placeholder="사진과 함께 답변하면 채택 확률이 높아져요!"
+              disabled={hasAnsweredByMe}
+              className="flex-1 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[12px] font-semibold text-gray-900 placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+              style={{ minWidth: 0 }}
+            />
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              multiple
+              onChange={onPickFile}
+              style={{ display: 'none' }}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={answerUploading}
+              aria-label="사진 첨부"
+              className="rounded-2xl border border-gray-200 bg-white px-2.5 py-2.5 disabled:opacity-40"
+              style={{ flexShrink: 0, minHeight: 40 }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#0ea5e9', fontVariationSettings: "'wght' 300" }}>
+                photo_camera
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={submitAnswer}
+              disabled={answerUploading || answerImagesStillUploading || hasAnsweredByMe}
+              className="rounded-2xl px-3.5 py-2.5 text-[12px] font-extrabold text-white disabled:opacity-40"
+              style={{ background: '#26C6DA', flexShrink: 0, minHeight: 40 }}
+            >
+              등록
+            </button>
           </div>
-        ) : null}
+          {Array.isArray(answerImageUrls) && answerImageUrls.length > 0 ? (
+            <div className="mt-2">
+              <div className="flex items-center justify-between gap-2 rounded-2xl border border-gray-200 bg-white px-3 py-2">
+                <div className="flex items-center gap-2 min-w-0 overflow-x-auto hide-scrollbar">
+                  {answerImageUrls.slice(0, 6).map((u, i) => (
+                    <div key={`pick-${i}`} className="h-10 w-10 overflow-hidden rounded-xl bg-gray-200 flex-shrink-0">
+                      <img src={getDisplayImageUrl(u)} alt="" className="h-full w-full object-cover" />
+                    </div>
+                  ))}
+                  <div className="truncate text-[12px] font-bold text-gray-700">{`${answerImageUrls.length}장 첨부됨`}</div>
+                </div>
+                <button type="button" onClick={() => setAnswerImageUrls([])} className="text-[12px] font-extrabold text-gray-500">
+                  전체 제거
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <BottomNavigation />
