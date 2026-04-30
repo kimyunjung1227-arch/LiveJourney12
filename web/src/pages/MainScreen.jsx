@@ -177,11 +177,11 @@ const MainScreen = () => {
         }
     }, [loadMockData]);
 
-    // 메인: 현지 상황 질문(텍스트) 미리보기 3~4개
+    // 메인: 현지 상황 질문(텍스트) 미리보기 최대 2개
     useEffect(() => {
         let cancelled = false;
         (async () => {
-            const rows = await fetchQuestionPostsSupabase({ limit: 4, currentUserId: user?.id || null });
+            const rows = await fetchQuestionPostsSupabase({ limit: 2, currentUserId: user?.id || null });
             if (!cancelled) setAskSituationPreview(Array.isArray(rows) ? rows : []);
         })();
         return () => {
@@ -1144,7 +1144,7 @@ const MainScreen = () => {
                                 </div>
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                    {askSituationPreview.slice(0, 4).map((q) => {
+                                    {askSituationPreview.slice(0, 2).map((q) => {
                                         const where = String(q.location || q.region || '').trim();
                                         const head = where ? `${where} ` : '';
                                         const text = String(q.content || q.note || '').trim();
