@@ -4,6 +4,7 @@ import {
   fetchRaffleById,
   startScheduledRaffle,
   endRaffleWithMode,
+  updateRaffle,
   deleteRaffle,
   RAFFLE_START_MIDNIGHT,
   RAFFLE_START_IMMEDIATE,
@@ -28,6 +29,7 @@ const AdminRaffleDetailScreen = () => {
   const [busy, setBusy] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
   const [endOpen, setEndOpen] = useState(false);
+  const [endDate, setEndDate] = useState(''); // YYYY-MM-DD (Seoul date)
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -42,6 +44,21 @@ const AdminRaffleDetailScreen = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  // 모달 오픈 시 기본값(오늘 날짜)을 넣어 사용성 개선
+  useEffect(() => {
+    if (!endOpen) return;
+    try {
+      const base = row?.ends_at ? new Date(row.ends_at) : new Date();
+      const seoul = new Date(base.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+      const yyyy = seoul.getFullYear();
+      const mm = String(seoul.getMonth() + 1).padStart(2, '0');
+      const dd = String(seoul.getDate()).padStart(2, '0');
+      setEndDate(`${yyyy}-${mm}-${dd}`);
+    } catch {
+      setEndDate('');
+    }
+  }, [endOpen, row?.ends_at]);
 
   const run = async (fn) => {
     setBusy(true);
@@ -69,6 +86,28 @@ const AdminRaffleDetailScreen = () => {
   const onStartMidnight = () => run(() => startScheduledRaffle(id, RAFFLE_START_MIDNIGHT));
   const onEndNow = () => run(() => endRaffleWithMode(id, RAFFLE_END_NOW));
   const onEndMidnight = () => run(() => endRaffleWithMode(id, RAFFLE_END_MIDNIGHT));
+
+  const toSeoulDeadlineIso = (yyyyMmDd) => {
+    const s = String(yyyyMmDd || '').trim();
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    const [_, y, mo, d] = m;
+    // 서울 기준 마감: 해당 날짜 23:59:59+09:00
+    const dt = new Date(`${y}-${mo}-${d}T23:59:59+09:00`);
+    if (Number.isNaN(dt.getTime())) return null;
+    return dt.toISOString();
+  };
+
+  const onEndPickDate = () =>
+    run(async () => {
+      const iso = toSeoulDeadlineIso(endDate);
+      if (!iso) return { success: false, error: '마감일을 YYYY-MM-DD 형식으로 선택해 주세요.' };
+      const patch = { ends_at: iso };
+      if (row?.kind === 'ongoing') {
+        patch.days_left = formatDaysLeftKorean(iso);
+      }
+      return updateRaffle(id, patch);
+    });
 
   const onDelete = async () => {
     if (!window.confirm('이 래플을 삭제할까요?')) return;
@@ -236,6 +275,28 @@ const AdminRaffleDetailScreen = () => {
                 </>
               )}
             </p>
+            <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-950/40">
+              <div className="text-[12px] font-semibold text-gray-800 dark:text-gray-100">마감일 직접 지정</div>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-[13px] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                />
+                <button
+                  type="button"
+                  disabled={busy || !endDate}
+                  onClick={onEndPickDate}
+                  className="rounded-lg bg-gray-900 px-3 py-2 text-[12px] font-extrabold text-white disabled:opacity-40 dark:bg-gray-100 dark:text-gray-900"
+                >
+                  적용
+                </button>
+              </div>
+              <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                선택한 날짜의 <strong>23:59(서울)</strong>에 마감으로 저장됩니다.
+              </div>
+            </div>
             <div className="mt-4 flex flex-col gap-2">
               <button
                 type="button"

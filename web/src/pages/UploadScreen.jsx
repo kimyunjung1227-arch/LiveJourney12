@@ -94,7 +94,8 @@ const UploadScreen = () => {
         const exifLoc = await convertGpsToAddress(lat, lng);
         setFormData((prev) => ({
           ...prev,
-          location: exifLoc || prev.location,
+          // ✅ 동의 후 재추출에서도 사진 위치를 최우선으로 반영
+          location: exifLoc || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
           coordinates: { lat, lng },
           verifiedLocation: exifLoc || prev.verifiedLocation || null,
         }));
@@ -380,25 +381,23 @@ const UploadScreen = () => {
     setUploadExifBadge(computeUploadExifBadge(exifFirst?.photoDate || null));
 
     if (isFirstMedia && (imageFiles.length > 0 || videoFiles.length > 0)) {
-      // EXIF GPS가 있으면 그 위치를 우선 사용하고, 없으면 현재 위치로 폴백
+      // ✅ 사진 EXIF GPS가 있으면 "그 위치"를 최우선으로 위치 입력칸에 반영
+      // - 업로드 시 "내 위치 자동 입력"은 하지 않음 (사용자가 버튼으로만 선택)
       if (exifFirst?.gpsCoordinates?.lat != null && exifFirst?.gpsCoordinates?.lng != null) {
         const lat = Number(exifFirst.gpsCoordinates.lat);
         const lng = Number(exifFirst.gpsCoordinates.lng);
         if (Number.isFinite(lat) && Number.isFinite(lng)) {
           void (async () => {
             const exifLoc = await convertGpsToAddress(lat, lng);
+            const fallback = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
             setFormData((prev) => ({
               ...prev,
-              location: exifLoc || prev.location,
+              location: exifLoc || fallback,
               coordinates: { lat, lng },
               verifiedLocation: exifLoc || prev.verifiedLocation || null,
             }));
           })();
-        } else {
-          getCurrentLocation();
         }
-      } else {
-        getCurrentLocation();
       }
       const firstMediaFile = imageFiles[0] || videoFiles[0];
       const mediaKey = firstMediaFile

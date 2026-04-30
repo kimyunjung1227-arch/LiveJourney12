@@ -177,7 +177,15 @@ const AdminRafflesScreen = () => {
   };
 
   const displayDaysLabel = (r) => {
-    if (r.kind === 'ongoing' && r.ends_at) return formatDaysLeftKorean(r.ends_at);
+    if ((r.kind === 'ongoing' || r.kind === 'scheduled') && r.ends_at) {
+      try {
+        const dt = new Date(r.ends_at);
+        const label = dt.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric' });
+        return `마감: ${label} (${formatDaysLeftKorean(r.ends_at)})`;
+      } catch {
+        return formatDaysLeftKorean(r.ends_at);
+      }
+    }
     if (r.kind === 'scheduled') return `${Math.max(1, Number(r.duration_days) || 7)}일 래플 예정`;
     return '';
   };
