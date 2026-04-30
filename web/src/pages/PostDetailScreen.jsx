@@ -580,6 +580,11 @@ const PostDetailScreen = () => {
       try {
         const { data, error } = await supabase.rpc('accept_help_answer', { post: post.id, comment: comment.id });
         if (error) throw error;
+        if (data?.success === false) {
+          const msg = String(data?.error || '').trim() || '채택 처리에 실패했어요. 잠시 후 다시 시도해 주세요.';
+          alert(msg);
+          return;
+        }
         if (data?.commentId) setAcceptedCommentId(data.commentId);
         if (data?.acceptedUserId) {
           // 여행 응원(랜선 길잡이) 뱃지용: 채택 활동을 세션 누적에 반영

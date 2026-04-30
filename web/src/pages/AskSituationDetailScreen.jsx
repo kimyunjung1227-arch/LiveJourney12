@@ -416,6 +416,11 @@ export default function AskSituationDetailScreen() {
     try {
       const { data, error } = await supabase.rpc('accept_help_answer', { post: String(post.id), comment: String(comment.id) });
       if (error) throw error;
+      if (data?.success === false) {
+        const msg = String(data?.error || '').trim() || '채택 처리에 실패했어요. 잠시 후 다시 시도해 주세요.';
+        alert(msg);
+        return;
+      }
       const cid = data?.commentId ? String(data.commentId) : String(comment.id);
       setAcceptedCommentId(cid);
       alert('답변이 채택되었습니다! 답변자에게 응모권(활동 응모권) 1장이 지급됩니다.');
