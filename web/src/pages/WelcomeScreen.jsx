@@ -12,8 +12,8 @@ const WelcomeScreen = () => {
     
     // 스플래시 화면에서 자동으로 시작 화면으로 이동 (온보딩 생략)
     const timer = setTimeout(() => {
-      logger.log('🚀 스플래시 화면 → 시작 화면으로 자동 이동');
-      navigate('/start', { replace: true });
+      logger.log('🚀 스플래시 화면 → 메인으로 자동 이동');
+      navigate('/main', { replace: true });
     }, 1500); // 1.5초 후 자동 이동
     
     return () => clearTimeout(timer);
