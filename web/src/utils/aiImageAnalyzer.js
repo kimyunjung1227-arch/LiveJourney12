@@ -197,7 +197,7 @@ const detectCategories = (keywords, location, note) => {
   const bloomKeywords = ['꽃', '벚꽃', '개화', '매화', '진달래', '철쭉', '튤립', '유채', '수국', '코스모스', '해바라기', '만개'];
   const foodKeywords = ['맛집', '음식', '카페', '커피', '디저트', '레스토랑', '식당', '먹', '요리', '메뉴', '빵', '케이크'];
   const landmarkKeywords = ['사찰', '박물관', '미술관', '궁궐', '성당', '유적', '유네스코', '문화재', '탑', '전망대'];
-  const scenicKeywords = ['다리', '강', '바다', '하늘', '도시', '풍경', '전경', '전망', '뷰', '경치', '자연', '산', '호수', '해변', '스카이라인', '일출', '일몰'];
+  const scenicKeywords = ['다리', '강', '바다', '하늘', '도시', '풍경', '전경', '전망', '뷰', '경치', '자연', '산', '호수', '해변', '스카이라인'];
 
   const hasWaiting = waitingKeywords.some((kw) => allText.includes(kw));
   const hasBloom = bloomKeywords.some((kw) => allText.includes(kw));
@@ -225,6 +225,45 @@ const mergeCategoryLists = (a, b) => {
     if (!map.has(slug)) map.set(slug, x);
   });
   return Array.from(map.values());
+};
+
+/** EXIF 촬영 시각(ISO) → 한국 시각의 시 */
+const hourInSeoulFromPhotoExif = (exifData) => {
+  if (!exifData?.photoDate) return null;
+  const d = new Date(exifData.photoDate);
+  if (Number.isNaN(d.getTime())) return null;
+  const h = parseInt(d.toLocaleString('en-US', { timeZone: 'Asia/Seoul', hour: 'numeric', hour12: false }), 10);
+  return Number.isFinite(h) ? h : null;
+};
+
+const tagConflictsWithExifHourPhoto = (tag, hour) => {
+  const t = String(tag || '');
+  if (/일몰|석양|노을|해질|골든아워|저녁노을/.test(t)) {
+    if (hour < 18 || hour > 20) return true;
+  }
+  if (/야경|밤하늘|밤풍경/.test(t)) {
+    if (hour >= 6 && hour <= 18) return true;
+  }
+  if (/블루아워/.test(t)) {
+    if (hour >= 7 && hour <= 17) return true;
+  }
+  if (/일출|미명|동틀/.test(t)) {
+    if (hour < 4 || hour > 10) return true;
+  }
+  if (/새벽/.test(t)) {
+    if (hour < 4 || hour > 9) return true;
+  }
+  if (/한낮|대낮/.test(t)) {
+    if (hour < 10 || hour > 16) return true;
+  }
+  return false;
+};
+
+const filterPhotoTagsByExifHour = (tags, exifData) => {
+  if (!Array.isArray(tags) || tags.length === 0) return tags || [];
+  const hour = hourInSeoulFromPhotoExif(exifData);
+  if (hour === null) return tags;
+  return tags.filter((tag) => !tagConflictsWithExifHourPhoto(tag, hour));
 };
 
 // 이미지 색상 분석 (고급)
@@ -357,6 +396,7 @@ export const analyzeImageForTags = async (imageFile, location = '', existingNote
         const categories = remoteCats.length ? mergeCategoryLists(remoteCats, fallbackCats) : fallbackCats;
         const primary = categories[0] || { category: 'scenic', categoryName: '추천장소', categoryIcon: '🏞️' };
 
+        const remoteTagList = Array.isArray(aiResult.tags) ? aiResult.tags.slice(0, 10) : [];
         return {
           success:
             !!aiResult.success ||
@@ -364,7 +404,7 @@ export const analyzeImageForTags = async (imageFile, location = '', existingNote
             !!aiResult.category ||
             hasRemoteCategories ||
             categories.length > 0,
-          tags: Array.isArray(aiResult.tags) ? aiResult.tags.slice(0, 10) : [],
+          tags: filterPhotoTagsByExifHour(remoteTagList, exifData),
           categories,
           category: primary.category,
           categoryName: categories.map((c) => c.categoryName).join(', '),
@@ -382,6 +422,10 @@ export const analyzeImageForTags = async (imageFile, location = '', existingNote
     // 2차 시도: 기존 방식 (색상·위치·노트 기반) — AI 미사용 시 항상 여기서 태그·카테고리 생성
     logger.log('🔄 이미지/위치 기반 태그·카테고리 생성 중...');
     const keywords = new Set();
+    const captureMonthForTags = exifData?.photoDate
+      ? new Date(exifData.photoDate).getMonth() + 1
+      : new Date().getMonth() + 1;
+    const exifHourForTags = hourInSeoulFromPhotoExif(exifData);
 
     const isVideoFile = imageFile && String(imageFile.type || '').startsWith('video/');
     // 동영상은 Image() 색상 분석이 불안정·무거움 → 고정 프로파일로 휴리스틱만 사용
@@ -413,32 +457,30 @@ export const analyzeImageForTags = async (imageFile, location = '', existingNote
     logger.debug('  어두움:', colorAnalysis.isDark);
     logger.debug('  밝음:', colorAnalysis.isBright);
     
-    // 우선순위 1: 날씨 관련 키워드 (전문적)
-    const currentMonth = new Date().getMonth() + 1;
-    const currentHour = new Date().getHours();
-    
-    // 계절별 날씨 태그
-    if (currentMonth >= 3 && currentMonth <= 5) {
+    // 우선순위 1: 날씨 관련 키워드 — 계절은 촬영월(EXIF) 우선, 일출·일몰은 EXIF 시각 있을 때만
+    if (captureMonthForTags >= 3 && captureMonthForTags <= 5) {
       keywords.add('봄날씨');
       keywords.add('화창한날씨');
-      if (currentHour >= 6 && currentHour <= 8) {
-        keywords.add('일출');
-        keywords.add('골든아워');
-      } else if (currentHour >= 17 && currentHour <= 19) {
-        keywords.add('일몰');
-        keywords.add('황금시간대');
+      if (exifHourForTags != null) {
+        if (exifHourForTags >= 5 && exifHourForTags <= 8) {
+          keywords.add('일출');
+          keywords.add('골든아워');
+        } else if (exifHourForTags >= 18 && exifHourForTags <= 20) {
+          keywords.add('일몰');
+          keywords.add('황금시간대');
+        }
       }
-    } else if (currentMonth >= 6 && currentMonth <= 8) {
+    } else if (captureMonthForTags >= 6 && captureMonthForTags <= 8) {
       keywords.add('여름날씨');
       keywords.add('자외선주의');
       if (colorAnalysis.isBright) {
         keywords.add('맑은날씨');
         keywords.add('청명한날씨');
       }
-    } else if (currentMonth >= 9 && currentMonth <= 11) {
+    } else if (captureMonthForTags >= 9 && captureMonthForTags <= 11) {
       keywords.add('가을날씨');
       keywords.add('쾌청한날씨');
-      if (currentHour >= 17 && currentHour <= 19) {
+      if (exifHourForTags != null && exifHourForTags >= 18 && exifHourForTags <= 20) {
         keywords.add('일몰');
         keywords.add('골든아워');
       }
@@ -581,10 +623,17 @@ export const analyzeImageForTags = async (imageFile, location = '', existingNote
       }
     }
     
-    // 우선순위 5: 밝기 분석 - 날씨 관련 전문 태그
+    // 우선순위 5: 밝기 분석 — 야경·밤은 EXIF가 밤/새벽일 때만 (낮 촬영인데 어두운 실내 사진 오탐 방지)
     if (colorAnalysis.isDark) {
-      keywords.add('야경');
-      keywords.add('밤');
+      if (
+        exifHourForTags == null ||
+        exifHourForTags >= 19 ||
+        exifHourForTags < 6 ||
+        colorAnalysis.brightness < 0.22
+      ) {
+        keywords.add('야경');
+        keywords.add('밤');
+      }
       if (colorAnalysis.brightness < 0.3) {
         keywords.add('로맨틱한');
         keywords.add('신비로운');
@@ -636,17 +685,16 @@ export const analyzeImageForTags = async (imageFile, location = '', existingNote
       keywords.add('편안한');
     }
     
-    // 우선순위 6: 계절 키워드 (위치/노트에 관련 내용이 있을 때만)
-    const month = new Date().getMonth() + 1;
+    // 우선순위 6: 계절 키워드 (촬영 월·위치/노트)
     const allText = `${location} ${existingNote}`.toLowerCase();
-    
-    if ((month >= 3 && month <= 5) && (allText.includes('꽃') || allText.includes('벚꽃'))) {
+
+    if ((captureMonthForTags >= 3 && captureMonthForTags <= 5) && (allText.includes('꽃') || allText.includes('벚꽃'))) {
       keywords.add('봄');
-    } else if ((month >= 6 && month <= 8) && allText.includes('바다')) {
+    } else if ((captureMonthForTags >= 6 && captureMonthForTags <= 8) && allText.includes('바다')) {
       keywords.add('여름');
-    } else if ((month >= 9 && month <= 11) && (allText.includes('단풍') || allText.includes('가을'))) {
+    } else if ((captureMonthForTags >= 9 && captureMonthForTags <= 11) && (allText.includes('단풍') || allText.includes('가을'))) {
       keywords.add('가을');
-    } else if ((month >= 12 || month <= 2) && (allText.includes('눈') || allText.includes('겨울'))) {
+    } else if ((captureMonthForTags >= 12 || captureMonthForTags <= 2) && (allText.includes('눈') || allText.includes('겨울'))) {
       keywords.add('겨울');
     }
     
@@ -673,12 +721,11 @@ export const analyzeImageForTags = async (imageFile, location = '', existingNote
     
     // 날씨 관련 전문 태그 추가 (부족한 경우)
     if (keywords.size < 6) {
-      const currentMonth = new Date().getMonth() + 1;
-      if (currentMonth >= 3 && currentMonth <= 5) {
+      if (captureMonthForTags >= 3 && captureMonthForTags <= 5) {
         keywords.add('봄날씨');
-      } else if (currentMonth >= 6 && currentMonth <= 8) {
+      } else if (captureMonthForTags >= 6 && captureMonthForTags <= 8) {
         keywords.add('여름날씨');
-      } else if (currentMonth >= 9 && currentMonth <= 11) {
+      } else if (captureMonthForTags >= 9 && captureMonthForTags <= 11) {
         keywords.add('가을날씨');
       } else {
         keywords.add('겨울날씨');
@@ -743,8 +790,8 @@ export const analyzeImageForTags = async (imageFile, location = '', existingNote
       if (picked.length >= 5) break;
       if (!picked.includes(t)) picked.push(t);
     }
-    const finalTags = picked.slice(0, 5);
-    
+    const finalTags = filterPhotoTagsByExifHour(picked.slice(0, 5), exifData);
+
     logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     logger.log('✅ AI 분석 완료! (기존 방식)');
     logger.debug('📍 위치:', location || '없음');

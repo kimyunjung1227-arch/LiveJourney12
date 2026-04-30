@@ -53,7 +53,8 @@ const inferTravelCategoriesFromText = (caption, location = '', tagList = []) => 
   const bloomKw = ['꽃', '벚꽃', '개화', '매화', '진달래', '철쭉', '튤립', '유채', '수국', '코스모스', '해바라기', '만개', '개화기', '벚꽃길'];
   const foodKw = ['맛집', '음식', '카페', '커피', '디저트', '레스토랑', '식당', '먹거리', '요리', '메뉴', '빵', '케이크', '플레이팅', '브런치', '한식', '일식', '디너'];
   const landmarkKw = ['사찰', '박물관', '미술관', '궁궐', '성당', '유적', '유네스코', '문화재', '탑', '전망대'];
-  const scenicKw = ['다리', '강', '바다', '하늘', '도시', '풍경', '전망', '뷰', '경치', '자연', '산', '호수', '해변', '스카이라인', '일출', '일몰'];
+  // 일출/일몰은 캡션 오류로 잘못 붙는 경우가 많아 제외 — 시간대는 EXIF로 처리
+  const scenicKw = ['다리', '강', '바다', '하늘', '도시', '풍경', '전망', '뷰', '경치', '자연', '산', '호수', '해변', '스카이라인'];
 
   const hasWaiting = waitingKw.some((kw) => text.includes(kw));
   const hasBloom = bloomKw.some((kw) => text.includes(kw));
@@ -82,6 +83,57 @@ const inferTravelCategoryFromText = (caption, location = '', tagList = []) => {
 };
 
 devLog('🔍 AI 태그 생성 설정:', { USE_AI });
+
+/** EXIF photoDate(ISO 순간) → 한국 시각의 시(0–23) */
+const hourInSeoulFromExif = (exifData) => {
+  if (!exifData?.photoDate) return null;
+  const d = new Date(exifData.photoDate);
+  if (Number.isNaN(d.getTime())) return null;
+  const h = parseInt(d.toLocaleString('en-US', { timeZone: 'Asia/Seoul', hour: 'numeric', hour12: false }), 10);
+  return Number.isFinite(h) ? h : null;
+};
+
+/** Edge 함수 analyze-tags와 동일 규칙: EXIF 시각과 모순되는 시간대 태그 제거 */
+const tagConflictsWithExifHour = (tag, hour) => {
+  const t = String(tag || '');
+  if (/일몰|석양|노을|해질|골든아워|저녁노을/.test(t)) {
+    if (hour < 18 || hour > 20) return true;
+  }
+  if (/야경|밤하늘|밤풍경/.test(t)) {
+    if (hour >= 6 && hour <= 18) return true;
+  }
+  if (/블루아워/.test(t)) {
+    if (hour >= 7 && hour <= 17) return true;
+  }
+  if (/일출|미명|동틀/.test(t)) {
+    if (hour < 4 || hour > 10) return true;
+  }
+  if (/새벽/.test(t)) {
+    if (hour < 4 || hour > 9) return true;
+  }
+  if (/한낮|대낮/.test(t)) {
+    if (hour < 10 || hour > 16) return true;
+  }
+  return false;
+};
+
+const buildExifTimeRulesForPrompt = (exifData) => {
+  const hour = hourInSeoulFromExif(exifData);
+  if (hour === null) {
+    return '\n[촬영 시각 정보 없음] 일몰·일출·야경·골든아워 등 구체적 시간대 표현은 이미지로 확실할 때만. 불확실하면 중립적으로.';
+  }
+  let period = '밤';
+  if (hour >= 5 && hour < 11) period = '아침·오전';
+  else if (hour >= 11 && hour < 14) period = '점심·낮';
+  else if (hour >= 14 && hour < 18) period = '오후·낮';
+  else if (hour >= 18 && hour < 21) period = '저녁(일몰 가능)';
+  else if (hour >= 21 || hour < 5) period = '밤';
+  const strict =
+    hour >= 9 && hour <= 16
+      ? ' 이 시각에는 일몰·노을·야경·일출·새벽·골든아워 태그 금지. 화면이 노랗게 보여도 금지.'
+      : '';
+  return `\n[EXIF 촬영 시각 최우선] 한국 시각 약 ${hour}시, ${period}.${strict} 묘사와 태그 모두 이 시각에 맞출 것.`;
+};
 
 /**
  * 이미지를 Base64로 변환 (크기 제한 체크 포함)
@@ -161,9 +213,12 @@ const generateImageCaption = async (imageBase64, mimeType = 'image/jpeg', locati
       if (exifData.photoDate) {
         const photoDate = new Date(exifData.photoDate);
         const dayOfWeek = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'][photoDate.getDay()];
-        const hour = photoDate.getHours();
-        const timeLabel = hour >= 5 && hour < 12 ? '오전' : hour >= 12 && hour < 18 ? '오후' : hour >= 18 && hour < 22 ? '저녁' : '밤';
-        contextInfo += `\n촬영 시간: ${photoDate.toLocaleDateString('ko-KR')} ${dayOfWeek} ${timeLabel} ${hour}시`;
+        const hSeoul = hourInSeoulFromExif(exifData);
+        const timeLabel =
+          hSeoul != null
+            ? (hSeoul >= 5 && hSeoul < 11 ? '오전' : hSeoul >= 11 && hSeoul < 17 ? '낮·오후' : hSeoul >= 17 && hSeoul < 21 ? '저녁' : '밤')
+            : '?';
+        contextInfo += `\n촬영 시간(EXIF, 한국 시각 기준 시:${hSeoul ?? '불명'}): ${photoDate.toLocaleDateString('ko-KR')} ${dayOfWeek} ${timeLabel}`;
       }
     }
     if (location) {
@@ -172,14 +227,14 @@ const generateImageCaption = async (imageBase64, mimeType = 'image/jpeg', locati
 
     const prompt = `이 사진을 매우 상세하게 묘사해주세요. 다음 요소들을 포함해서 작성해주세요:
 
-1. 주요 피사체 (사람, 사물, 건물 등)
+1. 주요 피사체 — 보이는 실제 사물·식물·건축물을 구체적으로 (예: 벚꽃, 벚꽃나무, 카페 테라스)
 2. 배경과 환경
 3. 분위기와 감정 (평화로운, 활기찬, 신비로운 등)
 4. 색감과 조명 (따뜻한, 차가운, 밝은, 어두운 등)
-5. 계절감이나 시간대 느낌
-6. 전체적인 인상과 느낌
+5. 계절감
+6. 시간대 느낌 — **반드시 아래 EXIF 촬영 시각과 일치**하게 쓰세요. 이미지가 황금빛으로 보여도 EXIF가 낮이면 일몰·야경으로 쓰지 마세요.
 
-한국어로 자연스럽고 감성적인 문단으로 작성해주세요.${contextInfo}`;
+한국어로 자연스럽고 감성적인 문단으로 작성해주세요.${contextInfo}${buildExifTimeRulesForPrompt(exifData)}`;
 
     // Gemini API 호출
     const response = await axios.post(
@@ -275,19 +330,22 @@ const generateTagsFromCaption = async (caption, location = '', exifData = null) 
     if (location) {
       contextInfo += `\n사용자 입력 위치: ${location}`;
     }
+    contextInfo += buildExifTimeRulesForPrompt(exifData);
 
     const prompt = `너는 인스타그램 인기 인플루언서야. 아래 사진 묘사를 바탕으로 사람들이 많이 검색하고, '좋아요'를 많이 받을 수 있는 매력적인 한국어 해시태그 20개를 생성해줘.
 
 **중요 규칙:**
-1. 각 카테고리별로 나누어서 작성해줘
-2. 너무 긴 태그는 피하고 (최대 10자 이내)
-3. 자연스럽고 트렌디한 표현 사용
-4. 중복되지 않게
+1. 앞쪽 8개는 묘사에 나온 **실제 보이는 대상** 위주 (벚꽃·유채·건물·장소명 등). 추상어만 쌓지 않기.
+2. EXIF 촬영 시각이 주어지면 일몰·일출·야경·골든아워 등 시간 태그는 그 시각과 맞을 때만.
+3. 각 카테고리별로 나누어서 작성
+4. 너무 긴 태그는 피하고 (최대 10자 이내)
+5. 자연스럽고 트렌디한 표현 사용
+6. 중복되지 않게
 
 **카테고리별 분류:**
 
 1. 객관적 사실 (장소, 사물 이름)
-   예: 한강공원 반영샷 카페투어
+   예: 한강공원 벚꽃 카페투어
 
 2. 분위기/감성 (느낌, 색감)
    예: 청량한 비온뒤맑음 색감맛집 분위기깡패
@@ -363,11 +421,15 @@ const filterAndRefineTags = (tags, location = '', exifData = null) => {
     return [];
   }
 
+  const hourSeoul = hourInSeoulFromExif(exifData);
+
   // 중복 제거
   const uniqueTags = [...new Set(tags)];
 
-  // 너무 긴 태그 제거 (10자 초과)
-  const filteredTags = uniqueTags.filter(tag => tag.length <= 10);
+  // 너무 긴 태그 제거 + EXIF 시각과 충돌하는 시간대 태그 제거
+  const filteredTags = uniqueTags
+    .filter((tag) => tag.length <= 10)
+    .filter((tag) => hourSeoul === null || !tagConflictsWithExifHour(tag, hourSeoul));
 
   // 위치 정보가 있으면 관련 태그 우선순위 상승
   const locationTags = [];
@@ -380,23 +442,21 @@ const filterAndRefineTags = (tags, location = '', exifData = null) => {
     });
   }
 
-  // EXIF 시간 정보 기반 태그 추가
+  // EXIF 시간 정보 기반 태그 (일몰/야경 등은 넣지 않음 — 모델·추가 태그만 정제)
   const timeTags = [];
-  if (exifData?.photoDate) {
-    const photoDate = new Date(exifData.photoDate);
-    const hour = photoDate.getHours();
-    const dayOfWeek = photoDate.getDay();
-
-    if (hour >= 5 && hour < 12) {
-      timeTags.push('오전', '아침');
-    } else if (hour >= 12 && hour < 18) {
-      timeTags.push('오후', '낮');
-    } else if (hour >= 18 && hour < 22) {
-      timeTags.push('저녁', '일몰');
+  if (hourSeoul !== null) {
+    if (hourSeoul >= 5 && hourSeoul < 11) {
+      timeTags.push('오전');
+    } else if (hourSeoul >= 11 && hourSeoul < 17) {
+      timeTags.push('오후');
+    } else if (hourSeoul >= 17 && hourSeoul < 21) {
+      timeTags.push('저녁');
     } else {
-      timeTags.push('밤', '야경');
+      timeTags.push('밤');
     }
 
+    const photoDate = new Date(exifData.photoDate);
+    const dayOfWeek = photoDate.getDay();
     if (dayOfWeek === 0 || dayOfWeek === 6) {
       timeTags.push('주말');
     } else {

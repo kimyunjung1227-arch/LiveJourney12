@@ -34,6 +34,109 @@ const CATEGORY_MAP: Record<string, { name: string; icon: string }> = {
 };
 const CATEGORY_KEYS = Object.keys(CATEGORY_MAP);
 
+/** 촬영 순간 기준 한국 시각(시 0–23). EXIF의 photoDate(ISO) 사용 */
+function hourInSeoul(iso: string | undefined): number | null {
+  if (!iso || typeof iso !== 'string') return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const h = parseInt(
+    d.toLocaleString('en-US', { timeZone: 'Asia/Seoul', hour: 'numeric', hour12: false }),
+    10,
+  );
+  return Number.isFinite(h) ? h : null;
+}
+
+/** 모델이 잘못 낸 시간대 태그 제거 (EXIF 시각과 충돌 시) */
+function tagConflictsWithExifHour(tag: string, hour: number): boolean {
+  const t = tag;
+  if (/일몰|석양|노을|해질|골든아워|저녁노을/.test(t)) {
+    if (hour < 18 || hour > 20) return true;
+  }
+  if (/야경|밤하늘|밤풍경/.test(t)) {
+    if (hour >= 6 && hour <= 18) return true;
+  }
+  if (/블루아워/.test(t)) {
+    if (hour >= 7 && hour <= 17) return true;
+  }
+  if (/일출|미명|동틀/.test(t)) {
+    if (hour < 4 || hour > 10) return true;
+  }
+  if (/새벽/.test(t)) {
+    if (hour < 4 || hour > 9) return true;
+  }
+  if (/한낮|대낮/.test(t)) {
+    if (hour < 10 || hour > 16) return true;
+  }
+  return false;
+}
+
+function filterTagsByExifHour(tags: string[], hour: number | null): string[] {
+  if (hour === null) return tags;
+  return tags.filter((tag) => !tagConflictsWithExifHour(tag, hour));
+}
+
+/** 프롬프트용·로그용 짧은 EXIF 요약 (전체 JSON 자르기 대신) */
+function buildExifPromptBlock(exifData: Record<string, unknown> | undefined): { text: string; hourSeoul: number | null } {
+  if (!exifData || typeof exifData !== 'object') {
+    return {
+      text:
+        '[촬영 시각 정보 없음] 일몰·일출·야경·골든아워·블루아워 같은 구체적 시간대 태그는 넣지 마세요. 이미지만으로 확실할 때만 예외.',
+      hourSeoul: null,
+    };
+  }
+  const iso = typeof exifData.photoDate === 'string' ? exifData.photoDate : '';
+  const hour = hourInSeoul(iso);
+  const raw =
+    typeof exifData.dateTimeOriginalRaw === 'string'
+      ? exifData.dateTimeOriginalRaw
+      : typeof exifData.dateTimeOriginal === 'string'
+        ? String(exifData.dateTimeOriginal)
+        : '';
+  const gps = exifData.gpsCoordinates as { lat?: number; lng?: number } | undefined;
+  const gpsLine =
+    gps && typeof gps.lat === 'number' && typeof gps.lng === 'number'
+      ? ` GPS 대략: ${gps.lat.toFixed(4)}, ${gps.lng.toFixed(4)}.`
+      : '';
+
+  if (hour === null) {
+    return {
+      text:
+        `[EXIF에 유효한 촬영일시 없음]${gpsLine} 시간대 특화 태그(일몰/일출/야경 등)는 넣지 마세요.`,
+      hourSeoul: null,
+    };
+  }
+
+  let period = '밤/이른 시간';
+  if (hour >= 5 && hour < 11) period = '아침·오전';
+  else if (hour >= 11 && hour < 14) period = '점심·낮';
+  else if (hour >= 14 && hour < 18) period = '오후·낮';
+  else if (hour >= 18 && hour < 21) period = '저녁 무렵(일몰 가능 구간)';
+  else if (hour >= 21 || hour < 5) period = '밤';
+
+  const isoLine = iso ? ` ISO(UTC 기준 순간): ${iso}.` : '';
+  const rawLine = raw ? ` 카메라 기록 원문: ${raw.slice(0, 40)}.` : '';
+
+  const forbid =
+    hour >= 9 && hour <= 16
+      ? ' 이 시각에는 일몰·석양·노을·골든아워·야경·야간·블루아워·일출·새벽 태그를 절대 쓰지 마세요. 화면이 황금빛으로 보여도 태그에는 넣지 마세요.'
+      : hour >= 18 && hour <= 20
+        ? ' 일몰·노을·골든아워 계열만 가능. 일출·새벽·한낮·대낮·야경(완전 야간)은 피하세요.'
+        : hour >= 21 || hour < 5
+          ? ' 야경·밤 계열 가능. 일출·한낮·대낮·점심 햇살 등은 피하세요.'
+          : hour >= 5 && hour < 9
+            ? ' 아침·일출·새벽 가능. 일몰·야경·한낮은 피하세요.'
+            : ' 시간대 태그는 위 구간에 맞게만 사용하세요.';
+
+  return {
+    hourSeoul: hour,
+    text:
+      `[EXIF 촬영 시각 — 최우선]\n` +
+      `- 한국 시각 기준 약 ${hour}시대, 분위기: ${period}.${isoLine}${rawLine}${gpsLine}\n` +
+      `- 시간대 관련 한글 태그는 위 시각과 반드시 일치해야 합니다.${forbid}\n` +
+      `- 이미지 밝기와 무관하게 EXIF 시각이 우선입니다.`,
+  };
+}
+
 function parseTagsFromContent(content: string): string[] {
   const trimmed = content.trim();
   const tags: string[] = [];
@@ -42,7 +145,7 @@ function parseTagsFromContent(content: string): string[] {
     const t = m.replace(/^#+/, '').trim();
     if (t && t.length <= 20) tags.push(t);
   }
-  return [...new Set(tags)].slice(0, 12);
+  return [...new Set(tags)].slice(0, 14);
 }
 
 function parseCategoryFromContent(content: string): { category: string; categoryName: string; categoryIcon: string } {
@@ -137,18 +240,23 @@ Deno.serve(async (req) => {
       );
     }
 
-    const locationText = location ? `촬영/위치: ${location}.` : '';
-    const exifText = exifData && typeof exifData === 'object'
-      ? ` EXIF 등 메타: ${JSON.stringify(exifData).slice(0, 200)}.`
-      : '';
+    const locationText = location ? `촬영/위치(사용자 입력): ${location}\n` : '';
+    const exifBlock = buildExifPromptBlock(exifData && typeof exifData === 'object' ? exifData : undefined);
 
     const prompt =
-      '이 사진을 보고 여행/장소 기준으로 (1) 카테고리(복수 가능)와 (2) 해시태그를 아래 형식대로만 답하세요. 다른 설명 금지.\n\n' +
-      'CATEGORIES: bloom, food, scenic, landmark, waiting, general 중 해당되는 것을 영어로 쉼표로 나열. ' +
-      '꽃·벚꽃·개화가 보이면 bloom과 scenic을 함께 적어도 됨 (예: bloom,scenic). 웨이팅·줄이면 waiting. 음식·맛집이면 food.\n' +
-      'TAGS: #태그1 #태그2 #태그3 ... 한글 위주 5~12개, 짧고 구체적으로\n\n' +
+      '역할: 여행 SNS용 해시태그·카테고리 작가. 아래 형식 외 문장·설명 금지.\n\n' +
+      exifBlock.text +
+      '\n\n' +
       locationText +
-      exifText;
+      '[태그 우선순위]\n' +
+      '1) TAGS에서 맨 앞 4~7개는 사진에 **실제로 보이는 구체적 피사체**만: 예) 벚꽃, 벚꽃터널, 매화, 유채꽃, 코스모스, 카페간판, 한강, 유람선, 벽화마을 등. 추측·유행어만 쌓지 마세요.\n' +
+      '2) 꽃이 명확하면 종/상황을 태그에 반드시 포함 (예: 벚꽃, 벚꽃축제, 개화).\n' +
+      '3) 그 다음에 장소·분위기·활동 태그.\n' +
+      '4) 시간대 단어(일몰·야경 등)는 EXIF 규칙을 어기면 안 됩니다.\n\n' +
+      '[출력 형식]\n' +
+      'CATEGORIES: bloom, food, scenic, landmark, waiting, general 중 해당되는 것만 영어 소문자로 쉼표 구분 ' +
+      '(꽃·벚꽃이 보이면 bloom, 풍경이면 scenic 등 복수 가능. 웨이팅 대열이면 waiting. 음식·카페 메인이면 food).\n' +
+      'TAGS: #태그1 #태그2 ... 한글 위주 **6~12개**, 각 10자 이내. 앞쪽은 구체 피사체 위주.\n';
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
@@ -173,8 +281,8 @@ Deno.serve(async (req) => {
             },
           ],
           generationConfig: {
-            maxOutputTokens: 500,
-            temperature: 0.4,
+            maxOutputTokens: 520,
+            temperature: 0.32,
           },
         }),
         signal: controller.signal,
@@ -216,7 +324,8 @@ Deno.serve(async (req) => {
     const candidates = data?.candidates as Array<{ content?: { parts?: Array<{ text?: string }> } }> | undefined;
     const textPart = candidates?.[0]?.content?.parts?.[0]?.text;
     const content = typeof textPart === 'string' ? textPart : '';
-    const tags = parseTagsFromContent(content);
+    const tagsRaw = parseTagsFromContent(content);
+    const tags = filterTagsByExifHour(tagsRaw, exifBlock.hourSeoul);
     const categories = parseCategoriesFromContent(content);
     const primary = categories[0] || parseCategoryFromContent(content);
     const hasTags = tags.length > 0;
