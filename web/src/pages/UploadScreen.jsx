@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useCallback, useEffect } from 'react';
+﻿import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { uploadImage, uploadMetaToExifShape } from '../api/upload';
@@ -57,6 +57,12 @@ const UploadScreen = () => {
   /** 미디어를 모두 지우기 전까지 AI 자동 태그는 최초 1회만 */
   const initialAiSuggestDoneRef = useRef(null);
   const noteAreaRef = useRef(null);
+
+  // 업로드 화면 날짜 표시: EXIF 촬영일 우선, 없으면 오늘 날짜
+  const displayDateLine = useMemo(() => {
+    const preferred = formData?.exifData?.photoDate || formData?.photoDate || null;
+    return formatUploadDateLine(preferred || Date.now());
+  }, [formData?.exifData?.photoDate, formData?.photoDate]);
 
   const computeUploadExifBadge = useCallback((photoDateIso) => {
     if (!photoDateIso) return null;
@@ -368,14 +374,6 @@ const UploadScreen = () => {
       prefetchedExif: exifFirst
         ? { fileKey: exifFileKey, exif: { photoDate: exifFirst.photoDate, dateTimeOriginalRaw: exifFirst.dateTimeOriginalRaw } }
         : prev.prefetchedExif,
-      // ✅ 사진 업로드 시 촬영/업로드 날짜를 설명창(노트) 상단에 자동 삽입
-      note: (() => {
-        if (!isFirstMedia) return prev.note;
-        const base = String(prev.note || '');
-        if (base.trim().length > 0) return base; // 사용자가 이미 입력한 경우는 건드리지 않음
-        const line = formatUploadDateLine(exifFirst?.photoDate || Date.now());
-        return `${line}\n`;
-      })(),
     }));
 
     setUploadExifBadge(computeUploadExifBadge(exifFirst?.photoDate || null));
@@ -1235,7 +1233,12 @@ const UploadScreen = () => {
 
             <div>
               <label className="flex flex-col">
-                <p className="text-base font-medium pb-2 text-gray-900">이 순간의 이야기</p>
+                <div className="flex items-center justify-between gap-2 pb-2">
+                  <p className="text-base font-medium text-gray-900">이 순간의 이야기</p>
+                  <div className="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-bold text-gray-700">
+                    {displayDateLine}
+                  </div>
+                </div>
                 <div className="relative">
                   <textarea
                     ref={noteAreaRef}
