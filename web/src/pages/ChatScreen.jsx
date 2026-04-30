@@ -57,10 +57,6 @@ const ChatScreen = () => {
           </header>
 
           <main className="flex-1 overflow-y-auto px-4 py-4">
-            <p className="mb-3 text-[13px] leading-relaxed text-gray-600 dark:text-gray-300">
-              아래 내용을 수정해서 보내 주세요. 라이브저니 동행·현장 정보로 연결될 예정이에요.
-            </p>
-
             <div className="mb-4">
               <p className="mb-2 text-[12px] font-bold text-gray-700 dark:text-gray-200">
                 가장 많이 묻는 실시간 질문
