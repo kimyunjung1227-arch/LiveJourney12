@@ -29,6 +29,7 @@ import { cleanLegacyUploadedPosts, getUploadedPostsSafe } from '../utils/localSt
 import { deletePostSupabase, fetchPostsByUserIdSupabase, fetchPostsSupabase } from '../api/postsSupabase';
 import { fetchProfilesByIdsSupabase } from '../api/profilesSupabase';
 import { fetchLiveSyncPctSupabase, setLiveSyncPctSupabase } from '../api/liveSyncSupabase';
+import { supabase } from '../utils/supabaseClient';
 import {
   resolveUserDisplayFromPosts,
   getCachedFollowProfile,
@@ -135,6 +136,35 @@ const ProfileScreen = () => {
   const [savedRoutes, setSavedRoutes] = useState([]);
   const [selectedSavedRoute, setSelectedSavedRoute] = useState(null);
   const [liveSync, setLiveSync] = useState(35);
+
+  // Realtime: profiles.live_sync_pct가 서버 트리거로 갱신되면 즉시 화면 반영
+  useEffect(() => {
+    const uid = (authUser || user)?.id;
+    if (!uid) return undefined;
+
+    const channel = supabase
+      .channel(`profile-live-sync-${uid}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${uid}` },
+        (payload) => {
+          const next = payload?.new?.live_sync_pct;
+          if (next == null) return;
+          const v = Number(next);
+          if (!Number.isFinite(v)) return;
+          setLiveSync(Math.max(0, Math.min(100, Math.round(v))));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      try {
+        supabase.removeChannel(channel);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [authUser?.id, user?.id]);
 
   // 라이브싱크는 Supabase profiles 값만 사용(로컬 계산/캐시 제거)
   useEffect(() => {

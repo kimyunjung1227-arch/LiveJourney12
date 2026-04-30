@@ -502,7 +502,7 @@ export default function AskSituationDetailScreen() {
         {/* 내용 */}
         <div className="mb-4">
           <div className="text-[12px] font-extrabold text-gray-700">내용</div>
-          <div className="mt-1 rounded-2xl border border-gray-200 bg-white p-4 text-[14px] font-extrabold leading-relaxed text-gray-900">
+          <div className="mt-1 rounded-2xl border border-gray-200 bg-white p-4 text-[13px] font-semibold leading-relaxed text-gray-900">
             {questionText || '질문 내용이 없어요.'}
           </div>
           <div className="mt-2 text-[12px] font-bold" style={{ color: acceptedCommentId ? '#10b981' : '#94a3b8' }}>
