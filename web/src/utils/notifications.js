@@ -13,6 +13,40 @@ import {
 const isValidUuid = (v) =>
   typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
 
+/** DB 반영·실시간 동기화 타이밍 전에 서버가 아직 read=false인 행을 덮어쓸 때 읽음 표시가 되살아나지 않도록 sessionStorage 오버레이 */
+const readOverlayKey = (uid) => `mvp1:notif_read_overlay:${String(uid)}`;
+
+const loadReadOverlay = (uid) => {
+  if (typeof sessionStorage === 'undefined') return new Set();
+  try {
+    const raw = sessionStorage.getItem(readOverlayKey(uid));
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return new Set();
+    return new Set(arr.map(String));
+  } catch {
+    return new Set();
+  }
+};
+
+const saveReadOverlay = (uid, set) => {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    sessionStorage.setItem(readOverlayKey(uid), JSON.stringify([...set]));
+  } catch {
+    // ignore
+  }
+};
+
+const clearReadOverlay = (uid) => {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    sessionStorage.removeItem(readOverlayKey(uid));
+  } catch {
+    // ignore
+  }
+};
+
 let notificationsCache = [];
 
 /** AuthProvider와 동기화 — 로그인 시 UUID 주입해야 뱃지 등 알림이 DB에 저장되고 동기화 후에도 목록에 남음 */
@@ -153,6 +187,7 @@ const buildInsertPayloadForSelf = (notification, recipientUserId) => {
 export const syncNotificationsFromSupabase = async (userId) => {
   const uid = String(userId || '').trim();
   if (!uid) return [];
+  const overlay = loadReadOverlay(uid);
   const rows = await fetchNotificationsSupabase(uid, { limit: 100 });
   const mapped = (rows || []).map((r) => {
     const rawType = r.type || 'system';
@@ -200,9 +235,13 @@ export const syncNotificationsFromSupabase = async (userId) => {
         if (candidate) badgeDisplayName = candidate;
       }
     }
+    const nid = String(r.id);
+    const dbRead = !!r.read;
+    if (dbRead) overlay.delete(nid);
+    const readMerged = dbRead || overlay.has(nid);
     return {
-      id: String(r.id),
-      read: !!r.read,
+      id: nid,
+      read: readMerged,
       time: r.created_at ? getTimeAgo(r.created_at) : '방금',
       timestamp: r.created_at || new Date().toISOString(),
       type: typ,
@@ -230,6 +269,7 @@ export const syncNotificationsFromSupabase = async (userId) => {
   });
 
   const capped = mapped.slice(0, 100);
+  saveReadOverlay(uid, overlay);
 
   notificationsCache = capped;
   window.dispatchEvent(new Event('notificationUpdate'));
@@ -321,6 +361,12 @@ export const addNotification = (notification) => {
 // 알림 읽음 처리
 export const markNotificationAsRead = (notificationId) => {
   try {
+    const uid = getCurrentUserIdFromStorage();
+    if (uid) {
+      const o = loadReadOverlay(uid);
+      o.add(String(notificationId));
+      saveReadOverlay(uid, o);
+    }
     const notifications = getNotifications();
     const updated = notifications.map(n =>
       n.id === notificationId ? { ...n, read: true } : n
@@ -344,8 +390,15 @@ export const markNotificationAsRead = (notificationId) => {
 // 모든 알림 읽음 처리 (현재 사용자에게 보이는 항목만 읽음 처리)
 export const markAllNotificationsAsRead = () => {
   try {
+    const uid = getCurrentUserIdFromStorage();
+    const visible = getNotificationsForCurrentUser();
+    if (uid) {
+      const o = loadReadOverlay(uid);
+      visible.forEach((n) => o.add(String(n.id)));
+      saveReadOverlay(uid, o);
+    }
     const all = getNotifications();
-    const visibleIds = new Set(getNotificationsForCurrentUser().map((n) => n.id));
+    const visibleIds = new Set(visible.map((n) => n.id));
     const updated = all.map((n) => (visibleIds.has(n.id) ? { ...n, read: true } : n));
     notificationsCache = updated;
 
@@ -353,7 +406,6 @@ export const markAllNotificationsAsRead = () => {
     window.dispatchEvent(new Event('notificationCountChanged'));
 
     logger.log('✅ 모든 알림 읽음 처리');
-    const uid = getCurrentUserIdFromStorage();
     if (uid && isValidUuid(uid)) markAllNotificationsReadSupabase(uid);
     return true;
   } catch (error) {
@@ -365,6 +417,12 @@ export const markAllNotificationsAsRead = () => {
 // 알림 삭제
 export const deleteNotification = (notificationId) => {
   try {
+    const uid = getCurrentUserIdFromStorage();
+    if (uid) {
+      const o = loadReadOverlay(uid);
+      o.delete(String(notificationId));
+      saveReadOverlay(uid, o);
+    }
     const notifications = getNotifications();
     const filtered = notifications.filter(n => n.id !== notificationId);
     notificationsCache = filtered;
@@ -398,6 +456,7 @@ export const clearAllNotifications = () => {
   try {
     const uid = getCurrentUserIdFromStorage();
     if (uid && isValidUuid(uid)) {
+      clearReadOverlay(uid);
       void deleteAllNotificationsSupabase(uid).then(async () => {
         await syncNotificationsFromSupabase(uid);
       });

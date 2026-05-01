@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import BottomNavigation from '../components/BottomNavigation';
 import {
@@ -44,8 +44,41 @@ function bucketLabel(daysAgo) {
   return '이전';
 }
 
+const friendNewsLocalKey = (uid) => `mvp1:friend_news_state:${String(uid)}`;
+
+function loadFriendNewsLocal(uid) {
+  if (!uid || typeof sessionStorage === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(friendNewsLocalKey(uid));
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || typeof o !== 'object') return null;
+    const read_map =
+      o.read_map && typeof o.read_map === 'object' && !Array.isArray(o.read_map) ? { ...o.read_map } : {};
+    return { read_map, last_seen_ms: Number(o.last_seen_ms) || 0 };
+  } catch {
+    return null;
+  }
+}
+
+function saveFriendNewsLocal(uid, state) {
+  if (!uid || typeof sessionStorage === 'undefined') return;
+  try {
+    sessionStorage.setItem(
+      friendNewsLocalKey(uid),
+      JSON.stringify({
+        read_map: state.read_map && typeof state.read_map === 'object' ? state.read_map : {},
+        last_seen_ms: Number(state.last_seen_ms) || 0,
+      }),
+    );
+  } catch {
+    // ignore
+  }
+}
+
 const NotificationsScreen = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const [showMarkAllReadModal, setShowMarkAllReadModal] = useState(false);
   const [allNotifications, setAllNotifications] = useState([]);
@@ -99,8 +132,10 @@ const NotificationsScreen = () => {
           ? { ...remoteState.read_map }
           : {};
 
-      if (isValidUuid(uid)) {
-        // localStorage 기반 폴백 제거 (Supabase 상태만 사용)
+      const localFriend = loadFriendNewsLocal(uid);
+      if (localFriend) {
+        readMap = { ...readMap, ...localFriend.read_map };
+        lastSeen = Math.max(lastSeen, localFriend.last_seen_ms || 0);
       }
 
       friendNewsStateRef.current = { read_map: readMap, last_seen_ms: lastSeen };
@@ -145,11 +180,12 @@ const NotificationsScreen = () => {
   }, [user?.id]);
 
   useEffect(() => {
+    if (location.pathname !== '/notifications') return undefined;
     void loadFriendNews();
     const onFollows = () => void loadFriendNews();
     window.addEventListener('followsUpdated', onFollows);
     return () => window.removeEventListener('followsUpdated', onFollows);
-  }, [loadFriendNews]);
+  }, [loadFriendNews, location.pathname]);
 
   const list = useMemo(() => {
     const base = tab === 'friends' ? friendNews : allNotifications;
@@ -185,11 +221,13 @@ const NotificationsScreen = () => {
       const id = String(notification.id);
       const now = Date.now();
 
+      const prev = friendNewsStateRef.current;
+      const nextRead = { ...prev.read_map, [id]: true };
+      const nextLast = Math.max(Number(prev.last_seen_ms) || 0, now);
+      friendNewsStateRef.current = { read_map: nextRead, last_seen_ms: nextLast };
+      if (uid) saveFriendNewsLocal(uid, friendNewsStateRef.current);
+
       if (isValidUuid(uid)) {
-        const prev = friendNewsStateRef.current;
-        const nextRead = { ...prev.read_map, [id]: true };
-        const nextLast = now;
-        friendNewsStateRef.current = { read_map: nextRead, last_seen_ms: nextLast };
         await upsertFriendNewsStateSupabase(uid, { read_map: nextRead, last_seen_ms: nextLast });
       }
       setFriendNews((prev) => prev.map((x) => (x.id === notification.id ? { ...x, read: true, __new: false } : x)));
@@ -262,13 +300,15 @@ const NotificationsScreen = () => {
       const uid = String(user?.id || getNotificationStoredUserId() || '').trim();
       const now = Date.now();
 
+      const prev = friendNewsStateRef.current;
+      const nextRead = { ...prev.read_map };
+      friendNews.forEach((n) => {
+        nextRead[String(n.id)] = true;
+      });
+      friendNewsStateRef.current = { read_map: nextRead, last_seen_ms: now };
+      if (uid) saveFriendNewsLocal(uid, friendNewsStateRef.current);
+
       if (isValidUuid(uid)) {
-        const prev = friendNewsStateRef.current;
-        const nextRead = { ...prev.read_map };
-        friendNews.forEach((n) => {
-          nextRead[String(n.id)] = true;
-        });
-        friendNewsStateRef.current = { read_map: nextRead, last_seen_ms: now };
         await upsertFriendNewsStateSupabase(uid, { read_map: nextRead, last_seen_ms: now });
       }
       setFriendNews((prev) => prev.map((x) => ({ ...x, read: true, __new: false })));
