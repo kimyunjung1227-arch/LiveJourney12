@@ -110,7 +110,8 @@ const PostDetailScreen = () => {
   const miniMapRef = useRef(null);
   const miniMapInstance = useRef(null);
   const scrollContentRef = useRef(null);
-  const nextPostSentinelRef = useRef(null);
+  const bottomScrollNavCooldownRef = useRef(false);
+  const bottomTouchStartYRef = useRef(0);
   const mediaSwiperRef = useRef(null);
   const authorPostMenuRef = useRef(null);
   const shareMenuRef = useRef(null);
@@ -739,8 +740,13 @@ const PostDetailScreen = () => {
     setLikeCount(Number(newPost.likes ?? newPost.likeCount ?? 0) || 0);
     setComments([...(newPost.comments || []), ...(newPost.qnaList || [])]);
 
-    // 스크롤을 맨 위로 이동
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // 스크롤을 맨 위로 이동 (실제 스크롤 컨테이너는 screen-content)
+    const sc = scrollContentRef.current;
+    if (sc) {
+      sc.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 
     // 전환 애니메이션 완료 후 플래그 해제
     setTimeout(() => {
@@ -994,6 +1000,57 @@ const PostDetailScreen = () => {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [slideablePosts.length, changePost]);
+
+  // 목록에서 연 경우: 본문을 끝까지 내린 뒤 한 번 더 아래로 스크롤(휠/터치)하면 다음 게시물로 이동
+  useEffect(() => {
+    const el = scrollContentRef.current;
+    if (!el) return undefined;
+
+    const isScrollable = () => el.scrollHeight > el.clientHeight + 2;
+    const isAtBottom = () =>
+      isScrollable() && el.scrollHeight - el.scrollTop - el.clientHeight <= 4;
+
+    const tryGoNextFromBottom = () => {
+      if (slideablePosts.length <= 1 || isTransitioning) return false;
+      if (bottomScrollNavCooldownRef.current) return false;
+      bottomScrollNavCooldownRef.current = true;
+      changePost('down');
+      window.setTimeout(() => {
+        bottomScrollNavCooldownRef.current = false;
+      }, 450);
+      return true;
+    };
+
+    const onWheel = (e) => {
+      if (!isAtBottom() || e.deltaY <= 0) return;
+      if (tryGoNextFromBottom()) e.preventDefault();
+    };
+
+    const onTouchStart = (e) => {
+      if (e.touches?.[0]) bottomTouchStartYRef.current = e.touches[0].clientY;
+    };
+
+    const onTouchMove = (e) => {
+      if (!e.touches?.[0]) return;
+      if (!isAtBottom()) return;
+      const y = e.touches[0].clientY;
+      const dy = bottomTouchStartYRef.current - y;
+      if (dy > 40 && tryGoNextFromBottom()) {
+        bottomTouchStartYRef.current = y;
+        e.preventDefault();
+      }
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+    };
+  }, [slideablePosts.length, isTransitioning, changePost]);
 
   const locationText = useMemo(() => post?.location?.name || post?.location || post?.title || '여행지', [post]);
   const detailedLocationText = useMemo(() => post?.detailedLocation || post?.placeName || null, [post]);
@@ -1869,10 +1926,6 @@ const PostDetailScreen = () => {
                   전송
                 </button>
               </div>
-              {/* 하단 스크롤 시 다음 게시물로 이동 감지 */}
-              {slideablePosts.length > 1 && currentPostIndexState < slideablePosts.length - 1 && (
-                <div ref={nextPostSentinelRef} style={{ height: 1, width: '100%', visibility: 'hidden' }} aria-hidden="true" />
-              )}
             </div>
         </main>
       </div>

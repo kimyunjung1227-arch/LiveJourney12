@@ -179,7 +179,7 @@ const NotificationsScreen = () => {
     return groups;
   }, [list]);
 
-  const handleOpen = (notification) => {
+  const handleOpen = async (notification) => {
     if (tab === 'friends') {
       const uid = String(user?.id || getNotificationStoredUserId() || '').trim();
       const id = String(notification.id);
@@ -190,7 +190,7 @@ const NotificationsScreen = () => {
         const nextRead = { ...prev.read_map, [id]: true };
         const nextLast = now;
         friendNewsStateRef.current = { read_map: nextRead, last_seen_ms: nextLast };
-        void upsertFriendNewsStateSupabase(uid, { read_map: nextRead, last_seen_ms: nextLast });
+        await upsertFriendNewsStateSupabase(uid, { read_map: nextRead, last_seen_ms: nextLast });
       }
       setFriendNews((prev) => prev.map((x) => (x.id === notification.id ? { ...x, read: true, __new: false } : x)));
     }
@@ -257,7 +257,7 @@ const NotificationsScreen = () => {
     if (notification.link) navigate(notification.link);
   };
 
-  const handleMarkAllRead = () => {
+  const handleMarkAllRead = async () => {
     if (tab === 'friends') {
       const uid = String(user?.id || getNotificationStoredUserId() || '').trim();
       const now = Date.now();
@@ -269,7 +269,7 @@ const NotificationsScreen = () => {
           nextRead[String(n.id)] = true;
         });
         friendNewsStateRef.current = { read_map: nextRead, last_seen_ms: now };
-        void upsertFriendNewsStateSupabase(uid, { read_map: nextRead, last_seen_ms: now });
+        await upsertFriendNewsStateSupabase(uid, { read_map: nextRead, last_seen_ms: now });
       }
       setFriendNews((prev) => prev.map((x) => ({ ...x, read: true, __new: false })));
     } else {
@@ -309,6 +309,26 @@ const NotificationsScreen = () => {
   };
 
   const leftIcon = (n) => {
+    // 친구소식·게시물 알림: 왼쪽에 업로드 게시물 썸네일
+    if (n.type === 'post') {
+      const thumbRaw = n.thumbnailUrl ? String(n.thumbnailUrl).trim() : '';
+      const thumb = thumbRaw ? getDisplayImageUrl(thumbRaw) : null;
+      if (thumb) {
+        return (
+          <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-zinc-100 ring-1 ring-zinc-200/90 dark:bg-zinc-800 dark:ring-zinc-600">
+            <img src={thumb} alt="" className="h-full w-full object-cover" />
+          </div>
+        );
+      }
+      const av = avatarFor(n);
+      if (av) {
+        return (
+          <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/90 dark:bg-zinc-800 dark:ring-zinc-600">
+            <img src={av} alt="" className="h-full w-full object-cover" />
+          </div>
+        );
+      }
+    }
     const t = typeMeta[n.type] || typeMeta.system;
     const url = avatarFor(n);
     if (url && (n.type === 'follow' || n.type === 'like')) {
@@ -343,7 +363,7 @@ const NotificationsScreen = () => {
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            handleOpen({ ...n, read: n.read });
+            void handleOpen({ ...n, read: n.read });
           }}
           className="shrink-0 rounded-lg border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:border-primary/30 hover:text-primary-dark dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-primary/40"
         >
@@ -474,9 +494,9 @@ const NotificationsScreen = () => {
                             key={notification.id}
                             role="button"
                             tabIndex={0}
-                            onClick={() => handleOpen(notification)}
+                            onClick={() => void handleOpen(notification)}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') handleOpen(notification);
+                              if (e.key === 'Enter' || e.key === ' ') void handleOpen(notification);
                             }}
                             className={`flex cursor-pointer items-center gap-2.5 border-l-[3px] px-4 py-2.5 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/80 ${
                               !notification.read
@@ -535,7 +555,7 @@ const NotificationsScreen = () => {
               </button>
               <button
                 type="button"
-                onClick={handleMarkAllRead}
+                onClick={() => void handleMarkAllRead()}
                 className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark"
               >
                 확인

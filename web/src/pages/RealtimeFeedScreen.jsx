@@ -224,7 +224,16 @@ const RealtimeFeedScreen = () => {
               return (
                 <div
                   key={`${post.id}-${index}`}
-                  onClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts: realtimeData } })}
+                  onClick={() => {
+                    const idx = realtimeData.findIndex((p) => String(p?.id) === String(post?.id));
+                    navigate(`/post/${post.id}`, {
+                      state: {
+                        post,
+                        allPosts: realtimeData,
+                        currentPostIndex: idx >= 0 ? idx : 0,
+                      },
+                    });
+                  }}
                   style={{
                     ...feedGridCardBoxFlat,
                     cursor: 'pointer',
