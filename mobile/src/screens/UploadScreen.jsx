@@ -33,6 +33,8 @@ import { getBadgeCongratulationMessage, getBadgeDifficultyEffects } from '../uti
 import { ScreenLayout, ScreenContent, ScreenHeader, ScreenBody } from '../components/ScreenLayout';
 import { createPostSupabase } from '../api/postsSupabase';
 import { resolveRegionFromLocationInput } from '../utils/regionLocationMapping';
+import { metadataFromPickerAsset } from '../utils/pickerAssetMetadata';
+import { getWeatherByRegion } from '../utils/weatherApi';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -52,7 +54,9 @@ const UploadScreen = () => {
     coordinates: null,
     aiCategory: 'scenic',
     aiCategoryName: '추천 장소',
-    aiCategoryIcon: '📍'
+    aiCategoryIcon: '📍',
+    photoDate: null,
+    exifData: null,
   });
   const [tagInput, setTagInput] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -234,20 +238,65 @@ const UploadScreen = () => {
     }
 
     const isFirstMedia = formData.images.length === 0 && formData.videos.length === 0;
-    
-    setFormData(prev => ({
+    const firstMeta = assets.length > 0 ? metadataFromPickerAsset(assets[0]) : null;
+
+    setFormData((prev) => ({
       ...prev,
       images: [...prev.images, ...imageUris],
       imageFiles: [...prev.imageFiles, ...imageFiles],
       videos: [...prev.videos, ...videoUris],
-      videoFiles: [...prev.videoFiles, ...videoFiles]
+      videoFiles: [...prev.videoFiles, ...videoFiles],
+      photoDate: firstMeta?.photoDate || prev.photoDate,
+      exifData: firstMeta
+        ? {
+            photoDate: firstMeta.photoDate,
+            gpsCoordinates: firstMeta.gpsCoordinates,
+          }
+        : prev.exifData,
+      coordinates: firstMeta?.gpsCoordinates
+        ? { lat: firstMeta.gpsCoordinates.lat, lng: firstMeta.gpsCoordinates.lng }
+        : prev.coordinates,
     }));
 
+    if (firstMeta?.gpsCoordinates && isFirstMedia) {
+      const { lat, lng } = firstMeta.gpsCoordinates;
+      void (async () => {
+        try {
+          const reverseGeocode = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+          if (reverseGeocode && reverseGeocode.length > 0) {
+            const address = reverseGeocode[0];
+            const parts = [];
+            if (address.city) parts.push(address.city);
+            if (address.district) parts.push(address.district);
+            let locationName = parts
+              .slice(0, 2)
+              .join(' ')
+              .replace('특별시', '')
+              .replace('광역시', '')
+              .replace('특별자치시', '')
+              .replace('특별자치도', '')
+              .trim();
+            if (!locationName) {
+              locationName = address.city || address.district || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+            }
+            setFormData((p) => ({
+              ...p,
+              location: locationName,
+              detailedLocation: locationName,
+            }));
+          }
+        } catch (e) {
+          console.warn('EXIF GPS 역지오코딩 실패:', e);
+        }
+      })();
+    }
+
     if (isFirstMedia && (imageFiles.length > 0 || videoFiles.length > 0)) {
-      getCurrentLocation();
-      const firstFile = imageFiles[0] || videoFiles[0];
-      if (firstFile && !firstFile.type?.startsWith('video/')) {
-        analyzeImageAndGenerateTags(firstFile.uri, formData.location, formData.note);
+      if (!firstMeta?.gpsCoordinates) {
+        getCurrentLocation();
+      }
+      if (imageFiles.length > 0) {
+        analyzeImageAndGenerateTags(imageFiles[0].uri, formData.location, formData.note);
       }
     }
   }, [formData.images.length, formData.videos.length, formData.location, formData.note, getCurrentLocation, analyzeImageAndGenerateTags]);
@@ -291,7 +340,7 @@ const UploadScreen = () => {
           allowsEditing: true,
           quality: 0.8,
           allowsMultipleSelection: false,
-          exif: false,
+          exif: true,
           // 갤러리/촬영 영상 용량을 낮춰 업로드 시간 단축 (플랫폼별로 무시될 수 있음)
           ...(ImagePicker.VideoQuality != null
             ? { videoQuality: ImagePicker.VideoQuality.Medium }
@@ -311,7 +360,7 @@ const UploadScreen = () => {
       allowsEditing: true,
       quality: 0.8,
       allowsMultipleSelection: true,
-      exif: false,
+      exif: true,
       ...(ImagePicker.VideoQuality != null
         ? { videoQuality: ImagePicker.VideoQuality.Medium }
         : {}),
@@ -568,6 +617,20 @@ const UploadScreen = () => {
       // 지역 정보 (명소만 입력 시 상위 시·군으로 귀속, 예: 연화지 → 김천)
       const region = resolveRegionFromLocationInput(formData.location) || '기타';
 
+      let weatherSnapshot = null;
+      try {
+        const w = await getWeatherByRegion(region);
+        if (w?.success && w?.weather) {
+          weatherSnapshot = {
+            ...w.weather,
+            observedAt: new Date().toISOString(),
+            source: 'upload_snapshot',
+          };
+        }
+      } catch (e) {
+        console.warn('업로드 시 날씨 스냅샷 실패:', e?.message || e);
+      }
+
       setUploadProgress(70);
 
       // ✅ Supabase에 업로드(이미지 → Storage 업로드 후 public URL 저장, posts row 생성)
@@ -579,6 +642,7 @@ const UploadScreen = () => {
             ...formData,
             detailedLocation: formData.detailedLocation || formData.location,
             placeName: formData.placeName || formData.location,
+            weatherSnapshot,
           },
         });
       } catch (e) {
@@ -609,7 +673,11 @@ const UploadScreen = () => {
         coordinates: formData.coordinates,
         detailedLocation: formData.location,
         placeName: formData.location,
-        region: region // 지역 정보 추가
+        region: region, // 지역 정보 추가
+        weather: weatherSnapshot,
+        weatherSnapshot,
+        photoDate: formData.photoDate || null,
+        exifData: formData.exifData || null,
       };
       
       const existingPostsJson = await AsyncStorage.getItem('uploadedPosts');

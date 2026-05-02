@@ -303,6 +303,157 @@ const BASE_PARSE_OPTS = {
   mergeOutput: true,
 };
 
+const VIDEO_EXT_RE = /\.(mp4|mov|m4v|webm|3gp|3gpp|3g2|mkv)$/i;
+
+function readU32BE(u8, o) {
+  return (u8[o] << 24) | (u8[o + 1] << 16) | (u8[o + 2] << 8) | u8[o + 3];
+}
+
+function readU64BE(u8, o) {
+  const hi = readU32BE(u8, o);
+  const lo = readU32BE(u8, o + 4);
+  return hi * 0x100000000 + lo;
+}
+
+function readFourCC(u8, o) {
+  return String.fromCharCode(u8[o], u8[o + 1], u8[o + 2], u8[o + 3]);
+}
+
+/**
+ * MP4/MOV `moov` → `mvhd` 의 creation_time (Apple epoch, 초)
+ * moov가 파일 뒤에 있어도 일정 바이트까지 스캔
+ */
+function parseMp4MvhdCreationSeconds(buffer) {
+  const u8 = new Uint8Array(buffer);
+  const len = u8.length;
+
+  function walk(start, end) {
+    let o = start;
+    while (o + 8 <= end) {
+      let size = readU32BE(u8, o);
+      const type = readFourCC(u8, o + 4);
+      let header = 8;
+      if (size === 1) {
+        if (o + 16 > end) break;
+        size = readU64BE(u8, o + 8);
+        header = 16;
+      }
+      if (size < header || o + size > end) break;
+      const bodyStart = o + header;
+      const next = o + size;
+      if (type === 'moov' || type === 'trak' || type === 'mdia' || type === 'minf' || type === 'meta') {
+        const hit = walk(bodyStart, next);
+        if (hit != null) return hit;
+      } else if (type === 'mvhd') {
+        if (next - bodyStart < 12) {
+          o = next;
+          continue;
+        }
+        const ver = u8[bodyStart];
+        const dv = new DataView(u8.buffer, u8.byteOffset + bodyStart, next - bodyStart);
+        if (ver === 0) {
+          const ct = dv.getUint32(4, false);
+          if (ct > 0) return ct;
+        } else if (ver === 1 && next - bodyStart >= 20) {
+          const ct = Number(dv.getBigUint64(4, false));
+          if (ct > 0 && ct <= Number.MAX_SAFE_INTEGER) return ct;
+        }
+      }
+      o = next;
+    }
+    return null;
+  }
+
+  return walk(0, len);
+}
+
+/** QuickTime/MP4: 초 단위 Apple epoch → Date */
+function appleMvhdSecondsToDate(sec) {
+  if (sec == null || !Number.isFinite(sec)) return null;
+  const baseSec = Math.floor(Date.UTC(1904, 0, 1) / 1000);
+  const unixSec = baseSec + sec;
+  const d = new Date(unixSec * 1000);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * 동영상 파일에서 촬영(생성) 시각·GPS 등 추출 — 이미지 EXIF와 동일한 결과 형태
+ */
+async function extractVideoMetadata(file, options = {}) {
+  const { allowed = true } = options;
+  if (!allowed || !file) return null;
+
+  let merged = null;
+  try {
+    const chunkSz = Math.min(typeof file.size === 'number' ? file.size : 8 * 1024 * 1024, 8 * 1024 * 1024);
+    merged = await exifr.parse(file, {
+      firstChunk: true,
+      firstChunkSize: chunkSz,
+      mergeOutput: true,
+      reviveValues: true,
+      sanitize: true,
+      translateKeys: false,
+      translateValues: false,
+    });
+  } catch (e) {
+    logger.debug('exifr 동영상 메타 실패:', e?.message || e);
+  }
+
+  if (!merged || !hasUsefulExifPayload(merged)) {
+    try {
+      const ab = await file.slice(0, Math.min(file.size, 45 * 1024 * 1024)).arrayBuffer();
+      const sec = parseMp4MvhdCreationSeconds(ab);
+      const photoDateObj = appleMvhdSecondsToDate(sec);
+      if (photoDateObj) {
+        merged = {
+          CreateDate: photoDateObj,
+          DateTimeOriginal: photoDateObj,
+        };
+      }
+    } catch (e2) {
+      logger.debug('MP4 mvhd 스캔 실패:', e2?.message || e2);
+    }
+  }
+
+  if (!merged || !hasUsefulExifPayload(merged)) {
+    return null;
+  }
+
+  const photoDateObj = resolveCaptureDate(merged);
+  let gpsCoordinates = normalizeGpsFromExif(merged);
+
+  return {
+    photoDate: photoDateObj ? photoDateObj.toISOString() : null,
+    photoTimestamp: photoDateObj ? photoDateObj.getTime() : null,
+    dateTimeOriginal: merged.DateTimeOriginal ?? null,
+    createDate: merged.CreateDate ?? null,
+    dateTimeOriginalRaw:
+      merged.DateTimeOriginal != null
+        ? String(merged.DateTimeOriginal)
+        : merged.CreateDate != null
+          ? String(merged.CreateDate)
+          : null,
+
+    gpsCoordinates,
+    gpsLatitude: gpsCoordinates
+      ? gpsCoordinates.lat
+      : coerceOneGpsCoord(merged.GPSLatitude, merged.GPSLatitudeRef, true),
+    gpsLongitude: gpsCoordinates
+      ? gpsCoordinates.lng
+      : coerceOneGpsCoord(merged.GPSLongitude, merged.GPSLongitudeRef, false),
+    gpsAltitude: toFiniteNumber(merged.GPSAltitude),
+
+    cameraMake: merged.Make || null,
+    cameraModel: merged.Model || null,
+
+    imageWidth: merged.ImageWidth || null,
+    imageHeight: merged.ImageHeight || null,
+    orientation: merged.Orientation || null,
+
+    raw: { ...merged, fromVideoContainer: true },
+  };
+}
+
 /**
  * ExifReader로 충분하지 않을 때만 사용하는 exifr 폴백 (JPEG·PNG·HEIC 등 호환 유지)
  * @returns {Promise<Record<string, unknown>|null>}
@@ -380,9 +531,10 @@ export const extractExifData = async (file, options = {}) => {
     }
     const typeLower = String(file?.type || '').toLowerCase();
     const nameLower = String(file?.name || '').toLowerCase();
-    // 동영상이면 EXIF 대상이 아님
-    if (typeLower.startsWith('video/')) return null;
-    if (!typeLower.startsWith('image/') && /\.(mp4|mov|m4v|webm|3gp|3gpp|3g2|mkv)$/i.test(nameLower)) return null;
+    const looksVideo = typeLower.startsWith('video/') || VIDEO_EXT_RE.test(nameLower);
+    if (looksVideo) {
+      return extractVideoMetadata(file, options);
+    }
 
     // 모바일(WebView/Safari)에서 type이 비거나 name에 확장자가 없는 파일이 종종 들어와서
     // 여기서 너무 엄격하게 걸러버리면 EXIF가 항상 null이 된다.

@@ -22,7 +22,7 @@ import { Video, ResizeMode } from 'expo-av';
 
 import { getTimeAgo } from '../utils/timeUtils';
 import { buildMediaItemsFromPost } from '../utils/postMedia';
-import { guessWeatherRegionKey, getWeatherByRegion } from '../utils/weatherApi';
+import { getStoredUploadWeather } from '../utils/weatherSnapshot';
 import { toggleLike, isPostLiked, addComment } from '../utils/socialInteractions';
 import { ScreenLayout, ScreenContent, ScreenHeader, ScreenBody } from '../components/ScreenLayout';
 import { BADGES, getEarnedBadgesForUser } from '../utils/badgeSystem';
@@ -492,19 +492,21 @@ const PostDetailScreen = () => {
   }, [currentImageIndex, post?.id]);
 
   useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      if (!post) return;
-      const loc = post.detailedLocation || post.placeName || post.location || '';
-      const key = guessWeatherRegionKey(loc);
-      const r = await getWeatherByRegion(key);
-      if (!cancelled && r.success) setPostWeather(r.weather);
-    };
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [post?.id, post?.location, post?.detailedLocation, post?.placeName]);
+    if (!post) {
+      setPostWeather(null);
+      return;
+    }
+    const stored = getStoredUploadWeather(post);
+    setPostWeather(
+      stored && (stored.temperature || stored.condition)
+        ? {
+            icon: stored.icon,
+            condition: stored.condition,
+            temperature: stored.temperature,
+          }
+        : null,
+    );
+  }, [post?.id, post?.weather, post?.weatherSnapshot]);
 
   // 팔로우 상태 확인
   useEffect(() => {

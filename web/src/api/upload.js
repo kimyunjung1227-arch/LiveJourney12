@@ -252,7 +252,6 @@ const extractRealtimeMeta = async (file) => {
     if (!file || !(file instanceof Blob)) return null;
     const t = String(file.type || '').toLowerCase();
     if (t === 'image/svg+xml') return null;
-    if (t.startsWith('video/')) return null;
 
     const ex = await extractExifData(file, { allowed: true });
     if (!ex) return null;

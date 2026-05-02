@@ -100,7 +100,19 @@ export async function createPostSupabase({ user, formData }) {
     category: formData?.aiCategory ? String(formData.aiCategory) : null,
     category_name: formData?.aiCategoryName ? String(formData.aiCategoryName) : null,
     is_in_app_camera: formData?.isInAppCamera === true,
-    exif_data: formData?.coordinates ? { map_pin: formData.coordinates } : null,
+    exif_data: (() => {
+      const base =
+        formData?.exifData && typeof formData.exifData === 'object' ? { ...formData.exifData } : {};
+      const lat = Number(formData?.coordinates?.lat);
+      const lng = Number(formData?.coordinates?.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        base.map_pin = { lat, lng };
+      }
+      if (base.photoDate == null && formData?.photoDate) {
+        base.photoDate = String(formData.photoDate);
+      }
+      return Object.keys(base).length ? base : null;
+    })(),
     created_at: new Date().toISOString(),
   };
 

@@ -350,23 +350,22 @@ const UploadScreen = () => {
       }
     });
 
-    // EXIF: 첫 사진 업로드 시 메타데이터(촬영 시각/위치) 즉시 반영
+    // EXIF: 첫 사진/동영상에서 촬영 시각·위치(동영상은 QuickTime/MP4 메타 + mvhd)
     let exifFirst = null;
     let exifFileKey = '';
-    if (imageFiles.length > 0 && exifAllowed) {
+    if (exifAllowed && (imageFiles.length > 0 || videoFiles.length > 0)) {
       setExifExtracting(true);
       try {
-        // 첫 유효 이미지 찾기 (48h 초과면 경고 후 선택권 제공)
-        for (let i = 0; i < imageFiles.length; i += 1) {
-          const f = imageFiles[i];
-          const ex = await extractExifData(f, { allowed: true });
-          if (ex?.photoDate && isExifCaptureTooOldForUpload(ex.photoDate, { isInAppCamera: false, hasOnlyVideo: false })) {
-            const ok = window.confirm("이 사진은 시간이 조금 지났네요! '실시간 인증' 배지를 받을 수 없지만 업로드할까요?");
-            if (!ok) {
-              imageFiles.splice(i, 1);
-              i -= 1;
-              continue;
-            }
+        const runOldCaptureDialog = (f, ex) => {
+          if (!ex?.photoDate) return true;
+          const isVid = String(f?.type || '').toLowerCase().startsWith('video/');
+          if (isExifCaptureTooOldForUpload(ex.photoDate, { isInAppCamera: false, hasOnlyVideo: isVid })) {
+            const ok = window.confirm(
+              isVid
+                ? "이 동영상은 시간이 조금 지났네요! '실시간 인증' 배지를 받을 수 없지만 업로드할까요?"
+                : "이 사진은 시간이 조금 지났네요! '실시간 인증' 배지를 받을 수 없지만 업로드할까요?",
+            );
+            if (!ok) return false;
             try {
               const ageMs = Date.now() - new Date(ex.photoDate).getTime();
               const ageHours = Number.isFinite(ageMs) ? Math.max(0, ageMs / (60 * 60 * 1000)) : null;
@@ -376,10 +375,38 @@ const UploadScreen = () => {
               ex.oldCapture = true;
             }
           }
+          return true;
+        };
+
+        for (let i = 0; i < imageFiles.length; i += 1) {
+          const f = imageFiles[i];
+          const ex = await extractExifData(f, { allowed: true });
+          if (ex?.photoDate && !runOldCaptureDialog(f, ex)) {
+            imageFiles.splice(i, 1);
+            i -= 1;
+            continue;
+          }
           if (ex) {
             exifFirst = ex;
             exifFileKey = `${f.name}:${f.size}:${f.lastModified}`;
             break;
+          }
+        }
+
+        if (!exifFirst && videoFiles.length > 0) {
+          for (let i = 0; i < videoFiles.length; i += 1) {
+            const f = videoFiles[i];
+            const ex = await extractExifData(f, { allowed: true });
+            if (ex?.photoDate && !runOldCaptureDialog(f, ex)) {
+              videoFiles.splice(i, 1);
+              i -= 1;
+              continue;
+            }
+            if (ex) {
+              exifFirst = ex;
+              exifFileKey = `${f.name}:${f.size}:${f.lastModified}`;
+              break;
+            }
           }
         }
       } catch (err) {
@@ -440,7 +467,7 @@ const UploadScreen = () => {
 
   // ✅ 동의가 "나중에" 완료된 경우(첫 진입 모달 등): 이미 선택된 첫 사진에 대해 EXIF를 즉시 재추출
   useEffect(() => {
-    const first = formData.imageFiles?.[0] || null;
+    const first = formData.imageFiles?.[0] || formData.videoFiles?.[0] || null;
     if (!first) return;
     if (!exifAllowed) return;
     if (exifExtracting) return;
@@ -473,7 +500,7 @@ const UploadScreen = () => {
     return () => {
       cancelled = true;
     };
-  }, [exifAllowed, formData.imageFiles, formData.exifData, exifExtracting, applyExtractedExifToForm]);
+  }, [exifAllowed, formData.imageFiles, formData.videoFiles, formData.exifData, exifExtracting, applyExtractedExifToForm]);
 
   useEffect(() => {
     if (formData.imageFiles.length === 0 && formData.videoFiles.length === 0) {

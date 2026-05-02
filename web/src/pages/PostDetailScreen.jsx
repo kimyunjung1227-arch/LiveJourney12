@@ -12,8 +12,7 @@ import {
   getMergedMyPostsForStats,
 } from '../api/postsSupabase';
 import { useAuth } from '../contexts/AuthContext';
-import { getWeatherByRegion } from '../api/weather';
-import { getValidWeatherSnapshot } from '../utils/weatherSnapshot';
+import { getStoredUploadWeather } from '../utils/weatherSnapshot';
 import { getTimeAgo } from '../utils/dateUtils';
 import { addComment, deleteCommentFromPost, updateCommentInPost, getPostAccuracyCount, hasUserMarkedAccurate, toggleAccuracyFeedback } from '../utils/socialInteractions';
 import { getBadgeDisplayName, getEarnedBadgesForUser } from '../utils/badgeSystem';
@@ -1143,49 +1142,29 @@ const PostDetailScreen = () => {
     return () => document.removeEventListener('mousedown', onDoc);
   }, [showAuthorPostMenu, showShareMenu]);
 
-  // 날씨 정보: 업로드 시점 스냅샷을 최대 48시간까지 유지(그 이후엔 현재 날씨로 fallback)
+  // 날씨: 업로드 시 DB에 저장된 스냅샷만 표시(실시간 재조회 없음)
   useEffect(() => {
     if (!post) return;
 
-    const frozen = getValidWeatherSnapshot(post);
-    if (frozen) {
-      // 저장된 업로드 시점 날씨 스냅샷 (48시간 TTL)
+    const stored = getStoredUploadWeather(post);
+    if (stored && (stored.temperature || stored.condition)) {
       setWeatherInfo({
-        icon: frozen.icon,
-        condition: frozen.condition,
-        temperature: frozen.temperature,
-        loading: false
+        icon: stored.icon,
+        condition: stored.condition,
+        temperature: stored.temperature,
+        loading: false,
       });
       return;
     }
 
-    // 예전에 올린 글처럼 날씨가 없는 경우에만 현재 지역 날씨를 참고용으로 한 번만 조회
-    if (!locationText) {
-      setWeatherInfo(prev => ({ ...prev, loading: false }));
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        setWeatherInfo(prev => ({ ...prev, loading: true }));
-        const result = await getWeatherByRegion(locationText);
-        if (cancelled) return;
-        if (result?.success && result.weather) {
-          setWeatherInfo({
-            icon: result.weather.icon,
-            condition: result.weather.condition,
-            temperature: result.weather.temperature,
-            loading: false
-          });
-        } else {
-          setWeatherInfo(prev => ({ ...prev, loading: false, condition: '정보 없음', temperature: '' }));
-        }
-      } catch (error) {
-        if (!cancelled) setWeatherInfo(prev => ({ ...prev, loading: false }));
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [post, locationText]);
+    setWeatherInfo((prev) => ({
+      ...prev,
+      loading: false,
+      icon: '—',
+      condition: '기록 없음',
+      temperature: '',
+    }));
+  }, [post]);
 
   // 작성자 팔로우 여부 로드 및 followsUpdated 구독
   const postUserId = post ? (post.userId || (typeof post.user === 'string' ? post.user : post.user?.id) || post.user) : null;
@@ -1561,8 +1540,8 @@ const PostDetailScreen = () => {
                         {weatherInfo.temperature
                           ? `${weatherInfo.condition}, ${weatherInfo.temperature}`
                           : weatherInfo.condition}
-                        {getValidWeatherSnapshot(post) ? (
-                          <span className="ml-1 text-xs font-normal text-gray-400">(업로드 시점 기록, 48시간 유지)</span>
+                        {getStoredUploadWeather(post) ? (
+                          <span className="ml-1 text-xs font-normal text-gray-400">(업로드 시점 기록)</span>
                         ) : null}
                       </span>
                     </>
