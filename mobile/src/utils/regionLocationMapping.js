@@ -193,6 +193,8 @@ export const regionCoordinates = {
   '포항': { lat: 36.0322, lng: 129.3650 },
   '구미': { lat: 36.1194, lng: 128.3444 },
   '김천': { lat: 36.1398, lng: 128.1136 },
+  // 김천시 교동 등 — 지역 탭은 resolveRegionFromLocationInput으로 김천으로 귀속
+  '연화지': { lat: 36.1398, lng: 128.1136 },
   '안동': { lat: 36.5684, lng: 128.7296 },
   '영주': { lat: 36.8056, lng: 128.6236 },
   '영양': { lat: 36.6667, lng: 129.1125 },
@@ -221,6 +223,37 @@ export const regionCoordinates = {
   '오키나와': { lat: 26.2124, lng: 127.6809 },
   '나하': { lat: 26.2124, lng: 127.6809 }
 };
+
+/**
+ * 명소·세부 장소명 → 지역 화면에서 묶을 행정구역(시·군·구 단위)
+ */
+export const landmarkToParentRegion = {
+  연화지: '김천',
+};
+
+/**
+ * 위치 입력으로부터 posts.region 값 계산 (명소만 적었을 때 상위 시·군으로 귀속)
+ * @param {string} raw — 사용자가 입력한 위치 문자열
+ * @returns {string|null}
+ */
+export function resolveRegionFromLocationInput(raw) {
+  const loc = String(raw || '').trim();
+  if (!loc) return null;
+
+  const sortedKeys = Object.keys(landmarkToParentRegion).sort((a, b) => b.length - a.length);
+  for (const key of sortedKeys) {
+    if (loc.includes(key)) return landmarkToParentRegion[key];
+  }
+
+  const tokens = loc.split(/\s+/).filter(Boolean);
+  for (const token of tokens) {
+    for (const key of sortedKeys) {
+      if (token === key) return landmarkToParentRegion[key];
+    }
+  }
+
+  return tokens[0] || null;
+}
 
 /**
  * 지역명으로 좌표 가져오기

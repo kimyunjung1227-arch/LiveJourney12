@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../utils/supabaseClient';
+import { resolveRegionFromLocationInput } from '../utils/regionLocationMapping';
 
 const POST_IMAGES_BUCKET = 'post-images';
 
@@ -92,7 +93,7 @@ export async function createPostSupabase({ user, formData }) {
     place_name: formData?.placeName ? String(formData.placeName) : null,
     region: (() => {
       const loc = String(formData?.location || '').trim();
-      return loc ? loc.split(' ')[0] : null;
+      return loc ? resolveRegionFromLocationInput(loc) : null;
     })(),
     weather: formData?.weatherSnapshot || formData?.weather || null,
     tags: Array.isArray(formData?.tags) ? formData.tags.map((t) => String(t).replace(/^#+/, '')) : [],

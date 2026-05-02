@@ -339,6 +339,7 @@ export const REGION_LANDMARKS = {
   ],
   '김천': [
     { id: 'jikjisa', name: '직지사', keywords: ['직지사'] },
+    { id: 'yeonhwaji', name: '연화지', keywords: ['연화지'] },
   ],
   '영주': [
     { id: 'buseoksa', name: '부석사', keywords: ['부석사'] },

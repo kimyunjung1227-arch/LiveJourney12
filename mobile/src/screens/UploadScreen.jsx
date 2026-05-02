@@ -32,6 +32,7 @@ import { checkNewBadges, awardBadge, calculateUserStats } from '../utils/badgeSy
 import { getBadgeCongratulationMessage, getBadgeDifficultyEffects } from '../utils/badgeMessages';
 import { ScreenLayout, ScreenContent, ScreenHeader, ScreenBody } from '../components/ScreenLayout';
 import { createPostSupabase } from '../api/postsSupabase';
+import { resolveRegionFromLocationInput } from '../utils/regionLocationMapping';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -564,8 +565,8 @@ const UploadScreen = () => {
         location: formData.location
       });
       
-      // 지역 정보 추출 (첫 번째 단어를 지역으로 사용)
-      const region = formData.location?.split(' ')[0] || '기타';
+      // 지역 정보 (명소만 입력 시 상위 시·군으로 귀속, 예: 연화지 → 김천)
+      const region = resolveRegionFromLocationInput(formData.location) || '기타';
 
       setUploadProgress(70);
 

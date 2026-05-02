@@ -15,6 +15,7 @@ import { logger } from '../utils/logger';
 import { useExifConsent } from '../contexts/ExifConsentContext';
 import { convertGpsToAddress, extractExifData, isExifCaptureTooOldForUpload } from '../utils/exifExtractor';
 import { getWeatherByRegion } from '../api/weather';
+import { resolveRegionFromLocationInput } from '../utils/regionLocationMapping';
 import { useLoginGate } from '../hooks/useLoginGate';
 
 const formatUploadDateLine = (raw) => {
@@ -774,7 +775,7 @@ const UploadScreen = () => {
       const uid = rawId != null ? String(rawId).trim() : '';
       const userIdForDb = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uid) ? uid : null;
 
-      const region = formData.location?.split(/\s+/)[0] || '기타';
+      const region = resolveRegionFromLocationInput(formData.location) || '기타';
 
       // 업로드 "당시" 기온을 posts.weather(jsonb)에 스냅샷으로 저장.
       // - 이후 48시간 동안은 이 값만 표시(기상청 과거조회 실패/제한 회피)

@@ -241,6 +241,10 @@ export const regionCoordinates = {
   '천안': { lat: 36.8151, lng: 127.1139 },
   '충주': { lat: 36.9910, lng: 127.9260 },
   
+  // 경북
+  '김천': { lat: 36.1398, lng: 128.1136 },
+  '연화지': { lat: 36.1398, lng: 128.1136 },
+
   // 기타
   '대구': { lat: 35.8714, lng: 128.6014 },
   '인천': { lat: 37.4563, lng: 126.7052 },
@@ -328,10 +332,41 @@ export const searchRegions = (query) => {
     .slice(0, 20); // 최대 20개
 };
 
+/**
+ * 명소·세부 장소명 → 지역 화면에서 묶을 행정구역(시·군·구 단위)
+ */
+export const landmarkToParentRegion = {
+  연화지: '김천',
+};
+
+/**
+ * 위치 입력으로부터 posts.region 값 계산 (명소만 적었을 때 상위 시·군으로 귀속)
+ */
+export function resolveRegionFromLocationInput(raw) {
+  const loc = String(raw || '').trim();
+  if (!loc) return null;
+
+  const sortedKeys = Object.keys(landmarkToParentRegion).sort((a, b) => b.length - a.length);
+  for (const key of sortedKeys) {
+    if (loc.includes(key)) return landmarkToParentRegion[key];
+  }
+
+  const tokens = loc.split(/\s+/).filter(Boolean);
+  for (const token of tokens) {
+    for (const key of sortedKeys) {
+      if (token === key) return landmarkToParentRegion[key];
+    }
+  }
+
+  return tokens[0] || null;
+}
+
 export default {
   regionCoordinates,
   getCoordinatesByLocation,
-  searchRegions
+  searchRegions,
+  landmarkToParentRegion,
+  resolveRegionFromLocationInput,
 };
 
 
