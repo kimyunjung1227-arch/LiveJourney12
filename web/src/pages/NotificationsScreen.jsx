@@ -46,6 +46,40 @@ function bucketLabel(daysAgo) {
 
 const friendNewsLocalKey = (uid) => `mvp1:friend_news_state:${String(uid)}`;
 
+/** 알림 화면에서 상세 등으로 나갔다가 뒤로 올 때 탭·스크롤 유지 (세션 내, 짧은 TTL) */
+const NOTIFICATIONS_UI_RESTORE_KEY = 'mvp1:notifications_ui_restore';
+const NOTIFICATIONS_UI_RESTORE_MAX_AGE_MS = 10 * 60 * 1000;
+
+function readNotificationsUiRestore() {
+  try {
+    const raw = sessionStorage.getItem(NOTIFICATIONS_UI_RESTORE_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || typeof o !== 'object') return null;
+    const ts = Number(o.ts) || 0;
+    if (!ts || Date.now() - ts > NOTIFICATIONS_UI_RESTORE_MAX_AGE_MS) {
+      sessionStorage.removeItem(NOTIFICATIONS_UI_RESTORE_KEY);
+      return null;
+    }
+    const tabVal = o.tab === 'friends' || o.tab === 'all' ? o.tab : 'all';
+    const scrollTop = Number(o.scrollTop);
+    return {
+      tab: tabVal,
+      scrollTop: Number.isFinite(scrollTop) ? scrollTop : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clearNotificationsUiRestore() {
+  try {
+    sessionStorage.removeItem(NOTIFICATIONS_UI_RESTORE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 function loadFriendNewsLocal(uid) {
   if (!uid || typeof sessionStorage === 'undefined') return null;
   try {
@@ -80,10 +114,15 @@ const NotificationsScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const restorePayloadRef = useRef(readNotificationsUiRestore());
+  const screenContentRef = useRef(null);
+  const scrollRestoreDoneRef = useRef(false);
   const [showMarkAllReadModal, setShowMarkAllReadModal] = useState(false);
   const [allNotifications, setAllNotifications] = useState([]);
-  const [tab, setTab] = useState('all'); // all | friends
+  const [tab, setTab] = useState(() => restorePayloadRef.current?.tab ?? 'all'); // all | friends
   const [friendNews, setFriendNews] = useState([]);
+  /** 친구소식 비동기 로드 완료 후 스크롤 복원(목록 높이 반영) */
+  const [friendNewsLoaded, setFriendNewsLoaded] = useState(false);
   const [, setTick] = useState(0);
   /** 친구소식 읽음 상태(Supabase와 동기화, 기기 간 공유) */
   const friendNewsStateRef = useRef({ read_map: {}, last_seen_ms: 0 });
@@ -106,6 +145,7 @@ const NotificationsScreen = () => {
   };
 
   const loadFriendNews = useCallback(async () => {
+    setFriendNewsLoaded(false);
     try {
       const uid = String(user?.id || getNotificationStoredUserId() || '').trim();
       if (!uid) {
@@ -176,6 +216,8 @@ const NotificationsScreen = () => {
       setFriendNews(items);
     } catch {
       setFriendNews([]);
+    } finally {
+      setFriendNewsLoaded(true);
     }
   }, [user?.id]);
 
@@ -215,6 +257,35 @@ const NotificationsScreen = () => {
     return groups;
   }, [list]);
 
+  const persistNotificationsUiForReturn = useCallback(() => {
+    try {
+      sessionStorage.setItem(
+        NOTIFICATIONS_UI_RESTORE_KEY,
+        JSON.stringify({
+          tab,
+          scrollTop: screenContentRef.current?.scrollTop ?? 0,
+          ts: Date.now(),
+        }),
+      );
+    } catch {
+      // ignore
+    }
+  }, [tab]);
+
+  useEffect(() => {
+    const payload = restorePayloadRef.current;
+    if (!payload || scrollRestoreDoneRef.current || !friendNewsLoaded) return;
+    const run = () => {
+      const el = screenContentRef.current;
+      if (!el) return;
+      el.scrollTop = payload.scrollTop;
+      scrollRestoreDoneRef.current = true;
+      restorePayloadRef.current = null;
+      clearNotificationsUiRestore();
+    };
+    requestAnimationFrame(() => requestAnimationFrame(run));
+  }, [friendNewsLoaded, list.length, tab]);
+
   const handleOpen = async (notification) => {
     if (tab === 'friends') {
       const uid = String(user?.id || getNotificationStoredUserId() || '').trim();
@@ -237,6 +308,7 @@ const NotificationsScreen = () => {
       loadNotifications();
     }
     if (notification.data?.type === 'sos_request' && notification.data.sosRequest) {
+      persistNotificationsUiForReturn();
       navigate('/map');
       return;
     }
@@ -246,6 +318,7 @@ const NotificationsScreen = () => {
       if (actorId) {
         const selfId = String(user?.id || getNotificationStoredUserId() || '').trim();
         if (selfId && actorId === selfId) {
+          persistNotificationsUiForReturn();
           navigate('/profile');
         } else {
           const rawName = String(notification.actorUsername || '').trim();
@@ -257,6 +330,7 @@ const NotificationsScreen = () => {
               ...(av ? { profileImage: av } : {}),
             });
           }
+          persistNotificationsUiForReturn();
           navigate(`/user/${encodeURIComponent(actorId)}`, {
             state: {
               profileHint: {
@@ -282,6 +356,7 @@ const NotificationsScreen = () => {
           ...(av ? { profileImage: av } : {}),
         });
       }
+      persistNotificationsUiForReturn();
       navigate(`/post/${encodeURIComponent(pid)}`, {
         state: {
           notificationAuthorHint:
@@ -292,7 +367,10 @@ const NotificationsScreen = () => {
       });
       return;
     }
-    if (notification.link) navigate(notification.link);
+    if (notification.link) {
+      persistNotificationsUiForReturn();
+      navigate(notification.link);
+    }
   };
 
   const handleMarkAllRead = async () => {
@@ -459,11 +537,14 @@ const NotificationsScreen = () => {
 
   return (
     <div className="screen-layout relative h-screen overflow-hidden bg-background-light dark:bg-background-dark">
-      <div className="screen-content">
+      <div ref={screenContentRef} className="screen-content">
         <header className="screen-header flex h-14 items-center justify-between border-b border-border-light bg-white px-3 dark:border-border-dark dark:bg-gray-900">
           <button
             type="button"
-            onClick={() => navigate('/main')}
+            onClick={() => {
+              clearNotificationsUiRestore();
+              navigate('/main');
+            }}
             className="flex size-11 shrink-0 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             <span className="material-symbols-outlined text-2xl">arrow_back</span>
