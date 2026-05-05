@@ -6,7 +6,8 @@ export const SEO_DEFAULT = {
   keywords:
     "라이브저니, Live Journey, 실시간 여행, 여행 커뮤니티, 실시간 제보, 여행 정보, 혼잡도, 날씨, 지도",
   siteName: "라이브저니",
-  ogImageFilename: "logo.svg",
+  // 검색/미리보기에서 특정 이미지가 노출되지 않도록 투명 1x1로 지정
+  ogImageFilename: "og-empty.svg",
 }
 
 /**

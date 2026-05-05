@@ -42,10 +42,11 @@ export default function RootSeo() {
     setMetaByProperty("og:image", ogImage)
     setMetaByProperty("og:image:alt", SEO_DEFAULT.siteName)
 
-    setMetaByName("twitter:card", "summary_large_image")
+    // 검색/미리보기에서 큰 이미지 카드가 뜨지 않도록 summary로 제한
+    setMetaByName("twitter:card", "summary")
     setMetaByName("twitter:title", SEO_DEFAULT.title)
     setMetaByName("twitter:description", SEO_DEFAULT.description)
-    setMetaByName("twitter:image", ogImage)
+    // twitter:image는 지정하지 않음(썸네일 노출 최소화)
 
     const linkCanonical = document.querySelector('link[rel="canonical"]')
     if (linkCanonical) linkCanonical.setAttribute("href", canonical)
