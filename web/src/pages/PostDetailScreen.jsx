@@ -677,8 +677,8 @@ const PostDetailScreen = () => {
 
   const handleNavigateToEditPost = useCallback(() => {
     if (!postId) return;
-    navigate(`/post/${postId}/edit`);
-  }, [navigate, postId]);
+    navigate(`/post/${postId}/edit`, { state: { post } });
+  }, [navigate, postId, post]);
 
   const handleReportPost = useCallback(() => {
     if (!post?.id) return;

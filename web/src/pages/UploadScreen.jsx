@@ -1,8 +1,8 @@
 ﻿import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { uploadImage, uploadMetaToExifShape } from '../api/upload';
-import { createPostSupabase, getMergedMyPostsForStats, mapSupabasePostRowToPost } from '../api/postsSupabase';
+import { createPostSupabase, fetchPostByIdSupabase, getMergedMyPostsForStats, mapSupabasePostRowToPost, updatePostSupabase } from '../api/postsSupabase';
 import { useAuth } from '../contexts/AuthContext';
 import { notifyBadge } from '../utils/notifications';
 import { checkNewBadges, awardBadge, hasSeenBadge, markBadgeAsSeen, calculateUserStats, getBadgeDisplayName } from '../utils/badgeSystem';
@@ -29,9 +29,14 @@ const formatUploadDateLine = (raw) => {
 const UploadScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { id: editIdParam } = useParams();
   const { user } = useAuth();
   const requireLogin = useLoginGate();
   const { exifAllowed } = useExifConsent();
+  const isEditMode = useMemo(() => {
+    const path = String(location?.pathname || '');
+    return Boolean(editIdParam) && path.includes('/post/') && path.endsWith('/edit');
+  }, [location?.pathname, editIdParam]);
   const [showPhotoOptions, setShowPhotoOptions] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [formData, setFormData] = useState({
@@ -60,6 +65,65 @@ const UploadScreen = () => {
   /** 미디어를 모두 지우기 전까지 AI 자동 태그는 최초 1회만 */
   const initialAiSuggestDoneRef = useRef(null);
   const noteAreaRef = useRef(null);
+
+  // 수정 모드: 기존 게시물 로드 → 폼 초기화
+  useEffect(() => {
+    if (!isEditMode) return;
+    if (!editIdParam) return;
+    if (!requireLogin('수정')) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const pid = String(editIdParam || '').trim();
+        const passed = location?.state?.post || null;
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pid);
+        if (!isUuid) {
+          alert('이 게시물은 수정할 수 없습니다. (로컬 게시물)');
+          navigate(-1);
+          return;
+        }
+        const fresh = passed?.id === pid ? passed : await fetchPostByIdSupabase(pid, user?.id || null);
+        if (cancelled) return;
+        if (!fresh) {
+          alert('게시물을 불러올 수 없습니다.');
+          navigate(-1);
+          return;
+        }
+
+        // 이미지/동영상은 "기존 URL 유지"가 기본이며, 새 파일을 추가하면 그때만 업로드
+        const images = Array.isArray(fresh.images) ? fresh.images : (fresh.image ? [fresh.image] : []);
+        const videos = Array.isArray(fresh.videos) ? fresh.videos : [];
+        const tags = Array.isArray(fresh.tags) ? fresh.tags.map((t) => (typeof t === 'string' ? (t.startsWith('#') ? t : `#${t}`) : String(t || ''))) : [];
+
+        setFormData((prev) => ({
+          ...prev,
+          images: images.filter(Boolean),
+          videos: videos.filter(Boolean),
+          imageFiles: [],
+          videoFiles: [],
+          location: fresh.location?.name || fresh.location || fresh.placeName || prev.location || '',
+          tags,
+          note: fresh.note || fresh.content || '',
+          coordinates: fresh.coordinates || prev.coordinates || null,
+          aiCategory: fresh.category || prev.aiCategory || 'scenic',
+          aiCategoryName: fresh.categoryName || prev.aiCategoryName || '추천 장소',
+          aiCategoryIcon: fresh.categoryIcon || prev.aiCategoryIcon || '📍',
+          photoDate: fresh.photoDate || null,
+          exifData: fresh.exifData || null,
+          verifiedLocation: fresh.verifiedLocation || null,
+          address: fresh.address || null,
+          detailedLocation: fresh.detailedLocation || fresh.placeName || null,
+        }));
+      } catch (e) {
+        logger.error('수정 화면 초기화 실패:', e);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isEditMode, editIdParam, location?.state, user?.id, navigate, requireLogin]);
 
   // 업로드 화면 날짜 표시: EXIF 촬영일 우선, 없으면 오늘 날짜
   const displayDateLine = useMemo(() => {
@@ -679,7 +743,7 @@ const UploadScreen = () => {
     logger.debug('Image count:', formData.images.length);
     logger.debug('Location:', formData.location);
 
-    if (!requireLogin('업로드')) return;
+    if (!requireLogin(isEditMode ? '수정' : '업로드')) return;
     
     if (formData.images.length === 0 && formData.videos.length === 0) {
       alert('사진 또는 동영상을 추가해주세요');
@@ -768,12 +832,22 @@ const UploadScreen = () => {
       const finalImages = uploadedImageUrls.map(toHttpsPersistent).filter(Boolean);
       const finalVideos = uploadedVideoUrls.map(toHttpsPersistent).filter(Boolean);
 
+      // 수정 모드: 기존 URL을 유지하고, 새로 업로드된 URL만 추가한다.
+      const existingImages = (isEditMode ? (Array.isArray(formData.images) ? formData.images : []) : [])
+        .map(toHttpsPersistent)
+        .filter(Boolean);
+      const existingVideos = (isEditMode ? (Array.isArray(formData.videos) ? formData.videos : []) : [])
+        .map(toHttpsPersistent)
+        .filter(Boolean);
+      const mergedImages = Array.from(new Set([...existingImages, ...finalImages]));
+      const mergedVideos = Array.from(new Set([...existingVideos, ...finalVideos]));
+
       logger.log('📸 업로드된 미디어 URL(Supabase https만 DB 저장):', {
         images: finalImages.length,
         videos: finalVideos.length,
       });
 
-      if (finalImages.length === 0 && finalVideos.length === 0) {
+      if (mergedImages.length === 0 && mergedVideos.length === 0) {
         alert(
           '미디어가 서버에 올라가지 않았습니다. Supabase Storage·환경 변수·로그인을 확인해 주세요.\n(https 주소만 저장됩니다)'
         );
@@ -821,35 +895,48 @@ const UploadScreen = () => {
         logger.warn('업로드 시점 날씨 스냅샷 실패:', e?.message || e);
       }
 
-      const supResult = await createPostSupabase({
-        userId: userIdForDb,
-        user:
-          userIdForDb && currentUser && typeof currentUser === 'object'
-            ? {
-                id: userIdForDb,
-                username,
-                profileImage: currentUser.profileImage || currentUser.avatar_url || null,
-              }
-            : { username },
-        note: formData.note,
-        content: formData.note,
-        images: finalImages,
-        videos: finalVideos,
-        location: formData.location,
-        detailedLocation: formData.location,
-        placeName: formData.location,
-        region,
-        tags: formData.tags,
-        category: aiCategory,
-        categoryName: aiCategoryName,
-        likes: 0,
-        coordinates: formData.coordinates,
-        photoDate: effectiveExif?.photoDate || null,
-        exifData: effectiveExif || null,
-        weatherSnapshot,
-        createdAt: new Date().toISOString(),
-        comments: [],
-      });
+      const supResult = isEditMode
+        ? await updatePostSupabase(String(editIdParam || ''), {
+            content: formData.note,
+            location: formData.location,
+            detailed_location: formData.location,
+            place_name: formData.location,
+            region,
+            tags: formData.tags,
+            images: mergedImages,
+            videos: mergedVideos,
+            // 날씨 스냅샷은 수정 시에도 갱신 허용(선택)
+            weather: weatherSnapshot ?? undefined,
+          })
+        : await createPostSupabase({
+            userId: userIdForDb,
+            user:
+              userIdForDb && currentUser && typeof currentUser === 'object'
+                ? {
+                    id: userIdForDb,
+                    username,
+                    profileImage: currentUser.profileImage || currentUser.avatar_url || null,
+                  }
+                : { username },
+            note: formData.note,
+            content: formData.note,
+            images: mergedImages,
+            videos: mergedVideos,
+            location: formData.location,
+            detailedLocation: formData.location,
+            placeName: formData.location,
+            region,
+            tags: formData.tags,
+            category: aiCategory,
+            categoryName: aiCategoryName,
+            likes: 0,
+            coordinates: formData.coordinates,
+            photoDate: effectiveExif?.photoDate || null,
+            exifData: effectiveExif || null,
+            weatherSnapshot,
+            createdAt: new Date().toISOString(),
+            comments: [],
+          });
 
       if (!supResult.success || !supResult.post) {
         const hint = supResult.hint || supResult.error || '알 수 없는 오류';
@@ -877,6 +964,16 @@ const UploadScreen = () => {
         window.dispatchEvent(new Event('newPostsAdded'));
         window.dispatchEvent(new Event('postsUpdated'));
       }, 100);
+
+      // 수정은 뱃지/레벨 지급 흐름을 타지 않고 상세로 복귀
+      if (isEditMode) {
+        setTimeout(() => {
+          window.dispatchEvent(new Event('postsUpdated'));
+          setShowSuccessModal(false);
+          navigate(`/post/${encodeURIComponent(String(uploadedPost.id))}`, { replace: true, state: { post: uploadedPost } });
+        }, 550);
+        return;
+      }
 
       setTimeout(() => {
         void (async () => {
@@ -914,7 +1011,7 @@ const UploadScreen = () => {
       setUploading(false);
       setUploadProgress(0);
     }
-  }, [formData, user, navigate, checkAndAwardBadge, requireLogin]);
+  }, [formData, user, navigate, checkAndAwardBadge, requireLogin, isEditMode, editIdParam]);
 
   const hasMedia = formData.images.length > 0 || formData.videos.length > 0;
   const noteFilled = String(formData.note || '').trim().length > 0;
