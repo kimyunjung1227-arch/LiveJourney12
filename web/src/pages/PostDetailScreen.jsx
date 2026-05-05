@@ -1541,7 +1541,7 @@ const PostDetailScreen = () => {
                           ? `${weatherInfo.condition}, ${weatherInfo.temperature}`
                           : weatherInfo.condition}
                         {getStoredUploadWeather(post) ? (
-                          <span className="ml-1 text-xs font-normal text-gray-400">(업로드 시점 기록)</span>
+                          <span className="ml-1 text-xs font-normal text-gray-400">(촬영 시점 기록)</span>
                         ) : null}
                       </span>
                     </>

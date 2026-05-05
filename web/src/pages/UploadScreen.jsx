@@ -878,16 +878,17 @@ const UploadScreen = () => {
 
       const region = resolveRegionFromLocationInput(formData.location) || '기타';
 
-      // 업로드 "당시" 기온을 posts.weather(jsonb)에 스냅샷으로 저장.
-      // - 이후 48시간 동안은 이 값만 표시(기상청 과거조회 실패/제한 회피)
+      // 촬영 시각(EXIF) 기준 기온을 posts.weather(jsonb)에 스냅샷으로 저장.
+      // - 상세 화면은 이 값을 고정 표시(실시간 재조회 없음)
       // - 실패해도 업로드는 계속 진행
       let weatherSnapshot = null;
       try {
-        const w = await getWeatherByRegion(region, false);
+        const fixedAt = effectiveExif?.photoDate || null;
+        const w = await getWeatherByRegion(region, false, fixedAt ? { at: fixedAt } : {});
         if (w?.success && w?.weather) {
           weatherSnapshot = {
             ...w.weather,
-            observedAt: new Date().toISOString(),
+            observedAt: fixedAt || new Date().toISOString(),
             source: 'kma_ultra_ncst',
           };
         }

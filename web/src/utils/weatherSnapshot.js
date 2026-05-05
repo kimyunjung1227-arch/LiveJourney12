@@ -9,7 +9,7 @@ const toMs = (v) => {
 };
 
 /**
- * posts.weather(jsonb) 를 "업로드 시점 기온 스냅샷"으로 취급.
+ * posts.weather(jsonb) 를 "촬영 시점(가능하면 EXIF) 기온 스냅샷"으로 취급.
  * - observedAt/observed_at가 있으면 그 시각을 기준으로 TTL 판단
  * - 없으면 게시물 createdAt/timestamp 기준으로 TTL 판단
  */
@@ -31,7 +31,7 @@ export function getValidWeatherSnapshot(post, nowMs = Date.now(), ttlMs = WEATHE
 }
 
 /**
- * 게시물 상세 등 — 업로드 시 저장된 날씨만 표시(TTL 없음, 실시간 재조회 안 함)
+ * 게시물 상세 등 — 저장된 날씨만 표시(TTL 없음, 실시간 재조회 안 함)
  */
 export function getStoredUploadWeather(post) {
   const w = post?.weatherSnapshot || post?.weather || null;
