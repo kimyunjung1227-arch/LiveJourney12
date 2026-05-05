@@ -74,7 +74,7 @@ const LiveBadgeDetailScreen = () => {
     return hydrated ? { ...hydrated, name: nextName } : { name: nextName };
   }, [meta]);
 
-  const currentLabel = getBadgeDisplayName(current) || current?.displayName || current?.name || '라이브뱃지';
+  const currentLabel = getBadgeDisplayName(current) || current?.displayName || current?.name || '뱃지';
   const nextLabel = next ? getBadgeDisplayName(next) || next?.displayName || next?.name : null;
 
   const kind = meta?.kind || null;
@@ -92,11 +92,11 @@ const LiveBadgeDetailScreen = () => {
     current?.shortCondition?.trim() ||
     (nextTarget != null
       ? `누적 진행 ${curCount} / ${nextTarget}${current?.progressUnit ? ` ${current.progressUnit}` : ''}`
-      : '활동 기록을 쌓아 획득한 라이브뱃지입니다.');
+      : '활동 기록을 쌓아 획득한 뱃지입니다.');
 
   const descriptionText =
     current?.description?.trim() ||
-    '활동을 통해 성장하는 라이브뱃지입니다. 실시간 기록을 쌓아 다음 단계에 도전해 보세요.';
+    '활동을 통해 성장하는 뱃지입니다. 실시간 기록을 쌓아 다음 단계에 도전해 보세요.';
 
   const nextConditionText = hasNextStage
     ? (next?.shortCondition?.trim() ||
@@ -119,7 +119,7 @@ const LiveBadgeDetailScreen = () => {
         <header className="screen-header bg-white dark:bg-gray-900 flex items-center p-4 gap-3 border-b border-gray-100 dark:border-gray-800">
           <BackButton onClick={() => navigate(-1)} />
           <h1 className="text-text-primary-light dark:text-text-primary-dark text-lg font-bold truncate flex-1">
-            라이브뱃지 상세
+            뱃지 상세
           </h1>
         </header>
 

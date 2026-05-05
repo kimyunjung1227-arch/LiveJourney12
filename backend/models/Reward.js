@@ -10,8 +10,7 @@ const mongoose = require('mongoose');
 const BADGES = {
   '첫 걸음': { name: '첫 걸음', description: '첫 번째 실시간 여행 정보를 공유했어요. 여행의 첫걸음을 내딛었어요!', icon: '👣', category: '온보딩', difficulty: 1, gradient: 'from-green-400 to-emerald-500', condition: { type: 'postCount', value: 1 } },
   '지역 가이드': { name: '지역 가이드', description: '해당 지역 실시간 제보 10회 이상. 가장 직관적인 로컬 전문가 인증', icon: '🗺️', category: '지역 가이드', difficulty: 2, gradient: 'from-indigo-600 to-blue-800', condition: { type: 'regionMaxPosts', value: 10 } },
-  '지역 지킴이': { name: '지역 지킴이', description: '해당 지역의 중요 정보(폐업, 혼잡 등) 5회 이상 공유. 지역의 실패 없는 여행을 수호', icon: '🛡️', category: '지역 가이드', difficulty: 2, gradient: 'from-amber-600 to-amber-800', condition: { type: 'clientOnly', value: 0 } },
-  '지역 통신원': { name: '지역 통신원', description: '해당 지역에서 3일 연속 실시간 중계. 지역 소식을 실시간으로 전하는 특파원', icon: '📡', category: '지역 가이드', difficulty: 3, gradient: 'from-cyan-500 to-blue-600', condition: { type: 'clientOnly', value: 0 } },
+  '지역 톡파원': { name: '지역 톡파원', description: '해당 지역에서 3일 연속 실시간 중계. 지역 소식을 실시간으로 전하는 톡파원', icon: '📡', category: '지역 가이드', difficulty: 3, gradient: 'from-cyan-500 to-blue-600', condition: { type: 'clientOnly', value: 0 } },
   '지역 마스터': { name: '지역 마스터', description: '해당 지역 활동량 상위 1% 기록. 그 지역에 대해선 모르는 게 없는 권위자', icon: '👑', category: '지역 가이드', difficulty: 4, gradient: 'from-purple-600 to-fuchsia-700', condition: { type: 'clientOnly', value: 0 } },
   '날씨요정': { name: '날씨요정', description: '비/눈 등 기상 변화 시 10분 이내 현장 제보 5회. 친근하고 확실한 날씨 알림이', icon: '🌦️', category: '실시간 정보', difficulty: 2, gradient: 'from-cyan-400 to-blue-600', condition: { type: 'clientOnly', value: 0 } },
   '웨이팅 요정': { name: '웨이팅 요정', description: '실시간 대기 줄 상황과 예상 시간 10회 공유. 헛걸음과 시간 낭비를 막아주는 구세주', icon: '⏱️', category: '실시간 정보', difficulty: 2, gradient: 'from-lime-400 to-green-600', condition: { type: 'clientOnly', value: 0 } },

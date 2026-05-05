@@ -46,7 +46,7 @@ export const getBadgeDisplayName = (badge) => {
   return badge?.name || '';
 };
 
-const REGION_AWARE_NAMES = ['지역 가이드', '지역 지킴이', '지역 통신원', '지역 마스터'];
+const REGION_AWARE_NAMES = ['지역 가이드', '지역 톡파원', '지역 마스터'];
 const DYNAMIC_BADGE_PREFIX = 'dyn:';
 
 const makeTone = (from, to) => ({ from, to });
@@ -111,7 +111,7 @@ const decodeDynamicName = (name) => {
   if (parts[0] === 'region') {
     const region = parts[1] || '';
     const tier = Number(String(parts[2] || '').replace(/^tier/, '')) || 1;
-    const labels = ['여행자', '커넥터', '전문가'];
+    const labels = ['가이드', '톡파원', '마스터'];
     const icon = '🧭';
     return { kind: 'region', region, tier, displayName: `${region} ${labels[tier - 1] || '비기너'}`, icon, category: '지역 테마' };
   }
@@ -636,10 +636,10 @@ const buildDynamicBadges = (stats) => {
   const regionCounts = s.regionCountsByName && typeof s.regionCountsByName === 'object' ? s.regionCountsByName : {};
   const regionMeta = s.regionRealtimeMeta && typeof s.regionRealtimeMeta === 'object' ? s.regionRealtimeMeta : {};
   const regionStages = [
-    { tier: 1, label: '여행자', targetUploads: 5 },
-    { tier: 2, label: '커넥터', targetUploads: 20 },
+    { tier: 1, label: '가이드', targetUploads: 5 },
+    { tier: 2, label: '톡파원', targetUploads: 20 },
     // tier3는 업로드 외 추가 조건이 붙는다.
-    { tier: 3, label: '전문가', targetUploads: 50, targetHelpful: 100, targetPoi: 5, targetTimeBuckets: 3 },
+    { tier: 3, label: '마스터', targetUploads: 50, targetHelpful: 100, targetPoi: 5, targetTimeBuckets: 3 },
   ];
   Object.entries(regionCounts)
     .filter(([region]) => region && String(region).trim().length >= 2)
@@ -679,7 +679,7 @@ const buildDynamicBadges = (stats) => {
           displayName: `${region} ${st.label}`,
           description:
             st.tier === 3
-              ? `${region}의 정보 시차를 줄이는 '지역 전문가'예요. 다양한 시간대·장소에서 검증된 실시간 정보를 연결합니다.`
+              ? `${region}의 정보 시차를 줄이는 '지역 마스터'예요. 다양한 시간대·장소에서 검증된 실시간 정보를 연결합니다.`
               : `${region}의 실시간 정보를 꾸준히 공유하며 지역과 여행자를 연결해요.`,
           icon: '🧭',
           category: '지역 테마',

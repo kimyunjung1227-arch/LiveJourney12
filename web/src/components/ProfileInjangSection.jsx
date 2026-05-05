@@ -16,7 +16,7 @@ function sortBadgesForDisplay(badges) {
 const MIN_BADGES_FOR_VIEW_ALL = 5;
 
 /**
- * 프로필 상단 「라이브뱃지」: 가로 스크롤 미리보기 + 모두보기
+ * 프로필 상단 「뱃지」: 가로 스크롤 미리보기 + 모두보기
  */
 export default function ProfileInjangSection({ badges, onViewAll, onOpenBadge, className = '' }) {
   const navigate = useNavigate();
@@ -57,7 +57,7 @@ export default function ProfileInjangSection({ badges, onViewAll, onOpenBadge, c
     <div className={`pt-2 pb-3 border-b border-gray-100 dark:border-gray-800 ${className}`}>
       <div className="flex items-center justify-between gap-2 mb-3">
         <h3 className="text-base font-bold text-text-primary-light dark:text-text-primary-dark shrink-0">
-          라이브뱃지
+          뱃지
         </h3>
         {showViewAll ? (
           <button
@@ -72,12 +72,12 @@ export default function ProfileInjangSection({ badges, onViewAll, onOpenBadge, c
 
       {preview.length === 0 ? (
         <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
-          아직 획득한 라이브뱃지가 없습니다.
+          아직 획득한 뱃지가 없습니다.
         </p>
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-1 -mx-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {preview.map((badge, index) => {
-            const label = getBadgeDisplayName(badge) || badge?.name || '라이브뱃지';
+            const label = getBadgeDisplayName(badge) || badge?.name || '뱃지';
             const icon = badge?.icon;
             return (
               <button
@@ -99,7 +99,7 @@ export default function ProfileInjangSection({ badges, onViewAll, onOpenBadge, c
                   )}
                 </div>
 
-                {/* 라이브 뱃지(칩) 스타일 */}
+                {/* 뱃지(칩) 스타일 */}
                 <span
                   className="mt-1.5 w-full text-center text-[11px] font-semibold px-2 py-1 rounded-full border bg-primary/10 dark:bg-primary/15 border-primary/25 text-primary truncate"
                   title={label}

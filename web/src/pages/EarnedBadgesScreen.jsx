@@ -39,7 +39,7 @@ const EarnedBadgesScreen = () => {
 
   const [loading, setLoading] = useState(true);
   const [badges, setBadges] = useState([]);
-  const [screenTitle, setScreenTitle] = useState('획득한 라이브뱃지');
+  const [screenTitle, setScreenTitle] = useState('획득한 뱃지');
   const [profileName, setProfileName] = useState('사용자');
   const [profileImage, setProfileImage] = useState(null);
 
@@ -91,13 +91,13 @@ const EarnedBadgesScreen = () => {
 
         if (isSelf) {
           const name = authUser?.username || '나';
-          setScreenTitle(name ? `${name}님의 라이브뱃지` : '내 라이브뱃지');
+          setScreenTitle(name ? `${name}님의 뱃지` : '내 뱃지');
           setProfileName(name || '나');
           setProfileImage(authUser?.profileImage || null);
         } else {
           const hint = location.state?.profileHint || null;
           const name = hint?.username || '사용자';
-          setScreenTitle(`${name}님의 라이브뱃지`);
+          setScreenTitle(`${name}님의 뱃지`);
           setProfileName(name);
           setProfileImage(hint?.profileImage || null);
         }
@@ -117,7 +117,7 @@ const EarnedBadgesScreen = () => {
         <header className="screen-header bg-white dark:bg-gray-900 flex items-center p-4 gap-3 border-b border-gray-100 dark:border-gray-800">
           <BackButton onClick={() => navigate(-1)} />
           <h1 className="text-text-primary-light dark:text-text-primary-dark text-lg font-bold truncate flex-1">
-            라이브뱃지 모아보기
+            뱃지 모아보기
           </h1>
         </header>
 
@@ -146,7 +146,7 @@ const EarnedBadgesScreen = () => {
 
               {sortedBadges.length === 0 ? (
                 <p className="text-center text-text-secondary-light dark:text-text-secondary-dark text-sm py-12">
-                  아직 획득한 라이브뱃지가 없습니다.
+                  아직 획득한 뱃지가 없습니다.
                 </p>
               ) : (
                 <div className="space-y-10">
@@ -164,7 +164,7 @@ const EarnedBadgesScreen = () => {
                     ) : (
                       <div className="grid grid-cols-3 gap-5 sm:grid-cols-4">
                         {groupedBadges.regionBadges.map((badge, index) => {
-                          const label = getBadgeDisplayName(badge) || badge?.name || '라이브뱃지';
+                          const label = getBadgeDisplayName(badge) || badge?.name || '뱃지';
                           const icon = badge?.icon;
                           return (
                             <button
@@ -212,7 +212,7 @@ const EarnedBadgesScreen = () => {
                     ) : (
                       <div className="grid grid-cols-3 gap-5 sm:grid-cols-4">
                         {groupedBadges.themeBadges.map((badge, index) => {
-                          const label = getBadgeDisplayName(badge) || badge?.name || '라이브뱃지';
+                          const label = getBadgeDisplayName(badge) || badge?.name || '뱃지';
                           const icon = badge?.icon;
                           return (
                             <button
