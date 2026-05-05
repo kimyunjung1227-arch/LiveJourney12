@@ -1,5 +1,6 @@
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
+import { getSessionOnce } from '../utils/supabaseAuthCache';
 
 const isValidUuid = (v) =>
   typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
@@ -34,7 +35,7 @@ export const togglePostLikeSupabase = async (userId, postId, opts = {}) => {
 
   return await withLikeLock(`${uid}:${pid}`, async () => {
     try {
-      const { data: ses } = await supabase.auth.getSession();
+      const { data: ses } = await getSessionOnce();
       const sid = ses?.session?.user?.id ? String(ses.session.user.id) : null;
       if (!sid || sid !== uid) {
         logger.warn('togglePostLikeSupabase: 세션 없음/불일치', { sid, uid });
@@ -170,7 +171,7 @@ export const followSupabase = async (followerId, followingId) => {
   if (!isValidUuid(fid) || !isValidUuid(tid) || fid === tid) return { success: false };
   try {
     // ✅ 409(Conflict) 노이즈 제거: REST upsert 대신 RPC로 멱등 처리(항상 200)
-    const { data: ses } = await supabase.auth.getSession();
+    const { data: ses } = await getSessionOnce();
     const sid = ses?.session?.user?.id ? String(ses.session.user.id) : null;
     if (!sid || sid !== fid) return { success: false };
 
@@ -189,7 +190,7 @@ export const unfollowSupabase = async (followerId, followingId) => {
   const tid = String(followingId || '').trim();
   if (!isValidUuid(fid) || !isValidUuid(tid) || fid === tid) return { success: false };
   try {
-    const { data: ses } = await supabase.auth.getSession();
+    const { data: ses } = await getSessionOnce();
     const sid = ses?.session?.user?.id ? String(ses.session.user.id) : null;
     if (!sid || sid !== fid) return { success: false };
 

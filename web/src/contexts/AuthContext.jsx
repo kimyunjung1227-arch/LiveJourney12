@@ -4,6 +4,7 @@ import { logger } from '../utils/logger';
 import { setCurrentBadgeUserId, syncEarnedBadgesFromSupabase } from '../utils/badgeSystem';
 import { syncNotificationsFromSupabase, setNotificationsCurrentUserId } from '../utils/notifications';
 import { setCurrentUserId as setFollowSystemCurrentUserId, syncFollowingFromSupabase } from '../utils/followSystem';
+import { getSessionOnce, signOutSafe } from '../utils/supabaseAuthCache';
 
 const AuthContext = createContext(null);
 
@@ -24,12 +25,13 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const init = async () => {
       try {
-        const { data, error } = await supabase.auth.getUser();
-        if (!error) {
-          setSupabaseUser(data.user ?? null);
-        }
+        // getUser()는 네트워크를 타고 localStorage 락을 사용해,
+        // 초기 렌더에서 다른 getSession() 호출과 겹치면 AbortError가 날 수 있다.
+        // 우선 세션에서 user를 복원하고, 이벤트 구독으로 최신 상태를 유지한다.
+        const { data, error } = await getSessionOnce();
+        if (!error) setSupabaseUser(data?.session?.user ?? null);
       } catch (error) {
-        logger.error('Supabase getUser 실패:', error);
+        logger.error('Supabase 세션 초기화 실패:', error);
       } finally {
         setAuthLoading(false);
       }
@@ -155,11 +157,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    try {
-      await supabase.auth.signOut();
-    } catch (error) {
-      logger.error('Supabase 로그아웃 실패:', error);
-    }
+    const { error } = await signOutSafe({ scope: 'local' });
+    if (error) logger.error('Supabase 로그아웃 실패:', error);
 
     logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     logger.log('🚪 로그아웃 - 앱 초기화 시작');

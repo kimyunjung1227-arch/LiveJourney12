@@ -3,6 +3,7 @@ import { logger } from '../utils/logger';
 import { supabase, SUPABASE_PROJECT_URL, SUPABASE_ANON_KEY } from '../utils/supabaseClient';
 import { getApiBasePath } from '../utils/apiBase';
 import { extractExifData, ensureTypedImageFileForExif, isTouchMobileWeb } from '../utils/exifExtractor';
+import { getSessionOnce } from '../utils/supabaseAuthCache';
 
 const API_BASE = getApiBasePath();
 const UPLOAD_ORIGIN = API_BASE.replace(/\/api\/?$/, '') || (typeof window !== 'undefined' ? window.location.origin : '');
@@ -16,7 +17,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function ensureSupabaseSession() {
   try {
     if (!supabase?.auth) return;
-    const { data } = await supabase.auth.getSession();
+    const { data } = await getSessionOnce();
     if (!data?.session) return;
     // 만료 임박(60초)면 refresh 시도
     const expMs = (data.session.expires_at ? Number(data.session.expires_at) * 1000 : 0);
@@ -549,7 +550,7 @@ function uploadVideoViaStorageXHR(bucket, objectPath, fileBlob, onUploadProgress
     (async () => {
       try {
         await ensureSupabaseSession();
-        const { data: sess } = await supabase.auth.getSession();
+        const { data: sess } = await getSessionOnce();
         const token = sess?.session?.access_token;
         if (!token) {
           reject(new Error('no_session'));
