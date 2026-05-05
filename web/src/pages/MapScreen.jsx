@@ -353,12 +353,14 @@ const MapScreen = () => {
   const mapRef = useRef(null);
   const kakaoMapRef = useRef(null);
   const postOverlaysRef = useRef([]);
+  const postOverlayByIdRef = useRef(new Map()); // postId -> { overlay, el }
   const userOverlayRef = useRef(null);
   const searchOverlayRef = useRef(null);
   const searchDebounceRef = useRef(0);
   const idleListenerRef = useRef(null);
   const sheetDragRef = useRef(null);
   const rafSyncRef = useRef(0);
+  const prefetchedThumbsRef = useRef(new Set()); // url -> true
 
   /** expanded: 큰 시트 | peek: 미리보기 | hidden: 내려감 */
   const [sheetMode, setSheetMode] = useState('peek');
@@ -832,16 +834,45 @@ const MapScreen = () => {
     if (!map || !window.kakao?.maps) return;
 
     try {
-      postOverlaysRef.current.forEach((ov) => ov.setMap(null));
-      postOverlaysRef.current = [];
-
       const kakao = window.kakao;
       const spread = buildSpreadCoordsByPostId(postsInViewport);
+      const nextIds = new Set(postsInViewport.map((p) => String(p?.id ?? '')).filter(Boolean));
 
+      // 1) viewport에 없는 기존 오버레이는 제거(전체 리셋 금지 → 깜빡임 방지)
+      for (const [id, item] of postOverlayByIdRef.current.entries()) {
+        if (!nextIds.has(id)) {
+          try {
+            item?.overlay?.setMap(null);
+          } catch {
+            /* ignore */
+          }
+          postOverlayByIdRef.current.delete(id);
+        }
+      }
+
+      // 2) 썸네일은 미리 프리로드(브라우저 캐시에 올려 깜빡임/지연 최소화)
+      try {
+        const list = postsInViewport.slice(0, 40);
+        for (const p of list) {
+          const raw = p?.thumbnail || (Array.isArray(p?.images) ? p.images[0] : '');
+          const url = raw ? getDisplayImageUrl(raw) : '';
+          if (!url || prefetchedThumbsRef.current.has(url)) continue;
+          prefetchedThumbsRef.current.add(url);
+          const img = new Image();
+          img.decoding = 'async';
+          img.src = url;
+        }
+      } catch {
+        /* ignore */
+      }
+
+      // 3) viewport 오버레이는 "추가/업데이트"만 수행
       postsInViewport.forEach((p) => {
         const pos = p?.__coords;
         if (!pos) return;
-        const spreadPos = spread.get(String(p.id)) || pos;
+        const id = String(p?.id ?? '');
+        if (!id) return;
+        const spreadPos = spread.get(id) || pos;
 
         const thumbRaw = p.thumbnail || (Array.isArray(p.images) ? p.images[0] : '');
         const thumb = escapeHtmlAttr(getDisplayImageUrl(thumbRaw));
@@ -849,6 +880,21 @@ const MapScreen = () => {
         const ring = isHighlight
           ? `box-shadow:0 2px 10px rgba(0,0,0,.18), 0 0 0 3px ${PRIMARY_HEX};border:1px solid rgba(255,255,255,.98);`
           : 'box-shadow:0 2px 10px rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.95);';
+
+        const existing = postOverlayByIdRef.current.get(id);
+        if (existing?.overlay && existing?.el) {
+          // highlight 스타일만 갱신 (DOM 재생성 금지)
+          existing.el.setAttribute(
+            'style',
+            `width:52px;height:52px;border-radius:10px;overflow:hidden;cursor:pointer;${ring}background:#f3f4f6;transform:${isHighlight ? 'translateY(-2px)' : 'translateY(0)'};transition:transform .15s ease;`
+          );
+          try {
+            existing.overlay.setPosition(new kakao.maps.LatLng(spreadPos.lat, spreadPos.lng));
+          } catch {
+            /* ignore */
+          }
+          return;
+        }
 
         const wrap = document.createElement('div');
         wrap.innerHTML = `
@@ -861,22 +907,23 @@ const MapScreen = () => {
           </div>`;
         const el = wrap.firstElementChild;
         if (!el) return;
-
-        el.addEventListener('click', () => {
-          openPostCard(p);
-        });
+        el.addEventListener('click', () => openPostCard(p));
 
         const overlay = new kakao.maps.CustomOverlay({
           position: new kakao.maps.LatLng(spreadPos.lat, spreadPos.lng),
           content: el,
-          // 좌표에 더 정확히 맞게: 하단 중앙을 기준으로 앵커링
           yAnchor: 1,
           xAnchor: 0.5,
           zIndex: 3,
         });
         overlay.setMap(map);
-        postOverlaysRef.current.push(overlay);
+        postOverlayByIdRef.current.set(id, { overlay, el });
       });
+
+      // 디버깅/정리 용: 현재 오버레이 목록도 유지(기존 코드 호환)
+      postOverlaysRef.current = Array.from(postOverlayByIdRef.current.values())
+        .map((x) => x?.overlay)
+        .filter(Boolean);
     } catch (e) {
       logger.warn(t.warnOverlays, e?.message || e);
     }
