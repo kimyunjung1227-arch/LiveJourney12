@@ -14,6 +14,7 @@ const HotFeedCard = ({
     videoPosterUrl = null,
     placeDescription = '',
     showLike = true,
+    imageUrlOpts = null,
 }) => {
     if (!cardProps) return null;
     const {
@@ -201,7 +202,7 @@ const HotFeedCard = ({
                     if (!src) return <div style={{ width: '100%', height: '100%', background: '#e5e7eb' }} />;
                     return (
                         <img
-                            src={String(src).startsWith('data:') ? src : getDisplayImageUrl(src)}
+                            src={String(src).startsWith('data:') ? src : getDisplayImageUrl(src, imageUrlOpts || undefined)}
                             alt={title}
                             loading="eager"
                             decoding="async"

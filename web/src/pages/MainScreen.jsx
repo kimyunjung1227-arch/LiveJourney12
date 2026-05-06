@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { getUnreadCount } from '../utils/notifications';
@@ -31,6 +31,13 @@ import { getValidWeatherSnapshot } from '../utils/weatherSnapshot';
 import { useLoginGate } from '../hooks/useLoginGate';
 import { fetchPlaceDescription } from '../api/placeDescription';
 import { normalizePlaceIdentityKey } from '../utils/placeKeyNormalize';
+import {
+    loadMainFeedSnapshotLast,
+    saveMainFeedSnapshotLast,
+    preloadMainFeedImageUrls,
+    MAIN_FEED_IMAGE_OPTS,
+} from '../utils/mainFeedSnapshot';
+
 const MainScreen = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -58,6 +65,8 @@ const MainScreen = () => {
     const [hasOngoingRaffle, setHasOngoingRaffle] = useState(false);
     const [hotplaceAiDescription, setHotplaceAiDescription] = useState('');
     const { handleDragStart, hasMovedRef } = useHorizontalDragScroll();
+    /** 새로고침 직후 세션 스냅샷으로 이미지 URL을 먼저 채워 두었는지 */
+    const hydratedFromSessionRef = useRef(false);
     const videoRefs = useRef(new Map());
     const currentlyPlayingVideo = useRef(null);
     const withDragCheck = useCallback((fn) => () => {
@@ -164,12 +173,22 @@ const MainScreen = () => {
             ...p,
             accuracyCount: getPostAccuracyCount(p.id),
         }));
-        setCrowdedData(crowdedRanked.length > 0 ? crowdedRanked : crowdedFallback);
+        const crowdedFinal = crowdedRanked.length > 0 ? crowdedRanked : crowdedFallback;
+        setCrowdedData(crowdedFinal);
 
         // 추천 여행지: 현재는 Supabase/로컬에서 집계한 posts 기반으로 계산
         const recs = getRecommendedRegions(allPosts, selectedRecommendTag);
-        setRecommendedData(recs.slice(0, 10));
+        const recommendedSlice = recs.slice(0, 10);
+        setRecommendedData(recommendedSlice);
         setAllPostsForRecommend(allPosts);
+
+        const realtimeSlice = byLatest.slice(0, 20);
+        saveMainFeedSnapshotLast({
+            realtimeData: realtimeSlice,
+            crowdedData: crowdedFinal,
+            recommendedData: recommendedSlice,
+            allPostsForRecommend: allPosts,
+        });
     }, [user?.id]);
 
     const fetchPosts = useCallback(async () => {
@@ -259,7 +278,7 @@ const MainScreen = () => {
             if (!key) return '';
             const entry = coverByLocLower.get(key.toLowerCase());
             const raw = entry?.raw || '';
-            return raw ? getDisplayImageUrl(raw) : '';
+            return raw ? getDisplayImageUrl(raw, MAIN_FEED_IMAGE_OPTS) : '';
         };
         return publishedMagazines
             .map((m) => {
@@ -339,7 +358,7 @@ const MainScreen = () => {
                 it?.liveImage || it?.image,
                 ...bucket.placePosts.flatMap((p) => (p.images && p.images.length ? p.images : [p.thumbnail || p.image].filter(Boolean))),
             ].filter(Boolean).slice(0, 5);
-            const displayImages = rawImages.map((u) => getDisplayImageUrl(u)).filter(Boolean);
+            const displayImages = rawImages.map((u) => getDisplayImageUrl(u, MAIN_FEED_IMAGE_OPTS)).filter(Boolean);
             bucket.topImages = displayImages;
             bucket.mainSrc = displayImages[0] || 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80';
         });
@@ -401,6 +420,31 @@ const MainScreen = () => {
             cancelled = true;
         };
     }, [hotFeedPost]);
+
+    // 새로고침 직후: 직전 성공 응답을 세션에서 즉시 복원 → 이미지 요청이 한 템포 빠르게 시작됨
+    useLayoutEffect(() => {
+        if (hydratedFromSessionRef.current) return;
+        const snap = loadMainFeedSnapshotLast();
+        if (!snap) return;
+        hydratedFromSessionRef.current = true;
+        if (Array.isArray(snap.realtimeData) && snap.realtimeData.length > 0) {
+            setRealtimeData(snap.realtimeData);
+        }
+        if (Array.isArray(snap.crowdedData) && snap.crowdedData.length > 0) {
+            setCrowdedData(snap.crowdedData);
+        }
+        if (Array.isArray(snap.recommendedData)) {
+            setRecommendedData(snap.recommendedData);
+        }
+        if (Array.isArray(snap.allPostsForRecommend) && snap.allPostsForRecommend.length > 0) {
+            setAllPostsForRecommend(snap.allPostsForRecommend);
+        }
+    }, []);
+
+    useEffect(() => {
+        const cleanup = preloadMainFeedImageUrls(realtimeData, crowdedData);
+        return typeof cleanup === 'function' ? cleanup : undefined;
+    }, [realtimeData, crowdedData]);
 
     const hotFeedCardProps = useMemo(
         () => {
@@ -935,16 +979,16 @@ const MainScreen = () => {
                             let firstVideo = null;
                             if (post.videos) {
                                 if (Array.isArray(post.videos) && post.videos.length > 0) {
-                                    firstVideo = getDisplayImageUrl(post.videos[0], { allowBlob: true });
+                                    firstVideo = getDisplayImageUrl(post.videos[0], { ...MAIN_FEED_IMAGE_OPTS, allowBlob: true });
                                 } else if (typeof post.videos === 'string' && post.videos.trim()) {
-                                    firstVideo = getDisplayImageUrl(post.videos, { allowBlob: true });
+                                    firstVideo = getDisplayImageUrl(post.videos, { ...MAIN_FEED_IMAGE_OPTS, allowBlob: true });
                                 }
                             }
                             
                             // 동영상이 없을 때만 이미지 사용
                             const firstImage = firstVideo
                                 ? null
-                                : getDisplayImageUrl(Array.isArray(post.images) && post.images.length > 0 ? post.images[0] : (post.image || post.thumbnail || ''));
+                                : getDisplayImageUrl(Array.isArray(post.images) && post.images.length > 0 ? post.images[0] : (post.image || post.thumbnail || ''), MAIN_FEED_IMAGE_OPTS);
                             const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
                             const fixedAt = post.photoDate || post.captured_at || post.capturedAt || post.createdAt || post.timestamp || post.time || null;
                             const snap = getValidWeatherSnapshot(post);
@@ -1004,7 +1048,7 @@ const MainScreen = () => {
                                                 }}
                                                 data-video-id={`realtime-${post.id}`}
                                                 src={firstVideo}
-                                                poster={firstImage || getDisplayImageUrl(Array.isArray(post.images) && post.images.length > 0 ? post.images[0] : (post.image || post.thumbnail || '')) || undefined}
+                                                poster={firstImage || getDisplayImageUrl(Array.isArray(post.images) && post.images.length > 0 ? post.images[0] : (post.image || post.thumbnail || ''), MAIN_FEED_IMAGE_OPTS) || undefined}
                                                 muted
                                                 loop
                                                 playsInline
@@ -1014,9 +1058,9 @@ const MainScreen = () => {
                                             <img
                                                 src={firstImage}
                                                 alt={post.location}
-                                                loading={rtIndex === 0 ? 'eager' : 'lazy'}
+                                                loading={rtIndex < 2 ? 'eager' : 'lazy'}
                                                 decoding="async"
-                                                fetchPriority={rtIndex === 0 ? 'high' : 'auto'}
+                                                fetchPriority={rtIndex < 2 ? 'high' : 'auto'}
                                                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '14px' }}
                                             />
                                         ) : null}
@@ -1178,6 +1222,7 @@ const MainScreen = () => {
                                     return (
                                         <HotFeedCard
                                             key={`${post.id}-${slideIdx}`}
+                                            imageUrlOpts={MAIN_FEED_IMAGE_OPTS}
                                             cardProps={hotFeedCardProps}
                                             socialText={socialText}
                                             onCardClick={withDragCheck(() => {
