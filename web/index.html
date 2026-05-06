@@ -13,8 +13,9 @@
   <link rel="manifest" href="/manifest.json" />
   <meta name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>라이브저니( LiveJourney ) | 실시간 여행 핫플·인파·날씨 커뮤니티</title>
-  <meta name="description" content="라이브저니(LiveJourney)는 여행지의 지금 인파·현장 분위기·날씨를 실시간 제보와 지도에서 확인하는 여행 커뮤니티입니다. 실시간 핫플/검색/지도 기능 제공." />
+  <!-- 네이버 검색 결과 메인 설정 -->
+  <title>라이브저니 - 실시간 여행 커뮤니티</title>
+  <meta name="description" content="여행지의 실시간 상황을 확인하고 여행을 계획해보세요. 정보의 시차 없는 진짜 여행, 라이브저니와 함께하세요." />
   <meta name="keywords" content="라이브저니, LiveJourney, Live Journey, 실시간 핫플, 실시간 여행, 여행 커뮤니티, 여행지 인파, 혼잡도, 실시간 제보, 여행 정보, 날씨, 지도, 국내여행" />
   <meta name="robots" content="index, follow" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
@@ -24,9 +25,10 @@
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="ko_KR" />
   <meta property="og:site_name" content="라이브저니" />
-  <meta property="og:title" content="라이브저니 | 실시간 여행 핫플·인파·날씨 커뮤니티" />
-  <meta property="og:description" content="여행지의 지금 인파·현장 분위기·날씨를 실시간 제보와 지도에서 확인하세요. 실시간 핫플/검색/지도 기능 제공." />
-  <meta property="og:url" content="__PUBLIC_BASE__/" />
+  <!-- SNS 공유 시 노출되는 정보 (Open Graph) -->
+  <meta property="og:title" content="라이브저니 - 실시간 여행 커뮤니티" />
+  <meta property="og:description" content="여행지의 실시간 상황을 확인하고 여행을 계획해보세요." />
+  <meta property="og:url" content="__PUBLIC_BASE__" />
   <meta property="og:image" content="__PUBLIC_BASE__/splash-logo.png.png" />
   <meta property="og:image:alt" content="라이브저니" />
   <meta name="twitter:card" content="summary" />
@@ -68,6 +70,39 @@
     ]
   }
   </script>
+  <!-- 네이버 사이트링크(서브 메뉴) 노출 확률을 높이기 위한 내비게이션 구조화 데이터 -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "itemListElement": [
+      {
+        "@type": "SiteNavigationElement",
+        "name": "실시간 핫플",
+        "url": "__PUBLIC_BASE__/crowded-place",
+        "description": "지금 이 순간 가장 반응이 뜨거운 여행지의 현장을 확인하세요."
+      },
+      {
+        "@type": "SiteNavigationElement",
+        "name": "실시간 피드",
+        "url": "__PUBLIC_BASE__/realtime-feed",
+        "description": "48시간 기준 최신 제보로 여행지의 지금을 확인하세요."
+      },
+      {
+        "@type": "SiteNavigationElement",
+        "name": "지도",
+        "url": "__PUBLIC_BASE__/map",
+        "description": "핀과 사진으로 주변 상황을 한눈에 확인하세요."
+      },
+      {
+        "@type": "SiteNavigationElement",
+        "name": "프로필",
+        "url": "__PUBLIC_BASE__/profile",
+        "description": "내 여행 기록과 커뮤니티 활동을 관리하세요."
+      }
+    ]
+  }
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -105,11 +140,11 @@
         <li>지도: 핀/사진으로 주변 상황을 한눈에 보기</li>
         <li>검색: 장소·해시태그별 최신 제보 탐색</li>
       </ul>
-      <nav aria-label="라이브저니 바로가기" style="display:flex; gap:10px; flex-wrap:wrap;">
-        <a href="/main" rel="nofollow" style="display:inline-block; padding:10px 14px; border-radius:9999px; background:#111827; color:#fff; text-decoration:none; font-weight:700;">메인</a>
+      <nav aria-label="라이브저니 주요 메뉴" style="display:flex; gap:10px; flex-wrap:wrap;">
+        <a href="/crowded-place" rel="nofollow" style="display:inline-block; padding:10px 14px; border-radius:9999px; background:#111827; color:#fff; text-decoration:none; font-weight:700;">실시간 핫플</a>
         <a href="/realtime-feed" rel="nofollow" style="display:inline-block; padding:10px 14px; border-radius:9999px; background:#eef2ff; color:#111827; text-decoration:none; font-weight:700;">실시간 피드</a>
         <a href="/map" rel="nofollow" style="display:inline-block; padding:10px 14px; border-radius:9999px; background:#ecfeff; color:#111827; text-decoration:none; font-weight:700;">지도</a>
-        <a href="/search" rel="nofollow" style="display:inline-block; padding:10px 14px; border-radius:9999px; background:#f1f5f9; color:#111827; text-decoration:none; font-weight:700;">검색</a>
+        <a href="/profile" rel="nofollow" style="display:inline-block; padding:10px 14px; border-radius:9999px; background:#f1f5f9; color:#111827; text-decoration:none; font-weight:700;">프로필</a>
       </nav>
       <noscript>
         <p style="margin: 14px 0 0 0; font-size: 12px; color: #6b7280; line-height: 1.6;">
