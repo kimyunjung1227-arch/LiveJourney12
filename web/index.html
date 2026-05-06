@@ -88,7 +88,31 @@
 </head>
 
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <!-- SEO/크롤러용: JS 실행 없이도 읽히는 초기 본문 -->
+    <main style="max-width: 820px; margin: 0 auto; padding: 32px 20px; font-family: system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans KR', Arial, sans-serif; color: #111827;">
+      <h1 style="margin: 0 0 10px 0; font-size: 28px; line-height: 1.15; letter-spacing: -0.03em;">
+        라이브저니 (LiveJourney)
+      </h1>
+      <p style="margin: 0 0 14px 0; color: #374151; line-height: 1.6;">
+        여행지의 <strong>지금</strong> 날씨·현장·인파를 실시간 제보로 확인하는 여행 커뮤니티입니다.
+      </p>
+      <ul style="margin: 0 0 18px 18px; color: #374151; line-height: 1.7;">
+        <li>실시간 급상승 핫플과 현장 분위기 확인</li>
+        <li>지도에서 핀/사진으로 주변 상황 한눈에 보기</li>
+        <li>검색으로 장소/해시태그별 최신 제보 탐색</li>
+      </ul>
+      <nav aria-label="LiveJourney 바로가기" style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <a href="/main" style="display:inline-block; padding:10px 14px; border-radius: 9999px; background:#111827; color:#fff; text-decoration:none; font-weight:700;">메인</a>
+        <a href="/realtime-feed" style="display:inline-block; padding:10px 14px; border-radius: 9999px; background:#eef2ff; color:#111827; text-decoration:none; font-weight:700;">실시간 피드</a>
+        <a href="/map" style="display:inline-block; padding:10px 14px; border-radius: 9999px; background:#ecfeff; color:#111827; text-decoration:none; font-weight:700;">지도</a>
+        <a href="/search" style="display:inline-block; padding:10px 14px; border-radius: 9999px; background:#f1f5f9; color:#111827; text-decoration:none; font-weight:700;">검색</a>
+      </nav>
+      <p style="margin: 18px 0 0 0; font-size: 12px; color: #6b7280; line-height: 1.6;">
+        앱이 자동으로 로드되지 않는다면 위 링크를 눌러 이동하세요.
+      </p>
+    </main>
+  </div>
   <script type="module" src="./src/main.jsx"></script>
 </body>
 
