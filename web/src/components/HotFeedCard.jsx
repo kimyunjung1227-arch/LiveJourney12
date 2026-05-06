@@ -12,6 +12,7 @@ const HotFeedCard = ({
     onCardClick,
     onLikeClick,
     videoPosterUrl = null,
+    placeDescription = '',
     showLike = true,
 }) => {
     if (!cardProps) return null;
@@ -212,7 +213,9 @@ const HotFeedCard = ({
             </div>
             <div style={{ padding: '8px 2px 2px', background: 'transparent', border: 'none', boxShadow: 'none' }}>
                 <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{title}</h4>
-                <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', background: 'transparent', boxShadow: 'none' }}>{captionForCard}</p>
+                <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', background: 'transparent', boxShadow: 'none' }}>
+                    {String(placeDescription || '').trim() || captionForCard}
+                </p>
                 {(hasWeather || displayTags.length > 0 || (cardProps.uploadTimeLabel && String(cardProps.uploadTimeLabel).trim())) && (
                     <div
                         style={{

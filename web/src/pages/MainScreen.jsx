@@ -29,6 +29,8 @@ import { fetchRafflesForUi } from '../api/rafflesSupabase';
 import { generatePlaceAiBlurb } from '../utils/placeAiBlurb';
 import { getValidWeatherSnapshot } from '../utils/weatherSnapshot';
 import { useLoginGate } from '../hooks/useLoginGate';
+import { fetchPlaceDescription } from '../api/placeDescription';
+import { normalizePlaceIdentityKey } from '../utils/placeKeyNormalize';
 const MainScreen = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -54,6 +56,7 @@ const MainScreen = () => {
     const [hotFeedSlideIndex, setHotFeedSlideIndex] = useState(0);
     const [hotFeedSocialIdx, setHotFeedSocialIdx] = useState(0);
     const [hasOngoingRaffle, setHasOngoingRaffle] = useState(false);
+    const [hotplaceAiDescription, setHotplaceAiDescription] = useState('');
     const { handleDragStart, hasMovedRef } = useHorizontalDragScroll();
     const videoRefs = useRef(new Map());
     const currentlyPlayingVideo = useRef(null);
@@ -426,6 +429,55 @@ const MainScreen = () => {
         },
         [hotFeedPost, weatherByRegion]
     );
+
+    // 실시간 핫플: "장소 자체" 설명을 AI로 생성 (사용자 제보 문장 통합)
+    useEffect(() => {
+        let cancelled = false;
+        const run = async () => {
+            try {
+                const cp = hotFeedCardProps;
+                const post = hotFeedPost;
+                const placeKey = String(post?._placeKey || cp?.title || '').trim();
+                if (!placeKey) {
+                    setHotplaceAiDescription('');
+                    return;
+                }
+                const norm = normalizePlaceIdentityKey(placeKey);
+                const pool = Array.isArray(crowdedData) ? crowdedData : [];
+                const userCaptions = pool
+                    .filter((p) => normalizePlaceIdentityKey(String(p?._placeKey || p?.placeName || p?.location || '').trim()) === norm)
+                    .map((p) => String(p?.note || p?.content || '').replace(/\s+/g, ' ').trim())
+                    .filter(Boolean)
+                    .slice(0, 6);
+
+                const tagsRaw = Array.isArray(post?.reasonTags) && post.reasonTags.length > 0
+                    ? post.reasonTags
+                    : (Array.isArray(post?.aiHotTags) ? post.aiHotTags : []);
+                const tags = (tagsRaw || [])
+                    .map((t) => String(t || '').replace(/[#_]/g, ' ').replace(/\s+/g, ' ').trim())
+                    .filter(Boolean)
+                    .slice(0, 6);
+
+                const desc = await fetchPlaceDescription({
+                    placeKey,
+                    regionHint: cp?.cityDongLine || post?.region || '',
+                    tier: cp?.hotReasonLabel || '',
+                    tags,
+                    userCaptions,
+                    cacheSalt: norm,
+                });
+                if (!cancelled) {
+                    setHotplaceAiDescription(String(desc || '').trim());
+                }
+            } catch {
+                if (!cancelled) setHotplaceAiDescription('');
+            }
+        };
+        run();
+        return () => {
+            cancelled = true;
+        };
+    }, [hotFeedPost, hotFeedCardProps, crowdedData]);
 
     useEffect(() => {
         setHotFeedSlideIndex(0);
@@ -1140,6 +1192,7 @@ const MainScreen = () => {
                                             })}
                                             showLike={false}
                                             videoPosterUrl={hotFeedVideoPoster}
+                                            placeDescription={hotplaceAiDescription}
                                         />
                                     );
                                 })()

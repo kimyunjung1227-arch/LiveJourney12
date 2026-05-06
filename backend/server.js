@@ -184,6 +184,7 @@ const locationsRouter = require('./routes/locations');
 const policiesRouter = require('./routes/policies');
 const feedbackRouter = require('./routes/feedback');
 const proxyRouter = require('./routes/proxy');
+const aiRouter = require('./routes/ai');
 
 app.use('/api/posts', postsRouter);
 app.use('/api/users', usersRouter);
@@ -197,6 +198,7 @@ app.use('/api/locations', locationsRouter);
 app.use('/api/policies', policiesRouter);
 app.use('/api/feedback', feedbackRouter);
 app.use('/api/proxy', proxyRouter);
+app.use('/api/ai', aiRouter);
 
 // API 문서 (루트 경로)
 app.get('/', (req, res) => {
