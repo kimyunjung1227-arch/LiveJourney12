@@ -127,29 +127,21 @@
 
 <body>
   <div id="root">
-    <!-- 검색엔진/크롤러용: JS 실행 전에도 읽을 수 있는 초기 본문(앱 로드 후 React가 교체) -->
-    <main style="max-width: 820px; margin: 0 auto; padding: 28px 18px; font-family: system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans KR', Arial, sans-serif; color: #111827;">
-      <h1 style="margin: 0 0 10px 0; font-size: 26px; line-height: 1.2; letter-spacing: -0.03em;">라이브저니 (LiveJourney)</h1>
-      <p style="margin: 0 0 12px 0; color: #374151; line-height: 1.65;">
-        여행지의 <strong>지금</strong> 인파·현장 분위기·날씨를 <strong>실시간 제보</strong>와 <strong>지도</strong>에서 확인하는 여행 커뮤니티입니다.
-      </p>
-      <ul style="margin: 0 0 16px 18px; color: #374151; line-height: 1.7;">
-        <li>실시간 급상승 핫플: 지금 반응이 뜨거운 장소를 빠르게 확인</li>
-        <li>지도: 핀/사진으로 주변 상황을 한눈에 보기</li>
-        <li>검색: 장소·해시태그별 최신 제보 탐색</li>
-      </ul>
-      <nav aria-label="라이브저니 주요 메뉴" style="display:flex; gap:10px; flex-wrap:wrap;">
-        <a href="/crowded-place" rel="nofollow" style="display:inline-block; padding:10px 14px; border-radius:9999px; background:#111827; color:#fff; text-decoration:none; font-weight:700;">실시간 핫플</a>
-        <a href="/realtime-feed" rel="nofollow" style="display:inline-block; padding:10px 14px; border-radius:9999px; background:#eef2ff; color:#111827; text-decoration:none; font-weight:700;">실시간 피드</a>
-        <a href="/map" rel="nofollow" style="display:inline-block; padding:10px 14px; border-radius:9999px; background:#ecfeff; color:#111827; text-decoration:none; font-weight:700;">지도</a>
-        <a href="/profile" rel="nofollow" style="display:inline-block; padding:10px 14px; border-radius:9999px; background:#f1f5f9; color:#111827; text-decoration:none; font-weight:700;">프로필</a>
-      </nav>
+    <!-- JS 실행 전 첫 페인트: WelcomeScreen 스플래시와 동일 톤(SEO 긴 본문 플래시 방지). 메타·JSON-LD는 head 유지 -->
+    <div
+      class="lj-html-splash"
+      style="display:flex; align-items:center; justify-content:center; min-height:100dvh; width:100%; margin:0; background:#ffffff; font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans KR',sans-serif;"
+    >
+      <div style="text-align:center; padding:24px;">
+        <h1 style="margin:0; font-size:clamp(1.75rem,5vw,2.25rem); font-weight:800; letter-spacing:-0.06em; color:#000000;">LiveJourney</h1>
+        <p style="margin:8px 0 0 0; font-size:clamp(0.7rem,2.8vw,0.875rem); color:#6b7280;">지금, 당신의 여행을 실시간으로</p>
+      </div>
       <noscript>
-        <p style="margin: 14px 0 0 0; font-size: 12px; color: #6b7280; line-height: 1.6;">
-          이 사이트는 JavaScript가 필요합니다. JavaScript를 켠 뒤 다시 접속해주세요.
+        <p style="position:absolute;left:16px;right:16px;bottom:24px;text-align:center;font-size:12px;color:#6b7280;">
+          이 사이트는 JavaScript가 필요합니다. JavaScript를 켠 뒤 다시 접속해 주세요.
         </p>
       </noscript>
-    </main>
+    </div>
   </div>
   <script type="module" src="./src/main.jsx"></script>
 </body>

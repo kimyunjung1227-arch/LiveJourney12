@@ -3,8 +3,24 @@
  *
  * - `VITE_API_URL` 이 있으면 그 호스트 기준으로 `/api` 요청(별도 백엔드 사용 시).
  * - 없으면 같은 출처 `/api` — 로컬 Vite 프록시 등. 정적 호스팅만 두면 `/api` 는 없을 수 있음.
+ * - 프로덕션에서 livejourney.co.kr 만 접속 시: 배포 문서의 Render API를 기본 사용(동일 출처 POST 405 방지).
  * - 날씨(기상청)는 `weather.js`에서 Supabase Edge `kma-ultra-ncst` 우선.
  */
+
+/** 공개 백엔드 호스트 (문서: DEPLOYMENT_GUIDE 등). VITE_API_URL 이 우선 */
+const PRODUCTION_API_ORIGIN_FALLBACK = 'https://livejourney-backend.onrender.com';
+
+function getProductionFallbackOrigin() {
+  try {
+    if (typeof import.meta === 'undefined' || !import.meta.env.PROD) return '';
+    if (typeof window === 'undefined') return '';
+    const h = String(window.location.hostname || '').toLowerCase();
+    if (h === 'livejourney.co.kr' || h === 'www.livejourney.co.kr') return PRODUCTION_API_ORIGIN_FALLBACK;
+  } catch {
+    /* ignore */
+  }
+  return '';
+}
 
 /** fetch용 origin (끝에 /api 없음). 빈 문자열이면 `getFetchApiUrl` 이 현재 사이트 기준으로 조합 */
 export function getBackendOrigin() {
@@ -14,7 +30,8 @@ export function getBackendOrigin() {
     if (noTrail.endsWith('/api')) return noTrail.slice(0, -4);
     return noTrail;
   }
-  return '';
+  const fb = getProductionFallbackOrigin();
+  return fb || '';
 }
 
 /**
@@ -48,5 +65,7 @@ export function getApiBasePath() {
     const t = raw.replace(/\/+$/, '');
     return t.endsWith('/api') ? t : `${t}/api`;
   }
+  const fb = getProductionFallbackOrigin();
+  if (fb) return `${fb}/api`;
   return '/api';
 }

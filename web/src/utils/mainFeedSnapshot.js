@@ -114,12 +114,7 @@ export function preloadMainFeedImageUrls(realtimeData, crowdedData, { limit = 6,
     link.rel = 'preload';
     link.as = 'image';
     link.href = href;
-    try {
-      const u = new URL(href);
-      if (u.hostname.endsWith('.supabase.co')) link.crossOrigin = 'anonymous';
-    } catch {
-      /* ignore */
-    }
+    // crossOrigin 을 넣으면 `<img>` 기본 로드(credentials 모드 불일치)와 맞지 않아 preload 가 무시되는 경우가 많음
     document.head.appendChild(link);
     nodes.push(link);
   });
