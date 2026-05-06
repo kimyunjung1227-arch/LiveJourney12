@@ -1463,7 +1463,7 @@ const SearchScreen = () => {
               </div>
               {hashtagPostResults.length > 0 ? (
               <div className="grid grid-cols-3" style={{ gap: '7px' }}>
-                  {hashtagPostResults.map((post) => {
+                  {hashtagPostResults.map((post, index) => {
                     const id = post.id || post._id;
                     const upTime = getTimeAgo(post.timestamp || post.createdAt);
                     return (
@@ -1473,7 +1473,7 @@ const SearchScreen = () => {
                         onClick={() => navigate(`/post/${id}`, { state: { post, allPosts: hashtagPostResults } })}
                         className="relative aspect-square rounded overflow-hidden bg-gray-200 dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/50"
                       >
-                        <PostThumbnail post={post} className="w-full h-full object-cover" alt="" />
+                        <PostThumbnail post={post} className="w-full h-full object-cover" alt="" fast={index < 6} />
                         <span className="absolute bottom-1 left-1 right-1 text-[9px] text-white bg-black/50 px-1 py-0.5 rounded truncate text-center">
                           🕐 {upTime}
                         </span>

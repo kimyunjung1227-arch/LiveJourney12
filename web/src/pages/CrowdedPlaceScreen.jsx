@@ -373,10 +373,12 @@ const CrowdedPlaceScreen = () => {
                             </div>
                         ) : (
                             <div className="flex flex-col gap-2">
-                                {placeRankings.map((place) => {
+                                {placeRankings.map((place, placeIndex) => {
                                     const post = place.representative;
                                     if (!post?.id) return null;
-                                    const img = post.image || getDisplayImageUrl(post.images?.[0] || post.thumbnail || '');
+                                    const rawCover = post.image || post.images?.[0] || post.thumbnail || '';
+                                    const img = rawCover ? getDisplayImageUrl(rawCover) : '';
+                                    const isPriority = placeIndex < 3;
                                     const rawThumbs = Array.isArray(post.images)
                                         ? post.images
                                         : post.images
@@ -428,7 +430,14 @@ const CrowdedPlaceScreen = () => {
                                         >
                                             <div className="relative aspect-[16/10] w-full overflow-hidden bg-zinc-100 dark:bg-zinc-800">
                                                 {img ? (
-                                                    <img src={img} alt="" className="h-full w-full object-cover" loading="eager" decoding="async" />
+                                                    <img
+                                                        src={img}
+                                                        alt=""
+                                                        className="h-full w-full object-cover"
+                                                        loading={isPriority ? 'eager' : 'lazy'}
+                                                        decoding="async"
+                                                        fetchPriority={isPriority ? 'high' : 'auto'}
+                                                    />
                                                 ) : (
                                                     <div className="flex h-full w-full items-center justify-center text-xs text-zinc-400">
                                                         사진 없음
