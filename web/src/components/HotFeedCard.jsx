@@ -208,7 +208,7 @@ const HotFeedCard = ({
                         fontSize: '12px',
                         color: '#111827',
                         lineHeight: 1.55,
-                        fontWeight: 600,
+                        fontWeight: 500,
                         display: '-webkit-box',
                         WebkitLineClamp: 4,
                         WebkitBoxOrient: 'vertical',

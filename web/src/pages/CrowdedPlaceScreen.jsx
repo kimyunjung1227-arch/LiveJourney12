@@ -565,7 +565,7 @@ const CrowdedPlaceScreen = () => {
                                                             {String(place.key).trim()}
                                                         </h4>
                                                         {aiBlurb ? (
-                                                            <p className="mt-1 line-clamp-4 text-[12px] font-medium leading-relaxed text-zinc-700 dark:text-zinc-300">
+                                                            <p className="mt-1 line-clamp-4 text-[12px] font-normal leading-relaxed text-zinc-700 dark:text-zinc-300">
                                                                 {aiBlurb}
                                                             </p>
                                                         ) : null}
