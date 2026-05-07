@@ -32,6 +32,7 @@ import { getValidWeatherSnapshot } from '../utils/weatherSnapshot';
 import { useLoginGate } from '../hooks/useLoginGate';
 import { fetchPlaceDescription } from '../api/placeDescription';
 import { normalizePlaceIdentityKey } from '../utils/placeKeyNormalize';
+import { toHotplaceDescPreview } from '../utils/hotplaceDescPreview';
 import {
     loadMainFeedSnapshotLast,
     saveMainFeedSnapshotLast,
@@ -478,25 +479,6 @@ const MainScreen = () => {
     // 실시간 핫플: "장소 자체" 설명을 AI로 생성 (사용자 제보 문장 통합)
     useEffect(() => {
         let cancelled = false;
-        const normalizeHotplaceDesc = (text) => {
-            const raw = String(text || '').replace(/\s+/g, ' ').trim();
-            if (!raw) return '';
-            // 정보형 문장으로 보이도록 과한 구어체/권유형 표현을 약하게 제거
-            const cleaned = raw
-                .replace(/좋아요[.!?]?\s*/g, '')
-                .replace(/추천해요[.!?]?\s*/g, '')
-                .replace(/가요[.!?]?\s*/g, '')
-                .replace(/해요[.!?]?\s*/g, (m) => (m.includes('?') ? m : '입니다. '))
-                .replace(/\.\s*\./g, '.')
-                .trim();
-            // 문장 끊김 보정: 마침표/물음표/느낌표 기준으로 4문장까지만(더 길게 허용)
-            const parts = cleaned
-                .split(/(?<=[.!?])\s+/)
-                .map((s) => s.trim())
-                .filter(Boolean);
-            const out = parts.slice(0, 4).join(' ');
-            return out || cleaned;
-        };
         const run = async () => {
             try {
                 const cp = hotFeedCardProps;
@@ -531,7 +513,7 @@ const MainScreen = () => {
                     cacheSalt: norm,
                 });
                 if (!cancelled) {
-                    setHotplaceAiDescription(normalizeHotplaceDesc(desc));
+                    setHotplaceAiDescription(toHotplaceDescPreview(desc, { maxChars: 220, maxSentences: 2 }));
                 }
             } catch {
                 if (!cancelled) setHotplaceAiDescription('');

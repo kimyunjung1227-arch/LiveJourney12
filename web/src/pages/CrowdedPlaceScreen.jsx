@@ -20,6 +20,7 @@ import { generatePlaceAiBlurb } from '../utils/placeAiBlurb';
 import { useLoginGate } from '../hooks/useLoginGate';
 import { fetchPlaceDescription } from '../api/placeDescription';
 import { normalizePlaceIdentityKey } from '../utils/placeKeyNormalize';
+import { toHotplaceDescPreview } from '../utils/hotplaceDescPreview';
 
 const PRIMARY_HEX = '#26C6DA';
 
@@ -317,24 +318,6 @@ const CrowdedPlaceScreen = () => {
     // 메인 화면과 동일한 Edge Function 기반 장소 설명을 더보기에서도 사용
     useEffect(() => {
         let cancelled = false;
-        const normalizeHotplaceDesc = (text) => {
-            const raw = String(text || '').replace(/\\s+/g, ' ').trim();
-            if (!raw) return '';
-            const cleaned = raw
-                .replace(/좋아요[.!?]?\\s*/g, '')
-                .replace(/추천해요[.!?]?\\s*/g, '')
-                .replace(/가요[.!?]?\\s*/g, '')
-                .replace(/해요[.!?]?\\s*/g, (m) => (m.includes('?') ? m : '입니다. '))
-                .replace(/\\.\\s*\\./g, '.')
-                .trim();
-            const parts = cleaned
-                .split(/(?<=[.!?])\\s+/)
-                .map((s) => s.trim())
-                .filter(Boolean);
-            const out = parts.slice(0, 4).join(' ');
-            return out || cleaned;
-        };
-
         const run = async () => {
             const top = Array.isArray(placeRankings) ? placeRankings.slice(0, 16) : [];
             if (top.length === 0) return;
@@ -356,7 +339,7 @@ const CrowdedPlaceScreen = () => {
                         userCaptions: [],
                         cacheSalt: norm,
                     });
-                    const normalized = normalizeHotplaceDesc(desc);
+                    const normalized = toHotplaceDescPreview(desc, { maxChars: 220, maxSentences: 2 });
                     return normalized ? [key, normalized] : null;
                 })
             );
