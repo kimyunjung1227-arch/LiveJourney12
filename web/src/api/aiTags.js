@@ -16,9 +16,12 @@ const JPEG_QUALITY = 0.58;
 /** 이 크기 초과 시 무조건 리사이즈 */
 const MAX_SIZE_BEFORE_RESIZE = 250 * 1024;
 /** 리사이즈 후 목표 최대 크기 (초과 시 품질 추가 하락) */
-const TARGET_MAX_BYTES = 220 * 1024;
-/** 이 크기를 넘으면 Edge Function 호출 자체를 생략 (gateway 502 예방) */
-const MAX_BYTES_FOR_EDGE_CALL = 240 * 1024;
+const TARGET_MAX_BYTES = 340 * 1024;
+/**
+ * Edge Function은 base64 길이 상한(약 550k)을 갖고 있어,
+ * 원본 바이트로는 대략 400KB 전후가 안전 상한이다. (base64 ≈ 4/3)
+ */
+const MAX_BYTES_FOR_EDGE_CALL = 380 * 1024;
 
 const EDGE_FN_NAME = 'analyze-tags';
 const EDGE_FN_COOLDOWN_KEY = 'aiTags_edgeCooldownUntil';
@@ -26,6 +29,42 @@ const EDGE_FN_COOLDOWN_MS = 10 * 60 * 1000; // 10분
 
 // 서버 운영 전환: localStorage 제거 → 세션 메모리만 사용
 let edgeCooldownUntilMemory = 0;
+
+const CACHE_KEY = 'lj:aiTags:v1';
+const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7d
+const inFlight = new Map();
+
+const safeJsonParse = (raw) => {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
+
+const loadCache = () => {
+  if (typeof localStorage === 'undefined') return {};
+  const raw = localStorage.getItem(CACHE_KEY);
+  const parsed = raw ? safeJsonParse(raw) : null;
+  return parsed && typeof parsed === 'object' ? parsed : {};
+};
+
+const saveCache = (cache) => {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cache || {}));
+  } catch {
+    /* ignore quota */
+  }
+};
+
+const cacheKeyFor = (file, location = '') => {
+  const name = String(file?.name || '').slice(0, 120);
+  const size = Number(file?.size || 0) || 0;
+  const lm = Number(file?.lastModified || 0) || 0;
+  const loc = String(location || '').trim().toLowerCase().slice(0, 80);
+  return `${name}\0${size}\0${lm}\0${loc}`;
+};
 
 /** 이미지를 AI 분석용으로 리사이즈·압축 (Edge Function 502 방지, 최대한 호출 가능 크기로 맞춤) */
 const resizeImageForAI = (file) => {
@@ -139,6 +178,20 @@ const clearEdgeCooldown = () => {
 const generateAITagsViaSupabase = async (imageFile, location = '', exifData = null) => {
   if (!supabase) return null;
   try {
+    const cache = loadCache();
+    const ck = cacheKeyFor(imageFile, location);
+    const hit = cache?.[ck];
+    if (hit && typeof hit === 'object' && hit.value && Date.now() < Number(hit.expiresAt || 0)) {
+      return hit.value;
+    }
+    if (inFlight.has(ck)) {
+      try {
+        return await inFlight.get(ck);
+      } catch {
+        return null;
+      }
+    }
+
     const cooldownUntil = getEdgeCooldownUntil();
     if (cooldownUntil > nowMs()) {
       const leftSec = Math.max(1, Math.ceil((cooldownUntil - nowMs()) / 1000));
@@ -146,55 +199,74 @@ const generateAITagsViaSupabase = async (imageFile, location = '', exifData = nu
       return null;
     }
 
-    const resized = await resizeImageForAI(imageFile);
-    if (!resized || resized.size > MAX_BYTES_FOR_EDGE_CALL) {
+    const task = (async () => {
+      const resized = await resizeImageForAI(imageFile);
+      if (!resized || resized.size > MAX_BYTES_FOR_EDGE_CALL) {
       logger.warn('AI 태그: 이미지가 커서 Edge 호출 생략, 로컬 분석으로 폴백');
       return null;
-    }
-    const imageBase64 = await fileToBase64(resized);
-    const base64Str = typeof imageBase64 === 'string' ? imageBase64.replace(/\s/g, '') : '';
-    if (!base64Str || base64Str.length < 100) {
-      logger.warn('AI 태그: 리사이즈 후 base64 유효하지 않음');
-      return null;
-    }
-    const mimeType = (resized.type || 'image/jpeg').split(';')[0].trim() || 'image/jpeg';
-    const locationStr = typeof location === 'string' ? location : (location && location.name) ? String(location.name) : '';
-    const body = {
-      imageBase64: base64Str,
-      mimeType,
-      location: locationStr,
-      exifData: exifData && typeof exifData === 'object' ? exifData : undefined,
-    };
-    const { data, error } = await supabase.functions.invoke(EDGE_FN_NAME, {
-      body,
-    });
-    if (error) {
-      const status = error?.context?.status;
-      if (status === 502 || /502|Bad Gateway/i.test(error.message || '')) {
+      }
+      const imageBase64 = await fileToBase64(resized);
+      const base64Str = typeof imageBase64 === 'string' ? imageBase64.replace(/\s/g, '') : '';
+      if (!base64Str || base64Str.length < 100) {
+        logger.warn('AI 태그: 리사이즈 후 base64 유효하지 않음');
+        return null;
+      }
+      const mimeType = (resized.type || 'image/jpeg').split(';')[0].trim() || 'image/jpeg';
+      const locationStr = typeof location === 'string' ? location : (location && location.name) ? String(location.name) : '';
+      const body = {
+        imageBase64: base64Str,
+        mimeType,
+        location: locationStr,
+        exifData: exifData && typeof exifData === 'object' ? exifData : undefined,
+      };
+      const { data, error } = await supabase.functions.invoke(EDGE_FN_NAME, {
+        body,
+      });
+      if (error) {
+        const status = error?.context?.status;
+        // 502/429는 일정 시간 AI 호출 중지 (쿼터·게이트웨이 보호)
+        if (status === 502 || status === 429 || /502|Bad Gateway|429|RESOURCE_EXHAUSTED|Quota exceeded/i.test(error.message || '')) {
+          setEdgeCooldown();
+        }
+        logger.warn('Supabase AI 태그 Edge Function 오류:', error.message);
+        return null;
+      }
+      clearEdgeCooldown();
+      if (data && !data.success && data.detail) {
+        logger.warn('AI 태그 서버 응답:', data.message || 'error', data.detail?.slice?.(0, 200));
+      // Gemini 쿼터(429)도 일정 시간 중지해서 업로드 중 연속 호출을 막는다
+      const detail = String(data.detail || '');
+      if (/\"code\"\s*:\s*429|RESOURCE_EXHAUSTED|Quota exceeded/i.test(detail)) {
         setEdgeCooldown();
       }
-      logger.warn('Supabase AI 태그 Edge Function 오류:', error.message);
+      }
+      if (data && (data.success || data.category || (Array.isArray(data.categories) && data.categories.length))) {
+        const hasTags = Array.isArray(data.tags) && data.tags.length > 0;
+        logger.log('✅ Supabase AI 응답:', hasTags ? `${data.tags.length}개 태그` : '태그 없음', data.category ? `카테고리 ${data.category}` : '');
+        const out = {
+          success: !!data.success,
+          tags: Array.isArray(data.tags) ? data.tags : [],
+          caption: data.caption || null,
+          method: data.method || 'supabase-edge-gemini',
+          categories: Array.isArray(data.categories) ? data.categories : [],
+          category: data.category || null,
+          categoryName: data.categoryName || null,
+          categoryIcon: data.categoryIcon || null,
+        };
+        cache[ck] = { value: out, expiresAt: Date.now() + CACHE_TTL_MS };
+        saveCache(cache);
+        return out;
+      }
       return null;
+    })();
+
+    const ck2 = cacheKeyFor(imageFile, location);
+    inFlight.set(ck2, task);
+    try {
+      return await task;
+    } finally {
+      inFlight.delete(ck2);
     }
-    clearEdgeCooldown();
-    if (data && !data.success && data.detail) {
-      logger.warn('AI 태그 서버 응답:', data.message || 'error', data.detail?.slice?.(0, 200));
-    }
-    if (data && (data.success || data.category || (Array.isArray(data.categories) && data.categories.length))) {
-      const hasTags = Array.isArray(data.tags) && data.tags.length > 0;
-      logger.log('✅ Supabase AI 응답:', hasTags ? `${data.tags.length}개 태그` : '태그 없음', data.category ? `카테고리 ${data.category}` : '');
-      return {
-        success: !!data.success,
-        tags: Array.isArray(data.tags) ? data.tags : [],
-        caption: data.caption || null,
-        method: data.method || 'supabase-edge-gemini',
-        categories: Array.isArray(data.categories) ? data.categories : [],
-        category: data.category || null,
-        categoryName: data.categoryName || null,
-        categoryIcon: data.categoryIcon || null,
-      };
-    }
-    return null;
   } catch (e) {
     logger.warn('Supabase AI 태그 호출 예외:', e?.message);
     return null;
