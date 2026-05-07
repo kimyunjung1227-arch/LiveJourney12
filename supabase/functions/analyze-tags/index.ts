@@ -10,7 +10,8 @@ const cors: Record<string, string> = {
 };
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
-const GEMINI_MODEL = 'gemini-1.5-flash';
+// 2026 기준: 1.5 계열은 generateContent 미지원/종료 케이스가 있어 최신 flash로 기본값 상향
+const GEMINI_MODEL = Deno.env.get('GEMINI_TAG_MODEL') || 'gemini-2.5-flash';
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 /** 502 방지: base64가 너무 크면 메모리/타임아웃 위험 (약 400KB 상한) */
 const MAX_BASE64_LENGTH = 550000;

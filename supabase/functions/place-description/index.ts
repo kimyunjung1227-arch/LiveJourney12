@@ -9,7 +9,8 @@ const cors: Record<string, string> = {
 };
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
-const GEMINI_MODEL = Deno.env.get('GEMINI_PLACE_MODEL') || 'gemini-1.5-flash';
+// 2026 기준: 1.5 계열은 generateContent 미지원/종료 케이스가 있어 최신 flash로 기본값 상향
+const GEMINI_MODEL = Deno.env.get('GEMINI_PLACE_MODEL') || 'gemini-2.5-flash';
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
 type RequestBody = {
@@ -96,21 +97,52 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // 일부 런타임/프록시에서 req.json()이 빈 body로 실패하거나,
+    // json() 시도 후 stream이 소모되어 text()가 비는 케이스가 있어 단일 경로(text → parse)로 고정한다.
+    const rawBody = await req.text();
+    const contentType = String(req.headers.get('content-type') || '').toLowerCase();
     let body: RequestBody | null = null;
-    try {
-      body = (await req.json()) as RequestBody;
-    } catch {
-      // 일부 환경에서 content-type 이 맞지 않거나 body가 문자열로 전달되는 케이스 방어
+    if (rawBody && rawBody.trim()) {
       try {
-        const raw = await req.text();
-        body = raw ? (JSON.parse(raw) as RequestBody) : null;
+        body = JSON.parse(rawBody) as RequestBody;
       } catch {
-        body = null;
+        // JSON이 아니라면 placeKey=... 형태를 허용 (최소 호환)
+        try {
+          const params = new URLSearchParams(rawBody);
+          body = {
+            placeKey: params.get('placeKey') || undefined,
+            regionHint: params.get('regionHint') || undefined,
+            tier: params.get('tier') || undefined,
+            tags: params.getAll('tags') || undefined,
+            userCaptions: params.getAll('userCaptions') || undefined,
+          };
+        } catch {
+          body = null;
+        }
+      }
+    }
+    // body가 비어있으면 querystring도 fallback (디버깅/테스트 편의)
+    if (!body || (!body.placeKey && !body.regionHint && !body.tier)) {
+      const u = new URL(req.url);
+      if (u.searchParams.get('placeKey')) {
+        body = {
+          ...(body || {}),
+          placeKey: u.searchParams.get('placeKey') || undefined,
+          regionHint: u.searchParams.get('regionHint') || undefined,
+          tier: u.searchParams.get('tier') || undefined,
+        };
       }
     }
     const name = sanitize(body?.placeKey, 80);
     if (!name) {
-      return new Response(JSON.stringify({ success: false, message: 'placeKey required' }), {
+      return new Response(JSON.stringify({
+        success: false,
+        message: 'placeKey required',
+        debug: {
+          contentType,
+          rawBodyLength: rawBody ? rawBody.length : 0,
+        },
+      }), {
         status: 400,
         headers: { ...cors, 'Content-Type': 'application/json' },
       });
