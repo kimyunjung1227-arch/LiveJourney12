@@ -17,6 +17,7 @@ import { rankHotspotPlaces } from '../utils/hotnessEngine';
 import { getWeatherByRegion } from '../api/weather';
 import { listPublishedMagazines } from '../utils/magazinesStore';
 import HotFeedCard from '../components/HotFeedCard';
+import FastImage from '../components/FastImage';
 import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCardModel';
 import { buildPlaceStatsMap, selectPostsForPlaceStats, transformPostForHotFeed } from '../utils/hotFeedPostTransform';
 import { useAuth } from '../contexts/AuthContext';
@@ -986,9 +987,10 @@ const MainScreen = () => {
                             }
                             
                             // 동영상이 없을 때만 이미지 사용
+                            const rawFirstImage = Array.isArray(post.images) && post.images.length > 0 ? post.images[0] : (post.image || post.thumbnail || '');
                             const firstImage = firstVideo
                                 ? null
-                                : getDisplayImageUrl(Array.isArray(post.images) && post.images.length > 0 ? post.images[0] : (post.image || post.thumbnail || ''), MAIN_FEED_IMAGE_OPTS);
+                                : getDisplayImageUrl(rawFirstImage, MAIN_FEED_IMAGE_OPTS);
                             const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
                             const fixedAt = post.photoDate || post.captured_at || post.capturedAt || post.createdAt || post.timestamp || post.time || null;
                             const snap = getValidWeatherSnapshot(post);
@@ -1055,12 +1057,13 @@ const MainScreen = () => {
                                                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '14px' }}
                                             />
                                         ) : firstImage ? (
-                                            <img
-                                                src={firstImage}
+                                            <FastImage
+                                                rawUrl={rawFirstImage}
+                                                opts={MAIN_FEED_IMAGE_OPTS}
                                                 alt={post.location}
-                                                loading={rtIndex < 2 ? 'eager' : 'lazy'}
+                                                loading={rtIndex < 6 ? 'eager' : 'lazy'}
                                                 decoding="async"
-                                                fetchPriority={rtIndex < 2 ? 'high' : 'auto'}
+                                                fetchPriority={rtIndex < 3 ? 'high' : 'auto'}
                                                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '14px' }}
                                             />
                                         ) : null}

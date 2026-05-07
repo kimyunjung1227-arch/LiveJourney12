@@ -98,11 +98,12 @@ export function preloadMainFeedImageUrls(realtimeData, crowdedData, { limit = 6,
 
   const rt = Array.isArray(realtimeData) ? realtimeData : [];
   for (let i = 0; i < Math.min(3, rt.length); i += 1) {
-    push(firstDisplayMediaUrlForPost(rt[i], imgOpts));
+    // transform(render) 우선 시도 → 실패하면 브라우저가 원본을 다시 받도록 <img onError>에서 폴백
+    push(firstDisplayMediaUrlForPost(rt[i], { ...imgOpts, forceTransform: true }));
   }
 
   const cr = Array.isArray(crowdedData) ? crowdedData : [];
-  if (cr[0]) push(firstDisplayMediaUrlForPost(cr[0], imgOpts));
+  if (cr[0]) push(firstDisplayMediaUrlForPost(cr[0], { ...imgOpts, forceTransform: true }));
 
   const unique = Array.from(new Set(urls)).filter(Boolean).slice(0, limit);
   const nodes = [];

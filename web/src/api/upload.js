@@ -151,7 +151,11 @@ function supabaseHeroMaxWidthPx() {
  */
 function applySupabaseImageResize(absoluteUrl, opts) {
   if (!absoluteUrl || absoluteUrl.startsWith('data:')) return absoluteUrl;
-  if (typeof import.meta === 'undefined' || String(import.meta.env?.VITE_SUPABASE_IMAGE_TRANSFORM || '').trim() !== 'true') {
+  if (opts?.disableTransform) return absoluteUrl;
+  const transformEnabled =
+    (typeof import.meta !== 'undefined' && String(import.meta.env?.VITE_SUPABASE_IMAGE_TRANSFORM || '').trim() === 'true') ||
+    opts?.forceTransform === true;
+  if (!transformEnabled) {
     return absoluteUrl;
   }
   const pathNoQuery = absoluteUrl.split('?')[0].split('#')[0];
