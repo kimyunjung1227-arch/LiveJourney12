@@ -96,7 +96,18 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const body = (await req.json()) as RequestBody;
+    let body: RequestBody | null = null;
+    try {
+      body = (await req.json()) as RequestBody;
+    } catch {
+      // 일부 환경에서 content-type 이 맞지 않거나 body가 문자열로 전달되는 케이스 방어
+      try {
+        const raw = await req.text();
+        body = raw ? (JSON.parse(raw) as RequestBody) : null;
+      } catch {
+        body = null;
+      }
+    }
     const name = sanitize(body?.placeKey, 80);
     if (!name) {
       return new Response(JSON.stringify({ success: false, message: 'placeKey required' }), {
