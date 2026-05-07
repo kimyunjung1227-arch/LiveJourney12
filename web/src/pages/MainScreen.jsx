@@ -478,6 +478,25 @@ const MainScreen = () => {
     // 실시간 핫플: "장소 자체" 설명을 AI로 생성 (사용자 제보 문장 통합)
     useEffect(() => {
         let cancelled = false;
+        const normalizeHotplaceDesc = (text) => {
+            const raw = String(text || '').replace(/\s+/g, ' ').trim();
+            if (!raw) return '';
+            // 정보형 문장으로 보이도록 과한 구어체/권유형 표현을 약하게 제거
+            const cleaned = raw
+                .replace(/좋아요[.!?]?\s*/g, '')
+                .replace(/추천해요[.!?]?\s*/g, '')
+                .replace(/가요[.!?]?\s*/g, '')
+                .replace(/해요[.!?]?\s*/g, (m) => (m.includes('?') ? m : '입니다. '))
+                .replace(/\.\s*\./g, '.')
+                .trim();
+            // 문장 끊김 보정: 마침표/물음표/느낌표 기준으로 3문장까지만
+            const parts = cleaned
+                .split(/(?<=[.!?])\s+/)
+                .map((s) => s.trim())
+                .filter(Boolean);
+            const out = parts.slice(0, 3).join(' ');
+            return out || cleaned;
+        };
         const run = async () => {
             try {
                 const cp = hotFeedCardProps;
@@ -512,7 +531,7 @@ const MainScreen = () => {
                     cacheSalt: norm,
                 });
                 if (!cancelled) {
-                    setHotplaceAiDescription(String(desc || '').trim());
+                    setHotplaceAiDescription(normalizeHotplaceDesc(desc));
                 }
             } catch {
                 if (!cancelled) setHotplaceAiDescription('');

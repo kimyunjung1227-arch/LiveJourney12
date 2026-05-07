@@ -23,41 +23,17 @@ const HotFeedCard = ({
         weather,
         hasWeather,
         hotReasonLabel,
+        hotBadgeTitle,
+        hotBadgeReason,
         hotReasonIcon,
         captionForCard,
         avatars,
     } = cardProps;
     const likeCount = Number(post?.likes ?? post?.likeCount ?? 0) || 0;
     const safeHotReasonLabel = String(hotReasonLabel || '').trim() || '실시간';
+    const badgeTitle = String(hotBadgeTitle || '').trim() || '실시간 핫플';
+    const badgeReason = String(hotBadgeReason || '').trim();
     const safeHotReasonIcon = String(hotReasonIcon || '').trim() || 'bolt';
-    const formatHotTag = (t) => {
-        const raw = String(t || '').replace(/#/g, '').replace(/_/g, ' ').trim();
-        if (!raw) return '';
-        return raw.startsWith('#') ? raw : `#${raw}`;
-    };
-    const displayTags = (() => {
-        if (Array.isArray(post?.reasonTags) && post.reasonTags.length > 0) {
-            return post.reasonTags.slice(0, 3).map(formatHotTag).filter(Boolean);
-        }
-        if (!post?.reasonTags?.length && Array.isArray(post?.aiHotTags) && post.aiHotTags.length > 0) {
-            return post.aiHotTags.slice(0, 2).map(formatHotTag).filter(Boolean);
-        }
-        return [];
-    })();
-
-    const tagChipStyle = {
-        fontSize: 11,
-        fontWeight: 800,
-        color: '#0f172a',
-        background: 'rgba(38, 198, 218, 0.14)',
-        border: '1px solid rgba(38, 198, 218, 0.30)',
-        padding: '2px 8px',
-        borderRadius: 999,
-        maxWidth: '100%',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-    };
 
     const weatherPillStyle = {
         display: 'inline-flex',
@@ -112,7 +88,7 @@ const HotFeedCard = ({
                     }}
                 >
                     <span
-                        title="이 게시물이 핫플에 오른 이유"
+                        title="왜 지금 핫플인지"
                         style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -135,7 +111,29 @@ const HotFeedCard = ({
                         >
                             {safeHotReasonIcon}
                         </span>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{safeHotReasonLabel}</span>
+                        <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, lineHeight: 1.05 }}>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {badgeTitle}
+                            </span>
+                            {badgeReason ? (
+                                <span
+                                    style={{
+                                        marginTop: 2,
+                                        fontSize: 10,
+                                        fontWeight: 750,
+                                        color: 'rgba(255,255,255,0.86)',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                        maxWidth: 220,
+                                    }}
+                                >
+                                    {badgeReason}
+                                </span>
+                            ) : (
+                                <span style={{ display: 'none' }}>{safeHotReasonLabel}</span>
+                            )}
+                        </span>
                     </span>
                 </div>
                 {showLike !== false && typeof onLikeClick === 'function' && (
@@ -213,73 +211,34 @@ const HotFeedCard = ({
                 })()}
             </div>
             <div style={{ padding: '8px 2px 2px', background: 'transparent', border: 'none', boxShadow: 'none' }}>
-                <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{title}</h4>
-                <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#374151', lineHeight: 1.5, fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', background: 'transparent', boxShadow: 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                    <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 850, color: '#111827', lineHeight: 1.3, letterSpacing: '-0.02em', minWidth: 0, flex: 1 }}>
+                        {title}
+                    </h4>
+                    {hasWeather ? (
+                        <div style={{ ...weatherPillStyle, alignSelf: 'flex-start' }}>
+                            {weather?.icon && <span>{weather.icon}</span>}
+                            {weather?.temperature && <span>{weather.temperature}</span>}
+                        </div>
+                    ) : null}
+                </div>
+                <p
+                    style={{
+                        margin: '8px 0 0 0',
+                        fontSize: '12px',
+                        color: '#111827',
+                        lineHeight: 1.55,
+                        fontWeight: 600,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        background: 'transparent',
+                        boxShadow: 'none',
+                    }}
+                >
                     {String(placeDescription || '').trim() || captionForCard}
                 </p>
-                {(hasWeather || displayTags.length > 0 || (cardProps.uploadTimeLabel && String(cardProps.uploadTimeLabel).trim())) && (
-                    <div
-                        style={{
-                            display: 'flex',
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 8,
-                            marginTop: 6,
-                            width: '100%',
-                            minWidth: 0,
-                        }}
-                    >
-                        <div
-                            style={{
-                                display: 'flex',
-                                flexWrap: 'wrap',
-                                gap: 4,
-                                flex: 1,
-                                minWidth: 0,
-                                alignItems: 'center',
-                            }}
-                        >
-                            {displayTags.map((tag) => (
-                                <span key={`${post?.id || 'post'}-tag-${String(tag)}`} style={tagChipStyle}>
-                                    {String(tag)}
-                                </span>
-                            ))}
-                        </div>
-                        <div
-                            style={{
-                                display: 'inline-flex',
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                justifyContent: 'flex-end',
-                                gap: 6,
-                                flexShrink: 0,
-                                flexWrap: 'wrap',
-                                maxWidth: '48%',
-                            }}
-                        >
-                            {hasWeather ? (
-                                <div style={{ ...weatherPillStyle, flexShrink: 0 }}>
-                                    {weather?.icon && <span>{weather.icon}</span>}
-                                    {weather?.temperature && <span>{weather.temperature}</span>}
-                                    {weather?.condition && weather.condition !== '-' ? <span>{` ${weather.condition}`}</span> : null}
-                                </div>
-                            ) : null}
-                            {cardProps.uploadTimeLabel && String(cardProps.uploadTimeLabel).trim() ? (
-                                <span
-                                    style={{
-                                        fontSize: 11,
-                                        color: '#64748b',
-                                        fontWeight: 600,
-                                        whiteSpace: 'nowrap',
-                                    }}
-                                >
-                                    {String(cardProps.uploadTimeLabel).trim()}
-                                </span>
-                            ) : null}
-                        </div>
-                    </div>
-                )}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, gap: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1, gap: 8 }}>
                         <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 2 }}>

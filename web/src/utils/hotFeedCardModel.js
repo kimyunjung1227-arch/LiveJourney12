@@ -58,6 +58,28 @@ export function buildHotFeedCardProps(post, weatherByRegion = {}) {
     const cityDongLine = getCityDongLine(post);
     const tierLabel = engagementTier === '사람 많음' ? '인파 많음' : engagementTier;
     const hotReasonLabel = tagHint ? `${tierLabel} · ${tagHint}` : tierLabel;
+    const hotBadgeTitle = (() => {
+        switch (engagementTier) {
+            case '급상승':
+                return '급상승 핫플';
+            case '사람 많음':
+                return '인파 집중 핫플';
+            case '인기':
+                return '인기 핫플';
+            default:
+                return '실시간 핫플';
+        }
+    })();
+    const hotBadgeReason = (() => {
+        const raw = String(post?._impactLabel || '').trim();
+        if (raw) return raw;
+        if (tagHint) return tagHint;
+        // 최소 근거: 참여/조회 분위기(너무 숫자만 나열하지 않도록 문구는 짧게)
+        if (engagementTier === '급상승') return '반응 급증';
+        if (engagementTier === '사람 많음') return '현장 반응';
+        if (engagementTier === '인기') return '꾸준한 인기';
+        return '';
+    })();
     const hotReasonIcon = (() => {
         const hint = String(tagHint || '').replace(/\s+/g, '').trim();
         if (hint.includes('웨이팅') || hint.includes('대기') || hint.includes('줄')) return 'timer';
@@ -108,6 +130,8 @@ export function buildHotFeedCardProps(post, weatherByRegion = {}) {
         avatars,
         regionShort,
         hotReasonLabel,
+        hotBadgeTitle,
+        hotBadgeReason,
         hotReasonIcon,
         cityDongLine,
         captionForCard,
