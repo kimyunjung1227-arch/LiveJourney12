@@ -18,6 +18,8 @@ import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
 import { generatePlaceAiBlurb } from '../utils/placeAiBlurb';
 import { useLoginGate } from '../hooks/useLoginGate';
+import { fetchPlaceDescription } from '../api/placeDescription';
+import { normalizePlaceIdentityKey } from '../utils/placeKeyNormalize';
 
 const PRIMARY_HEX = '#26C6DA';
 
@@ -76,6 +78,7 @@ const CrowdedPlaceScreen = () => {
     const contentRef = useRef(null);
     const [userPos, setUserPos] = useState(null);
     const [, setNowTick] = useState(0);
+    const [placeDescMap, setPlaceDescMap] = useState({});
 
     useEffect(() => {
         const id = setInterval(() => setCrowdedSocialIdx((i) => (i + 1) % 3), 2800);
@@ -311,6 +314,72 @@ const CrowdedPlaceScreen = () => {
         });
     }, [allHotPosts, userPos]);
 
+    // 메인 화면과 동일한 Edge Function 기반 장소 설명을 더보기에서도 사용
+    useEffect(() => {
+        let cancelled = false;
+        const normalizeHotplaceDesc = (text) => {
+            const raw = String(text || '').replace(/\\s+/g, ' ').trim();
+            if (!raw) return '';
+            const cleaned = raw
+                .replace(/좋아요[.!?]?\\s*/g, '')
+                .replace(/추천해요[.!?]?\\s*/g, '')
+                .replace(/가요[.!?]?\\s*/g, '')
+                .replace(/해요[.!?]?\\s*/g, (m) => (m.includes('?') ? m : '입니다. '))
+                .replace(/\\.\\s*\\./g, '.')
+                .trim();
+            const parts = cleaned
+                .split(/(?<=[.!?])\\s+/)
+                .map((s) => s.trim())
+                .filter(Boolean);
+            const out = parts.slice(0, 4).join(' ');
+            return out || cleaned;
+        };
+
+        const run = async () => {
+            const top = Array.isArray(placeRankings) ? placeRankings.slice(0, 16) : [];
+            if (top.length === 0) return;
+            const entries = await Promise.all(
+                top.map(async (place) => {
+                    const key = String(place?.key || '').trim();
+                    if (!key) return null;
+                    // 이미 있으면 스킵
+                    if (placeDescMap && placeDescMap[key]) return null;
+                    const post = place.representative;
+                    const tags = Array.isArray(place.liveTags) ? place.liveTags.map((t) => String(t || '').replace(/[#_]/g, ' ').trim()).filter(Boolean).slice(0, 6) : [];
+                    const regionHint = String(post?.region || post?.location || '').trim();
+                    const norm = normalizePlaceIdentityKey(key);
+                    const desc = await fetchPlaceDescription({
+                        placeKey: key,
+                        regionHint,
+                        tier: '',
+                        tags,
+                        userCaptions: [],
+                        cacheSalt: norm,
+                    });
+                    const normalized = normalizeHotplaceDesc(desc);
+                    return normalized ? [key, normalized] : null;
+                })
+            );
+
+            const next = {};
+            entries.forEach((e) => {
+                if (!e) return;
+                const [k, v] = e;
+                if (k && v) next[k] = v;
+            });
+            if (!cancelled && Object.keys(next).length > 0) {
+                setPlaceDescMap((prev) => ({ ...(prev || {}), ...next }));
+            }
+        };
+
+        run();
+        return () => {
+            cancelled = true;
+        };
+        // placeDescMap은 의도적으로 deps에서 제외 (무한 루프 방지)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [placeRankings]);
+
     const lastUpdatedMs = useMemo(() => {
         const ms = Math.max(0, ...placeRankings.map((p) => Number(p.latestMs || 0)));
         return ms || 0;
@@ -414,7 +483,9 @@ const CrowdedPlaceScreen = () => {
                                         })
                                         .filter(Boolean)
                                         .slice(0, 1);
-                                    const aiBlurb = generatePlaceAiBlurb(place.key, {
+                                    const placeKey = String(place.key || '').trim();
+                                    const aiDesc = placeKey ? String(placeDescMap?.[placeKey] || '').trim() : '';
+                                    const aiBlurb = aiDesc || generatePlaceAiBlurb(place.key, {
                                         tags: hotTagChips,
                                         cityDong: place.cityDong || '',
                                         tier: cardProps?.hotReasonLabel || '',

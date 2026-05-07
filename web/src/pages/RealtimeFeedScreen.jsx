@@ -16,6 +16,8 @@ import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { useAuth } from '../contexts/AuthContext';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
 import { getValidWeatherSnapshot } from '../utils/weatherSnapshot';
+import FastImage from '../components/FastImage';
+import { MAIN_FEED_IMAGE_OPTS } from '../utils/mainFeedSnapshot';
 import {
   feedGridCardBoxFlat,
   feedGridImageBoxFlat,
@@ -216,11 +218,24 @@ const RealtimeFeedScreen = () => {
             }}
           >
             {displayedPosts.map((post, index) => {
+              // 메인 "지금 여기는" 카드와 동일: 동영상 우선, 없으면 이미지(FastImage)
+              let firstVideo = null;
+              if (post.videos) {
+                if (Array.isArray(post.videos) && post.videos.length > 0) {
+                  firstVideo = getDisplayImageUrl(post.videos[0], { ...MAIN_FEED_IMAGE_OPTS, allowBlob: true });
+                } else if (typeof post.videos === 'string' && post.videos.trim()) {
+                  firstVideo = getDisplayImageUrl(post.videos, { ...MAIN_FEED_IMAGE_OPTS, allowBlob: true });
+                }
+              }
+              const rawFirstImage = Array.isArray(post.images) && post.images.length > 0 ? post.images[0] : (post.image || post.thumbnail || '');
+              const firstImage = firstVideo ? null : getDisplayImageUrl(rawFirstImage, MAIN_FEED_IMAGE_OPTS);
+
               const regionKey = (post.region || post.location || '').trim().split(/\s+/)[0] || post.region || post.location;
               const snap = getValidWeatherSnapshot(post);
               const weather = snap || post.weatherSnapshot || post.weather || weatherByRegion[regionKey] || null;
               const hasWeather = weather && (weather.icon || weather.temperature);
               const status = getPhotoStatusFromPost(post);
+
               return (
                 <div
                   key={`${post.id}-${index}`}
@@ -242,21 +257,24 @@ const RealtimeFeedScreen = () => {
                   }}
                 >
                   <div style={feedGridImageBoxFlat}>
-                    {post.gridCover?.mode === 'img' && post.gridCover.src ? (
-                      <img
-                        src={post.gridCover.src}
-                        alt={post.location}
-                        loading="eager"
-                        decoding="async"
-                        fetchPriority={index < 4 ? 'high' : 'auto'}
-                        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                      />
-                    ) : post.gridCover?.mode === 'video' && post.gridCover.src ? (
+                    {firstVideo ? (
                       <video
-                        src={post.gridCover.src}
+                        src={firstVideo}
+                        poster={firstImage || getDisplayImageUrl(rawFirstImage, MAIN_FEED_IMAGE_OPTS) || undefined}
                         muted
+                        loop
                         playsInline
                         preload="metadata"
+                        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      />
+                    ) : rawFirstImage ? (
+                      <FastImage
+                        rawUrl={rawFirstImage}
+                        opts={MAIN_FEED_IMAGE_OPTS}
+                        alt={post.location}
+                        loading={index < 6 ? 'eager' : 'lazy'}
+                        decoding="async"
+                        fetchPriority={index < 3 ? 'high' : 'auto'}
                         style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                       />
                     ) : (
