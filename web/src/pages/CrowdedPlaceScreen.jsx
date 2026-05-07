@@ -274,7 +274,6 @@ const CrowdedPlaceScreen = () => {
                 .map((p) => ({
                     ...p.representative,
                     _rank: p.rank,
-                    _impactLabel: p.warning || '방금 전 올라온 핫플 정보예요',
                     _compassCount: p.compassCount,
                     _placeKey: p.key,
                 }));
@@ -414,7 +413,7 @@ const CrowdedPlaceScreen = () => {
                                             return raw.startsWith('#') ? raw : `#${raw}`;
                                         })
                                         .filter(Boolean)
-                                        .slice(0, 3);
+                                        .slice(0, 1);
                                     const aiBlurb = generatePlaceAiBlurb(place.key, {
                                         tags: hotTagChips,
                                         cityDong: place.cityDong || '',
@@ -510,9 +509,15 @@ const CrowdedPlaceScreen = () => {
                                                                                 style={{
                                                                                     background: 'rgba(38, 198, 218, 0.14)',
                                                                                     borderColor: 'rgba(38, 198, 218, 0.30)',
+                                                                                    display: 'inline-flex',
+                                                                                    alignItems: 'center',
+                                                                                    gap: 4,
                                                                                 }}
                                                                                 title={tag}
                                                                             >
+                                                                                <span className="material-symbols-outlined" aria-hidden style={{ fontSize: 14, fontVariationSettings: '"FILL" 1' }}>
+                                                                                    local_fire_department
+                                                                                </span>
                                                                                 {tag}
                                                                             </span>
                                                                         ))}

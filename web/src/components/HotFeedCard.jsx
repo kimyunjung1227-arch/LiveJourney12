@@ -31,9 +31,9 @@ const HotFeedCard = ({
     } = cardProps;
     const likeCount = Number(post?.likes ?? post?.likeCount ?? 0) || 0;
     const safeHotReasonLabel = String(hotReasonLabel || '').trim() || '실시간';
-    const badgeTitle = String(hotBadgeTitle || '').trim() || '실시간 핫플';
     const badgeReason = String(hotBadgeReason || '').trim();
-    const safeHotReasonIcon = String(hotReasonIcon || '').trim() || 'bolt';
+    // 요청: 핫플 좌상단은 "불 아이콘 + 태그"만
+    const badgeIcon = 'local_fire_department';
 
     const weatherPillStyle = {
         display: 'inline-flex',
@@ -109,30 +109,10 @@ const HotFeedCard = ({
                             className="material-symbols-outlined shrink-0"
                             style={{ fontSize: 16, fontVariationSettings: '"FILL" 1' }}
                         >
-                            {safeHotReasonIcon}
+                            {badgeIcon}
                         </span>
-                        <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, lineHeight: 1.05 }}>
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {badgeTitle}
-                            </span>
-                            {badgeReason ? (
-                                <span
-                                    style={{
-                                        marginTop: 2,
-                                        fontSize: 10,
-                                        fontWeight: 750,
-                                        color: 'rgba(255,255,255,0.86)',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap',
-                                        maxWidth: 220,
-                                    }}
-                                >
-                                    {badgeReason}
-                                </span>
-                            ) : (
-                                <span style={{ display: 'none' }}>{safeHotReasonLabel}</span>
-                            )}
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {badgeReason || safeHotReasonLabel}
                         </span>
                     </span>
                 </div>

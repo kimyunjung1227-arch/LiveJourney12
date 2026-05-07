@@ -30,8 +30,8 @@ export function generatePlaceAiBlurb(placeKey, { tags = [], cityDong = '', tier 
     '최근 제보가 이어지며 주목도가 올라간 곳이에요.';
 
   if (!key) return '';
-  const tailTags = tagHint ? ` (${tagHint})` : '';
-  const regionHint = region ? `${region} 기준으로 ` : '';
+  const tailTags = tagHint ? `#${tagHint.replace(/\s+/g, '')}` : '';
+  const regionHint = region ? `${region}` : '';
   const keyHint = key.replace(/\s+/g, ' ').trim();
 
   const famousFor = (() => {
@@ -54,10 +54,20 @@ export function generatePlaceAiBlurb(placeKey, { tags = [], cityDong = '', tier 
     return '주말·저녁은 혼잡할 수 있어 여유 시간을 두고 가는 걸 추천해요';
   })();
 
-  // 카드에서 장소명은 이미 노출되므로 "정보형 2~3문장"으로만 반환
-  const line1 = `${regionHint}지금 ${whyHot}인 곳이에요${tailTags}.`;
-  const line2 = `${keyHint}는 ${famousFor}.`;
-  const line3 = `방문하기 좋은 때는 ${bestTime}.`;
-  return `${line1} ${line2} ${line3}`;
+  // 핫플답게: 장소마다 템플릿을 바꿔 문장 구조가 반복되지 않도록 한다.
+  const hash = Array.from(keyHint).reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) >>> 0, 7);
+  const t = hash % 5;
+  const tagBit = tailTags ? ` · ${tailTags}` : '';
+  const regionBit = regionHint ? `${regionHint} ` : '';
+
+  const templates = [
+    () => `${regionBit}${whyLine}${tagBit} ${keyHint} 포인트는 ${famousFor}. 방문 타이밍은 ${bestTime}.`,
+    () => `${regionBit}${keyHint} · ${famousFor}. 지금은 ${whyHot} 흐름이라 체감이 더 강하게 올라와요${tailTags ? `(${tailTags})` : ''}. ${bestTime} 추천.`,
+    () => `${regionBit}왜 핫플이냐면: ${whyHot}${tailTags ? `(${tailTags})` : ''}. ${keyHint} 포인트는 ${famousFor}. ${bestTime}.`,
+    () => `${regionBit}${keyHint} 핵심은 ${famousFor}. 지금은 ${whyHot}로 묶이면서 반응이 올라왔고, ${bestTime}가 만족도 높아요${tailTags ? ` · ${tailTags}` : ''}.`,
+    () => `${regionBit}${whyLine}${tailTags ? ` (${tailTags})` : ''} ${keyHint} 포인트는 ${famousFor}. 방문은 ${bestTime} 쪽이 좋아요.`,
+  ];
+
+  return templates[t]();
 }
 

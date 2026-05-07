@@ -70,14 +70,9 @@ export function buildHotFeedCardProps(post, weatherByRegion = {}) {
                 return '실시간 핫플';
         }
     })();
+    // 좌측 상단 배지는 "태그만" 명확하게 노출 (컴퍼스 n명 중계중 같은 문구는 제거)
     const hotBadgeReason = (() => {
-        const raw = String(post?._impactLabel || '').trim();
-        if (raw) return raw;
         if (tagHint) return tagHint;
-        // 최소 근거: 참여/조회 분위기(너무 숫자만 나열하지 않도록 문구는 짧게)
-        if (engagementTier === '급상승') return '반응 급증';
-        if (engagementTier === '사람 많음') return '현장 반응';
-        if (engagementTier === '인기') return '꾸준한 인기';
         return '';
     })();
     const hotReasonIcon = (() => {
