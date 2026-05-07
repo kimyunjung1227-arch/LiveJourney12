@@ -47,6 +47,16 @@ export function generatePlaceAiBlurb(placeKey, { tags = [], cityDong = '', tier 
     return `${kind}로 가볍게 들르기 좋은 곳이에요`;
   })();
 
+  const visitTip = (() => {
+    if (/해변|바다|해수욕|비치/i.test(keyHint)) return '바람이 강한 날은 체감이 떨어질 수 있어 얇은 겉옷을 챙기면 좋아요';
+    if (/공원|호수|산책|숲|수목원/i.test(keyHint)) return '걷는 구간이 길 수 있어 편한 신발과 물을 챙기면 좋아요';
+    if (/(저수지|호|연못|습지)/i.test(keyHint) || /지$/i.test(keyHint)) return '빛이 부드러운 시간대에 수면 반사가 예뻐서 사진이 잘 나와요';
+    if (/시장|먹거리|맛집|식당|포차|골목/i.test(keyHint)) return '혼잡 시간에는 대기/품절 변수가 있어 동선을 유연하게 잡는 게 좋아요';
+    if (/전시|박물관|미술관|공연|축제/i.test(keyHint)) return '회차/휴관일이 있을 수 있으니 운영 시간을 한 번 확인하면 좋아요';
+    if (/야경|전망|뷰|전망대/i.test(keyHint)) return '삼각대/야간 촬영 모드가 있으면 결과물이 더 좋아요';
+    return '주변 동선까지 함께 묶어서 여유 있게 둘러보는 걸 추천해요';
+  })();
+
   const bestTime = (() => {
     if (/야경|전망|뷰|전망대/i.test(keyHint)) return '일몰 전후~야간(매직아워)';
     if (/시장|먹거리|맛집|식당|포차|골목/i.test(keyHint)) return '늦은 오후/이른 저녁(피크 회피)';
@@ -64,14 +74,15 @@ export function generatePlaceAiBlurb(placeKey, { tags = [], cityDong = '', tier 
   const regionBit = regionHint ? `${regionHint} ` : '';
 
   const templates = [
-    () => `${regionBit}${keyHint}는 ${famousFor}. ${bestTime}에 가면 만족도가 높아요.${tagBit}`,
-    () => `${regionBit}${keyHint} 한 줄 정리: ${kind}. 포인트는 ${famousFor}. 추천 시간대는 ${bestTime}.${tagBit}`,
-    () => `${regionBit}${keyHint} 포인트부터 보면, ${famousFor}. 방문은 ${bestTime} 쪽이 좋아요.${tagBit}`,
-    () => `${regionBit}사진/산책 코스 찾는다면 ${keyHint}. ${bestTime}가 특히 잘 맞아요. (${famousFor})${tagBit}`,
-    () => `${regionBit}${keyHint}: ${famousFor}. ${bestTime}에 가면 동선이 더 편해요.${tagBit}`,
-    () => `${regionBit}${kind} 느낌으로 가볍게 들르기 좋아요. ${keyHint}는 ${famousFor}. 베스트 타이밍은 ${bestTime}.${tagBit}`,
-    () => `${regionBit}${keyHint}는 ${kind} 쪽으로 분류돼요. ${famousFor}. 방문 추천은 ${bestTime}.${tagBit}`,
-    () => `${regionBit}${keyHint} 핵심만: ${famousFor}. ${bestTime} 추천.${tagBit}`,
+    // 장소명은 카드 제목에 이미 있으므로, 여기서는 "장소 자체 설명"만 (중복 방지)
+    () => `${regionBit}${kind} 포인트는 ${famousFor}. ${bestTime}에 가면 만족도가 높아요. ${visitTip}.${tagBit}`,
+    () => `${regionBit}한 줄 정리: ${kind}. ${famousFor}. 추천 시간대는 ${bestTime}. ${visitTip}.${tagBit}`,
+    () => `${regionBit}포인트부터 보면, ${famousFor}. 방문은 ${bestTime} 쪽이 좋아요. ${visitTip}.${tagBit}`,
+    () => `${regionBit}사진/산책 코스 찾는다면 딱 맞아요. ${famousFor}. ${bestTime}가 특히 잘 맞아요. ${visitTip}.${tagBit}`,
+    () => `${regionBit}${famousFor}. ${bestTime}에 가면 동선이 더 편해요. ${visitTip}.${tagBit}`,
+    () => `${regionBit}${kind} 느낌으로 가볍게 들르기 좋아요. ${famousFor}. 베스트 타이밍은 ${bestTime}. ${visitTip}.${tagBit}`,
+    () => `${regionBit}${kind} 쪽으로 분류돼요. ${famousFor}. 방문 추천은 ${bestTime}. ${visitTip}.${tagBit}`,
+    () => `${regionBit}핵심만: ${famousFor}. ${bestTime} 추천. ${visitTip}.${tagBit}`,
   ];
 
   return templates[t]();

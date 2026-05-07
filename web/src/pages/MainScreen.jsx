@@ -489,12 +489,12 @@ const MainScreen = () => {
                 .replace(/해요[.!?]?\s*/g, (m) => (m.includes('?') ? m : '입니다. '))
                 .replace(/\.\s*\./g, '.')
                 .trim();
-            // 문장 끊김 보정: 마침표/물음표/느낌표 기준으로 3문장까지만
+            // 문장 끊김 보정: 마침표/물음표/느낌표 기준으로 4문장까지만(더 길게 허용)
             const parts = cleaned
                 .split(/(?<=[.!?])\s+/)
                 .map((s) => s.trim())
                 .filter(Boolean);
-            const out = parts.slice(0, 3).join(' ');
+            const out = parts.slice(0, 4).join(' ');
             return out || cleaned;
         };
         const run = async () => {
