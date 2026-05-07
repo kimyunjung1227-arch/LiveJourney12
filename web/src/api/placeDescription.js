@@ -1,5 +1,5 @@
-import api from './axios';
 import { logger } from '../utils/logger';
+import { supabase } from '../utils/supabaseClient';
 
 const CACHE_KEY = 'lj:placeDesc:v1';
 const TTL_MS = 12 * 60 * 60 * 1000; // 12h
@@ -54,25 +54,28 @@ export async function fetchPlaceDescription({
   }
 
   try {
-    const res = await api.post(
-      '/ai/place-description',
-      {
+    if (!supabase) return '';
+    const { data, error } = await supabase.functions.invoke('place-description', {
+      body: {
         placeKey: key,
         regionHint,
         tier,
         tags,
         userCaptions,
       },
-      { timeout: 9000 }
-    );
-    const desc = String(res?.data?.description || '').trim();
+    });
+    if (error) {
+      logger.warn('장소 설명 Edge Function 오류:', error.message || error);
+      return '';
+    }
+    const desc = String(data?.description || '').trim();
     if (desc) {
       cache[ck] = { value: desc, expiresAt: now() + TTL_MS };
       saveCache(cache);
     }
     return desc;
   } catch (e) {
-    logger.warn('장소 설명 AI 호출 실패(무시하고 폴백):', e?.message || e);
+    logger.warn('장소 설명 Edge Function 호출 실패(무시하고 폴백):', e?.message || e);
     return '';
   }
 }
