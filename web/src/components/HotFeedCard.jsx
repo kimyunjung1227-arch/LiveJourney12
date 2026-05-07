@@ -210,7 +210,7 @@ const HotFeedCard = ({
                         lineHeight: 1.55,
                         fontWeight: 600,
                         display: '-webkit-box',
-                        WebkitLineClamp: 4,
+                        WebkitLineClamp: 8,
                         WebkitBoxOrient: 'vertical',
                         overflow: 'hidden',
                         background: 'transparent',
