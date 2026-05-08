@@ -1924,32 +1924,32 @@ const PostDetailScreen = () => {
                               </button>
                               {openCommentMenuId === comment.id && (
                                 <div
-                                  className="absolute right-0 top-full z-[100] mt-1 w-[min(100vw-2rem,200px)] overflow-hidden rounded-xl border border-gray-100 bg-white p-1 shadow-xl dark:border-gray-700 dark:bg-gray-900"
+                                  className="absolute right-0 top-full z-[100] mt-1 w-[132px] overflow-hidden rounded-md border border-gray-100 bg-white p-0.5 shadow-lg dark:border-gray-700 dark:bg-gray-900"
                                   role="menu"
                                 >
                                   <button
                                     type="button"
                                     role="menuitem"
-                                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                                    className="flex w-full items-center justify-between gap-1.5 rounded px-2 py-1.5 text-left text-xs font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
                                     onClick={() => {
                                       setOpenCommentMenuId(null);
                                       handleStartEditComment(comment);
                                     }}
                                   >
                                     <span>수정하기</span>
-                                    <span className="material-symbols-outlined text-[20px] text-gray-500" aria-hidden>edit</span>
+                                    <span className="material-symbols-outlined text-[15px] text-gray-500" aria-hidden>edit</span>
                                   </button>
                                   <button
                                     type="button"
                                     role="menuitem"
-                                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                                    className="flex w-full items-center justify-between gap-1.5 rounded px-2 py-1.5 text-left text-xs font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
                                     onClick={() => {
                                       setOpenCommentMenuId(null);
                                       handleDeleteComment(comment.id);
                                     }}
                                   >
                                     <span>삭제하기</span>
-                                    <span className="material-symbols-outlined text-[20px] text-gray-500" aria-hidden>delete</span>
+                                    <span className="material-symbols-outlined text-[15px] text-gray-500" aria-hidden>delete</span>
                                   </button>
                                 </div>
                               )}
