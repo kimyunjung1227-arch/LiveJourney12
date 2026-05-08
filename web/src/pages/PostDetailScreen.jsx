@@ -85,6 +85,11 @@ const PostDetailScreen = () => {
   const [likeCount, setLikeCount] = useState(post?.likes || 0);
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState([]);
+  const [commentsLoading, setCommentsLoading] = useState(() =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      String(postId || passedPost?.id || '').trim()
+    )
+  );
   const [submitting, setSubmitting] = useState(false);
   const [representativeBadge, setRepresentativeBadge] = useState(null);
   const [userBadges, setUserBadges] = useState([]);
@@ -245,6 +250,7 @@ const PostDetailScreen = () => {
 
       // Supabase UUID면 먼저 DB에서 조회 (새로고침 시에도 댓글 유지)
       if (isUuid) {
+        setCommentsLoading(true);
         const fresh = await fetchPostByIdSupabase(postId, user?.id || null);
         if (fresh) {
           logger.log('✅ Supabase에서 게시물·댓글 로드:', fresh.id);
@@ -255,6 +261,7 @@ const PostDetailScreen = () => {
           setAccuracyMarked(hasUserMarkedAccurate(fresh.id));
           setAccuracyCount(getPostAccuracyCount(fresh.id));
           setLoading(false);
+          setCommentsLoading(false);
             // 질문 글은 일반 게시물 상세(/post)가 아니라 질문 상세(/ask-situation)에서만 노출
             if (isLiveQuestionPost(fresh) && String(location?.pathname || '').startsWith('/post/')) {
               navigate(`/ask-situation/${encodeURIComponent(String(fresh.id))}`, { state: { post: fresh }, replace: true });
@@ -318,6 +325,7 @@ const PostDetailScreen = () => {
       }
     } finally {
       setLoading(false);
+      setCommentsLoading(false);
     }
   }, [postId, passedPost, navigate, formatQnA, user?.id]);
 
@@ -367,6 +375,7 @@ const PostDetailScreen = () => {
     if (!postId || typeof postId !== 'string') return;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId.trim());
     if (!isUuid) return;
+    setCommentsLoading(true);
     fetchPostByIdSupabase(postId, user?.id || null).then((fresh) => {
       if (!fresh) return;
       setPost((prev) => ({
@@ -380,7 +389,7 @@ const PostDetailScreen = () => {
       if (Array.isArray(fresh.comments)) setComments(mergeCommentsWithCache(postId, fresh.comments));
       setLikeCount(Number(fresh.likes ?? fresh.likeCount ?? 0) || 0);
       setLiked(!!fresh.likedByMe);
-    });
+    }).finally(() => setCommentsLoading(false));
   }, [postId, user?.id]);
 
   useEffect(() => {
@@ -388,6 +397,7 @@ const PostDetailScreen = () => {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId.trim());
     if (!isUuid) return;
     let cancelled = false;
+    setCommentsLoading(true);
     fetchPostByIdSupabase(postId, user?.id || null).then((fresh) => {
       if (cancelled || !fresh) return;
       setPost((prev) => ({
@@ -398,6 +408,8 @@ const PostDetailScreen = () => {
       if (Array.isArray(fresh.comments)) setComments(mergeCommentsWithCache(postId, fresh.comments));
       setLikeCount(Number(fresh.likes ?? fresh.likeCount ?? 0) || 0);
       setLiked(!!fresh.likedByMe);
+    }).finally(() => {
+      if (!cancelled) setCommentsLoading(false);
     });
     return () => { cancelled = true; };
   }, [postId, user?.id]);
@@ -1844,6 +1856,13 @@ const PostDetailScreen = () => {
                   })()}
                 </h2>
               </div>
+
+              {commentsLoading && comments.filter((c) => (c.content ?? c.text ?? '').trim() !== '').length === 0 && (
+                <div className="mt-1 flex items-center gap-1.5 rounded bg-gray-50 px-2 py-1.5 text-[11px] font-medium text-gray-400 dark:bg-gray-800/70 dark:text-gray-500">
+                  <span className="h-3 w-3 animate-spin rounded-full border border-gray-300 border-t-primary dark:border-gray-600 dark:border-t-primary" />
+                  <span>댓글 불러오는 중...</span>
+                </div>
+              )}
 
               {/* 댓글 목록 (내용 있는 댓글만 표시 — 빈 유저 항목 제외) */}
               {(() => {
