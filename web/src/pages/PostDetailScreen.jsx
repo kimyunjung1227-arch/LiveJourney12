@@ -56,7 +56,7 @@ const mapSupabaseCommentRows = (rows) => (Array.isArray(rows) ? rows : []).map((
   avatar: c.avatar_url || null,
   likesCount: Math.max(0, Number(c.likes_count ?? 0) || 0),
   likedByMe: !!c.liked_by_me,
-  followerCount: Math.max(0, Number(c.follower_count ?? 0) || 0),
+  postCount: Math.max(0, Number(c.post_count ?? 0) || 0),
 }));
 
 const PostDetailScreen = () => {
@@ -1878,30 +1878,30 @@ const PostDetailScreen = () => {
                   })();
                   const replies = childMap.get(String(comment.id)) || [];
                   return (
-                    <div key={comment.id} className={isReply ? 'ml-5 border-l border-gray-100 pl-2 dark:border-gray-800' : ''}>
-                      <div className="rounded-md bg-gray-50 p-2 shadow-sm ring-1 ring-gray-100 dark:bg-gray-800/80 dark:ring-gray-700">
-                        <div className="flex items-start justify-between gap-1.5">
-                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <div key={comment.id} className={isReply ? 'ml-4 border-l border-gray-100 pl-2 dark:border-gray-800' : ''}>
+                      <div className="rounded bg-gray-50 p-1.5 shadow-sm ring-1 ring-gray-100 dark:bg-gray-800/80 dark:ring-gray-700">
+                        <div className="flex items-start justify-between gap-1">
+                          <div className="flex min-w-0 flex-1 items-center gap-1.5">
                             {resolved.displayAvatar ? (
                               <div
-                                className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-7 w-7 flex-shrink-0"
+                                className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-6 w-6 flex-shrink-0"
                                 style={{ backgroundImage: `url("${getDisplayImageUrl(resolved.displayAvatar)}")` }}
                               />
                             ) : (
-                              <div className="rounded-full h-7 w-7 flex-shrink-0 bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] font-semibold text-gray-700 dark:text-gray-100">
+                              <div className="rounded-full h-6 w-6 flex-shrink-0 bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[9px] font-semibold text-gray-700 dark:text-gray-100">
                                 {String(resolved.displayName ?? '유저').charAt(0)}
                               </div>
                             )}
                             <div className="min-w-0">
-                              <div className="flex min-w-0 items-center gap-2">
-                                <p className="truncate text-xs font-bold text-[#181410] dark:text-white">
+                              <div className="flex min-w-0 items-center gap-1">
+                                <p className="truncate text-[11px] font-bold text-[#181410] dark:text-white">
                                   {resolved.displayName}
                                 </p>
-                                <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-semibold text-gray-500 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
-                                  팔로워 {Number(comment.followerCount || 0).toLocaleString('ko-KR')}
+                                <span className="shrink-0 text-[10px] font-semibold text-gray-400 dark:text-gray-500">
+                                  ({Number(comment.postCount || 0).toLocaleString('ko-KR')})
                                 </span>
                               </div>
-                              <p className="mt-0.5 text-[10px] text-gray-400 dark:text-gray-500">
+                              <p className="mt-0.5 text-[9px] text-gray-400 dark:text-gray-500">
                                 {getTimeAgo(comment.timestamp ?? comment.createdAt ?? null)}
                               </p>
                             </div>
@@ -1914,12 +1914,12 @@ const PostDetailScreen = () => {
                                   e.stopPropagation();
                                   setOpenCommentMenuId((v) => (v === comment.id ? null : comment.id));
                                 }}
-                                className="flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-white dark:text-gray-400 dark:hover:bg-gray-900"
+                                className="flex h-6 w-6 items-center justify-center rounded-full text-gray-500 hover:bg-white dark:text-gray-400 dark:hover:bg-gray-900"
                                 aria-label="댓글 메뉴"
                                 aria-expanded={openCommentMenuId === comment.id}
                                 aria-haspopup="menu"
                               >
-                                <span className="material-symbols-outlined text-[19px]">more_vert</span>
+                                <span className="material-symbols-outlined text-[18px]">more_vert</span>
                               </button>
                               {openCommentMenuId === comment.id && (
                                 <div
@@ -1972,27 +1972,28 @@ const PostDetailScreen = () => {
                           </div>
                         ) : (
                           <>
-                            <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-gray-800 dark:text-gray-200">
+                            <p className="mt-1.5 whitespace-pre-wrap text-[11px] leading-relaxed text-gray-800 dark:text-gray-200">
                               {comment.content ?? comment.text ?? ''}
                             </p>
-                            <div className="mt-2 flex items-center gap-3 text-[11px]">
+                            <div className="mt-1 flex items-center gap-2 text-[10px]">
                               <button
                                 type="button"
                                 onClick={() => handleToggleCommentLike(comment)}
-                                className={`inline-flex items-center gap-1 font-semibold ${comment.likedByMe ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}`}
+                                className={`inline-flex h-5 w-5 items-center justify-center rounded-full ${comment.likedByMe ? 'text-red-500' : 'text-gray-400 dark:text-gray-500'}`}
+                                aria-label="댓글 좋아요"
+                                title={Number(comment.likesCount || 0) > 0 ? `좋아요 ${Number(comment.likesCount || 0).toLocaleString('ko-KR')}` : '댓글 좋아요'}
                               >
-                                <span className="material-symbols-outlined text-[15px]" style={comment.likedByMe ? { fontVariationSettings: "'FILL' 1" } : {}}>
+                                <span className="material-symbols-outlined text-[14px]" style={comment.likedByMe ? { fontVariationSettings: "'FILL' 1" } : {}}>
                                   {comment.likedByMe ? 'favorite' : 'favorite_border'}
                                 </span>
-                                좋아요 {Number(comment.likesCount || 0) > 0 ? Number(comment.likesCount || 0).toLocaleString('ko-KR') : ''}
                               </button>
                               {!isReply && (
                                 <button
                                   type="button"
                                   onClick={() => handleStartReply(comment, resolved.displayName)}
-                                  className="font-semibold text-gray-500 hover:text-primary dark:text-gray-400"
+                                  className="text-[10px] font-semibold text-gray-400 hover:text-primary dark:text-gray-500"
                                 >
-                                  답글 달기
+                                  답글
                                 </button>
                               )}
                             </div>
@@ -2029,7 +2030,7 @@ const PostDetailScreen = () => {
                         </div>
                       )}
                       {replies.length > 0 && (
-                        <div className="mt-1.5 flex flex-col gap-1.5">
+                        <div className="mt-1 flex flex-col gap-1">
                           {replies.map((reply) => renderComment(reply, { isReply: true }))}
                         </div>
                       )}
@@ -2037,7 +2038,7 @@ const PostDetailScreen = () => {
                   );
                 };
                 return commentsWithContent.length > 0 && (
-                <div className="flex flex-col gap-2 mt-1.5">
+                <div className="flex flex-col gap-1.5 mt-1">
                   {rootComments.map((comment) => renderComment(comment))}
                 </div>
                 );
@@ -2058,10 +2059,10 @@ const PostDetailScreen = () => {
                   </button>
                 </div>
               )}
-              <div className="mt-3">
+              <div className="mt-2">
                 <input
                   id="comment-input"
-                  className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-[3px] h-10 px-3 text-sm text-[#181410] dark:text-white placeholder:text-gray-400 placeholder:text-sm focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none cursor-text"
+                  className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-[3px] h-8 px-2.5 text-xs text-[#181410] dark:text-white placeholder:text-gray-400 placeholder:text-xs focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none cursor-text"
                   placeholder={replyTarget ? '답글을 입력하세요' : '댓글을 입력하세요'}
                   type="text"
                   value={commentText}
@@ -2070,21 +2071,21 @@ const PostDetailScreen = () => {
                   onClick={(e) => e.target.focus()}
                 />
                 {commentText.trim() && (
-                  <div className="mt-2 flex items-center justify-end gap-2">
+                  <div className="mt-1.5 flex items-center justify-end gap-1.5">
                     <button
                       type="button"
                       onClick={() => {
                         setCommentText('');
                         setReplyTarget(null);
                       }}
-                      className="h-8 rounded-[3px] border border-gray-300 px-3 text-xs font-semibold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                      className="h-7 rounded-[3px] border border-gray-300 px-2.5 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
                       취소
                     </button>
                     <button
                       type="button"
                       onClick={handleAddComment}
-                      className="h-8 rounded-[3px] bg-primary px-3 text-xs font-bold text-white hover:opacity-90"
+                      className="h-7 rounded-[3px] bg-primary px-2.5 text-[11px] font-bold text-white hover:opacity-90"
                     >
                       작성
                     </button>

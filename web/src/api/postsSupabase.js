@@ -359,7 +359,7 @@ export const fetchPostByIdSupabase = async (postId, currentUserId = null, opts =
         avatar: c.avatar_url || null,
         likesCount: Math.max(0, Number(c.likes_count ?? 0) || 0),
         likedByMe: !!c.liked_by_me,
-        followerCount: Math.max(0, Number(c.follower_count ?? 0) || 0),
+        postCount: Math.max(0, Number(c.post_count ?? 0) || 0),
       }))
       : (mapped?.comments || []);
     return mapped ? { ...mapped, comments: fromTable } : null;

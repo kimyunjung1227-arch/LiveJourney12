@@ -104,28 +104,28 @@ export const fetchCommentsForPostSupabase = async (postId, viewerUserId = null) 
       }
     }
 
-    const followerCounts = new Map();
+    const postCounts = new Map();
     if (authorIds.length > 0) {
       try {
-        const { data: followRows, error: followErr } = await supabase
-          .from('follows')
-          .select('following_id')
-          .in('following_id', authorIds);
-        if (!followErr && Array.isArray(followRows)) {
-          followRows.forEach((r) => {
-            const id = r?.following_id ? String(r.following_id) : '';
-            if (id) followerCounts.set(id, (followerCounts.get(id) || 0) + 1);
+        const { data: postRows, error: postErr } = await supabase
+          .from('posts')
+          .select('user_id')
+          .in('user_id', authorIds);
+        if (!postErr && Array.isArray(postRows)) {
+          postRows.forEach((r) => {
+            const id = r?.user_id ? String(r.user_id) : '';
+            if (id) postCounts.set(id, (postCounts.get(id) || 0) + 1);
           });
         }
       } catch {
-        followerCounts.clear();
+        postCounts.clear();
       }
     }
 
     return comments.map((c) => ({
       ...c,
       liked_by_me: likedIds.has(String(c.id)),
-      follower_count: c.user_id ? (followerCounts.get(String(c.user_id)) || 0) : 0,
+      post_count: c.user_id ? (postCounts.get(String(c.user_id)) || 0) : 0,
     }));
   } catch (e) {
     logger.warn('fetchCommentsForPostSupabase 실패:', e?.message);
