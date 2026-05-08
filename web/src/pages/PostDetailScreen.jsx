@@ -672,8 +672,9 @@ const PostDetailScreen = () => {
 
   const handleStartReply = useCallback((comment, displayName) => {
     setReplyTarget({ id: comment.id, displayName: displayName || '댓글 작성자' });
+    setCommentText('');
     setTimeout(() => {
-      const input = document.getElementById('comment-input');
+      const input = document.getElementById(`reply-input-${comment.id}`);
       if (input) {
         input.scrollIntoView({ behavior: 'smooth', block: 'center' });
         input.focus();
@@ -1976,27 +1977,67 @@ const PostDetailScreen = () => {
                               {comment.content ?? comment.text ?? ''}
                             </p>
                             <div className="mt-1 flex items-center gap-2 text-[10px]">
-                              <button
-                                type="button"
-                                onClick={() => handleToggleCommentLike(comment)}
-                                className={`inline-flex h-5 w-5 items-center justify-center rounded-full ${comment.likedByMe ? 'text-red-500' : 'text-gray-400 dark:text-gray-500'}`}
-                                aria-label="댓글 좋아요"
-                                title={Number(comment.likesCount || 0) > 0 ? `좋아요 ${Number(comment.likesCount || 0).toLocaleString('ko-KR')}` : '댓글 좋아요'}
-                              >
-                                <span className="material-symbols-outlined text-[14px]" style={comment.likedByMe ? { fontVariationSettings: "'FILL' 1" } : {}}>
-                                  {comment.likedByMe ? 'favorite' : 'favorite_border'}
+                              <div className={`inline-flex items-center gap-0.5 ${comment.likedByMe ? 'text-red-500' : 'text-gray-400 dark:text-gray-500'}`}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleCommentLike(comment)}
+                                  className="inline-flex h-5 w-5 items-center justify-center rounded-full"
+                                  aria-label="댓글 좋아요"
+                                  title="댓글 좋아요"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]" style={comment.likedByMe ? { fontVariationSettings: "'FILL' 1" } : {}}>
+                                    {comment.likedByMe ? 'favorite' : 'favorite_border'}
+                                  </span>
+                                </button>
+                                <span className="min-w-2 text-[10px] font-semibold">
+                                  {Number(comment.likesCount || 0).toLocaleString('ko-KR')}
                                 </span>
-                              </button>
+                              </div>
                               {!isReply && (
                                 <button
                                   type="button"
                                   onClick={() => handleStartReply(comment, resolved.displayName)}
                                   className="text-[10px] font-semibold text-gray-400 hover:text-primary dark:text-gray-500"
                                 >
-                                  답글
+                                  댓글달기
                                 </button>
                               )}
                             </div>
+                            {!isReply && replyTarget?.id === comment.id && (
+                              <div className="mt-1.5">
+                                <input
+                                  id={`reply-input-${comment.id}`}
+                                  className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md h-7 px-2 text-[11px] text-[#181410] dark:text-white placeholder:text-gray-400 placeholder:text-[11px] focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none cursor-text"
+                                  placeholder={`${resolved.displayName}님 댓글에 댓글달기`}
+                                  type="text"
+                                  value={commentText}
+                                  onChange={(e) => setCommentText(e.target.value)}
+                                  onKeyPress={(e) => e.key === 'Enter' && handleAddComment()}
+                                  onClick={(e) => e.target.focus()}
+                                />
+                                {commentText.trim() && (
+                                  <div className="mt-1 flex items-center justify-end gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setCommentText('');
+                                        setReplyTarget(null);
+                                      }}
+                                      className="h-6 rounded-md border border-gray-300 px-2 text-[10px] font-semibold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                                    >
+                                      취소
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={handleAddComment}
+                                      className="h-6 rounded-md bg-primary px-2 text-[10px] font-bold text-white hover:opacity-90"
+                                    >
+                                      작성
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
@@ -2045,25 +2086,12 @@ const PostDetailScreen = () => {
               })()}
 
               {/* 댓글 입력 */}
-              {replyTarget && (
-                <div className="mt-3 flex items-center justify-between rounded bg-primary/10 px-2.5 py-1.5 text-xs text-primary">
-                  <span>
-                    <span className="font-bold">{replyTarget.displayName}</span>님에게 답글 작성 중
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setReplyTarget(null)}
-                    className="font-semibold text-primary/80 hover:text-primary"
-                  >
-                    취소
-                  </button>
-                </div>
-              )}
+              {!replyTarget && (
               <div className="mt-2">
                 <input
                   id="comment-input"
-                  className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-[3px] h-8 px-2.5 text-xs text-[#181410] dark:text-white placeholder:text-gray-400 placeholder:text-xs focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none cursor-text"
-                  placeholder={replyTarget ? '답글을 입력하세요' : '댓글을 입력하세요'}
+                  className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md h-8 px-2.5 text-xs text-[#181410] dark:text-white placeholder:text-gray-400 placeholder:text-xs focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none cursor-text"
+                  placeholder="댓글을 입력하세요"
                   type="text"
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
@@ -2078,20 +2106,21 @@ const PostDetailScreen = () => {
                         setCommentText('');
                         setReplyTarget(null);
                       }}
-                      className="h-7 rounded-[3px] border border-gray-300 px-2.5 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                      className="h-7 rounded-md border border-gray-300 px-2.5 text-[11px] font-semibold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
                       취소
                     </button>
                     <button
                       type="button"
                       onClick={handleAddComment}
-                      className="h-7 rounded-[3px] bg-primary px-2.5 text-[11px] font-bold text-white hover:opacity-90"
+                      className="h-7 rounded-md bg-primary px-2.5 text-[11px] font-bold text-white hover:opacity-90"
                     >
                       작성
                     </button>
                   </div>
                 )}
               </div>
+              )}
             </div>
         </main>
       </div>
