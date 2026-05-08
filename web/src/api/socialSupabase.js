@@ -70,7 +70,7 @@ export const togglePostLikeSupabase = async (userId, postId, opts = {}) => {
   });
 };
 
-export const fetchCommentsForPostSupabase = async (postId) => {
+export const fetchCommentsForPostSupabase = async (postId, viewerUserId = null) => {
   const pid = String(postId || '').trim();
   if (!isValidUuid(pid)) return [];
   try {
@@ -80,16 +80,63 @@ export const fetchCommentsForPostSupabase = async (postId) => {
       .eq('post_id', pid)
       .order('created_at', { ascending: true });
     if (error) throw error;
-    return Array.isArray(data) ? data : [];
+
+    const comments = Array.isArray(data) ? data : [];
+    if (comments.length === 0) return [];
+
+    const commentIds = comments.map((c) => String(c.id)).filter(Boolean);
+    const authorIds = [...new Set(comments.map((c) => (c.user_id ? String(c.user_id) : null)).filter(Boolean))];
+    const viewerId = String(viewerUserId || '').trim();
+
+    let likedIds = new Set();
+    if (isValidUuid(viewerId) && commentIds.length > 0) {
+      try {
+        const { data: likeRows, error: likeErr } = await supabase
+          .from('post_comment_likes')
+          .select('comment_id')
+          .eq('user_id', viewerId)
+          .in('comment_id', commentIds);
+        if (!likeErr && Array.isArray(likeRows)) {
+          likedIds = new Set(likeRows.map((r) => String(r.comment_id)));
+        }
+      } catch {
+        likedIds = new Set();
+      }
+    }
+
+    const followerCounts = new Map();
+    if (authorIds.length > 0) {
+      try {
+        const { data: followRows, error: followErr } = await supabase
+          .from('follows')
+          .select('following_id')
+          .in('following_id', authorIds);
+        if (!followErr && Array.isArray(followRows)) {
+          followRows.forEach((r) => {
+            const id = r?.following_id ? String(r.following_id) : '';
+            if (id) followerCounts.set(id, (followerCounts.get(id) || 0) + 1);
+          });
+        }
+      } catch {
+        followerCounts.clear();
+      }
+    }
+
+    return comments.map((c) => ({
+      ...c,
+      liked_by_me: likedIds.has(String(c.id)),
+      follower_count: c.user_id ? (followerCounts.get(String(c.user_id)) || 0) : 0,
+    }));
   } catch (e) {
     logger.warn('fetchCommentsForPostSupabase 실패:', e?.message);
     return [];
   }
 };
 
-export const addCommentSupabase = async ({ postId, userId, username, avatarUrl, content }) => {
+export const addCommentSupabase = async ({ postId, userId, username, avatarUrl, content, parentCommentId = null }) => {
   const pid = String(postId || '').trim();
   const uid = String(userId || '').trim();
+  const parentId = parentCommentId ? String(parentCommentId).trim() : null;
   if (!isValidUuid(pid) || !isValidUuid(uid) || !String(content || '').trim()) return { success: false };
   try {
     const payload = {
@@ -99,6 +146,7 @@ export const addCommentSupabase = async ({ postId, userId, username, avatarUrl, 
       avatar_url: avatarUrl || null,
       content: String(content).trim(),
     };
+    if (parentId && isValidUuid(parentId)) payload.parent_comment_id = parentId;
     const { data, error } = await supabase.from('post_comments').insert(payload).select('*').single();
     if (error) {
       logger.warn('addCommentSupabase:', error.code, error.message, error.status ?? error.statusCode);
@@ -112,6 +160,54 @@ export const addCommentSupabase = async ({ postId, userId, username, avatarUrl, 
     logger.warn('addCommentSupabase 실패:', e?.message);
     return { success: false };
   }
+};
+
+export const toggleCommentLikeSupabase = async ({ commentId, userId, likedBefore = false }) => {
+  const cid = String(commentId || '').trim();
+  const uid = String(userId || '').trim();
+  if (!isValidUuid(cid) || !isValidUuid(uid)) {
+    return { success: false, isLiked: !!likedBefore, likesCount: null };
+  }
+
+  return await withLikeLock(`comment:${uid}:${cid}`, async () => {
+    try {
+      const { data: ses } = await getSessionOnce();
+      const sid = ses?.session?.user?.id ? String(ses.session.user.id) : null;
+      if (!sid || sid !== uid) {
+        return { success: false, isLiked: !!likedBefore, likesCount: null, error: 'no_session' };
+      }
+
+      if (likedBefore) {
+        const { error } = await supabase
+          .from('post_comment_likes')
+          .delete()
+          .eq('comment_id', cid)
+          .eq('user_id', uid);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('post_comment_likes')
+          .insert({ comment_id: cid, user_id: uid });
+        if (error && error.code !== '23505') throw error;
+      }
+
+      let likesCount = null;
+      try {
+        const { count, error: countErr } = await supabase
+          .from('post_comment_likes')
+          .select('comment_id', { count: 'exact', head: true })
+          .eq('comment_id', cid);
+        if (!countErr) likesCount = Number(count) || 0;
+      } catch {
+        likesCount = null;
+      }
+
+      return { success: true, isLiked: !likedBefore, likesCount };
+    } catch (e) {
+      logger.warn('toggleCommentLikeSupabase 실패:', e?.message);
+      return { success: false, isLiked: !!likedBefore, likesCount: null, error: 'server_write_failed' };
+    }
+  });
 };
 
 export const updateCommentSupabase = async ({ commentId, userId, content }) => {

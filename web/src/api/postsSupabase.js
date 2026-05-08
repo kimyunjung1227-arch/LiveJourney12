@@ -346,16 +346,20 @@ export const fetchPostByIdSupabase = async (postId, currentUserId = null, opts =
     if (skipComments) {
       return mapped ? { ...mapped, comments: mapped?.comments || [] } : null;
     }
-    const liveComments = await fetchCommentsForPostSupabase(trimmed);
+    const liveComments = await fetchCommentsForPostSupabase(trimmed, currentUserId);
     const fromTable = Array.isArray(liveComments) && liveComments.length > 0
       ? liveComments.map((c) => ({
         id: String(c.id),
+        parentId: c.parent_comment_id ? String(c.parent_comment_id) : null,
         userId: c.user_id ? String(c.user_id) : null,
         user: c.user_id ? { id: String(c.user_id), username: c.username || null, profileImage: c.avatar_url || null } : (c.username || '유저'),
         content: c.content || '',
         timestamp: c.created_at || new Date().toISOString(),
         createdAt: c.created_at || new Date().toISOString(),
         avatar: c.avatar_url || null,
+        likesCount: Math.max(0, Number(c.likes_count ?? 0) || 0),
+        likedByMe: !!c.liked_by_me,
+        followerCount: Math.max(0, Number(c.follower_count ?? 0) || 0),
       }))
       : (mapped?.comments || []);
     return mapped ? { ...mapped, comments: fromTable } : null;

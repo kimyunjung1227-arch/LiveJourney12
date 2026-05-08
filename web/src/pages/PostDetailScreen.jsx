@@ -6,19 +6,17 @@ import { getPost } from '../api/posts';
 import { getDisplayImageUrl } from '../api/upload';
 import {
   fetchPostByIdSupabase,
-  addCommentToPostSupabase,
-  updateCommentsInPostSupabase,
   deletePostSupabase,
   getMergedMyPostsForStats,
 } from '../api/postsSupabase';
 import { useAuth } from '../contexts/AuthContext';
 import { getStoredUploadWeather } from '../utils/weatherSnapshot';
 import { getTimeAgo } from '../utils/dateUtils';
-import { addComment, deleteCommentFromPost, updateCommentInPost, getPostAccuracyCount, hasUserMarkedAccurate, toggleAccuracyFeedback } from '../utils/socialInteractions';
+import { deleteCommentFromPost, updateCommentInPost, getPostAccuracyCount, hasUserMarkedAccurate, toggleAccuracyFeedback } from '../utils/socialInteractions';
 import { getBadgeDisplayName, getEarnedBadgesForUser } from '../utils/badgeSystem';
 import { fetchLiveSyncPctSupabase } from '../api/liveSyncSupabase';
 import { follow, unfollow, isFollowing } from '../utils/followSystem';
-import { notifyFollowingStarted, notifyLike, notifyComment } from '../utils/notifications';
+import { notifyFollowingStarted, notifyLike, sendNotificationToUser } from '../utils/notifications';
 import { mergeCommentsWithCache, setCommentsCacheForPost } from '../utils/postCommentsCache';
 import { getCachedFollowProfile, setCachedFollowProfile } from '../utils/userProfileHints';
 import { recordConversion, CONVERSION_TYPES } from '../utils/conversionEvents';
@@ -38,6 +36,7 @@ import {
   addCommentSupabase,
   deleteCommentSupabase,
   fetchCommentsForPostSupabase,
+  toggleCommentLikeSupabase,
   updateCommentSupabase,
 } from '../api/socialSupabase';
 import { supabase } from '../utils/supabaseClient';
@@ -45,6 +44,20 @@ import 'swiper/css';
 
 // 서버 운영 전환: 로컬 저장소 없이 세션 내 신고만 기록
 const reportedPostIds = new Set();
+
+const mapSupabaseCommentRows = (rows) => (Array.isArray(rows) ? rows : []).map((c) => ({
+  id: String(c.id),
+  parentId: c.parent_comment_id ? String(c.parent_comment_id) : null,
+  userId: c.user_id ? String(c.user_id) : null,
+  user: c.user_id ? { id: String(c.user_id), username: c.username || null, profileImage: c.avatar_url || null } : (c.username || '유저'),
+  content: c.content || '',
+  timestamp: c.created_at || new Date().toISOString(),
+  createdAt: c.created_at || new Date().toISOString(),
+  avatar: c.avatar_url || null,
+  likesCount: Math.max(0, Number(c.likes_count ?? 0) || 0),
+  likedByMe: !!c.liked_by_me,
+  followerCount: Math.max(0, Number(c.follower_count ?? 0) || 0),
+}));
 
 const PostDetailScreen = () => {
   const navigate = useNavigate();
@@ -78,6 +91,8 @@ const PostDetailScreen = () => {
   const [showHeartAnimation, setShowHeartAnimation] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editCommentText, setEditCommentText] = useState('');
+  const [replyTarget, setReplyTarget] = useState(null);
+  const [openCommentMenuId, setOpenCommentMenuId] = useState(null);
   const [isFollowAuthor, setIsFollowAuthor] = useState(false);
   const [accuracyMarked, setAccuracyMarked] = useState(false);
   const [accuracyCount, setAccuracyCount] = useState(0);
@@ -114,6 +129,7 @@ const PostDetailScreen = () => {
   const mediaSwiperRef = useRef(null);
   const authorPostMenuRef = useRef(null);
   const shareMenuRef = useRef(null);
+  const commentMenuRef = useRef(null);
   const likeBusyRef = useRef(false);
   const [showAuthorPostMenu, setShowAuthorPostMenu] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
@@ -495,6 +511,7 @@ const PostDetailScreen = () => {
       id: `comment-${Date.now()}`,
       user: typeof user === 'object' && user ? { username, id: userId, profileImage: user?.profileImage || null } : username,
       userId,
+      parentId: replyTarget?.id ? String(replyTarget.id) : null,
       content: text,
       timestamp: new Date().toISOString(),
       avatar: user?.profileImage || null
@@ -510,18 +527,11 @@ const PostDetailScreen = () => {
           username,
           avatarUrl: user?.profileImage || null,
           content: text,
+          parentCommentId: replyTarget?.id || null,
         });
         if (ins?.success) {
-          const rows = await fetchCommentsForPostSupabase(post.id);
-          const mapped = (rows || []).map((c) => ({
-            id: String(c.id),
-            userId: c.user_id ? String(c.user_id) : null,
-            user: c.user_id ? { id: String(c.user_id), username: c.username || null, profileImage: c.avatar_url || null } : (c.username || '유저'),
-            content: c.content || '',
-            timestamp: c.created_at || new Date().toISOString(),
-            createdAt: c.created_at || new Date().toISOString(),
-            avatar: c.avatar_url || null,
-          }));
+          const rows = await fetchCommentsForPostSupabase(post.id, user.id);
+          const mapped = mapSupabaseCommentRows(rows);
           setComments(mapped);
           setCommentsCacheForPost(post.id, mapped);
           window.dispatchEvent(new CustomEvent('postCommentsUpdated', { detail: { postId: post.id, comments: mapped } }));
@@ -546,7 +556,8 @@ const PostDetailScreen = () => {
     }
 
     setCommentText('');
-  }, [post, commentText, user, comments]);
+    setReplyTarget(null);
+  }, [post, commentText, user, comments, replyTarget]);
 
   const isSupabasePost = post && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(post.id || '').trim());
 
@@ -613,16 +624,8 @@ const PostDetailScreen = () => {
       if (!uid) return;
       const res = await deleteCommentSupabase({ commentId, userId: uid });
       if (res?.success) {
-        const rows = await fetchCommentsForPostSupabase(post.id);
-        const mapped = (rows || []).map((c) => ({
-          id: String(c.id),
-          userId: c.user_id ? String(c.user_id) : null,
-          user: c.user_id ? { id: String(c.user_id), username: c.username || null, profileImage: c.avatar_url || null } : (c.username || '유저'),
-          content: c.content || '',
-          timestamp: c.created_at || new Date().toISOString(),
-          createdAt: c.created_at || new Date().toISOString(),
-          avatar: c.avatar_url || null,
-        }));
+        const rows = await fetchCommentsForPostSupabase(post.id, user.id);
+        const mapped = mapSupabaseCommentRows(rows);
         setComments(mapped);
         setCommentsCacheForPost(post.id, mapped);
         window.dispatchEvent(new CustomEvent('postCommentsUpdated', { detail: { postId: post.id, comments: mapped } }));
@@ -647,16 +650,8 @@ const PostDetailScreen = () => {
       if (!uid) return;
       const res = await updateCommentSupabase({ commentId: editingCommentId, userId: uid, content: text });
       if (res?.success) {
-        const rows = await fetchCommentsForPostSupabase(post.id);
-        const mapped = (rows || []).map((c) => ({
-          id: String(c.id),
-          userId: c.user_id ? String(c.user_id) : null,
-          user: c.user_id ? { id: String(c.user_id), username: c.username || null, profileImage: c.avatar_url || null } : (c.username || '유저'),
-          content: c.content || '',
-          timestamp: c.created_at || new Date().toISOString(),
-          createdAt: c.created_at || new Date().toISOString(),
-          avatar: c.avatar_url || null,
-        }));
+        const rows = await fetchCommentsForPostSupabase(post.id, user.id);
+        const mapped = mapSupabaseCommentRows(rows);
         setComments(mapped);
         setCommentsCacheForPost(post.id, mapped);
         window.dispatchEvent(new CustomEvent('postCommentsUpdated', { detail: { postId: post.id, comments: mapped } }));
@@ -674,6 +669,78 @@ const PostDetailScreen = () => {
     setEditingCommentId(null);
     setEditCommentText('');
   }, []);
+
+  const handleStartReply = useCallback((comment, displayName) => {
+    setReplyTarget({ id: comment.id, displayName: displayName || '댓글 작성자' });
+    setTimeout(() => {
+      const input = document.getElementById('comment-input');
+      if (input) {
+        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        input.focus();
+      }
+    }, 50);
+  }, []);
+
+  const handleToggleCommentLike = useCallback(async (comment) => {
+    if (!post?.id || !comment?.id) return;
+    if (!requireLogin('댓글 좋아요')) return;
+    const prevLiked = !!comment.likedByMe;
+    const prevCount = Math.max(0, Number(comment.likesCount) || 0);
+    const nextLiked = !prevLiked;
+    const nextCount = Math.max(0, prevCount + (nextLiked ? 1 : -1));
+
+    setComments((prev) => prev.map((c) => (
+      String(c.id) === String(comment.id)
+        ? { ...c, likedByMe: nextLiked, likesCount: nextCount }
+        : c
+    )));
+
+    const res = await toggleCommentLikeSupabase({
+      commentId: comment.id,
+      userId: user.id,
+      likedBefore: prevLiked,
+    });
+
+    if (!res?.success) {
+      setComments((prev) => prev.map((c) => (
+        String(c.id) === String(comment.id)
+          ? { ...c, likedByMe: prevLiked, likesCount: prevCount }
+          : c
+      )));
+      if (res?.error === 'no_session') {
+        alert('로그인 세션이 없어요. 다시 로그인 후 시도해 주세요.');
+      }
+      return;
+    }
+
+    const finalLiked = !!res.isLiked;
+    const finalCount = typeof res.likesCount === 'number' ? res.likesCount : nextCount;
+    setComments((prev) => {
+      const updated = prev.map((c) => (
+        String(c.id) === String(comment.id)
+          ? { ...c, likedByMe: finalLiked, likesCount: finalCount }
+          : c
+      ));
+      setCommentsCacheForPost(post.id, updated);
+      return updated;
+    });
+
+    const recipientUserId = comment.userId || (comment.user && typeof comment.user === 'object' ? comment.user.id : null);
+    if (!prevLiked && finalLiked && recipientUserId && String(recipientUserId) !== String(user.id)) {
+      const actorName = user.username || user.email?.split('@')[0] || '여행자';
+      const thumbRaw = Array.isArray(post.images) && post.images[0] ? post.images[0] : (post.image || post.thumbnail || null);
+      void sendNotificationToUser({
+        recipientUserId,
+        actorUserId: user.id,
+        actorUsername: actorName,
+        actorAvatar: user.profileImage || null,
+        type: 'like',
+        postId: post.id,
+        thumbnailUrl: thumbRaw ? getDisplayImageUrl(thumbRaw) : null,
+        message: `${actorName}님이 회원님의 댓글을 좋아합니다`,
+      });
+    }
+  }, [post, user, requireLogin]);
 
   const handleNavigateToEditPost = useCallback(() => {
     if (!postId) return;
@@ -1129,7 +1196,7 @@ const PostDetailScreen = () => {
   }, [locationText, detailedLocationText]);
 
   useEffect(() => {
-    if (!showAuthorPostMenu && !showShareMenu) return;
+    if (!showAuthorPostMenu && !showShareMenu && !openCommentMenuId) return;
     const onDoc = (e) => {
       if (showAuthorPostMenu && authorPostMenuRef.current && !authorPostMenuRef.current.contains(e.target)) {
         setShowAuthorPostMenu(false);
@@ -1137,10 +1204,13 @@ const PostDetailScreen = () => {
       if (showShareMenu && shareMenuRef.current && !shareMenuRef.current.contains(e.target)) {
         setShowShareMenu(false);
       }
+      if (openCommentMenuId && commentMenuRef.current && !commentMenuRef.current.contains(e.target)) {
+        setOpenCommentMenuId(null);
+      }
     };
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
-  }, [showAuthorPostMenu, showShareMenu]);
+  }, [showAuthorPostMenu, showShareMenu, openCommentMenuId]);
 
   // 날씨: 업로드 시 DB에 저장된 스냅샷만 표시(실시간 재조회 없음)
   useEffect(() => {
@@ -1479,13 +1549,13 @@ const PostDetailScreen = () => {
                     </button>
                     {showAuthorPostMenu && (
                       <div
-                        className="absolute right-0 top-full z-[100] mt-1 w-[min(100vw-2rem,220px)] overflow-hidden rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                        className="absolute right-0 top-full z-[100] mt-1 w-[min(100vw-2rem,220px)] overflow-hidden rounded-2xl border border-gray-100 bg-white p-1.5 shadow-xl dark:border-gray-700 dark:bg-gray-900"
                         role="menu"
                       >
                         <button
                           type="button"
                           role="menuitem"
-                          className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium text-gray-800 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                          className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-800 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
                           onClick={() => {
                             setShowAuthorPostMenu(false);
                             handleNavigateToEditPost();
@@ -1503,7 +1573,7 @@ const PostDetailScreen = () => {
                         <button
                           type="button"
                           role="menuitem"
-                          className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left text-sm font-medium text-gray-800 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                          className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-800 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
                           onClick={() => {
                             setShowAuthorPostMenu(false);
                             handleDeletePost();
@@ -1764,10 +1834,10 @@ const PostDetailScreen = () => {
           </div>
 
           {/* 댓글 섹션 - 항상 열린 상태 */}
-          <div id="comment-section" className="flex flex-col gap-3 px-4 py-3 bg-white dark:bg-gray-900">
+          <div id="comment-section" className="flex flex-col gap-2 px-4 py-2 bg-white dark:bg-gray-900">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-[#181410] dark:text-white">
-                  댓글 & 질문 {(() => {
+                <h2 className="text-base font-bold text-[#181410] dark:text-white">
+                  댓글 {(() => {
                     const withContent = comments.filter((c) => (c.content ?? c.text ?? '').trim() !== '');
                     return withContent.length > 0 ? `(${withContent.length})` : '';
                   })()}
@@ -1777,133 +1847,249 @@ const PostDetailScreen = () => {
               {/* 댓글 목록 (내용 있는 댓글만 표시 — 빈 유저 항목 제외) */}
               {(() => {
                 const commentsWithContent = comments.filter((c) => (c.content ?? c.text ?? '').trim() !== '');
-                return commentsWithContent.length > 0 && (
-                <div className="flex flex-col gap-3 mt-2">
-                  {commentsWithContent.map((comment) => {
-                    const commentAuthorId = comment.userId || (comment.user && typeof comment.user === 'object' ? comment.user.id : null);
-                    const canEditComment = user && (String(commentAuthorId) === String(user.id));
-                    const isEditing = editingCommentId === comment.id;
-                    const resolved = (() => {
-                      const uid = commentAuthorId != null ? String(commentAuthorId) : '';
-                      const cached = uid ? getCachedFollowProfile(uid) : null;
-                      const displayName =
-                        (cached?.username || null) ??
-                        comment.user?.username ??
-                        (typeof comment.user === 'string' ? comment.user : null) ??
-                        '유저';
-                      const displayAvatar =
-                        (cached?.profileImage ?? null) ??
-                        (comment.avatar || null);
-                      return { displayName, displayAvatar };
-                    })();
-                    return (
-                      <div key={comment.id} className="flex gap-3">
-                        {resolved.displayAvatar ? (
-                          <div
-                            className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-8 w-8 flex-shrink-0"
-                            style={{ backgroundImage: `url("${getDisplayImageUrl(resolved.displayAvatar)}")` }}
-                          />
-                        ) : (
-                          <div className="rounded-full h-8 w-8 flex-shrink-0 bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] font-semibold text-gray-700 dark:text-gray-100">
-                            {String(resolved.displayName ?? '유저').charAt(0)}
-                          </div>
-                        )}
-                        <div className="flex flex-col flex-1">
-                          <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg rounded-tl-none flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-[#181410] dark:text-white">
-                                {resolved.displayName}
-                              </p>
-                              {isEditing ? (
-                                <div className="mt-2 flex flex-col gap-2">
-                                  <input
-                                    type="text"
-                                    value={editCommentText}
-                                    onChange={(e) => setEditCommentText(e.target.value)}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-[#181410] dark:text-white"
-                                    autoFocus
-                                  />
-                                  <div className="flex gap-2">
-                                    <button type="button" onClick={handleSaveEditComment} className="text-xs font-semibold text-primary">저장</button>
-                                    <button type="button" onClick={handleCancelEditComment} className="text-xs font-semibold text-gray-500">취소</button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <p className="text-sm text-gray-800 dark:text-gray-300 mt-1">{comment.content ?? comment.text ?? ''}</p>
-                              )}
-                            </div>
-                            {!isEditing && canEditComment && (
-                              <div className="flex gap-1 flex-shrink-0">
-                                <button type="button" onClick={() => handleStartEditComment(comment)} className="text-[11px] text-gray-400 dark:text-gray-500 hover:text-primary dark:hover:text-primary">수정</button>
-                                <button type="button" onClick={() => handleDeleteComment(comment.id)} className="text-[11px] text-gray-400 dark:text-gray-500 hover:text-red-500">삭제</button>
+                const childMap = new Map();
+                const rootComments = [];
+                commentsWithContent.forEach((comment) => {
+                  const parentId = comment.parentId || comment.parent_comment_id || null;
+                  if (parentId) {
+                    const key = String(parentId);
+                    if (!childMap.has(key)) childMap.set(key, []);
+                    childMap.get(key).push(comment);
+                  } else {
+                    rootComments.push(comment);
+                  }
+                });
+                const renderComment = (comment, { isReply = false } = {}) => {
+                  const commentAuthorId = comment.userId || (comment.user && typeof comment.user === 'object' ? comment.user.id : null);
+                  const canEditComment = user && (String(commentAuthorId) === String(user.id));
+                  const isEditing = editingCommentId === comment.id;
+                  const resolved = (() => {
+                    const uid = commentAuthorId != null ? String(commentAuthorId) : '';
+                    const cached = uid ? getCachedFollowProfile(uid) : null;
+                    const displayName =
+                      (cached?.username || null) ??
+                      comment.user?.username ??
+                      (typeof comment.user === 'string' ? comment.user : null) ??
+                      '유저';
+                    const displayAvatar =
+                      (cached?.profileImage ?? null) ??
+                      (comment.avatar || null);
+                    return { displayName, displayAvatar };
+                  })();
+                  const replies = childMap.get(String(comment.id)) || [];
+                  return (
+                    <div key={comment.id} className={isReply ? 'ml-5 border-l border-gray-100 pl-2 dark:border-gray-800' : ''}>
+                      <div className="rounded-md bg-gray-50 p-2 shadow-sm ring-1 ring-gray-100 dark:bg-gray-800/80 dark:ring-gray-700">
+                        <div className="flex items-start justify-between gap-1.5">
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            {resolved.displayAvatar ? (
+                              <div
+                                className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-7 w-7 flex-shrink-0"
+                                style={{ backgroundImage: `url("${getDisplayImageUrl(resolved.displayAvatar)}")` }}
+                              />
+                            ) : (
+                              <div className="rounded-full h-7 w-7 flex-shrink-0 bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] font-semibold text-gray-700 dark:text-gray-100">
+                                {String(resolved.displayName ?? '유저').charAt(0)}
                               </div>
                             )}
+                            <div className="min-w-0">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <p className="truncate text-xs font-bold text-[#181410] dark:text-white">
+                                  {resolved.displayName}
+                                </p>
+                                <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-semibold text-gray-500 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
+                                  팔로워 {Number(comment.followerCount || 0).toLocaleString('ko-KR')}
+                                </span>
+                              </div>
+                              <p className="mt-0.5 text-[10px] text-gray-400 dark:text-gray-500">
+                                {getTimeAgo(comment.timestamp ?? comment.createdAt ?? null)}
+                              </p>
+                            </div>
                           </div>
-                          {!isEditing && canAcceptAnswer && (
-                            <div className="mt-2 flex items-center gap-2">
-                              {acceptedCommentId === comment.id ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-primary-10 px-2.5 py-1 text-[11px] font-semibold text-primary">
-                                  <span className="material-symbols-outlined text-[16px]" aria-hidden style={{ fontVariationSettings: "'wght' 300" }}>
-                                    verified
-                                  </span>
-                                  채택된 답변
-                                </span>
-                              ) : acceptedCommentId ? null : (
-                                <button
-                                  type="button"
-                                  disabled={acceptBusyId === comment.id}
-                                  onClick={() => void handleAcceptAnswer(comment)}
-                                  className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-white px-2.5 py-1 text-[11px] font-semibold text-primary shadow-sm hover:bg-primary-10 disabled:opacity-50"
+                          {!isEditing && canEditComment && (
+                            <div className="relative shrink-0" ref={openCommentMenuId === comment.id ? commentMenuRef : null}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenCommentMenuId((v) => (v === comment.id ? null : comment.id));
+                                }}
+                                className="flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-white dark:text-gray-400 dark:hover:bg-gray-900"
+                                aria-label="댓글 메뉴"
+                                aria-expanded={openCommentMenuId === comment.id}
+                                aria-haspopup="menu"
+                              >
+                                <span className="material-symbols-outlined text-[19px]">more_vert</span>
+                              </button>
+                              {openCommentMenuId === comment.id && (
+                                <div
+                                  className="absolute right-0 top-full z-[100] mt-1 w-[min(100vw-2rem,200px)] overflow-hidden rounded-xl border border-gray-100 bg-white p-1 shadow-xl dark:border-gray-700 dark:bg-gray-900"
+                                  role="menu"
                                 >
-                                  <span className="material-symbols-outlined text-[16px]" aria-hidden style={{ fontVariationSettings: "'wght' 300" }}>
-                                    done
-                                  </span>
-                                  {acceptBusyId === comment.id ? '채택 중…' : '답변 채택'}
-                                </button>
-                              )}
-                              {acceptedCommentId && acceptedCommentId !== comment.id ? null : (
-                                <span className="text-[11px] text-gray-400 dark:text-gray-500">
-                                  채택 시 답변자에게 응모권 1표가 지급돼요
-                                </span>
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                                    onClick={() => {
+                                      setOpenCommentMenuId(null);
+                                      handleStartEditComment(comment);
+                                    }}
+                                  >
+                                    <span>수정하기</span>
+                                    <span className="material-symbols-outlined text-[20px] text-gray-500" aria-hidden>edit</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                                    onClick={() => {
+                                      setOpenCommentMenuId(null);
+                                      handleDeleteComment(comment.id);
+                                    }}
+                                  >
+                                    <span>삭제하기</span>
+                                    <span className="material-symbols-outlined text-[20px] text-gray-500" aria-hidden>delete</span>
+                                  </button>
+                                </div>
                               )}
                             </div>
                           )}
-                          {!isEditing && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                              {getTimeAgo(comment.timestamp ?? comment.createdAt ?? null)}
+                        </div>
+
+                        {isEditing ? (
+                          <div className="mt-2 flex flex-col gap-2">
+                            <input
+                              type="text"
+                              value={editCommentText}
+                              onChange={(e) => setEditCommentText(e.target.value)}
+                              className="w-full px-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-[#181410] dark:text-white"
+                              autoFocus
+                            />
+                            <div className="flex gap-3">
+                              <button type="button" onClick={handleSaveEditComment} className="text-xs font-semibold text-primary">저장</button>
+                              <button type="button" onClick={handleCancelEditComment} className="text-xs font-semibold text-gray-500">취소</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-gray-800 dark:text-gray-200">
+                              {comment.content ?? comment.text ?? ''}
                             </p>
+                            <div className="mt-2 flex items-center gap-3 text-[11px]">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleCommentLike(comment)}
+                                className={`inline-flex items-center gap-1 font-semibold ${comment.likedByMe ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}`}
+                              >
+                                <span className="material-symbols-outlined text-[15px]" style={comment.likedByMe ? { fontVariationSettings: "'FILL' 1" } : {}}>
+                                  {comment.likedByMe ? 'favorite' : 'favorite_border'}
+                                </span>
+                                좋아요 {Number(comment.likesCount || 0) > 0 ? Number(comment.likesCount || 0).toLocaleString('ko-KR') : ''}
+                              </button>
+                              {!isReply && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartReply(comment, resolved.displayName)}
+                                  className="font-semibold text-gray-500 hover:text-primary dark:text-gray-400"
+                                >
+                                  답글 달기
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      {!isEditing && canAcceptAnswer && !isReply && (
+                        <div className="mt-1.5 flex items-center gap-2">
+                          {acceptedCommentId === comment.id ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-primary-10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+                              <span className="material-symbols-outlined text-[16px]" aria-hidden style={{ fontVariationSettings: "'wght' 300" }}>
+                                verified
+                              </span>
+                              채택된 답변
+                            </span>
+                          ) : acceptedCommentId ? null : (
+                            <button
+                              type="button"
+                              disabled={acceptBusyId === comment.id}
+                              onClick={() => void handleAcceptAnswer(comment)}
+                              className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-white px-2.5 py-1 text-[11px] font-semibold text-primary shadow-sm hover:bg-primary-10 disabled:opacity-50"
+                            >
+                              <span className="material-symbols-outlined text-[16px]" aria-hidden style={{ fontVariationSettings: "'wght' 300" }}>
+                                done
+                              </span>
+                              {acceptBusyId === comment.id ? '채택 중…' : '답변 채택'}
+                            </button>
+                          )}
+                          {acceptedCommentId && acceptedCommentId !== comment.id ? null : (
+                            <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                              채택 시 답변자에게 응모권 1표가 지급돼요
+                            </span>
                           )}
                         </div>
-                      </div>
-                    );
-                  })}
+                      )}
+                      {replies.length > 0 && (
+                        <div className="mt-1.5 flex flex-col gap-1.5">
+                          {replies.map((reply) => renderComment(reply, { isReply: true }))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                };
+                return commentsWithContent.length > 0 && (
+                <div className="flex flex-col gap-2 mt-1.5">
+                  {rootComments.map((comment) => renderComment(comment))}
                 </div>
                 );
               })()}
 
               {/* 댓글 입력 */}
-              <div className="flex gap-2 items-center mt-4">
+              {replyTarget && (
+                <div className="mt-3 flex items-center justify-between rounded bg-primary/10 px-2.5 py-1.5 text-xs text-primary">
+                  <span>
+                    <span className="font-bold">{replyTarget.displayName}</span>님에게 답글 작성 중
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setReplyTarget(null)}
+                    className="font-semibold text-primary/80 hover:text-primary"
+                  >
+                    취소
+                  </button>
+                </div>
+              )}
+              <div className="mt-3">
                 <input
                   id="comment-input"
-                  className="flex-1 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl h-14 px-4 text-sm text-[#181410] dark:text-white placeholder:text-gray-400 placeholder:text-sm focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none cursor-text"
-                  placeholder="댓글이나 질문을 입력하세요 💬"
+                  className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-[3px] h-10 px-3 text-sm text-[#181410] dark:text-white placeholder:text-gray-400 placeholder:text-sm focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none cursor-text"
+                  placeholder={replyTarget ? '답글을 입력하세요' : '댓글을 입력하세요'}
                   type="text"
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleAddComment()}
                   onClick={(e) => e.target.focus()}
                 />
-                <button
-                  onClick={handleAddComment}
-                  disabled={!commentText.trim()}
-                  className={`flex-shrink-0 rounded-xl h-14 px-6 flex items-center justify-center font-bold text-base transition-colors ${
-                    commentText.trim()
-                      ? 'bg-primary text-white hover:opacity-90'
-                      : 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed'
-                  }`}
-                >
-                  전송
-                </button>
+                {commentText.trim() && (
+                  <div className="mt-2 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCommentText('');
+                        setReplyTarget(null);
+                      }}
+                      className="h-8 rounded-[3px] border border-gray-300 px-3 text-xs font-semibold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddComment}
+                      className="h-8 rounded-[3px] bg-primary px-3 text-xs font-bold text-white hover:opacity-90"
+                    >
+                      작성
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
         </main>
