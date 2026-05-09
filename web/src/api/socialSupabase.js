@@ -133,6 +133,26 @@ export const fetchCommentsForPostSupabase = async (postId, viewerUserId = null) 
   }
 };
 
+/**
+ * Q&A 답변 채택 RPC.
+ * - 신규 DB: 인자명 p_post, p_comment (마이그레이션 20260509120000)
+ * - 구 배포: post, comment — 폴백으로 한 번 더 호출
+ */
+export const rpcAcceptHelpAnswer = async (postId, commentId) => {
+  const pid = String(postId || '').trim();
+  const cid = String(commentId || '').trim();
+  if (!isValidUuid(pid) || !isValidUuid(cid)) {
+    return { data: null, error: { message: 'invalid uuid' } };
+  }
+  let res = await supabase.rpc('accept_help_answer', { p_post: pid, p_comment: cid });
+  if (!res.error) return res;
+  const msg = String(res.error.message || '');
+  if (/Could not find the function|does not exist|42883|argument|parameter|p_post/i.test(msg)) {
+    res = await supabase.rpc('accept_help_answer', { post: pid, comment: cid });
+  }
+  return res;
+};
+
 export const addCommentSupabase = async ({ postId, userId, username, avatarUrl, content, parentCommentId = null }) => {
   const pid = String(postId || '').trim();
   const uid = String(userId || '').trim();

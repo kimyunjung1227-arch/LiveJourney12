@@ -36,6 +36,7 @@ import {
   addCommentSupabase,
   deleteCommentSupabase,
   fetchCommentsForPostSupabase,
+  rpcAcceptHelpAnswer,
   toggleCommentLikeSupabase,
   updateCommentSupabase,
 } from '../api/socialSupabase';
@@ -573,11 +574,15 @@ const PostDetailScreen = () => {
 
   const isSupabasePost = post && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(post.id || '').trim());
 
+  const isQuestionCategory =
+    !!post && String(post.category || '').trim().toLowerCase() === 'question';
+
   const canAcceptAnswer =
     !!user &&
     !!post &&
     isSupabasePost &&
     isLiveQuestionPost(post) &&
+    isQuestionCategory &&
     String(post.user_id || post.userId || post.authorId || '') === String(user.id);
 
   const loadAcceptedAnswer = useCallback(async () => {
@@ -599,10 +604,21 @@ const PostDetailScreen = () => {
     async (comment) => {
       if (!canAcceptAnswer || !comment?.id) return;
       if (acceptedCommentId) return;
+      const pid = String(post.id || '').trim();
+      const cid = String(comment.id || '').trim();
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRe.test(pid) || !uuidRe.test(cid)) {
+        alert('게시물 또는 답변 정보가 올바르지 않아요. 새로고침 후 다시 시도해 주세요.');
+        return;
+      }
       setAcceptBusyId(comment.id);
       try {
-        const { data, error } = await supabase.rpc('accept_help_answer', { post: post.id, comment: comment.id });
-        if (error) throw error;
+        const { data, error } = await rpcAcceptHelpAnswer(pid, cid);
+        if (error) {
+          const hint = [error.message, error.details, error.hint].filter(Boolean).join(' — ');
+          alert(hint.trim() || '채택 요청이 거절되었어요. 질문 글(category=question)과 본인 작성 글인지 확인해 주세요.');
+          return;
+        }
         if (data?.success === false) {
           const msg = String(data?.error || '').trim() || '채택 처리에 실패했어요. 잠시 후 다시 시도해 주세요.';
           alert(msg);
@@ -619,7 +635,8 @@ const PostDetailScreen = () => {
         }
         alert('답변이 채택되었습니다! 답변자에게 응모권(활동 응모권) 1장이 지급됩니다.');
       } catch (e) {
-        alert('채택 처리에 실패했어요. 잠시 후 다시 시도해 주세요.');
+        const hint = e?.message || e?.details || '';
+        alert(String(hint).trim() || '채택 처리에 실패했어요. 잠시 후 다시 시도해 주세요.');
       } finally {
         setAcceptBusyId(null);
       }

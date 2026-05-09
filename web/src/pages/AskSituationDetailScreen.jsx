@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import BottomNavigation from '../components/BottomNavigation';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchPostByIdSupabase } from '../api/postsSupabase';
-import { fetchCommentsForPostSupabase } from '../api/socialSupabase';
+import { fetchCommentsForPostSupabase, rpcAcceptHelpAnswer } from '../api/socialSupabase';
 import { supabase } from '../utils/supabaseClient';
 import { uploadImage, getDisplayImageUrl } from '../api/upload';
 import { logger } from '../utils/logger';
@@ -414,18 +414,24 @@ export default function AskSituationDetailScreen() {
     if (acceptedCommentId) return;
     setAcceptBusyId(comment.id);
     try {
-      const { data, error } = await supabase.rpc('accept_help_answer', { post: String(post.id), comment: String(comment.id) });
-      if (error) throw error;
+      const pid = String(post.id || '').trim();
+      const cid = String(comment.id || '').trim();
+      const { data, error } = await rpcAcceptHelpAnswer(pid, cid);
+      if (error) {
+        const hint = [error.message, error.details, error.hint].filter(Boolean).join(' — ');
+        alert(hint.trim() || '채택 요청이 거절되었어요. 네트워크와 로그인 상태를 확인해 주세요.');
+        return;
+      }
       if (data?.success === false) {
         const msg = String(data?.error || '').trim() || '채택 처리에 실패했어요. 잠시 후 다시 시도해 주세요.';
         alert(msg);
         return;
       }
-      const cid = data?.commentId ? String(data.commentId) : String(comment.id);
-      setAcceptedCommentId(cid);
+      const nextId = data?.commentId ? String(data.commentId) : String(comment.id);
+      setAcceptedCommentId(nextId);
       alert('답변이 채택되었습니다! 답변자에게 응모권(활동 응모권) 1장이 지급됩니다.');
-    } catch {
-      alert('채택 처리에 실패했어요. 잠시 후 다시 시도해 주세요.');
+    } catch (e) {
+      alert(String(e?.message || '').trim() || '채택 처리에 실패했어요. 잠시 후 다시 시도해 주세요.');
     } finally {
       setAcceptBusyId(null);
     }
