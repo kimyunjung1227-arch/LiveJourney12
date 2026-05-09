@@ -960,15 +960,15 @@ const MainScreen = () => {
                 {/* 상단 배너는 현재 사용하지 않음 */}
 
                 <div style={{ padding: '2px 16px 6px', background: '#ffffff' }}>
-                    <div style={{ padding: '0 0 2px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#111827' }}>지금 여기는</h2>
-                        </div>
+                    <div className="main-section-heading-row">
+                        <h2 className="main-section-title">지금 여기는</h2>
                         <button
+                            type="button"
                             onClick={() => navigate('/realtime-feed')}
-                            className="border-none bg-transparent text-primary hover:text-primary-dark dark:hover:text-primary-soft text-sm font-semibold cursor-pointer py-1.5 px-2.5 min-h-[36px] flex items-center gap-1"
+                            className="border-none bg-transparent text-primary hover:text-primary-dark dark:hover:text-primary-soft text-sm font-semibold cursor-pointer py-1.5 px-2 min-h-[36px] inline-flex shrink-0 items-center gap-0.5"
                         >
                             <span>더보기</span>
+                            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>chevron_right</span>
                         </button>
                     </div>
                     <div
@@ -1203,12 +1203,12 @@ const MainScreen = () => {
 
                         {/* 실시간 핫플 — 이미지 4:3 세로 비중 + 섹션 여백 */}
                         <div style={{ marginBottom: '22px', paddingTop: 0, paddingBottom: '20px', background: '#ffffff' }}>
-                            <div style={{ padding: '0 0 5px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff' }}>
-                                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#111827' }}>실시간 핫플</h3>
+                            <div className="main-section-heading-row">
+                                <h2 className="main-section-title">실시간 핫플</h2>
                                 <button
                                     type="button"
                                     onClick={() => navigate('/crowded-place')}
-                                    className="border-none bg-transparent text-primary hover:text-primary-dark dark:hover:text-primary-soft text-sm font-semibold cursor-pointer py-1.5 px-2 min-h-[36px] flex items-center gap-0.5"
+                                    className="border-none bg-transparent text-primary hover:text-primary-dark dark:hover:text-primary-soft text-sm font-semibold cursor-pointer py-1.5 px-2 min-h-[36px] inline-flex shrink-0 items-center gap-0.5"
                                 >
                                     <span>더보기</span>
                                     <span className="material-symbols-outlined" style={{ fontSize: 18 }}>chevron_right</span>
@@ -1250,12 +1250,12 @@ const MainScreen = () => {
 
                         {/* 현지 상황 물어보기 — 텍스트 전용 질문 리스트 */}
                         <div style={{ marginBottom: '18px', paddingBottom: '14px', background: '#ffffff' }}>
-                            <div style={{ padding: '0 0 8px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ffffff' }}>
-                                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#111827' }}>지금 여기 어때요?</h3>
+                            <div className="main-section-heading-row">
+                                <h2 className="main-section-title">지금 여기 어때요?</h2>
                                 <button
                                     type="button"
                                     onClick={() => navigate('/ask-situation')}
-                                    className="border-none bg-transparent text-primary hover:text-primary-dark dark:hover:text-primary-soft text-sm font-semibold cursor-pointer py-1.5 px-2 min-h-[36px] flex items-center gap-0.5"
+                                    className="border-none bg-transparent text-primary hover:text-primary-dark dark:hover:text-primary-soft text-sm font-semibold cursor-pointer py-1.5 px-2 min-h-[36px] inline-flex shrink-0 items-center gap-0.5"
                                 >
                                     <span>더보기</span>
                                     <span className="material-symbols-outlined" style={{ fontSize: 18 }}>chevron_right</span>
@@ -1311,14 +1311,15 @@ const MainScreen = () => {
 
                         {/* 라이브매거진 (발행 매거진 모아보기) */}
                         <div style={{ marginBottom: '16px', background: '#ffffff' }}>
-                            <div style={{ padding: '0 0 6px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#374151' }}>라이브매거진</h3>
+                            <div className="main-section-heading-row">
+                                <h2 className="main-section-title">라이브매거진</h2>
                                 <button
                                     type="button"
                                     onClick={() => navigate('/magazines')}
-                                    className="border-none bg-transparent text-primary hover:text-primary-dark dark:hover:text-primary-soft text-sm font-semibold cursor-pointer py-1.5 px-2.5 min-h-[36px] flex items-center gap-1"
+                                    className="border-none bg-transparent text-primary hover:text-primary-dark dark:hover:text-primary-soft text-sm font-semibold cursor-pointer py-1.5 px-2 min-h-[36px] inline-flex shrink-0 items-center gap-0.5"
                                 >
                                     <span>더보기</span>
+                                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>chevron_right</span>
                                 </button>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 2 }}>

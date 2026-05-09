@@ -211,3 +211,23 @@
 .main-hot-feed-media {
   min-height: 0;
 }
+
+/* 메인 화면 — 섹션 제목·행 정렬 통일 (크기·줄간격·세로 중앙) */
+.main-section-heading-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 0 8px;
+  background: #ffffff;
+}
+
+.main-section-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
