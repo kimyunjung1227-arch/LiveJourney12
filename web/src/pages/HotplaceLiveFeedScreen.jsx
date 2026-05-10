@@ -24,6 +24,7 @@ import {
 } from '../utils/feedGridCardStyles';
 import { normalizePlaceIdentityKey } from '../utils/placeKeyNormalize';
 import { fetchLiveSyncPctSupabase } from '../api/liveSyncSupabase';
+import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 
 const MOCK_PRIMARY = '#1353d8';
 
@@ -347,9 +348,9 @@ export default function HotplaceLiveFeedScreen() {
                                 src={getDisplayImageUrl(m.uri, { hero: true })}
                                 alt=""
                                 className="h-full w-full object-cover [transform:translateZ(0)]"
-                                loading={mi === 0 ? 'eager' : 'lazy'}
+                                loading="eager"
                                 decoding="async"
-                                fetchPriority={mi === 0 ? 'high' : 'auto'}
+                                fetchPriority={mi < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                                 sizes="100vw"
                               />
                             )}
@@ -507,9 +508,9 @@ export default function HotplaceLiveFeedScreen() {
                           <img
                             src={cover.src}
                             alt=""
-                            loading={index < 4 ? 'eager' : 'lazy'}
+                            loading={index < SCREEN_GRID_EAGER_COUNT ? 'eager' : 'lazy'}
                             decoding="async"
-                            fetchPriority={index < 4 ? 'high' : 'auto'}
+                            fetchPriority={index < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                             style={{
                               position: 'absolute',
                               top: 0,

@@ -18,6 +18,7 @@ import { getWeatherByRegion } from '../api/weather';
 import { listPublishedMagazines } from '../utils/magazinesStore';
 import HotFeedCard from '../components/HotFeedCard';
 import FastImage from '../components/FastImage';
+import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCardModel';
 import { buildPlaceStatsMap, selectPostsForPlaceStats, transformPostForHotFeed } from '../utils/hotFeedPostTransform';
 import { useAuth } from '../contexts/AuthContext';
@@ -39,6 +40,8 @@ import {
     preloadMainFeedImageUrls,
     MAIN_FEED_IMAGE_OPTS,
 } from '../utils/mainFeedSnapshot';
+import PageSeo from '../components/PageSeo';
+import { PAGE_SEO } from '../config/seo';
 
 const MainScreen = () => {
     const navigate = useNavigate();
@@ -790,6 +793,7 @@ const MainScreen = () => {
 
     return (
         <div className="screen-layout bg-background-light dark:bg-background-dark">
+            <PageSeo {...PAGE_SEO.main} />
             <div
                 className="screen-content"
                 style={{
@@ -1095,9 +1099,9 @@ const MainScreen = () => {
                                                 rawUrl={rawFirstImage}
                                                 opts={MAIN_FEED_IMAGE_OPTS}
                                                 alt={post.location}
-                                                loading={rtIndex < 6 ? 'eager' : 'lazy'}
+                                                loading={rtIndex < SCREEN_GRID_EAGER_COUNT ? 'eager' : 'lazy'}
                                                 decoding="async"
-                                                fetchPriority={rtIndex < 3 ? 'high' : 'auto'}
+                                                fetchPriority={rtIndex < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                                                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '14px' }}
                                             />
                                         ) : null}

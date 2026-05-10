@@ -18,6 +18,7 @@ import { getUploadedPostsSafe } from '../utils/localStorageManager';
 import { getValidWeatherSnapshot } from '../utils/weatherSnapshot';
 import FastImage from '../components/FastImage';
 import { MAIN_FEED_IMAGE_OPTS } from '../utils/mainFeedSnapshot';
+import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 import {
   feedGridCardBoxFlat,
   feedGridImageBoxFlat,
@@ -272,9 +273,9 @@ const RealtimeFeedScreen = () => {
                         rawUrl={rawFirstImage}
                         opts={MAIN_FEED_IMAGE_OPTS}
                         alt={post.location}
-                        loading={index < 6 ? 'eager' : 'lazy'}
+                        loading={index < SCREEN_GRID_EAGER_COUNT ? 'eager' : 'lazy'}
                         decoding="async"
-                        fetchPriority={index < 3 ? 'high' : 'auto'}
+                        fetchPriority={index < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                         style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                       />
                     ) : (

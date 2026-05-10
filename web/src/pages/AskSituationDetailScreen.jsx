@@ -9,6 +9,7 @@ import { supabase } from '../utils/supabaseClient';
 import { uploadImage, getDisplayImageUrl } from '../api/upload';
 import { logger } from '../utils/logger';
 import { useLoginGate } from '../hooks/useLoginGate';
+import { SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 
 const isUuid = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
 
@@ -583,9 +584,9 @@ export default function AskSituationDetailScreen() {
                               src={src}
                               alt=""
                               className="h-full w-full object-cover"
-                              loading={cIdx === 0 && i === 0 ? 'eager' : 'lazy'}
+                              loading="eager"
                               decoding="async"
-                              fetchPriority={cIdx === 0 && i === 0 ? 'high' : undefined}
+                              fetchPriority={cIdx < SCREEN_IMAGE_HIGH_PRIORITY_COUNT && i < 3 ? 'high' : 'auto'}
                             />
                           </div>
                         ))}

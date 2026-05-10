@@ -41,6 +41,7 @@ import {
   updateCommentSupabase,
 } from '../api/socialSupabase';
 import { supabase } from '../utils/supabaseClient';
+import { SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 import 'swiper/css';
 
 // 서버 운영 전환: 로컬 저장소 없이 세션 내 신고만 기록
@@ -1378,7 +1379,7 @@ const PostDetailScreen = () => {
                             className="w-full h-full object-cover"
                             loading="eager"
                             decoding="async"
-                            fetchPriority={index === 0 ? 'high' : 'auto'}
+                            fetchPriority={index < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                           />
                         )}
                       </div>
@@ -1392,7 +1393,7 @@ const PostDetailScreen = () => {
                         className="w-full flex-shrink-0 object-cover"
                         loading="eager"
                         decoding="async"
-                        fetchPriority={index === 0 ? 'high' : 'auto'}
+                        fetchPriority={index < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                         style={{ height: '60vh', minHeight: '330px' }}
                       />
                     </SwiperSlide>

@@ -36,6 +36,9 @@ import {
   setCachedFollowProfile,
   getPostUserId,
 } from '../utils/userProfileHints';
+import PageSeo from '../components/PageSeo';
+import { PAGE_SEO } from '../config/seo';
+import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 
 // HTML 문자열(template literal)로 src/alt를 주입할 때 속성 안전 처리
 const escapeHtmlAttr = (value) => {
@@ -1518,6 +1521,7 @@ const ProfileScreen = () => {
   if (!isAuthenticated) {
     return (
       <div className="screen-layout bg-white dark:bg-zinc-900">
+        <PageSeo {...PAGE_SEO.profile} />
         <div className="screen-content">
           {/* 헤더 */}
           <header className="screen-header bg-white dark:bg-gray-900 flex items-center p-4 justify-between shadow-sm">
@@ -1624,6 +1628,7 @@ const ProfileScreen = () => {
   if (isAuthenticated && !user && !authUser) {
     return (
       <div className="screen-layout bg-background-light dark:bg-background-dark">
+        <PageSeo {...PAGE_SEO.profile} />
         <div className="screen-content">
           <div className="flex items-center justify-center h-full">
             <div className="flex flex-col items-center gap-4">
@@ -1641,6 +1646,7 @@ const ProfileScreen = () => {
 
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark">
+      <PageSeo {...PAGE_SEO.profile} />
       <div className="screen-content">
         {/* 헤더 */}
         <header className="screen-header bg-white dark:bg-gray-900 flex items-center p-4 justify-between">
@@ -2064,6 +2070,9 @@ const ProfileScreen = () => {
                                     alt={post.location}
                                     className={`w-full h-full object-cover transition-all duration-300 ${isEditMode ? 'hover:opacity-70' : 'hover:scale-110'
                                       }`}
+                                    loading={dateIndex === 0 && index < SCREEN_GRID_EAGER_COUNT ? 'eager' : 'lazy'}
+                                    decoding="async"
+                                    fetchPriority={dateIndex === 0 && index < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                                   />
                                 )}
 
@@ -2166,6 +2175,9 @@ const ProfileScreen = () => {
                               src={getDisplayImageUrl(post.imageUrl || post.images?.[0] || post.image || post.thumbnail)}
                               alt={post.location}
                               className="w-full h-full object-cover"
+                              loading={index < SCREEN_GRID_EAGER_COUNT ? 'eager' : 'lazy'}
+                              decoding="async"
+                              fetchPriority={index < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                             />
                           )}
                           {isEditMode && (

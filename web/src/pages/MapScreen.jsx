@@ -9,6 +9,9 @@ import { getCoordinatesByLocation } from '../utils/locationCoordinates';
 import { searchPlaceWithKakaoFirst } from '../utils/kakaoPlacesGeocode';
 import { logger } from '../utils/logger';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
+import PageSeo from '../components/PageSeo';
+import { PAGE_SEO } from '../config/seo';
+import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 
 const DEFAULT_CENTER = { lat: 37.5665, lng: 126.9780 };
 
@@ -1066,6 +1069,7 @@ const MapScreen = () => {
 
   return (
     <div className="relative w-full h-[100dvh] bg-gray-100 overflow-hidden font-sans">
+      <PageSeo {...PAGE_SEO.map} />
       <div ref={mapRef} className="absolute inset-0 z-0" />
 
       {searchOpen && (
@@ -1263,7 +1267,16 @@ const MapScreen = () => {
                 const thumb = getDisplayImageUrl(
                   selectedPostCard.thumbnail || (Array.isArray(selectedPostCard.images) ? selectedPostCard.images[0] : ''),
                 );
-                return thumb ? <img src={thumb} alt="" className="h-full w-full object-cover" /> : null;
+                return thumb ? (
+                  <img
+                    src={thumb}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    loading="eager"
+                    decoding="async"
+                    fetchPriority="high"
+                  />
+                ) : null;
               })()}
             </div>
             <div className="min-w-0 flex-1">
@@ -1339,7 +1352,7 @@ const MapScreen = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-2">
-                  {sheetPhotoPosts.map((p) => {
+                  {sheetPhotoPosts.map((p, idx) => {
                     const thumb = getDisplayImageUrl(p.thumbnail || (Array.isArray(p.images) ? p.images[0] : ''));
                     const label = String(p.placeName || p.location || p.region || '').trim();
                     return (
@@ -1351,7 +1364,14 @@ const MapScreen = () => {
                       >
                         <div className="aspect-square overflow-hidden bg-gray-100 ring-1 ring-gray-200/80" style={{ borderRadius: 3 }}>
                           {thumb ? (
-                            <img src={thumb} alt="" className="h-full w-full object-cover" />
+                            <img
+                              src={thumb}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              loading={idx < SCREEN_GRID_EAGER_COUNT ? 'eager' : 'lazy'}
+                              decoding="async"
+                              fetchPriority={idx < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
+                            />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center bg-primary-10 text-primary">·</div>
                           )}
@@ -1375,7 +1395,7 @@ const MapScreen = () => {
                   onMouseDown={photoScroll.handleDragStart}
                   className="flex cursor-grab gap-1.5 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] scrollbar-hide active:cursor-grabbing snap-x"
                 >
-                  {sheetStripPosts.map((p) => {
+                  {sheetStripPosts.map((p, idx) => {
                     const thumb = getDisplayImageUrl(p.thumbnail || (Array.isArray(p.images) ? p.images[0] : ''));
                     const label = String(p.placeName || p.location || p.region || '').trim();
                     return (
@@ -1387,7 +1407,14 @@ const MapScreen = () => {
                       >
                         <div className="h-[104px] w-[104px] overflow-hidden bg-gray-100 ring-1 ring-gray-200/80" style={{ borderRadius: 3 }}>
                           {thumb ? (
-                            <img src={thumb} alt="" className="h-full w-full object-cover" />
+                            <img
+                              src={thumb}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              loading={idx < SCREEN_GRID_EAGER_COUNT ? 'eager' : 'lazy'}
+                              decoding="async"
+                              fetchPriority={idx < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
+                            />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center bg-primary-10 text-primary">·</div>
                           )}

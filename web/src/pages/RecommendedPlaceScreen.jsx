@@ -6,6 +6,7 @@ import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
 import './MainScreen.css';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
+import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 
 const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1548115184-bc65ae4986cf?w=800&q=80';
 
@@ -166,6 +167,9 @@ const RecommendedPlaceScreen = () => {
                       src={mainImageUrl}
                       alt={item.title}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      loading={idx < SCREEN_GRID_EAGER_COUNT ? 'eager' : 'lazy'}
+                      decoding="async"
+                      fetchPriority={idx < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                       onError={(e) => { e.target.onerror = null; e.target.src = PLACEHOLDER_IMAGE; }}
                     />
                     <div
@@ -308,7 +312,13 @@ const RecommendedPlaceScreen = () => {
                           if (!src) return null;
                           return (
                             <div key={`${idx}-tt-${i}`} style={{ width: 28, height: 28, borderRadius: 9, overflow: 'hidden', background: '#e5e7eb', flexShrink: 0 }}>
-                              <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                              <img
+                                src={src}
+                                alt=""
+                                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                loading="eager"
+                                decoding="async"
+                              />
                             </div>
                           );
                         })}

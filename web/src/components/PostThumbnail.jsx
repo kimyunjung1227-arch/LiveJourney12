@@ -29,7 +29,7 @@ export default function PostThumbnail({
   const label = alt ?? post?.location ?? '미디어';
 
   const baseImgProps = {
-    loading: loading ?? (fast ? 'eager' : 'lazy'),
+    loading: loading ?? 'eager',
     decoding: decoding ?? 'async',
     fetchPriority: fetchPriority ?? (fast ? 'high' : 'auto'),
   };

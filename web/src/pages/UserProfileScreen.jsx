@@ -35,6 +35,7 @@ import {
   getPostUserId,
 } from '../utils/userProfileHints';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
+import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 
 const UserProfileScreen = () => {
   const navigate = useNavigate();
@@ -1046,9 +1047,9 @@ const UserProfileScreen = () => {
                                     src={getDisplayImageUrl(post.imageUrl || post.images?.[0] || post.image || post.thumbnail)}
                                     alt=""
                                     className="w-full h-full object-cover hover:scale-110 transition-all duration-300"
-                                    loading="eager"
+                                    loading={index < SCREEN_GRID_EAGER_COUNT ? 'eager' : 'lazy'}
                                     decoding="async"
-                                    fetchPriority={index < 8 ? 'high' : 'auto'}
+                                    fetchPriority={index < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                                   />
                                 )}
                               </div>
@@ -1103,9 +1104,9 @@ const UserProfileScreen = () => {
                               src={getDisplayImageUrl(post.imageUrl || post.images?.[0] || post.image || post.thumbnail)}
                               alt=""
                               className="w-full h-full object-cover"
-                              loading="eager"
+                              loading={index < SCREEN_GRID_EAGER_COUNT ? 'eager' : 'lazy'}
                               decoding="async"
-                              fetchPriority={index < 9 ? 'high' : 'auto'}
+                              fetchPriority={index < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                             />
                           )}
                         </div>

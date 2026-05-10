@@ -434,7 +434,7 @@ const NotificationsScreen = () => {
       if (thumb) {
         return (
           <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-zinc-100 ring-1 ring-zinc-200/90 dark:bg-zinc-800 dark:ring-zinc-600">
-            <img src={thumb} alt="" className="h-full w-full object-cover" />
+            <img src={thumb} alt="" className="h-full w-full object-cover" loading="eager" decoding="async" />
           </div>
         );
       }
@@ -442,7 +442,7 @@ const NotificationsScreen = () => {
       if (av) {
         return (
           <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/90 dark:bg-zinc-800 dark:ring-zinc-600">
-            <img src={av} alt="" className="h-full w-full object-cover" />
+            <img src={av} alt="" className="h-full w-full object-cover" loading="eager" decoding="async" />
           </div>
         );
       }
@@ -452,7 +452,7 @@ const NotificationsScreen = () => {
     if (url && (n.type === 'follow' || n.type === 'like')) {
       return (
         <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/90 dark:bg-zinc-800 dark:ring-zinc-600">
-          <img src={url} alt="" className="h-full w-full object-cover" />
+          <img src={url} alt="" className="h-full w-full object-cover" loading="eager" decoding="async" />
         </div>
       );
     }
@@ -471,7 +471,7 @@ const NotificationsScreen = () => {
     if (n.type === 'like' && n.thumbnailUrl) {
       return (
         <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-zinc-100 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-600">
-          <img src={getDisplayImageUrl(n.thumbnailUrl)} alt="" className="h-full w-full object-cover" />
+          <img src={getDisplayImageUrl(n.thumbnailUrl)} alt="" className="h-full w-full object-cover" loading="eager" decoding="async" />
         </div>
       );
     }

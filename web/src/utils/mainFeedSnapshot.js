@@ -104,7 +104,7 @@ function firstDisplayMediaUrlForPost(post, imgOpts) {
 /**
  * 브라우저가 상단 카드 이미지를 미리 가져가도록 힌트 (동일 세션·직후 요청에도 유리)
  */
-export function preloadMainFeedImageUrls(realtimeData, crowdedData, { limit = 10, imgOpts = MAIN_FEED_IMAGE_OPTS } = {}) {
+export function preloadMainFeedImageUrls(realtimeData, crowdedData, { limit = 24, imgOpts = MAIN_FEED_IMAGE_OPTS } = {}) {
   if (typeof document === 'undefined') return () => {};
   const urls = [];
   const push = (u) => {
@@ -114,13 +114,15 @@ export function preloadMainFeedImageUrls(realtimeData, crowdedData, { limit = 10
   };
 
   const rt = Array.isArray(realtimeData) ? realtimeData : [];
-  for (let i = 0; i < Math.min(6, rt.length); i += 1) {
+  for (let i = 0; i < Math.min(12, rt.length); i += 1) {
     // transform(render) 우선 시도 → 실패하면 브라우저가 원본을 다시 받도록 <img onError>에서 폴백
     push(firstDisplayMediaUrlForPost(rt[i], { ...imgOpts, forceTransform: true }));
   }
 
   const cr = Array.isArray(crowdedData) ? crowdedData : [];
-  if (cr[0]) push(firstDisplayMediaUrlForPost(cr[0], { ...imgOpts, forceTransform: true }));
+  for (let i = 0; i < Math.min(4, cr.length); i += 1) {
+    push(firstDisplayMediaUrlForPost(cr[i], { ...imgOpts, forceTransform: true }));
+  }
 
   const unique = Array.from(new Set(urls)).filter(Boolean).slice(0, limit);
   const nodes = [];

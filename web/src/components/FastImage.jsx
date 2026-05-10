@@ -12,7 +12,7 @@ export default function FastImage({
   alt = '',
   className,
   style,
-  loading,
+  loading = 'eager',
   decoding = 'async',
   fetchPriority,
   onClick,

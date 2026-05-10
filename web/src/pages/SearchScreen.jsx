@@ -17,6 +17,7 @@ import { getPostUserId, resolveUserDisplayFromPosts } from '../utils/userProfile
 import { getCurrentUserId, getFollowingIds, syncFollowingFromSupabase, toggleFollow, isFollowing } from '../utils/followSystem';
 import { getBadgeDisplayName } from '../utils/badgeSystem';
 import { fetchProfilesByIdsSupabase, searchProfilesSupabase } from '../api/profilesSupabase';
+import { SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 
 // 해시태그 파싱: #동백꽃 #바다 #힐링 → ['동백꽃','바다','힐링']
 const parseHashtags = (q) => {
@@ -1374,7 +1375,7 @@ const SearchScreen = () => {
                           className="w-full h-full object-cover"
                           loading="eager"
                           decoding="async"
-                          fetchPriority={index < 6 ? 'high' : 'auto'}
+                          fetchPriority={index < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                           style={{ display: 'block', borderRadius: '12px' }}
                         />
                         {weather && (
@@ -1473,7 +1474,7 @@ const SearchScreen = () => {
                         onClick={() => navigate(`/post/${id}`, { state: { post, allPosts: hashtagPostResults } })}
                         className="relative aspect-square rounded overflow-hidden bg-gray-200 dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/50"
                       >
-                        <PostThumbnail post={post} className="w-full h-full object-cover" alt="" fast={index < 6} />
+                        <PostThumbnail post={post} className="w-full h-full object-cover" alt="" fast={index < SCREEN_IMAGE_HIGH_PRIORITY_COUNT} />
                         <span className="absolute bottom-1 left-1 right-1 text-[9px] text-white bg-black/50 px-1 py-0.5 rounded truncate text-center">
                           🕐 {upTime}
                         </span>

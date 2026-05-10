@@ -9,6 +9,7 @@ import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getTags } from '../api/posts';
 import { tagTranslations } from '../utils/tagTranslations';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
+import { SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 
 const DEFAULT_HASHTAGS = ['바다', '힐링', '맛집', '자연', '꽃', '일출', '카페', '여행', '휴양', '등산', '야경', '축제', '해변', '산', '전통', '한옥', '감귤', '벚꽃', '단풍', '도시'];
 const MAX_TAGS_SHOWN = 30;
@@ -227,7 +228,7 @@ const HashtagScreen = () => {
                         onClick={() => navigate(`/post/${id}`, { state: { post, allPosts: tagPosts } })}
                         className="relative aspect-square rounded overflow-hidden bg-gray-200 dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/50"
                       >
-                        <PostThumbnail post={post} className="w-full h-full object-cover" alt="" fast={index < 6} />
+                        <PostThumbnail post={post} className="w-full h-full object-cover" alt="" fast={index < SCREEN_IMAGE_HIGH_PRIORITY_COUNT} />
                         <span className="absolute bottom-1 left-1 right-1 text-[9px] text-white bg-black/50 px-1 py-0.5 rounded truncate text-center">
                           🕐 {upTime}
                         </span>

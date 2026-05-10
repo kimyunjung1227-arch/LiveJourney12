@@ -21,6 +21,7 @@ import { useLoginGate } from '../hooks/useLoginGate';
 import { fetchPlaceDescription } from '../api/placeDescription';
 import { normalizePlaceIdentityKey } from '../utils/placeKeyNormalize';
 import { toHotplaceDescPreview } from '../utils/hotplaceDescPreview';
+import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 
 const PRIMARY_HEX = '#26C6DA';
 
@@ -405,7 +406,7 @@ const CrowdedPlaceScreen = () => {
                                     if (!post?.id) return null;
                                     const rawCover = post.image || post.images?.[0] || post.thumbnail || '';
                                     const img = rawCover ? getDisplayImageUrl(rawCover) : '';
-                                    const isPriority = placeIndex < 3;
+                                    const eagerLoad = placeIndex < SCREEN_GRID_EAGER_COUNT;
                                     const rawThumbs = Array.isArray(post.images)
                                         ? post.images
                                         : post.images
@@ -463,9 +464,9 @@ const CrowdedPlaceScreen = () => {
                                                         src={img}
                                                         alt=""
                                                         className="h-full w-full object-cover"
-                                                        loading={isPriority ? 'eager' : 'lazy'}
+                                                        loading={eagerLoad ? 'eager' : 'lazy'}
                                                         decoding="async"
-                                                        fetchPriority={isPriority ? 'high' : 'auto'}
+                                                        fetchPriority={placeIndex < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                                                     />
                                                 ) : (
                                                     <div className="flex h-full w-full items-center justify-center text-xs text-zinc-400">
@@ -482,7 +483,13 @@ const CrowdedPlaceScreen = () => {
                                                                 className="h-[34px] w-[34px] overflow-hidden border border-white/60 bg-white/10 shadow-sm backdrop-blur-[6px]"
                                                                 style={{ borderRadius: 6 }}
                                                             >
-                                                                <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                                                                <img
+                                                                    src={src}
+                                                                    alt=""
+                                                                    className="h-full w-full object-cover"
+                                                                    loading={eagerLoad ? 'eager' : 'lazy'}
+                                                                    decoding="async"
+                                                                />
                                                             </div>
                                                         ))}
                                                     </div>

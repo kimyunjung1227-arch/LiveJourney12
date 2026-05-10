@@ -22,6 +22,7 @@ import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { getTimeAgo } from '../utils/timeUtils';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
 import { useAuth } from '../contexts/AuthContext';
+import { SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 
 const RegionDetailScreen = () => {
   const navigate = useNavigate();
@@ -524,7 +525,7 @@ const RegionDetailScreen = () => {
                                 alt={photo.location || region.name}
                                 loading="eager"
                                 decoding="async"
-                                fetchPriority={idx < 4 ? 'high' : 'auto'}
+                                fetchPriority={idx < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                                 style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                               />
                             ) : (

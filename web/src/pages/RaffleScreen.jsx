@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import BackButton from '../components/BackButton';
 import BottomNavigation from '../components/BottomNavigation';
 import { enterRaffle, fetchRafflesForUi, getMyRaffleTicketStatus } from '../api/rafflesSupabase';
+import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 
 const INITIAL_COUNT = 3;
 
@@ -28,7 +29,7 @@ function ScheduledRaffleStrip({ loading, list, emptyText }) {
       className="flex w-full snap-x snap-mandatory gap-1.5 overflow-x-auto overflow-y-hidden scroll-smooth pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       style={{ WebkitOverflowScrolling: 'touch' }}
     >
-      {list.map((item) => (
+      {list.map((item, idx) => (
         <button
           key={item.id}
           type="button"
@@ -51,8 +52,9 @@ function ScheduledRaffleStrip({ loading, list, emptyText }) {
               src={item.image}
               alt=""
               className="absolute inset-0 h-full w-full object-cover"
-              loading="lazy"
+              loading={idx < SCREEN_GRID_EAGER_COUNT ? 'eager' : 'lazy'}
               decoding="async"
+              fetchPriority={idx < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
               style={{ borderRadius: 8 }}
             />
           </div>
@@ -88,7 +90,7 @@ function OngoingStyleRaffleBlock({ loading, list, emptyText, ctaMode }) {
         className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
-        {list.map((item) => (
+        {list.map((item, idx) => (
           <div
             key={item.id}
             className="box-border w-full shrink-0 snap-center px-0"
@@ -101,6 +103,9 @@ function OngoingStyleRaffleBlock({ loading, list, emptyText, ctaMode }) {
                     src={item.image}
                     alt=""
                     className="absolute inset-0 h-full w-full rounded-md object-cover"
+                    loading="eager"
+                    decoding="async"
+                    fetchPriority={idx < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                   />
                 </div>
                 <div className="absolute top-2.5 right-2.5 z-[1]">
@@ -298,10 +303,17 @@ const RaffleScreen = () => {
                 </p>
               ) : (
                 <ul className="flex flex-col gap-0 divide-y divide-gray-100 dark:divide-gray-800">
-                  {completedList.map((row) => (
+                  {completedList.map((row, idx) => (
                     <li key={row.id} className="flex gap-3 py-3 first:pt-0">
                       <div className="h-[3.5rem] w-[3.5rem] shrink-0 overflow-hidden rounded-md border border-gray-200/80 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
-                        <img src={row.image} alt="" className="h-full w-full object-cover" />
+                        <img
+                          src={row.image}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          loading={idx < SCREEN_GRID_EAGER_COUNT ? 'eager' : 'lazy'}
+                          decoding="async"
+                          fetchPriority={idx < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
+                        />
                       </div>
                       <div className="relative min-w-0 flex-1 pr-[4.25rem]">
                         <h3 className="text-[13px] font-bold leading-tight text-gray-900 dark:text-gray-100 sm:text-sm">
