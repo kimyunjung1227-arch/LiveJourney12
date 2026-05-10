@@ -363,11 +363,6 @@ const CrowdedPlaceScreen = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [placeRankings]);
 
-    const lastUpdatedMs = useMemo(() => {
-        const ms = Math.max(0, ...placeRankings.map((p) => Number(p.latestMs || 0)));
-        return ms || 0;
-    }, [placeRankings]);
-
     // 소셜 문구는 주기적으로 바뀌지만, 카드 props 계산은 무거우므로 데이터가 바뀔 때만 캐시
     const cardPropsById = useMemo(() => {
         const map = new Map();
@@ -399,25 +394,6 @@ const CrowdedPlaceScreen = () => {
             <div ref={contentRef} className="screen-content flex-1 overflow-y-auto bg-background-light dark:bg-background-dark">
                 <div className="min-h-full px-4 pb-16 pt-2">
                     <div className="pb-6">
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                                <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                                    {lastUpdatedMs ? `업데이트 ${formatAgo(lastUpdatedMs)}` : '업데이트 정보를 불러오는 중...'}
-                                </div>
-                                <div className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">
-                                    방금 올라온 사진이 있는 곳 위주로 순위가 바뀝니다
-                                </div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setRefreshKey((k) => k + 1)}
-                                className="shrink-0 rounded-full border border-zinc-200 bg-white px-3 py-2 text-xs font-bold text-zinc-700 shadow-sm hover:border-primary/30 hover:text-primary-dark dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-                                style={{ borderColor: 'rgba(38,198,218,0.25)' }}
-                            >
-                                새로고침
-                            </button>
-                        </div>
-
                         {placeRankings.length === 0 ? (
                             <div className="py-10 text-center text-sm text-text-secondary-light dark:text-text-secondary-dark">
                                 아직 실시간 핫플 게시물이 없어요.
