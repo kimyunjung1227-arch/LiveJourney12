@@ -1,8 +1,9 @@
 /**
  * Kakao Maps coord2Address 첫 결과 + (선택) REST 카테고리 검색으로
  * 업로드 입력란에 넣을 짧은 위치 문자열을 만든다.
+ * - GPS 근처 장소명(공원·관광지 등)을 도로명/행정동(○○시 ○○동)보다 우선한다.
  * - 행정구역의 "경북/경상북도" 등 광역 단위는 제거하고 시·군·구 이하를 우선한다.
- * - REST 키가 있으면 근처 관광·상권 POI 이름(예: 영일대)을 우선한다.
+ * - REST 키(VITE_KAKAO_REST_API_KEY)가 없으면 POI 단계는 건너뛴다.
  */
 
 const PROVINCE_TOKEN = new Set([
@@ -27,6 +28,12 @@ function stripAdministrativeSuffix(s) {
     .trim();
 }
 
+/** 공원·관광 등 사용자에게 의미 있는 장소명을 먼저 (카페·음식점은 보조) */
+const NEARBY_CATEGORY_CODES = ['PK6', 'AT4', 'CT1', 'CE7', 'FD6', 'SW8'];
+
+/** 좁은 공원·넓은 생태공원 모두 커버하도록 단계 확대 */
+const NEARBY_SEARCH_RADII_METERS = [350, 900, 2000, 4500];
+
 async function fetchNearbyPlaceName(lng, lat) {
   const key =
     typeof import.meta !== 'undefined' && import.meta.env?.VITE_KAKAO_REST_API_KEY
@@ -34,27 +41,39 @@ async function fetchNearbyPlaceName(lng, lat) {
       : '';
   if (!key || !Number.isFinite(lng) || !Number.isFinite(lat)) return '';
 
-  const codes = ['AT4', 'CE7', 'FD6', 'PK6', 'SW8', 'CT1'];
   try {
-    for (const category_group_code of codes) {
-      const url =
-        `https://dapi.kakao.com/v2/local/search/category.json?` +
-        new URLSearchParams({
-          category_group_code,
-          x: String(lng),
-          y: String(lat),
-          radius: '220',
-          size: '3',
-          sort: 'distance',
-        }).toString();
-      const res = await fetch(url, { headers: { Authorization: `KakaoAK ${key}` } });
-      if (!res.ok) continue;
-      const data = await res.json();
-      const docs = Array.isArray(data?.documents) ? data.documents : [];
-      for (const doc of docs) {
-        const name = String(doc?.place_name || '').trim();
-        if (name) return name;
-      }
+    for (const radius of NEARBY_SEARCH_RADII_METERS) {
+      const batches = await Promise.all(
+        NEARBY_CATEGORY_CODES.map(async (category_group_code) => {
+          const url =
+            `https://dapi.kakao.com/v2/local/search/category.json?` +
+            new URLSearchParams({
+              category_group_code,
+              x: String(lng),
+              y: String(lat),
+              radius: String(radius),
+              size: '15',
+              sort: 'distance',
+            }).toString();
+          const res = await fetch(url, { headers: { Authorization: `KakaoAK ${key}` } });
+          if (!res.ok) return [];
+          const data = await res.json();
+          return Array.isArray(data?.documents) ? data.documents : [];
+        })
+      );
+
+      const scored = batches
+        .flat()
+        .map((doc) => ({
+          name: String(doc?.place_name || '').trim(),
+          dist: parseInt(String(doc?.distance ?? '999999'), 10) || 999999,
+        }))
+        .filter((x) => x.name);
+
+      if (scored.length === 0) continue;
+
+      scored.sort((a, b) => a.dist - b.dist);
+      return scored[0].name;
     }
   } catch {
     /* ignore */
@@ -73,12 +92,12 @@ export async function resolveDisplayLocationFromKakaoCoordResult(firstResult, ln
   const road = firstResult.road_address;
   const addr = firstResult.address;
 
+  const poi = await fetchNearbyPlaceName(lng, lat);
+  if (poi) return poi;
+
   if (road?.building_name && String(road.building_name).trim()) {
     return String(road.building_name).trim();
   }
-
-  const poi = await fetchNearbyPlaceName(lng, lat);
-  if (poi) return poi;
 
   const r2 = addr?.region_2depth_name ? String(addr.region_2depth_name).trim() : '';
   const r3 = addr?.region_3depth_name ? String(addr.region_3depth_name).trim() : '';

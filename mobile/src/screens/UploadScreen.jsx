@@ -35,6 +35,10 @@ import { createPostSupabase } from '../api/postsSupabase';
 import { resolveRegionFromLocationInput } from '../utils/regionLocationMapping';
 import { metadataFromPickerAsset } from '../utils/pickerAssetMetadata';
 import { getWeatherByRegion } from '../utils/weatherApi';
+import {
+  fetchNearbyPlaceNameFromGps,
+  formatRegionLineFromReverseGeocode,
+} from '../utils/nearbyPlaceFromGps';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -99,36 +103,28 @@ const UploadScreen = () => {
         longitude,
       });
 
+      const poiName = await fetchNearbyPlaceNameFromGps(longitude, latitude);
+
       if (reverseGeocode && reverseGeocode.length > 0) {
         const address = reverseGeocode[0];
-        const parts = [];
-        
-        if (address.city) parts.push(address.city);
-        if (address.district) parts.push(address.district);
-        if (address.street) parts.push(address.street);
-        
-        let locationName = parts.slice(0, 2).join(' ')
-          .replace('특별시', '')
-          .replace('광역시', '')
-          .replace('특별자치시', '')
-          .replace('특별자치도', '')
-          .trim();
-        
-        if (!locationName) {
-          locationName = address.city || address.district || '서울';
-        }
-        
+        const regionFallback = formatRegionLineFromReverseGeocode(address);
+        const locationName = poiName || regionFallback || address.city || address.district || '서울';
+
         setFormData(prev => ({
           ...prev,
           location: locationName,
           coordinates: { lat: latitude, lng: longitude },
-          detailedLocation: locationName
+          detailedLocation: locationName,
         }));
       } else {
-        setFormData(prev => ({
+        const fallbackLabel =
+          poiName ||
+          `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+        setFormData((prev) => ({
           ...prev,
-          location: '서울',
-          coordinates: { lat: latitude, lng: longitude }
+          location: fallbackLabel,
+          coordinates: { lat: latitude, lng: longitude },
+          detailedLocation: fallbackLabel,
         }));
       }
       
@@ -262,27 +258,27 @@ const UploadScreen = () => {
       const { lat, lng } = firstMeta.gpsCoordinates;
       void (async () => {
         try {
+          const poiName = await fetchNearbyPlaceNameFromGps(lng, lat);
           const reverseGeocode = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
           if (reverseGeocode && reverseGeocode.length > 0) {
             const address = reverseGeocode[0];
-            const parts = [];
-            if (address.city) parts.push(address.city);
-            if (address.district) parts.push(address.district);
-            let locationName = parts
-              .slice(0, 2)
-              .join(' ')
-              .replace('특별시', '')
-              .replace('광역시', '')
-              .replace('특별자치시', '')
-              .replace('특별자치도', '')
-              .trim();
-            if (!locationName) {
-              locationName = address.city || address.district || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-            }
+            const regionFallback = formatRegionLineFromReverseGeocode(address);
+            const locationName =
+              poiName ||
+              regionFallback ||
+              address.city ||
+              address.district ||
+              `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
             setFormData((p) => ({
               ...p,
               location: locationName,
               detailedLocation: locationName,
+            }));
+          } else if (poiName) {
+            setFormData((p) => ({
+              ...p,
+              location: poiName,
+              detailedLocation: poiName,
             }));
           }
         } catch (e) {
