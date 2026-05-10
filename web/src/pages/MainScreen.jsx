@@ -56,7 +56,8 @@ const MainScreen = () => {
     const [allPostsForRecommend, setAllPostsForRecommend] = useState([]);
     const [publishedMagazines, setPublishedMagazines] = useState([]);
     const [askSituationPreview, setAskSituationPreview] = useState([]);
-    const [loading, setLoading] = useState(false);
+    /** 첫 방문 시 빈 화면 대신 스켈레톤을 잠깐 보여 주기 위해 true로 시작 */
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
     const [hotFeedVideoPoster, setHotFeedVideoPoster] = useState(null);
@@ -131,7 +132,7 @@ const MainScreen = () => {
     const loadMockData = useCallback(async () => {
         // Supabase에서 실제 게시물 불러오기 (실패 시 빈 배열)
         // 로그인 사용자의 좋아요 상태(post.likedByMe)를 서버에서 함께 내려받는다.
-        const supabasePosts = await fetchPostsSupabase(user?.id || null);
+        const supabasePosts = await fetchPostsSupabase(user?.id || null, { limit: 500 });
 
         const allPosts = getCombinedPosts(supabasePosts);
 
@@ -298,6 +299,8 @@ const MainScreen = () => {
     }, [publishedMagazines, allPostsForRecommend]);
 
     const crowdedIdsKey = useMemo(() => crowdedData.map((p) => String(p.id)).join(','), [crowdedData]);
+
+    const showRealtimeFeedSkeleton = loading && realtimeData.length === 0;
 
     const hotFeedPost = useMemo(() => {
         if (!crowdedData.length) return null;
@@ -972,10 +975,40 @@ const MainScreen = () => {
                         </button>
                     </div>
                     <div
-                    style={{ display: 'flex', gap: '6px', padding: '0 0 4px 0', overflowX: 'auto', scrollbarWidth: 'none', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', cursor: 'grab', background: '#ffffff' }}
+                    style={{ display: 'flex', gap: '6px', padding: '0 0 4px 0', overflowX: 'auto', scrollbarWidth: 'none', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', cursor: showRealtimeFeedSkeleton ? 'default' : 'grab', background: '#ffffff' }}
                         className="hide-scrollbar"
                         onMouseDown={handleDragStart}
                     >
+                        {showRealtimeFeedSkeleton &&
+                            [0, 1].map((sk) => (
+                                <div
+                                    key={`rt-sk-${sk}`}
+                                    style={{
+                                        minWidth: '52%',
+                                        width: '52%',
+                                        flexShrink: 0,
+                                        scrollSnapAlign: 'start',
+                                    }}
+                                    aria-hidden
+                                >
+                                    <div
+                                        className="animate-pulse"
+                                        style={{
+                                            width: '100%',
+                                            height: '228px',
+                                            borderRadius: '14px',
+                                            background: 'linear-gradient(90deg, #e5e7eb 0%, #f3f4f6 50%, #e5e7eb 100%)',
+                                            backgroundSize: '200% 100%',
+                                            marginBottom: '2px',
+                                        }}
+                                    />
+                                    <div style={{ padding: '8px 10px 6px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                        <div className="animate-pulse rounded bg-gray-200" style={{ height: 14, width: '75%' }} />
+                                        <div className="animate-pulse rounded bg-gray-100" style={{ height: 12, width: '100%' }} />
+                                        <div className="animate-pulse rounded bg-gray-100" style={{ height: 12, width: '66%' }} />
+                                    </div>
+                                </div>
+                            ))}
                         {realtimeData.map((post, rtIndex) => {
                             // 동영상 우선 체크: videos 배열이 있으면 첫 번째 동영상 사용
                             let firstVideo = null;

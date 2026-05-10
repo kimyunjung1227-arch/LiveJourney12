@@ -1,6 +1,8 @@
 import { getDisplayImageUrl } from '../api/upload';
 
 const STORAGE_KEY = 'lj_main_feed_v1_last';
+/** 세션 종료 후에도 첫 화면에 바로 쓸 수 있도록 localStorage 보관 */
+const STORAGE_KEY_PERSISTENT = 'lj_main_feed_v1_persistent';
 const MAX_POSTS_IN_CACHE = 350;
 
 /**
@@ -21,7 +23,8 @@ function trimPostsForCache(posts) {
  */
 export function loadMainFeedSnapshotLast() {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    let raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) raw = localStorage.getItem(STORAGE_KEY_PERSISTENT);
     if (!raw) return null;
     const o = JSON.parse(raw);
     if (!o || typeof o !== 'object') return null;
@@ -34,6 +37,19 @@ export function loadMainFeedSnapshotLast() {
 /**
  * 피드 로드 성공 시 스냅샷 저장 (HTTP 캐시와 함께 쓰면 새로고침 체감이 빨라짐)
  */
+function persistFeedSnapshotJson(jsonStr) {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, jsonStr);
+  } catch {
+    /* 사파리 비공개 등 */
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY_PERSISTENT, jsonStr);
+  } catch {
+    /* quota 등 */
+  }
+}
+
 export function saveMainFeedSnapshotLast(snapshot) {
   if (!snapshot || typeof snapshot !== 'object') return;
   try {
@@ -45,10 +61,11 @@ export function saveMainFeedSnapshotLast(snapshot) {
     const str = JSON.stringify(payload);
     if (str.length > 4_500_000) {
       const lean = { ...payload, allPostsForRecommend: [] };
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(lean));
+      const leanStr = JSON.stringify(lean);
+      persistFeedSnapshotJson(leanStr);
       return;
     }
-    sessionStorage.setItem(STORAGE_KEY, str);
+    persistFeedSnapshotJson(str);
   } catch {
     try {
       const lean = {
@@ -58,7 +75,7 @@ export function saveMainFeedSnapshotLast(snapshot) {
         allPostsForRecommend: [],
         savedAt: Date.now(),
       };
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(lean));
+      persistFeedSnapshotJson(JSON.stringify(lean));
     } catch {
       /* ignore */
     }
@@ -87,7 +104,7 @@ function firstDisplayMediaUrlForPost(post, imgOpts) {
 /**
  * 브라우저가 상단 카드 이미지를 미리 가져가도록 힌트 (동일 세션·직후 요청에도 유리)
  */
-export function preloadMainFeedImageUrls(realtimeData, crowdedData, { limit = 6, imgOpts = MAIN_FEED_IMAGE_OPTS } = {}) {
+export function preloadMainFeedImageUrls(realtimeData, crowdedData, { limit = 10, imgOpts = MAIN_FEED_IMAGE_OPTS } = {}) {
   if (typeof document === 'undefined') return () => {};
   const urls = [];
   const push = (u) => {
@@ -97,7 +114,7 @@ export function preloadMainFeedImageUrls(realtimeData, crowdedData, { limit = 6,
   };
 
   const rt = Array.isArray(realtimeData) ? realtimeData : [];
-  for (let i = 0; i < Math.min(3, rt.length); i += 1) {
+  for (let i = 0; i < Math.min(6, rt.length); i += 1) {
     // transform(render) 우선 시도 → 실패하면 브라우저가 원본을 다시 받도록 <img onError>에서 폴백
     push(firstDisplayMediaUrlForPost(rt[i], { ...imgOpts, forceTransform: true }));
   }

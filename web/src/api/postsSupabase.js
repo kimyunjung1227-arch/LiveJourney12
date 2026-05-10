@@ -421,14 +421,27 @@ export const getMergedMyPostsForStats = async (userId) => {
   return await fetchPostsByUserIdSupabase(userId);
 };
 
-// Supabase에서 게시물 목록 읽기
-export const fetchPostsSupabase = async (currentUserId = null) => {
+/**
+ * Supabase에서 게시물 목록 읽기
+ * @param {string|null} currentUserId
+ * @param {{ limit?: number|null }} [options] — limit 지정 시 최신순 N건만(메인 피드 등 응답 단축). 미지정 시 전체(관리자·검색 등 기존 동작)
+ */
+export const fetchPostsSupabase = async (currentUserId = null, options = {}) => {
+  const lim = options?.limit;
+  const safeLimit =
+    lim == null || lim === ''
+      ? null
+      : Math.min(5000, Math.max(1, Math.floor(Number(lim))));
   try {
-    const { data, error } = await supabase
+    let q = supabase
       .from('posts')
       .select('*')
       .or('category.is.null,category.neq.question')
       .order('created_at', { ascending: false });
+    if (safeLimit != null && Number.isFinite(safeLimit)) {
+      q = q.limit(safeLimit);
+    }
+    const { data, error } = await q;
 
     if (error) throw error;
 
