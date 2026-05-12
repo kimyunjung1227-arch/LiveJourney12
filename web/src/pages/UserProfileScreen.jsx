@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import BackButton from '../components/BackButton';
 import ProfileInjangSection from '../components/ProfileInjangSection';
+import ProfileLiveSyncSection from '../components/ProfileLiveSyncSection';
 import BottomNavigation from '../components/BottomNavigation';
 import { useAuth } from '../contexts/AuthContext';
 import { getEarnedBadgesForUser, getBadgeDisplayName } from '../utils/badgeSystem';
@@ -862,74 +863,27 @@ const UserProfileScreen = () => {
               })}
             />
 
-            <div className="px-6 py-4">
-              {(() => {
-                const pct = typeof liveSync === 'number' ? liveSync : 50;
-                const msg =
-                  pct >= 90 ? '실시간 동기화 완료' :
-                  pct >= 70 ? '높은 현장감' :
-                  pct >= 40 ? '일반 여행자' :
-                  '시차 주의';
-                const accent =
-                  pct >= 90 ? 'text-sky-600 dark:text-sky-300' :
-                  pct >= 70 ? 'text-sky-500 dark:text-sky-300' :
-                  pct >= 40 ? 'text-sky-700/70 dark:text-sky-200/70' :
-                  'text-orange-500 dark:text-orange-300';
-                return (
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-1 flex-nowrap min-w-0">
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
-                          라이브 싱크
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => { setTrustExplainOpen(false); setShowTrustGradesModal(true); }}
-                          className="w-7 h-7 inline-flex items-center justify-center rounded-full border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/60 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                          aria-label="라이브 싱크 설명 보기"
-                        >
-                          <span className="material-symbols-outlined text-[18px]" aria-hidden>
-                            info
-                          </span>
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className={`text-xl font-extrabold ${accent}`}>{pct}%</span>
-                        <span className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark whitespace-nowrap">{msg}</span>
-                      </div>
-                    </div>
-                    <div className="mt-2">
-                      <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-300"
-                          style={{
-                            width: `${Math.max(0, Math.min(100, pct))}%`,
-                            background:
-                              pct >= 90
-                                ? 'linear-gradient(90deg, rgba(2,132,199,1), rgba(14,165,233,1))'
-                                : pct >= 70
-                                  ? 'linear-gradient(90deg, rgba(14,165,233,1), rgba(56,189,248,1))'
-                                  : pct >= 40
-                                    ? 'linear-gradient(90deg, rgba(125,211,252,1), rgba(148,163,184,1))'
-                                    : 'linear-gradient(90deg, rgba(251,146,60,1), rgba(253,186,116,1))',
-                            boxShadow: pct >= 90 ? '0 0 18px rgba(14,165,233,0.35)' : 'none',
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex justify-end mt-2">
-                      <button
-                        type="button"
-                        onClick={() => { setTrustExplainOpen(false); setShowTrustGradesModal(true); }}
-                        className="text-xs text-primary hover:underline"
-                      >
-                        자세히 보기
-                      </button>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
+            <ProfileLiveSyncSection
+              liveSync={liveSync}
+              onToggleExplain={() => {
+                setTrustExplainOpen(false);
+                setShowTrustGradesModal(true);
+              }}
+              footerAction={(
+                <div className="flex justify-end mt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTrustExplainOpen(false);
+                      setShowTrustGradesModal(true);
+                    }}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    자세히 보기
+                  </button>
+                </div>
+              )}
+            />
           </div>
 
           <div className="bg-white dark:bg-gray-900 px-6 py-6 border-t border-gray-100 dark:border-gray-800">

@@ -8,6 +8,7 @@ import BottomNavigation from '../components/BottomNavigation';
 import { getUnreadCount, notifyFollowingStarted, getActorHintsFromNotificationsCache } from '../utils/notifications';
 import { getEarnedBadgesForUser, getBadgeDisplayName } from '../utils/badgeSystem';
 import ProfileInjangSection from '../components/ProfileInjangSection';
+import ProfileLiveSyncSection from '../components/ProfileLiveSyncSection';
 import { getLiveSyncPercentRounded, getLiveSyncPercent, TRUST_GRADES } from '../utils/trustIndex';
 import { getCoordinatesByLocation } from '../utils/regionLocationMapping';
 import {
@@ -1814,71 +1815,19 @@ const ProfileScreen = () => {
               }}
             />
 
-            {/* 라이브 싱크 구역 - 현장 일치도를 %로 표시 */}
-            <div className="px-6 py-4">
-              {(() => {
-                const pct = typeof liveSync === 'number' ? liveSync : 50;
-                const msg =
-                  pct >= 90 ? '실시간 동기화 완료' :
-                  pct >= 70 ? '높은 현장감' :
-                  pct >= 40 ? '일반 여행자' :
-                  '시차 주의';
-                const accent =
-                  pct >= 90 ? 'text-sky-600 dark:text-sky-300' :
-                  pct >= 70 ? 'text-sky-500 dark:text-sky-300' :
-                  pct >= 40 ? 'text-sky-700/70 dark:text-sky-200/70' :
-                  'text-orange-500 dark:text-orange-300';
-                return (
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-1 flex-nowrap min-w-0">
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
-                          라이브 싱크
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => { setShowTrustGradesModal(false); setTrustExplainOpen((v) => !v); }}
-                          className="w-7 h-7 inline-flex items-center justify-center rounded-full border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/60 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                          aria-label="라이브 싱크 설명 보기"
-                        >
-                          <span className="material-symbols-outlined text-[18px]" aria-hidden>
-                            info
-                          </span>
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className={`text-xl font-extrabold ${accent}`}>{pct}%</span>
-                        <span className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark whitespace-nowrap">{msg}</span>
-                      </div>
-                    </div>
-                    <div className="mt-2">
-                      <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-300"
-                          style={{
-                            width: `${Math.max(0, Math.min(100, pct))}%`,
-                            background:
-                              pct >= 90
-                                ? 'linear-gradient(90deg, rgba(2,132,199,1), rgba(14,165,233,1))'
-                                : pct >= 70
-                                  ? 'linear-gradient(90deg, rgba(14,165,233,1), rgba(56,189,248,1))'
-                                  : pct >= 40
-                                    ? 'linear-gradient(90deg, rgba(125,211,252,1), rgba(148,163,184,1))'
-                                    : 'linear-gradient(90deg, rgba(251,146,60,1), rgba(253,186,116,1))',
-                            boxShadow: pct >= 90 ? '0 0 18px rgba(14,165,233,0.35)' : 'none',
-                          }}
-                        />
-                      </div>
-                      {trustExplainOpen ? (
-                        <div className="mt-2 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/20 px-3 py-2 text-[11px] leading-relaxed text-gray-600 dark:text-gray-300">
-                          <span className="font-semibold">라이브 싱크</span>는 내 게시물이 <span className="font-semibold">현장과 얼마나 동기화</span>되어 있는지(시차가 적은지)를 %로 보여줘요. 실시간 촬영·업로드, 도움돼요(좋아요), 지역에서의 꾸준한 업데이트가 높이고, 과거 사진·불일치 리포트는 낮춰요.
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
+            <ProfileLiveSyncSection
+              liveSync={liveSync}
+              explainOpen={trustExplainOpen}
+              onToggleExplain={() => {
+                setShowTrustGradesModal(false);
+                setTrustExplainOpen((v) => !v);
+              }}
+              explainText={(
+                <>
+                  <span className="font-semibold">라이브 싱크</span>는 내 게시물이 <span className="font-semibold">현장과 얼마나 동기화</span>되어 있는지(시차가 적은지)를 %로 보여줘요. 실시간 촬영·업로드, 도움돼요(좋아요), 지역에서의 꾸준한 업데이트가 높이고, 과거 사진·불일치 리포트는 낮춰요.
+                </>
+              )}
+            />
 
           </div>
 
