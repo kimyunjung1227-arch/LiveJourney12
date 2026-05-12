@@ -73,9 +73,14 @@ export default function ProfileLiveSyncSection({
       </div>
 
       <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50/90 dark:bg-gray-900/60 px-3.5 py-3">
-        <div className="flex w-full items-center justify-end gap-2">
-          <span className={`inline-flex shrink-0 ${BADGE_CHIP_CLASS}`}>{pct}%</span>
-          <span className={`inline-flex shrink-0 whitespace-nowrap ${BADGE_CHIP_CLASS}`}>{msg}</span>
+        <div className="flex w-full items-center justify-end">
+          <span className={`inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap ${BADGE_CHIP_CLASS}`}>
+            <span>{pct}%</span>
+            <span className="opacity-40" aria-hidden>
+              ·
+            </span>
+            <span>{msg}</span>
+          </span>
         </div>
 
         <div className="mt-2.5">
