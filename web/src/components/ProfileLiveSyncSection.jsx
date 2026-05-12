@@ -53,8 +53,8 @@ export default function ProfileLiveSyncSection({
   const { msg, barGradient, barShadow } = getLiveSyncMeta(pct);
 
   return (
-    <div className={`px-6 pt-2 pb-3 ${className}`.trim()}>
-      <div className="flex items-center gap-2 mb-3">
+    <div className={`pt-2 pb-3 ${className}`.trim()}>
+      <div className="flex items-center justify-start gap-2 mb-3">
         <h3 className="text-base font-bold text-text-primary-light dark:text-text-primary-dark shrink-0">
           라이브 싱크
         </h3>
@@ -73,9 +73,9 @@ export default function ProfileLiveSyncSection({
       </div>
 
       <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50/90 dark:bg-gray-900/60 px-3.5 py-3">
-        <div className="flex w-full items-center justify-between gap-3">
+        <div className="flex w-full items-center justify-end gap-2">
           <span className={`inline-flex shrink-0 ${BADGE_CHIP_CLASS}`}>{pct}%</span>
-          <span className={`shrink-0 text-right whitespace-nowrap ${BADGE_CHIP_CLASS}`}>{msg}</span>
+          <span className={`inline-flex shrink-0 whitespace-nowrap ${BADGE_CHIP_CLASS}`}>{msg}</span>
         </div>
 
         <div className="mt-2.5">
