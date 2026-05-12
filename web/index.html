@@ -12,8 +12,8 @@
   <meta name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <!-- 네이버 검색 결과 메인 설정 -->
-  <title>라이브저니 - 실시간 여행 커뮤니티</title>
-  <meta name="description" content="여행지의 실시간 상황을 확인하고 여행을 계획해보세요. 정보의 시차 없는 진짜 여행, 라이브저니와 함께하세요." />
+  <title>라이브저니 - 여행지의 '지금'을 연결하는 실시간 커뮤니티</title>
+  <meta name="description" content="여행지의 지금 날씨·현장·인파를 실시간 제보로 확인하세요. 시차 없는 정보로 실패 없는 일정을 돕는 라이브저니 커뮤니티." />
   <meta name="keywords" content="라이브저니, LiveJourney, Live Journey, 실시간 핫플, 실시간 여행, 여행 커뮤니티, 여행지 인파, 혼잡도, 실시간 제보, 여행 정보, 날씨, 지도, 국내여행" />
   <meta name="robots" content="index, follow" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
@@ -24,14 +24,14 @@
   <meta property="og:locale" content="ko_KR" />
   <meta property="og:site_name" content="라이브저니" />
   <!-- SNS 공유 시 노출되는 정보 (Open Graph) -->
-  <meta property="og:title" content="라이브저니 - 실시간 여행 커뮤니티" />
-  <meta property="og:description" content="여행지의 실시간 상황을 확인하고 여행을 계획해보세요." />
+  <meta property="og:title" content="라이브저니 - 여행지의 '지금'을 연결하는 실시간 커뮤니티" />
+  <meta property="og:description" content="여행지의 지금 날씨·현장·인파를 실시간 제보로 확인하세요. 시차 없는 정보로 실패 없는 일정을 돕는 라이브저니 커뮤니티." />
   <meta property="og:url" content="__PUBLIC_BASE__" />
   <meta property="og:image" content="__PUBLIC_BASE__/splash-logo.png.png" />
   <meta property="og:image:alt" content="라이브저니" />
   <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="라이브저니 | 실시간 여행 핫플·인파·날씨 커뮤니티" />
-  <meta name="twitter:description" content="여행지의 지금 인파·현장 분위기·날씨를 실시간 제보와 지도에서 확인하세요." />
+  <meta name="twitter:title" content="라이브저니 - 여행지의 '지금'을 연결하는 실시간 커뮤니티" />
+  <meta name="twitter:description" content="여행지의 지금 날씨·현장·인파를 실시간 제보로 확인하세요. 시차 없는 정보로 실패 없는 일정을 돕는 라이브저니 커뮤니티." />
   <!-- twitter:image 미지정: 검색/미리보기 썸네일 노출 최소화 -->
   <link rel="canonical" href="__PUBLIC_BASE__/" />
   <link rel="alternate" hreflang="ko" href="__PUBLIC_BASE__/" />
@@ -68,29 +68,36 @@
     ]
   }
   </script>
-  <!-- 네이버 사이트링크(서브 메뉴) 노출 확률을 높이기 위한 내비게이션 구조화 데이터 -->
+  <!-- 주요 하위 경로(사이트링크 후보) — 구글은 자동 선별하며 구조화 데이터는 힌트일 뿐 보장되지 않음 -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "ItemList",
+    "name": "라이브저니 주요 화면",
     "itemListElement": [
       {
         "@type": "SiteNavigationElement",
-        "name": "메인피드 구역",
+        "name": "지금 여기는",
         "url": "__PUBLIC_BASE__/main",
-        "description": "라이브저니 메인 피드에서 여행지의 지금을 확인하세요."
+        "description": "메인 피드에서 여행지의 지금 날씨·현장·인파를 실시간 제보로 확인합니다."
       },
       {
         "@type": "SiteNavigationElement",
-        "name": "실시간 핫플 피드",
+        "name": "실시간 핫플",
         "url": "__PUBLIC_BASE__/crowded-place",
-        "description": "지금 이 순간 가장 반응이 뜨거운 여행지의 현장을 확인하세요."
+        "description": "지금 반응이 뜨거운 여행지·핫플 순위와 현장 게시물을 모아 봅니다."
       },
       {
         "@type": "SiteNavigationElement",
-        "name": "프로필 피드",
+        "name": "지도",
+        "url": "__PUBLIC_BASE__/map",
+        "description": "실시간 제보와 게시물을 지도에서 탐색하고 장소를 검색합니다."
+      },
+      {
+        "@type": "SiteNavigationElement",
+        "name": "프로필",
         "url": "__PUBLIC_BASE__/profile",
-        "description": "내 여행 기록과 커뮤니티 활동을 관리하세요."
+        "description": "내 여행 기록·팔로우·활동을 관리하는 프로필입니다."
       }
     ]
   }

@@ -1,12 +1,15 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
+import PageSeo from '../components/PageSeo';
+import { PAGE_SEO } from '../config/seo';
 
 const TermsOfServiceScreen = () => {
   const navigate = useNavigate();
 
   return (
     <div className="flex h-full w-full flex-col bg-background-light dark:bg-background-dark group/design-root">
+      <PageSeo {...PAGE_SEO.termsOfService} />
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
         <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-border-light bg-surface-light/80 dark:border-border-dark dark:bg-surface-dark/80 backdrop-blur-sm px-4">
         <button
