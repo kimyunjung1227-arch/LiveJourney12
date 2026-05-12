@@ -1,10 +1,10 @@
 /** 기본 SEO 문구(문서 메타·RootSeo·index.html과 동일하게 유지) */
 export const SEO_DEFAULT = {
-  title: "라이브저니 - 여행지의 '지금'을 연결하는 실시간 커뮤니티",
+  title: "라이브저니 — 정보 시차 없는 진짜 여행의 시작",
   description:
-    "여행지의 지금 날씨·현장·인파를 실시간 제보로 확인하세요. 시차 없는 정보로 실패 없는 일정을 돕는 라이브저니 커뮤니티.",
+    "지금 날씨, 인파, 분위기까지 현지 실시간 제보로 확인하세요. 검색만으로는 알 수 없는 '현재의 여행지'를 통해 실패 없는 여행 결정을 돕습니다.",
   keywords:
-    "라이브저니, Live Journey, 실시간 여행, 여행 커뮤니티, 실시간 제보, 여행 정보, 혼잡도, 날씨, 지도",
+    "라이브저니, Live Journey, 실시간 여행, 여행 커뮤니티, 실시간 제보, 여행 정보, 혼잡도, 날씨, 인파, 핫플, 라이브매거진, 실시간 Q&A, 지도",
   siteName: "라이브저니",
   // 검색/미리보기에서 특정 이미지가 노출되지 않도록 투명 1x1로 지정
   ogImageFilename: "og-empty.svg",
@@ -38,16 +38,29 @@ export function getDefaultOgImageUrl() {
 /** 주요 화면별 검색 스니펫·사이트링크 후보 URL과 일치시키는 문구 */
 export const PAGE_SEO = {
   main: {
-    title: "지금 여기는 · 라이브저니 홈",
-    description:
-      "메인 피드에서 여행지의 지금 날씨·현장·인파를 실시간 제보로 확인하세요. 지금 여기는·실시간 핫플·추천 코스를 한곳에서.",
+    title: "실시간 현장 LIVE · 라이브저니",
+    description: "오늘 그곳의 날씨·인파·현장 분위기를 실시간 확인",
     path: "/main",
+  },
+  realtimeFeed: {
+    title: "실시간 현장 LIVE · 라이브저니",
+    description: "오늘 그곳의 날씨·인파·현장 분위기를 실시간 확인",
+    path: "/realtime-feed",
   },
   crowdedPlace: {
     title: "실시간 핫플 · 라이브저니",
-    description:
-      "지금 반응이 뜨거운 여행지·핫플을 실시간 순위와 현장 제보로 확인하고, 장소별 게시물을 모아 볼 수 있습니다.",
+    description: "지금 사람들이 몰리는 진짜 핫플 확인",
     path: "/crowded-place",
+  },
+  magazine: {
+    title: "라이브매거진 · 라이브저니",
+    description: "이번 시즌 꼭 가봐야 할 여행 가이드",
+    path: "/magazine",
+  },
+  askSituation: {
+    title: "실시간 Q&A · 라이브저니",
+    description: "현지에 있는 사람에게 직접 물어보세요",
+    path: "/ask-situation",
   },
   map: {
     title: "지도 · 라이브저니",

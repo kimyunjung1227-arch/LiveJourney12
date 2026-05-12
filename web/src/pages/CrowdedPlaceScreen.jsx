@@ -22,6 +22,8 @@ import { fetchPlaceDescription } from '../api/placeDescription';
 import { normalizePlaceIdentityKey } from '../utils/placeKeyNormalize';
 import { toHotplaceDescPreview } from '../utils/hotplaceDescPreview';
 import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
+import PageSeo from '../components/PageSeo';
+import { PAGE_SEO } from '../config/seo';
 
 const PRIMARY_HEX = '#26C6DA';
 
@@ -377,6 +379,7 @@ const CrowdedPlaceScreen = () => {
 
     return (
         <div className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col">
+            <PageSeo {...PAGE_SEO.crowdedPlace} />
             <header className="sticky top-0 z-20 flex shrink-0 items-center gap-2 border-b border-border-light bg-background-light px-3 py-3 dark:border-border-dark dark:bg-background-dark">
                 <button
                     type="button"

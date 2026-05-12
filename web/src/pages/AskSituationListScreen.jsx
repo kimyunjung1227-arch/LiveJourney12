@@ -4,6 +4,8 @@ import BottomNavigation from '../components/BottomNavigation';
 import { fetchQuestionPostsPageSupabase } from '../api/postsSupabase';
 import { getTimeAgo } from '../utils/timeUtils';
 import { useAuth } from '../contexts/AuthContext';
+import PageSeo from '../components/PageSeo';
+import { PAGE_SEO } from '../config/seo';
 
 const FILTERS = [
   { id: 'all', label: '전체' },
@@ -132,6 +134,7 @@ export default function AskSituationListScreen() {
 
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark min-h-[100dvh]">
+      <PageSeo {...PAGE_SEO.askSituation} />
       <div className="screen-content">
       <header className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 pt-12 bg-white">
         <button type="button" onClick={() => navigate(-1)} className="rounded-full p-2 hover:bg-gray-50" aria-label="뒤로">

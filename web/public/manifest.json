@@ -1,7 +1,7 @@
 {
-  "name": "LiveJourney - 실시간 여행 공유",
-  "short_name": "LiveJourney",
-  "description": "여행지의 지금 날씨·현장·인파를 실시간 제보로 확인하세요. 시차 없는 정보로 실패 없는 일정을 돕는 라이브저니 커뮤니티.",
+  "name": "라이브저니 — 정보 시차 없는 진짜 여행의 시작",
+  "short_name": "라이브저니",
+  "description": "지금 날씨, 인파, 분위기까지 현지 실시간 제보로 확인하세요. 검색만으로는 알 수 없는 '현재의 여행지'를 통해 실패 없는 여행 결정을 돕습니다.",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#ffffff",

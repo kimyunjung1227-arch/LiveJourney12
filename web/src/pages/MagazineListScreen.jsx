@@ -11,6 +11,8 @@ import {
   getRegionPostsForSlide,
 } from '../utils/magazinePublishedUi';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
+import PageSeo from '../components/PageSeo';
+import { PAGE_SEO } from '../config/seo';
 
 const MagazineListScreen = () => {
   const navigate = useNavigate();
@@ -75,6 +77,7 @@ const MagazineListScreen = () => {
 
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark h-screen overflow-hidden">
+      <PageSeo {...PAGE_SEO.magazine} />
       <div className="screen-content flex flex-col h-full">
         <header className="screen-header flex-shrink-0 z-[60] flex items-center justify-center px-4 py-3 bg-white/95 dark:bg-gray-900/95 border-b border-zinc-100 dark:border-zinc-800 backdrop-blur-sm">
           <h1 className="text-[17px] font-extrabold text-text-primary-light dark:text-text-primary-dark m-0 tracking-tight">

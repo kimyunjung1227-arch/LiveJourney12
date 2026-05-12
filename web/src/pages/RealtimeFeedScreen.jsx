@@ -19,6 +19,8 @@ import { getValidWeatherSnapshot } from '../utils/weatherSnapshot';
 import FastImage from '../components/FastImage';
 import { MAIN_FEED_IMAGE_OPTS } from '../utils/mainFeedSnapshot';
 import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
+import PageSeo from '../components/PageSeo';
+import { PAGE_SEO } from '../config/seo';
 import {
   feedGridCardBoxFlat,
   feedGridImageBoxFlat,
@@ -172,6 +174,7 @@ const RealtimeFeedScreen = () => {
     <div
       className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col relative"
     >
+      <PageSeo {...PAGE_SEO.realtimeFeed} />
       <header
         className="screen-header sticky top-0 z-[100] flex shrink-0 items-center justify-between gap-2 border-b border-border-light bg-background-light px-4 py-2.5 dark:border-border-dark dark:bg-background-dark"
       >
