@@ -6,6 +6,7 @@ import ProfileLiveSyncSection from '../components/ProfileLiveSyncSection';
 import BottomNavigation from '../components/BottomNavigation';
 import { useAuth } from '../contexts/AuthContext';
 import { getEarnedBadgesForUser, getBadgeDisplayName } from '../utils/badgeSystem';
+import { deserializeRepresentativeBadge, parseRepresentativeBadgeFromProfileRow, resolveRepresentativeBadge } from '../utils/representativeBadge';
 import { getMergedMyPostsForStats } from '../api/postsSupabase';
 import { getCoordinatesByLocation } from '../utils/regionLocationMapping';
 import {
@@ -46,6 +47,7 @@ const UserProfileScreen = () => {
   const [user, setUser] = useState(null);
   const [userPosts, setUserPosts] = useState([]);
   const [earnedBadges, setEarnedBadges] = useState([]);
+  const [profileRepresentativeBadge, setProfileRepresentativeBadge] = useState(null);
   const [representativeBadge, setRepresentativeBadge] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mapLoading, setMapLoading] = useState(true);
@@ -172,8 +174,7 @@ const UserProfileScreen = () => {
       profileImage: pickAvatar(),
     });
 
-    const isOwnProfile = currentUser && String(userId) === String(currentUser.id);
-    const repBadgeJson = null;
+    setProfileRepresentativeBadge(null);
     setRepresentativeBadge(null);
 
     // 해당 사용자의 게시물: Supabase(다른 사용자 사진 포함) + localStorage + 기존 API
@@ -196,18 +197,6 @@ const UserProfileScreen = () => {
         void fetchLiveSyncPctSupabase(userId || null, { bypassCache: true }).then((pct) => setLiveSync(pct));
         const badges = getEarnedBadgesForUser(userId, merged) || [];
         setEarnedBadges(badges);
-        if (!repBadgeJson) {
-          setRepresentativeBadge((prev) => {
-            if (prev) return prev;
-            if (!badges.length) return null;
-            const idx = userId ? (userId.toString().split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % badges.length) : 0;
-            const pick = badges[idx];
-            if (isOwnProfile && pick) {
-              // 서버 운영 전환: localStorage 제거
-            }
-            return pick;
-          });
-        }
         const postsWithMedia = merged.filter(
           p => (p.images && p.images.length > 0) || p.image || p.imageUrl || (p.videos && p.videos.length > 0)
         );
@@ -231,17 +220,20 @@ const UserProfileScreen = () => {
 
       try {
         const prof = await fetchProfileByIdSupabase(String(userId).trim());
-        if (prof && (prof.username || prof.avatar_url)) {
-          const uName = prof.username ? String(prof.username).trim() : '';
-          const av = prof.avatar_url ? String(prof.avatar_url).trim() : null;
-          setUser((prev) => ({
-            ...(prev || {}),
-            id: String(userId),
-            username: (uName && !badDisplayName(uName) ? uName : prev?.username) || '여행자',
-            profileImage: av ?? prev?.profileImage ?? null,
-          }));
-          if (uName && !badDisplayName(uName)) {
-            setCachedFollowProfile(userId, { username: uName, profileImage: av || null });
+        if (prof) {
+          setProfileRepresentativeBadge(parseRepresentativeBadgeFromProfileRow(prof));
+          if (prof.username || prof.avatar_url) {
+            const uName = prof.username ? String(prof.username).trim() : '';
+            const av = prof.avatar_url ? String(prof.avatar_url).trim() : null;
+            setUser((prev) => ({
+              ...(prev || {}),
+              id: String(userId),
+              username: (uName && !badDisplayName(uName) ? uName : prev?.username) || '여행자',
+              profileImage: av ?? prev?.profileImage ?? null,
+            }));
+            if (uName && !badDisplayName(uName)) {
+              setCachedFollowProfile(userId, { username: uName, profileImage: av || null });
+            }
           }
         }
       } catch (_) {
@@ -429,6 +421,21 @@ const UserProfileScreen = () => {
     void fetchLiveSyncPctSupabase(userId, { bypassCache: true }).then((pct) => setLiveSync(pct));
   }, [userId, userPosts]);
 
+  useEffect(() => {
+    setRepresentativeBadge(resolveRepresentativeBadge(profileRepresentativeBadge, earnedBadges));
+  }, [profileRepresentativeBadge, earnedBadges]);
+
+  useEffect(() => {
+    if (!userId) return undefined;
+    const onRepresentativeBadgeUpdated = (event) => {
+      const detail = event?.detail || {};
+      if (String(detail.userId || '') !== String(userId)) return;
+      setProfileRepresentativeBadge(detail.badge ?? null);
+    };
+    window.addEventListener('representativeBadgeUpdated', onRepresentativeBadgeUpdated);
+    return () => window.removeEventListener('representativeBadgeUpdated', onRepresentativeBadgeUpdated);
+  }, [userId]);
+
   // 서버에서 유저 정보 가져오기 (점수는 클라이언트 기준으로 통일)
   useEffect(() => {
     if (!userId) return;
@@ -441,7 +448,7 @@ const UserProfileScreen = () => {
           setUser((prev) => (prev ? { ...prev, ...u, id: prev.id } : null));
           // 서버에 저장된 대표 뱃지가 있으면 우선 사용 (사용자가 설정한 대표 뱃지 노출)
           if (u.representativeBadge) {
-            setRepresentativeBadge(u.representativeBadge);
+            setProfileRepresentativeBadge(deserializeRepresentativeBadge(u.representativeBadge));
           }
         }
       })

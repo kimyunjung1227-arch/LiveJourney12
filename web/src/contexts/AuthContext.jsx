@@ -5,6 +5,8 @@ import { setCurrentBadgeUserId, syncEarnedBadgesFromSupabase } from '../utils/ba
 import { syncNotificationsFromSupabase, setNotificationsCurrentUserId } from '../utils/notifications';
 import { setCurrentUserId as setFollowSystemCurrentUserId, syncFollowingFromSupabase } from '../utils/followSystem';
 import { getSessionOnce, signOutSafe } from '../utils/supabaseAuthCache';
+import { fetchProfileByIdSupabase, updateRepresentativeBadgeSupabase } from '../api/profilesSupabase';
+import { parseRepresentativeBadgeFromProfileRow, serializeRepresentativeBadge } from '../utils/representativeBadge';
 
 const AuthContext = createContext(null);
 
@@ -93,6 +95,24 @@ export const AuthProvider = ({ children }) => {
     }
   }, [appUser?.id]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const uid = supabaseUser?.id ? String(supabaseUser.id) : '';
+      if (!uid) return;
+      const profile = await fetchProfileByIdSupabase(uid);
+      if (cancelled || !profile) return;
+      const representativeBadge = parseRepresentativeBadgeFromProfileRow(profile);
+      setLocalUserOverride((prev) => {
+        const base = prev && String(prev.id) === uid ? prev : { id: uid };
+        return { ...base, representativeBadge: representativeBadge ?? null };
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabaseUser?.id]);
+
   // ✅ 실시간 상호작용 알림(좋아요/댓글/팔로우) 반영: notifications 테이블 insert/update를 구독
   // - 상대방이 보낸 알림이 DB에 들어오면 즉시 localStorage 캐시를 갱신하고 배지 카운트를 업데이트한다.
   // - 정책/RLS에 따라 select 권한이 없으면 동기화가 실패할 수 있으니 best-effort로 처리한다.
@@ -171,18 +191,33 @@ export const AuthProvider = ({ children }) => {
     if (!userObj || typeof userObj !== 'object') return;
     setLocalUserOverride(userObj);
 
-    // 로그인 사용자면 Supabase 메타데이터도 best-effort로 갱신(가능한 경우만)
     try {
       if (supabaseUser?.id && String(userObj.id) === String(supabaseUser.id)) {
         const nextMeta = {
           name: userObj.username,
           picture: userObj.profileImage && userObj.profileImage !== 'default' ? userObj.profileImage : null,
         };
+        if (Object.prototype.hasOwnProperty.call(userObj, 'representativeBadge')) {
+          nextMeta.representative_badge = serializeRepresentativeBadge(userObj.representativeBadge);
+        }
         await supabase.auth.updateUser({ data: nextMeta });
+        if (Object.prototype.hasOwnProperty.call(userObj, 'representativeBadge')) {
+          await updateRepresentativeBadgeSupabase(supabaseUser.id, userObj.representativeBadge ?? null);
+        }
       }
     } catch (e) {
-      // 실패해도 로컬은 유지되어야 함
       logger.warn('Supabase user_metadata 업데이트 실패(로컬은 유지):', e);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('representativeBadgeUpdated', {
+          detail: {
+            userId: userObj.id != null ? String(userObj.id) : '',
+            badge: userObj.representativeBadge ?? null,
+          },
+        })
+      );
     }
   }, [supabaseUser?.id]);
 

@@ -1,5 +1,6 @@
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
+import { serializeRepresentativeBadge } from '../utils/representativeBadge';
 
 const isValidUuid = (v) =>
   typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
@@ -115,3 +116,39 @@ export const searchProfilesSupabase = async (query, { limit = 20 } = {}) => {
   }
 };
 
+export const updateRepresentativeBadgeSupabase = async (userId, badge) => {
+  const uid = userId != null ? String(userId).trim() : '';
+  if (!isValidUuid(uid)) return { ok: false, error: new Error('invalid_user_id') };
+
+  const payload = {
+    representative_badge: badge ? serializeRepresentativeBadge(badge) : null,
+    updated_at: new Date().toISOString(),
+  };
+
+  try {
+    const tryUpdate = async () => {
+      const { data: updated, error: upErr } = await supabase
+        .from('profiles')
+        .update(payload)
+        .eq('id', uid)
+        .select('id');
+      if (upErr) throw upErr;
+      return Array.isArray(updated) && updated.length > 0;
+    };
+
+    if (await tryUpdate()) return { ok: true };
+
+    const { error: insErr } = await supabase.from('profiles').insert({ id: uid, ...payload });
+    if (insErr) {
+      const code = insErr.code || insErr?.details;
+      if (code === '23505' || String(insErr.message || '').includes('duplicate')) {
+        if (await tryUpdate()) return { ok: true };
+      }
+      throw insErr;
+    }
+    return { ok: true };
+  } catch (e) {
+    logger.warn('updateRepresentativeBadgeSupabase 실패:', e?.message || e);
+    return { ok: false, error: e };
+  }
+};

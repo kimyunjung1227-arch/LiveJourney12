@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import BottomNavigation from '../components/BottomNavigation';
 import { getUnreadCount, notifyFollowingStarted, getActorHintsFromNotificationsCache } from '../utils/notifications';
 import { getEarnedBadgesForUser, getBadgeDisplayName } from '../utils/badgeSystem';
+import { resolveRepresentativeBadge } from '../utils/representativeBadge';
 import ProfileInjangSection from '../components/ProfileInjangSection';
 import ProfileLiveSyncSection from '../components/ProfileLiveSyncSection';
 import { getCoordinatesByLocation } from '../utils/regionLocationMapping';
@@ -123,12 +124,14 @@ const mergeProfileUser = (authUser, savedUser) => {
 const ProfileScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user: authUser, logout, isAuthenticated, loginWithProvider, authLoading } = useAuth();
+  const { user: authUser, logout, isAuthenticated, loginWithProvider, authLoading, updateUser } = useAuth();
   const [user, setUser] = useState(null);
   const [myPosts, setMyPosts] = useState([]);
   const myPostsRef = useRef(myPosts);
   const [earnedBadges, setEarnedBadges] = useState([]);
   const [representativeBadge, setRepresentativeBadge] = useState(null);
+  const [pendingRepresentativeBadge, setPendingRepresentativeBadge] = useState(null);
+  const [repBadgeSaving, setRepBadgeSaving] = useState(false);
   const [showBadgeSelector, setShowBadgeSelector] = useState(false);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -517,25 +520,11 @@ const ProfileScreen = () => {
     const badges = userId ? getEarnedBadgesForUser(String(userId), null) : [];
     logger.log('🏆 프로필 화면 - 획득한 뱃지(초기):', badges.length);
 
-    // 대표 뱃지 로드 (반드시 획득한 뱃지 중에서 선택)
-    let savedRepBadgeJson = null;
-    let repBadge = null;
-    if (savedRepBadgeJson) {
-      try {
-        repBadge = JSON.parse(savedRepBadgeJson);
-      } catch {
-        repBadge = null;
-      }
-    }
-
-    // 저장된 대표 뱃지가 있지만, "획득 목록을 실제로 불러온 뒤" 목록에 없으면 무효 처리
-    // (초기 로딩/동기화 타이밍에 badges가 비어 대표뱃지가 지워지는 문제 방지)
-    if (repBadge && badges.length > 0 && !badges.some(b => b.name === repBadge.name)) {
-      repBadge = null;
-    }
-
+    const repBadge = resolveRepresentativeBadge(authUser?.representativeBadge, badges);
     if (repBadge) {
       setRepresentativeBadge(repBadge);
+    } else {
+      setRepresentativeBadge(null);
     }
 
     // 목업/테스트 게시물 흔적 제거 후 내 게시물 로드 (Supabase + localStorage 병합 → 로그아웃 후 재로그인해도 기록 유지)
@@ -1465,36 +1454,56 @@ const ProfileScreen = () => {
   }, [activeTab, selectedSavedRoute]);
 
   // 대표 뱃지 선택
-  const selectRepresentativeBadge = (badge) => {
-    const currentUser = user || authUser;
-    const userId = currentUser?.id;
-    void userId;
-    setRepresentativeBadge(badge);
+  const openRepresentativeBadgeSelector = () => {
+    if (earnedBadges.length === 0) {
+      alert('아직 획득한 뱃지가 없습니다.');
+      return;
+    }
+    setPendingRepresentativeBadge(representativeBadge);
+    setShowBadgeSelector(true);
+  };
+
+  const closeRepresentativeBadgeSelector = () => {
+    setPendingRepresentativeBadge(representativeBadge);
     setShowBadgeSelector(false);
-
-    // user 정보 업데이트
-    if (currentUser) {
-      const updatedUser = { ...currentUser, representativeBadge: badge };
-      setUser(updatedUser);
-    }
-
-    logger.log('✅ 대표 뱃지 선택:', badge.name);
   };
 
-  // 대표 뱃지 제거
-  const removeRepresentativeBadge = () => {
+  const saveRepresentativeBadgeSelection = async () => {
     const currentUser = user || authUser;
     const userId = currentUser?.id;
-    void userId;
-    setRepresentativeBadge(null);
+    if (!userId) return;
 
-    if (currentUser) {
-      const updatedUser = { ...currentUser, representativeBadge: null };
-      setUser(updatedUser);
+    const next = pendingRepresentativeBadge;
+    if (next && !earnedBadges.some((b) => String(b?.name || '') === String(next?.name || ''))) {
+      alert('획득한 뱃지 중에서만 대표 뱃지를 설정할 수 있습니다.');
+      return;
     }
 
-    logger.log('❌ 대표 뱃지 제거');
+    setRepBadgeSaving(true);
+    try {
+      const updatedUser = { ...currentUser, representativeBadge: next ?? null };
+      await updateUser(updatedUser);
+      setUser(updatedUser);
+      setRepresentativeBadge(next ?? null);
+      setPendingRepresentativeBadge(next ?? null);
+      setShowBadgeSelector(false);
+      logger.log('✅ 대표 뱃지 저장:', next?.name || '없음');
+    } catch (e) {
+      logger.warn('대표 뱃지 저장 실패:', e?.message || e);
+      alert('대표 뱃지 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setRepBadgeSaving(false);
+    }
   };
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const userId = (authUser || user)?.id;
+    if (!userId) return;
+    const repBadge = resolveRepresentativeBadge(authUser?.representativeBadge, earnedBadges);
+    setRepresentativeBadge(repBadge);
+    setPendingRepresentativeBadge(repBadge);
+  }, [isAuthenticated, authUser?.id, authUser?.representativeBadge, earnedBadges, user?.id]);
 
 
   const badgeCount = earnedBadges.length;
@@ -1691,13 +1700,7 @@ const ProfileScreen = () => {
 
                     {/* 대표 뱃지 - 클릭 가능 */}
                     <button
-                      onClick={() => {
-                        if (earnedBadges.length > 0) {
-                          setShowBadgeSelector(true);
-                        } else {
-                          alert('아직 획득한 뱃지가 없습니다.');
-                        }
-                      }}
+                      onClick={openRepresentativeBadgeSelector}
                       disabled={earnedBadges.length === 0}
                       className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed max-w-[140px]"
                       title={representativeBadge ? (getBadgeDisplayName(representativeBadge) || representativeBadge.name) : '뱃지 없음'}
@@ -2445,7 +2448,7 @@ const ProfileScreen = () => {
               <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
                 <h2 className="text-lg font-bold">대표 뱃지 선택</h2>
                 <button
-                  onClick={() => setShowBadgeSelector(false)}
+                  onClick={closeRepresentativeBadgeSelector}
                   className="px-3 h-8 flex items-center justify-center rounded-full text-xs font-medium text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800"
                 >
                   닫기
@@ -2454,9 +2457,10 @@ const ProfileScreen = () => {
 
               {/* 뱃지 리스트 */}
               <div className="p-4 max-h-[60vh] overflow-y-auto">
-                {representativeBadge && (
+                {pendingRepresentativeBadge && (
                   <button
-                    onClick={removeRepresentativeBadge}
+                    type="button"
+                    onClick={() => setPendingRepresentativeBadge(null)}
                     className="w-full mb-3 p-3 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-800 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-red-500 text-sm font-semibold"
                   >
                     대표 뱃지 제거
@@ -2467,8 +2471,9 @@ const ProfileScreen = () => {
                   {earnedBadges.map((badge, index) => (
                     <button
                       key={index}
-                      onClick={() => selectRepresentativeBadge(badge)}
-                      className={`p-4 rounded-xl border-2 transition-all ${representativeBadge?.name === badge.name
+                      type="button"
+                      onClick={() => setPendingRepresentativeBadge(badge)}
+                      className={`p-4 rounded-xl border-2 transition-all ${pendingRepresentativeBadge?.name === badge.name
                           ? 'bg-gradient-to-br from-primary/20 to-accent/20 border-primary shadow-lg'
                           : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500'
                         }`}
@@ -2488,6 +2493,17 @@ const ProfileScreen = () => {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="p-4 border-t border-gray-200 dark:border-gray-800">
+                <button
+                  type="button"
+                  onClick={saveRepresentativeBadgeSelection}
+                  disabled={repBadgeSaving}
+                  className="w-full h-11 rounded-xl bg-primary text-white font-semibold disabled:opacity-60"
+                >
+                  {repBadgeSaving ? '저장 중...' : '저장하기'}
+                </button>
               </div>
             </div>
           </div>

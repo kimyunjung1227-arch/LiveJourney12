@@ -14,7 +14,9 @@ import { getStoredUploadWeather } from '../utils/weatherSnapshot';
 import { getTimeAgo } from '../utils/dateUtils';
 import { deleteCommentFromPost, updateCommentInPost, getPostAccuracyCount, hasUserMarkedAccurate, toggleAccuracyFeedback } from '../utils/socialInteractions';
 import { getBadgeDisplayName, getEarnedBadgesForUser } from '../utils/badgeSystem';
+import { parseRepresentativeBadgeFromProfileRow, resolveRepresentativeBadge } from '../utils/representativeBadge';
 import { fetchLiveSyncPctSupabase } from '../api/liveSyncSupabase';
+import { fetchProfileByIdSupabase } from '../api/profilesSupabase';
 import { follow, unfollow, isFollowing } from '../utils/followSystem';
 import { notifyFollowingStarted, notifyLike, sendNotificationToUser } from '../utils/notifications';
 import { mergeCommentsWithCache, setCommentsCacheForPost } from '../utils/postCommentsCache';
@@ -1053,27 +1055,41 @@ const PostDetailScreen = () => {
       const badges = getEarnedBadgesForUser(postUserId, postsForAuthor) || [];
       setUserBadges(badges);
 
-      let repBadge = null;
-      if (!repBadge && badges.length > 0) {
-        repBadge = badges[0];
+      let storedRepBadge = null;
+      try {
+        const profileRow = await fetchProfileByIdSupabase(authorId);
+        storedRepBadge = parseRepresentativeBadgeFromProfileRow(profileRow);
+      } catch {
+        storedRepBadge = null;
       }
-      if (!repBadge) {
-        const fallbackBadgeName =
-          (post?.user && typeof post.user === 'object' && post.user.badges?.[0]) ||
-          post?.badge ||
-          null;
-        if (fallbackBadgeName) {
-          repBadge = { name: fallbackBadgeName, icon: '🏅' };
-        }
-      }
-      if (repBadge) {
-        setRepresentativeBadge(repBadge);
-      }
+
+      const repBadge = resolveRepresentativeBadge(storedRepBadge, badges);
+      setRepresentativeBadge(repBadge);
 
       const pct = await fetchLiveSyncPctSupabase(authorId || null);
       setAuthorLiveSync(pct);
     })();
   }, [post]);
+
+  useEffect(() => {
+    if (!post) return undefined;
+
+    const postUserId =
+      post?.userId ||
+      (typeof post?.user === 'string' ? post.user : post?.user?.id) ||
+      post?.user;
+    if (!postUserId) return undefined;
+
+    const authorId = String(postUserId);
+    const onRepresentativeBadgeUpdated = (event) => {
+      const detail = event?.detail || {};
+      if (String(detail.userId || '') !== authorId) return;
+      setRepresentativeBadge(resolveRepresentativeBadge(detail.badge ?? null, userBadges));
+    };
+
+    window.addEventListener('representativeBadgeUpdated', onRepresentativeBadgeUpdated);
+    return () => window.removeEventListener('representativeBadgeUpdated', onRepresentativeBadgeUpdated);
+  }, [post, userBadges]);
 
   // 초기 데이터 로드
   useEffect(() => {
