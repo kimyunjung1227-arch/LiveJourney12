@@ -1,8 +1,5 @@
 import React from 'react';
 
-const BADGE_CHIP_CLASS =
-  'text-[11px] font-semibold px-2 py-1 rounded-full border bg-primary/10 dark:bg-primary/15 border-primary/25 text-primary';
-
 function getLiveSyncMeta(pct) {
   const msg =
     pct >= 90 ? '실시간 동기화 완료' :
@@ -13,15 +10,17 @@ function getLiveSyncMeta(pct) {
   if (pct >= 90) {
     return {
       msg,
-      barGradient: 'linear-gradient(90deg, rgba(2,132,199,1), rgba(14,165,233,1))',
-      barShadow: '0 0 18px rgba(14,165,233,0.35)',
+      chipClass: 'bg-orange-50 dark:bg-orange-950/40 border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-300',
+      barColor: '#EA580C',
+      barShadow: '0 0 18px rgba(234, 88, 12, 0.35)',
     };
   }
 
   if (pct >= 70) {
     return {
       msg,
-      barGradient: 'linear-gradient(90deg, rgba(14,165,233,1), rgba(56,189,248,1))',
+      chipClass: 'bg-green-50 dark:bg-green-950/35 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300',
+      barColor: '#22C55E',
       barShadow: 'none',
     };
   }
@@ -29,14 +28,25 @@ function getLiveSyncMeta(pct) {
   if (pct >= 40) {
     return {
       msg,
-      barGradient: 'linear-gradient(90deg, rgba(125,211,252,1), rgba(148,163,184,1))',
+      chipClass: 'bg-blue-50 dark:bg-blue-950/35 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300',
+      barColor: '#3B82F6',
+      barShadow: 'none',
+    };
+  }
+
+  if (pct >= 25) {
+    return {
+      msg,
+      chipClass: 'bg-blue-50/80 dark:bg-blue-950/25 border-blue-300 dark:border-blue-900 text-blue-800 dark:text-blue-200',
+      barColor: '#1D4ED8',
       barShadow: 'none',
     };
   }
 
   return {
     msg,
-    barGradient: 'linear-gradient(90deg, rgba(251,146,60,1), rgba(253,186,116,1))',
+    chipClass: 'bg-slate-100 dark:bg-slate-900/60 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200',
+    barColor: '#334155',
     barShadow: 'none',
   };
 }
@@ -50,7 +60,7 @@ export default function ProfileLiveSyncSection({
   footerAction = null,
 }) {
   const pct = typeof liveSync === 'number' ? liveSync : 50;
-  const { msg, barGradient, barShadow } = getLiveSyncMeta(pct);
+  const { msg, chipClass, barColor, barShadow } = getLiveSyncMeta(pct);
 
   return (
     <div className={`pt-2 pb-3 ${className}`.trim()}>
@@ -74,7 +84,9 @@ export default function ProfileLiveSyncSection({
 
       <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50/90 dark:bg-gray-900/60 px-3.5 py-3">
         <div className="flex w-full items-center justify-end">
-          <span className={`inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap ${BADGE_CHIP_CLASS}`}>
+          <span
+            className={`inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap text-[11px] font-semibold px-2 py-1 rounded-full border ${chipClass}`}
+          >
             <span>{pct}%</span>
             <span className="opacity-40" aria-hidden>
               ·
@@ -89,7 +101,7 @@ export default function ProfileLiveSyncSection({
               className="h-full rounded-full transition-all duration-300"
               style={{
                 width: `${Math.max(0, Math.min(100, pct))}%`,
-                background: barGradient,
+                backgroundColor: barColor,
                 boxShadow: barShadow,
               }}
             />
