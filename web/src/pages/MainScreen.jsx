@@ -28,6 +28,7 @@ import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import { toggleLikeForPost } from '../utils/postLikeActions';
 import { fetchRafflesForUi } from '../api/rafflesSupabase';
+import { RAFFLE_UI_ENABLED } from '../config/featureFlags';
 import { generatePlaceAiBlurb } from '../utils/placeAiBlurb';
 import { getValidWeatherSnapshot } from '../utils/weatherSnapshot';
 import { useLoginGate } from '../hooks/useLoginGate';
@@ -607,6 +608,7 @@ const MainScreen = () => {
 
     // 진행 중 래플 존재 여부: 메인 상단 "래플" 버튼 강조 + 점 표시
     useEffect(() => {
+        if (!RAFFLE_UI_ENABLED) return undefined;
         let cancelled = false;
         const load = async () => {
             try {
@@ -836,6 +838,7 @@ const MainScreen = () => {
                         >
                             Live Journey
                         </span>
+                        {RAFFLE_UI_ENABLED ? (
                         <button
                             type="button"
                             onClick={() => navigate('/raffle')}
@@ -919,6 +922,7 @@ const MainScreen = () => {
                                 </>
                             )}
                         </button>
+                        ) : null}
                     </div>
                     {/* 중앙 검색창 */}
                     <button

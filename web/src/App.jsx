@@ -9,6 +9,7 @@ import SosAlertBanner from './components/SosAlertBanner'
 import { cleanLegacyUploadedPosts } from './utils/localStorageManager'
 import BadgeEarnedNavigator from './components/BadgeEarnedNavigator'
 import RootSeo from './components/RootSeo'
+import { RAFFLE_UI_ENABLED } from './config/featureFlags'
 
 // GitHub Pages/정적 호스팅에서 간헐적으로 index.html과 assets 해시가 불일치(캐시)하면
 // lazy chunk 로딩이 "text/html" MIME(404/SPA fallback)로 떨어지며 동적 import가 실패한다.
@@ -188,8 +189,17 @@ function App() {
                 <Route path="/badge-achievement/:badgeId" element={<BadgeAchievementScreen />} />
                 <Route path="/badge/achievement" element={<BadgeAchievementScreen />} />
                 <Route path="/coupons" element={<MyCouponsScreen />} />
-                <Route path="/raffle" element={<RaffleScreen />} />
-                <Route path="/raffle/guide" element={<RaffleGuideScreen />} />
+                {RAFFLE_UI_ENABLED ? (
+                  <>
+                    <Route path="/raffle" element={<RaffleScreen />} />
+                    <Route path="/raffle/guide" element={<RaffleGuideScreen />} />
+                  </>
+                ) : (
+                  <>
+                    <Route path="/raffle" element={<Navigate to="/main" replace />} />
+                    <Route path="/raffle/guide" element={<Navigate to="/main" replace />} />
+                  </>
+                )}
                 <Route path="/notifications" element={<NotificationsScreen />} />
                 <Route path="/notices" element={<NoticesScreen />} />
                 <Route path="/faq" element={<FAQScreen />} />
