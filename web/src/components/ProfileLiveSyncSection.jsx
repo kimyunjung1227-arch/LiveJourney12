@@ -1,5 +1,13 @@
 import React from 'react';
 
+const BRAND = {
+  primary: '#26C6DA',
+  primaryDark: '#00BCD4',
+  accent: '#FFC107',
+  cyan: '#00ACC1',
+  muted: '#94A3B8',
+};
+
 function getLiveSyncMeta(pct) {
   const msg =
     pct >= 90 ? '실시간 동기화 완료' :
@@ -10,26 +18,26 @@ function getLiveSyncMeta(pct) {
   if (pct >= 90) {
     return {
       msg,
-      chipClass: 'bg-orange-50 dark:bg-orange-950/40 border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-300',
-      barColor: '#EA580C',
-      barShadow: '0 0 18px rgba(234, 88, 12, 0.35)',
+      chipClass: 'bg-accent/15 dark:bg-accent/20 border-accent/35 dark:border-accent/40 text-accent-dark dark:text-accent',
+      barColor: BRAND.accent,
+      barShadow: '0 0 18px rgba(255, 193, 7, 0.35)',
     };
   }
 
   if (pct >= 70) {
     return {
       msg,
-      chipClass: 'bg-green-50 dark:bg-green-950/35 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300',
-      barColor: '#22C55E',
-      barShadow: 'none',
+      chipClass: 'bg-primary/15 dark:bg-primary/20 border-primary/30 dark:border-primary/35 text-primary-dark dark:text-primary',
+      barColor: BRAND.primary,
+      barShadow: '0 0 16px rgba(38, 198, 218, 0.28)',
     };
   }
 
   if (pct >= 40) {
     return {
       msg,
-      chipClass: 'bg-blue-50 dark:bg-blue-950/35 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300',
-      barColor: '#3B82F6',
+      chipClass: 'bg-primary/10 dark:bg-primary/15 border-primary/25 dark:border-primary/30 text-primary-dark dark:text-primary',
+      barColor: BRAND.primaryDark,
       barShadow: 'none',
     };
   }
@@ -37,16 +45,16 @@ function getLiveSyncMeta(pct) {
   if (pct >= 25) {
     return {
       msg,
-      chipClass: 'bg-blue-50/80 dark:bg-blue-950/25 border-blue-300 dark:border-blue-900 text-blue-800 dark:text-blue-200',
-      barColor: '#1D4ED8',
+      chipClass: 'bg-secondary-5-soft/80 dark:bg-secondary-5/15 border-secondary-5/25 dark:border-secondary-5/35 text-secondary-5-dark dark:text-secondary-5',
+      barColor: BRAND.cyan,
       barShadow: 'none',
     };
   }
 
   return {
     msg,
-    chipClass: 'bg-slate-100 dark:bg-slate-900/60 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200',
-    barColor: '#334155',
+    chipClass: 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-text-secondary-light dark:text-text-secondary-dark',
+    barColor: BRAND.muted,
     barShadow: 'none',
   };
 }
