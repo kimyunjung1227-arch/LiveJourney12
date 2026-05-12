@@ -5,17 +5,6 @@ import BottomNavigation from '../components/BottomNavigation';
 import { useAuth } from '../contexts/AuthContext';
 import { getEarnedBadgesForUser, getBadgeDisplayName } from '../utils/badgeSystem';
 import LiveBadgeMedallion from '../components/LiveBadgeMedallion';
- 
-
-const getPostUserId = (post) => {
-  let uid = post?.userId;
-  if (!uid && typeof post?.user === 'string') uid = post.user;
-  if (!uid && post?.user && typeof post.user === 'object') {
-    uid = post.user.id || post.user.userId || post.user._id;
-  }
-  if (!uid) uid = post?.user;
-  return uid != null ? String(uid) : '';
-};
 
 function sortBadges(badges) {
   if (!Array.isArray(badges)) return [];
@@ -26,6 +15,46 @@ function sortBadges(badges) {
     return String(a?.name || '').localeCompare(String(b?.name || ''));
   });
 }
+
+const BADGE_SECTIONS = [
+  {
+    key: 'region',
+    title: '지역 인장',
+    description: '특정 지역의 실시간 정보를 꾸준히 올리면 성장하는 인장이에요.',
+    matches: (b) =>
+      String(b?.name || '').startsWith('dyn:region:') || String(b?.category || '').includes('지역'),
+  },
+  {
+    key: 'nature',
+    title: '자연·풍경',
+    description: '개화 상태와 절경 컨디션을 공유하며 성장하는 인장이에요.',
+    matches: (b) => b?.category === '자연·풍경',
+  },
+  {
+    key: 'hotplace',
+    title: '명소·핫플',
+    description: '랜드마크와 맛집·카페의 인파·대기 정보를 정복하는 인장이에요.',
+    matches: (b) => b?.category === '명소·핫플',
+  },
+  {
+    key: 'hidden',
+    title: '숨은 명소',
+    description: '미등록 장소를 발굴하고 기록하는 모험형 인장이에요.',
+    matches: (b) => b?.category === '숨은 명소',
+  },
+  {
+    key: 'night',
+    title: '심야 가이드',
+    description: '늦은 밤과 야경의 실시간 상황을 전하는 특수 인장이에요.',
+    matches: (b) => b?.category === '심야 가이드',
+  },
+  {
+    key: 'support',
+    title: '여행 응원',
+    description: '커뮤니티에 도움을 주며 성장하는 인장이에요.',
+    matches: (b) => b?.category === '여행 응원',
+  },
+];
 
 const EarnedBadgesScreen = () => {
   const navigate = useNavigate();
@@ -39,25 +68,18 @@ const EarnedBadgesScreen = () => {
 
   const [loading, setLoading] = useState(true);
   const [badges, setBadges] = useState([]);
-  const [screenTitle, setScreenTitle] = useState('획득한 뱃지');
   const [profileName, setProfileName] = useState('사용자');
   const [profileImage, setProfileImage] = useState(null);
 
-  const setRepresentativeBadge = useCallback((badge) => {
-    if (!badge) return;
-    // 서버 운영 전환: 대표 뱃지는 Supabase(user_badges / profile) 기준으로만 유지
-    void badge;
-  }, [authUser?.id]);
-
   const sortedBadges = useMemo(() => sortBadges(badges), [badges]);
-  const groupedBadges = useMemo(() => {
-    const isRegion = (b) =>
-      String(b?.name || '').startsWith('dyn:region:') || String(b?.category || '').includes('지역');
-    const isTheme = (b) => !isRegion(b); // 시즌/가치 등
-    const regionBadges = sortedBadges.filter(isRegion);
-    const themeBadges = sortedBadges.filter(isTheme);
-    return { regionBadges, themeBadges };
-  }, [sortedBadges]);
+  const badgeSections = useMemo(
+    () =>
+      BADGE_SECTIONS.map((section) => ({
+        ...section,
+        items: sortedBadges.filter(section.matches),
+      })).filter((section) => section.items.length > 0),
+    [sortedBadges]
+  );
 
   const loadLocalPostsForUser = useCallback((uid) => {
     try {
@@ -84,20 +106,18 @@ const EarnedBadgesScreen = () => {
           setBadges(passedBadges);
         } else {
           const localPosts = loadLocalPostsForUser(uid);
-        if (cancelled) return;
+          if (cancelled) return;
           const list = getEarnedBadgesForUser(uid, localPosts.length ? localPosts : null) || [];
           setBadges(list);
         }
 
         if (isSelf) {
           const name = authUser?.username || '나';
-          setScreenTitle(name ? `${name}님의 뱃지` : '내 뱃지');
           setProfileName(name || '나');
           setProfileImage(authUser?.profileImage || null);
         } else {
           const hint = location.state?.profileHint || null;
           const name = hint?.username || '사용자';
-          setScreenTitle(`${name}님의 뱃지`);
           setProfileName(name);
           setProfileImage(hint?.profileImage || null);
         }
@@ -128,7 +148,6 @@ const EarnedBadgesScreen = () => {
             </div>
           ) : (
             <>
-              {/* 프로필 정보 */}
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800 flex-shrink-0">
                   {profileImage ? (
@@ -136,11 +155,9 @@ const EarnedBadgesScreen = () => {
                   ) : null}
                 </div>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm font-bold text-text-primary-light dark:text-text-primary-dark truncate">
-                      {profileName || '사용자'}
-                    </span>
-                  </div>
+                  <span className="text-sm font-bold text-text-primary-light dark:text-text-primary-dark truncate">
+                    {profileName || '사용자'}
+                  </span>
                 </div>
               </div>
 
@@ -150,20 +167,16 @@ const EarnedBadgesScreen = () => {
                 </p>
               ) : (
                 <div className="space-y-10">
-                  <section>
-                    <h2 className="text-sm font-extrabold text-text-primary-light dark:text-text-primary-dark mb-1">
-                      지역 인장
-                    </h2>
-                    <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mb-4">
-                      특정 지역의 실시간 정보를 꾸준히 올리면 성장하는 인장이에요.
-                    </p>
-                    {groupedBadges.regionBadges.length === 0 ? (
-                      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-950/20 px-4 py-8 text-center text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                        인장이 없습니다.
-                      </div>
-                    ) : (
+                  {badgeSections.map((section) => (
+                    <section key={section.key}>
+                      <h2 className="text-sm font-extrabold text-text-primary-light dark:text-text-primary-dark mb-1">
+                        {section.title}
+                      </h2>
+                      <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mb-4">
+                        {section.description}
+                      </p>
                       <div className="grid grid-cols-3 gap-5 sm:grid-cols-4">
-                        {groupedBadges.regionBadges.map((badge, index) => {
+                        {section.items.map((badge, index) => {
                           const label = getBadgeDisplayName(badge) || badge?.name || '뱃지';
                           const icon = badge?.icon;
                           return (
@@ -195,56 +208,8 @@ const EarnedBadgesScreen = () => {
                           );
                         })}
                       </div>
-                    )}
-                  </section>
-
-                  <section>
-                    <h2 className="text-sm font-extrabold text-text-primary-light dark:text-text-primary-dark mb-1">
-                      테마 인장
-                    </h2>
-                    <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark mb-4">
-                      계절 한정(연·시즌)과 여행 응원·기타 테마로 성장하는 인장이에요.
-                    </p>
-                    {groupedBadges.themeBadges.length === 0 ? (
-                      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-950/20 px-4 py-8 text-center text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                        인장이 없습니다.
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-3 gap-5 sm:grid-cols-4">
-                        {groupedBadges.themeBadges.map((badge, index) => {
-                          const label = getBadgeDisplayName(badge) || badge?.name || '뱃지';
-                          const icon = badge?.icon;
-                          return (
-                            <button
-                              key={`${badge?.name || 'b'}-${index}`}
-                              type="button"
-                              onClick={() =>
-                                navigate(`/badge/live/${encodeURIComponent(String(badge?.name || ''))}`, {
-                                  state: { badge },
-                                })
-                              }
-                              className="flex flex-col items-center text-left"
-                            >
-                              <LiveBadgeMedallion
-                                badgeName={badge?.name}
-                                tier={badge?.difficulty}
-                                icon={icon}
-                                gradientCss={badge?.gradientCss}
-                                size={64}
-                                className="mb-2"
-                              />
-                              <span
-                                className="text-[11px] font-semibold text-center px-2 py-1 rounded-full border bg-primary/10 dark:bg-primary/15 border-primary/25 text-primary truncate w-full"
-                                title={label}
-                              >
-                                {label}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </section>
+                    </section>
+                  ))}
                 </div>
               )}
             </>

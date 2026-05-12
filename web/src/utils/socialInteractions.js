@@ -5,7 +5,6 @@
 
 import api from '../api/axios';
 import { awardBadge, getEarnedBadges, BADGES } from './badgeSystem';
-import { getTrustRawScore, getTrustGrade, getTrustBadgeIdForScore } from './trustIndex';
 import { logger } from './logger';
 import { notifyComment } from './notifications';
 

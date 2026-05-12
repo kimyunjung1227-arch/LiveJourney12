@@ -1,11 +1,10 @@
 /**
  * 라이브저니 뱃지 시스템 v5.0
- * 동적 뱃지: 계절 한정(연·SM) / 지역 / 여행 응원(커뮤니티) + 신뢰지수 연동
+ * 동적 뱃지: 지역 / 카테고리 테마 / 여행 응원
  * - [지역명] 뱃지: regionAware + opts.region 저장 → getBadgeDisplayName으로 "[지역명] 가이드" 등 표기
  * - Supabase user_badges 연동: 로그아웃 후 재로그인해도 획득 뱃지·활동 통계 유지
  */
 import { logger } from './logger';
-import { getTrustRawScore } from './trustIndex';
 import { fetchUserBadgesSupabase, saveUserBadgeSupabase } from '../api/userBadgesSupabase';
 import { normalizeRegionName } from './regionNames';
 import { getTripSupportStats } from './tripSupportActivity';
@@ -49,24 +48,26 @@ export const getBadgeDisplayName = (badge) => {
 const REGION_AWARE_NAMES = ['지역 가이드', '지역 톡파원', '지역 마스터'];
 const DYNAMIC_BADGE_PREFIX = 'dyn:';
 
+const isSeasonDynBadgeName = (name) => {
+  const n = String(name || '');
+  if (!n.startsWith(DYNAMIC_BADGE_PREFIX)) return false;
+  const raw = n.slice(DYNAMIC_BADGE_PREFIX.length);
+  return raw.startsWith('sm:') || raw.startsWith('season:');
+};
+
 const makeTone = (from, to) => ({ from, to });
 
 const toneForDynamic = (name) => {
   const n = String(name || '');
   if (!n.startsWith(DYNAMIC_BADGE_PREFIX)) return null;
-  // season (Y:sm:YEAR:cherry / legacy :season:cherry)
-  if (n.includes(':sm:') && n.includes(':cherry:')) return makeTone('#FB7185', '#F43F5E');
-  if (n.includes(':sm:') && n.includes(':foliage:')) return makeTone('#FB923C', '#D97706');
-  if (n.includes(':sm:') && n.includes(':snow:')) return makeTone('#7DD3FC', '#2563EB');
-  if (n.includes(':sm:') && n.includes(':sea:')) return makeTone('#22D3EE', '#2563EB');
-  if (n.includes(':season:cherry:')) return makeTone('#FB7185', '#F43F5E');
-  if (n.includes(':season:foliage:')) return makeTone('#FB923C', '#D97706');
-  if (n.includes(':season:snow:')) return makeTone('#7DD3FC', '#2563EB');
-  if (n.includes(':season:sea:')) return makeTone('#22D3EE', '#2563EB');
   // support
   if (n.includes(':support:guardian')) return makeTone('#34D399', '#047857');
   if (n.includes(':support:pathfinder')) return makeTone('#A78BFA', '#5B21B6');
   if (n.includes(':support:lucky')) return makeTone('#FBBF24', '#B45309');
+  // theme tiers
+  if (n.includes(':theme:') && n.endsWith(':tier3')) return makeTone('#FBBF24', '#B45309');
+  if (n.includes(':theme:') && n.endsWith(':tier2')) return makeTone('#38BDF8', '#6366F1');
+  if (n.includes(':theme:') && n.endsWith(':tier1')) return makeTone('#94A3B8', '#64748B');
   // region tiers
   if (n.includes(':region:') && n.endsWith(':tier3')) return makeTone('#9333EA', '#C026D3'); // purple/fuchsia
   if (n.includes(':region:') && n.endsWith(':tier2')) return makeTone('#06B6D4', '#2563EB'); // cyan/blue
@@ -74,38 +75,26 @@ const toneForDynamic = (name) => {
   return makeTone('#6B7280', '#374151');
 };
 
-const SEASON_LABELS_KO = { cherry: '봄', sea: '여름', foliage: '가을', snow: '겨울' };
-const TIER_TITLES = { 1: '의 시작', 2: '의 파수꾼', 3: '의 주인' };
-const TIER_ICONS = { cherry: '🌸', sea: '🌊', foliage: '🍁', snow: '❄️' };
-
 const decodeDynamicName = (name) => {
   const n = String(name || '');
   if (!n.startsWith(DYNAMIC_BADGE_PREFIX)) return null;
   const raw = n.slice(DYNAMIC_BADGE_PREFIX.length);
   const parts = raw.split(':');
-  // sm:YEAR:cherry:tierX (Standardized Season Master)
-  if (parts[0] === 'sm' && /^\d{4}$/.test(String(parts[1] || ''))) {
-    const year = parts[1];
-    const id = parts[2];
+  // theme:<group>:<sub>:tierX
+  if (parts[0] === 'theme' && parts.length >= 4) {
+    const trackKey = `${parts[1]}:${parts[2]}`;
     const tier = Number(String(parts[3] || '').replace(/^tier/, '')) || 1;
-    const sLabel = SEASON_LABELS_KO[id] || '';
-    const title = TIER_TITLES[tier] || TIER_TITLES[1];
-    const displayName = `${year} ${sLabel}${title}`;
-    const icon = TIER_ICONS[id] || '🏅';
-    return { kind: 'seasonMastery', year, id, tier, displayName, icon, category: '계절 한정' };
-  }
-  // season:<id>:tierX (레거시, 연도 없음)
-  if (parts[0] === 'season' && !/^\d{4}$/.test(String(parts[1] || ''))) {
-    const id = parts[1];
-    const tier = Number(String(parts[2] || '').replace(/^tier/, '')) || 1;
-    const map = {
-      cherry: ['벚꽃 탐색가', '벚꽃 헌터', '벚꽃 사랑꾼'],
-      foliage: ['단풍 관찰자', '단풍 스나이퍼', '낙엽 기록가'],
-      snow: ['첫눈 목격자', '설경 스나이퍼', '겨울왕국 통치자'],
-      sea: ['파도 추적자', '서핑 스카우트', '오션 가디언'],
-    };
-    const icon = { cherry: '🌸', foliage: '🍁', snow: '❄️', sea: '🌊' }[id] || '🏅';
-    return { kind: 'season', id, tier, displayName: (map[id] || [])[tier - 1] || (map[id] || [])[0] || '시즌 뱃지', icon, category: '시즌 (레거시)' };
+    const track = findThemeTrack(trackKey);
+    if (track) {
+      return {
+        kind: 'theme',
+        trackKey,
+        tier,
+        displayName: track.labels[tier - 1] || track.labels[0],
+        icon: track.icons[tier - 1] || track.icons[0],
+        category: track.category,
+      };
+    }
   }
   // region:<region>:tierX
   if (parts[0] === 'region') {
@@ -223,30 +212,6 @@ const IMPORTANT_INFO_TAGS = [
 
 const normalizeTagText = (v) => String(v || '').replace(/^#/, '').replace(/\s+/g, '').trim();
 
-const normalizeLoose = (v) => String(v || '').replace(/^#+/, '').replace(/\s+/g, ' ').trim().toLowerCase();
-
-const getPostBlobLower = (p) => {
-  const tags = Array.isArray(p?.tags) ? p.tags : (p?.tags ? [p.tags] : []);
-  const ai = Array.isArray(p?.aiLabels) ? p.aiLabels : (p?.aiLabels ? [p.aiLabels] : []);
-  const tagStr = [...tags, ...ai]
-    .map((x) => (typeof x === 'string' ? x : (x?.name || x?.label || '')))
-    .join(' ');
-  const loc = [p?.placeName, p?.detailedLocation, typeof p?.location === 'string' ? p.location : '', p?.region]
-    .filter(Boolean)
-    .join(' ');
-  const cat = String(p?.categoryName || p?.category || '').trim();
-  const txt = getPostText(p);
-  return normalizeLoose(`${tagStr} ${loc} ${cat} ${txt}`);
-};
-
-const matchesAny = (blobLower, keywords = []) => {
-  if (!blobLower) return false;
-  return (keywords || []).some((kw) => {
-    const k = normalizeLoose(kw);
-    return k && blobLower.includes(k);
-  });
-};
-
 const isImportantInfoPost = (p) => {
   // "명확한 행동" 기준: 태그(또는 카테고리)로 중요정보를 표시한 경우만 카운트
   const tags = Array.isArray(p?.tags) ? p.tags : (p?.tags ? [p.tags] : []);
@@ -262,83 +227,297 @@ const isNightPost = (p) => {
   return h >= 20 || h <= 5;
 };
 
-/** 시즌별 키워드(=해당 시즌 '카테고리' 실시간 제보로 간주) */
-const SEASON_KW = {
-  cherry: ['벚꽃', '개화', '만개', '봄꽃', '벚꽃길', '벚꽃축제'],
-  foliage: ['단풍', '낙엽', '단풍절정', '단풍길', '단풍명소'],
-  snow: ['첫눈', '눈', '설경', '적설', '빙판', '결빙', '눈길', '폭설', '겨울', '한파'],
-  sea: ['바다', '해변', '파도', '수온', '서핑', '해수욕장', '윤슬', '물멍', '여름', '휴가'],
+const normalizeLoose = (v) => String(v || '').replace(/^#+/, '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+const getPostBlobLower = (p) => {
+  const tags = Array.isArray(p?.tags) ? p.tags : (p?.tags ? [p.tags] : []);
+  const ai = Array.isArray(p?.aiLabels) ? p.aiLabels : (p?.aiLabels ? [p.aiLabels] : []);
+  const aiCats = Array.isArray(p?.aiCategories) ? p.aiCategories : [];
+  const tagStr = [...tags, ...ai]
+    .map((x) => (typeof x === 'string' ? x : (x?.name || x?.label || '')))
+    .join(' ');
+  const loc = [p?.placeName, p?.detailedLocation, typeof p?.location === 'string' ? p.location : '', p?.region]
+    .filter(Boolean)
+    .join(' ');
+  const cat = String(p?.categoryName || p?.category || p?.aiCategoryName || p?.aiCategory || '').trim();
+  const txt = getPostText(p);
+  return normalizeLoose(`${tagStr} ${loc} ${cat} ${txt} ${aiCats.join(' ')}`);
 };
 
-const getSeasonMetaForDate = (d) => {
-  const m = d.getMonth() + 1;
-  const y = d.getFullYear();
-  if (m >= 3 && m <= 5) return { seasonYear: y, seasonId: 'cherry', label: '봄' };
-  if (m >= 6 && m <= 8) return { seasonYear: y, seasonId: 'sea', label: '여름' };
-  if (m >= 9 && m <= 11) return { seasonYear: y, seasonId: 'foliage', label: '가을' };
-  if (m === 12) return { seasonYear: y, seasonId: 'snow', label: '겨울' };
-  return { seasonYear: y - 1, seasonId: 'snow', label: '겨울' };
+const blobMatches = (p, keywords = []) => {
+  const blob = getPostBlobLower(p);
+  if (!blob) return false;
+  return (keywords || []).some((kw) => {
+    const k = normalizeLoose(kw);
+    return k && blob.includes(k);
+  });
 };
 
-/**
- * 해당 연·시즌 창(한정) 내에서만 뱃지 획득 가능. 시즌 종료 후에는 신규 지급 경로만 차단.
- * winter(seasonYear): 12/1(년 Y) ~ 다음해 2/말(년 Y+1, 겨울 '라벨'은 Y)
- */
-const isSeasonEarningOpen = (seasonYear, seasonId, now = new Date()) => {
-  if (!seasonId || !Number.isFinite(Number(seasonYear))) return false;
-  const y = Number(seasonYear);
-  if (seasonId === 'cherry') {
-    return now >= new Date(y, 2, 1) && now <= new Date(y, 4, 31, 23, 59, 59, 999);
-  }
-  if (seasonId === 'sea') {
-    return now >= new Date(y, 5, 1) && now <= new Date(y, 7, 31, 23, 59, 59, 999);
-  }
-  if (seasonId === 'foliage') {
-    return now >= new Date(y, 8, 1) && now <= new Date(y, 10, 30, 23, 59, 59, 999);
-  }
-  if (seasonId === 'snow') {
-    const start = new Date(y, 11, 1);
-    const end = new Date(y + 1, 2, 0, 23, 59, 59, 999);
-    return now >= start && now <= end;
-  }
-  return false;
+const hasPostCategory = (p, slugs = []) => {
+  const list = (Array.isArray(slugs) ? slugs : [slugs]).map((s) => normalizeLoose(s)).filter(Boolean);
+  if (!list.length) return false;
+  const values = [
+    p?.category,
+    p?.aiCategory,
+    ...(Array.isArray(p?.categories) ? p.categories : []),
+    ...(Array.isArray(p?.aiCategories) ? p.aiCategories : []),
+  ]
+    .map((v) => normalizeLoose(v))
+    .filter(Boolean);
+  return values.some((v) => list.includes(v));
 };
 
-const computeSeasonMasteryRows = (posts = []) => {
-  const map = new Map();
+const isLiveWindowPost = (p) => {
+  const created = getPostCreatedAtMs(p);
+  const captured = getPostCapturedAtMs(p);
+  if (created && captured && Math.abs(created - captured) <= 10 * 60 * 1000) return true;
+  if (!created) return false;
+  return (Date.now() - created) / (60 * 60 * 1000) <= 48;
+};
+
+const isCrowdWaitingShare = (p) =>
+  hasWaitingTag(p) || blobMatches(p, ['인파', '혼잡', '오픈런', '대기', '웨이팅', '줄서기', '만석']);
+
+const isLiveNatureConditionPost = (p) =>
+  isLiveWindowPost(p) && blobMatches(p, ['개화', '만개', '절정', '파도', '수온', '실시간', '현황', '조건', '상태']);
+
+const isUnregisteredPlacePost = (p) => {
+  if (p?.placeId || p?.place_id || p?.poiId || p?.poi_id) return false;
+  const poi = getPostPoiKey(p);
+  return !!poi && hasGps(p);
+};
+
+const getDistrictKey = (p) => {
+  const raw = [p?.detailedLocation, typeof p?.location === 'string' ? p.location : '', p?.placeName, p?.region]
+    .filter(Boolean)
+    .join(' ');
+  const m = String(raw || '').match(/(\S+[구동](?:\s|$))/);
+  if (m?.[1]) return normalizeLoose(m[1]);
+  const region = p?.region ? normalizeRegionName(p.region) : '';
+  return region || null;
+};
+
+const NATURE_BLOOM_KW = ['벚꽃', '개화', '만개', '꽃', '봄꽃', '꽃길', '개화상황', '개화상태'];
+const NATURE_SCENIC_KW = ['바다', '해변', '절경', '파도', '설경', '단풍', '일출', '일몰', '뷰', '전망', '오션'];
+const HOT_LANDMARK_KW = ['랜드마크', '명소', '전망대', '타워', '궁', '성', '핫플'];
+const HOT_FOOD_KW = ['맛집', '카페', '식당', '디저트', '브런치', '오픈런', '웨이팅', '대기'];
+
+const matchesNatureBloom = (p) => hasPostCategory(p, ['bloom']) || blobMatches(p, NATURE_BLOOM_KW);
+const matchesNatureScenic = (p) => hasPostCategory(p, ['scenic']) || blobMatches(p, NATURE_SCENIC_KW);
+const matchesHotLandmark = (p) => hasPostCategory(p, ['landmark']) || blobMatches(p, HOT_LANDMARK_KW);
+const matchesHotFood = (p) => hasPostCategory(p, ['food']) || blobMatches(p, HOT_FOOD_KW);
+
+const THEME_TRACKS = [
+  {
+    key: 'nature:bloom',
+    category: '자연·풍경',
+    labels: ['꽃눈인사', '개화 가이드', '꽃의 전령사'],
+    icons: ['🌱', '🌸', '💐'],
+    tones: [
+      { from: '#86EFAC', to: '#22C55E' },
+      { from: '#F9A8D4', to: '#EC4899' },
+      { from: '#FB7185', to: '#BE123C' },
+    ],
+    requirements: [
+      { posts: 3, short: '꽃·개화 관련 제보 3회' },
+      { posts: 15, helpful: 50, short: '제보 15회 + 도움돼요 50' },
+      { posts: 40, liveCondition: 10, short: '제보 40회 + 실시간 개화 현황 10회' },
+    ],
+  },
+  {
+    key: 'nature:scenic',
+    category: '자연·풍경',
+    labels: ['풍경 배달부', '뷰 마스터', '절경의 수호자'],
+    icons: ['🌊', '🏞️', '🌅'],
+    tones: [
+      { from: '#7DD3FC', to: '#2563EB' },
+      { from: '#5EEAD4', to: '#0D9488' },
+      { from: '#FDE68A', to: '#D97706' },
+    ],
+    requirements: [
+      { posts: 3, short: '바다·절경 관련 제보 3회' },
+      { posts: 15, helpful: 50, short: '제보 15회 + 도움돼요 50' },
+      { posts: 40, liveCondition: 10, short: '제보 40회 + 실시간 파도·풍경 현황 10회' },
+    ],
+  },
+  {
+    key: 'hotplace:landmark',
+    category: '명소·핫플',
+    labels: ['체크인 초보', '웨이팅 해결사', '핫플 정복자'],
+    icons: ['📍', '⏱️', '🏙️'],
+    tones: [
+      { from: '#CBD5E1', to: '#475569' },
+      { from: '#FDE047', to: '#CA8A04' },
+      { from: '#F472B6', to: '#9333EA' },
+    ],
+    requirements: [
+      { posts: 5, short: '주요 POI 제보 5회' },
+      { crowdShares: 20, short: '인파·대기 정보 공유 20회' },
+      { posts: 50, districtLeader: true, short: '제보 50회 + 동·구 단위 점유율 1위' },
+    ],
+  },
+  {
+    key: 'hotplace:food',
+    category: '명소·핫플',
+    labels: ['미식 탐험가', '오픈런 대장', '동네 가이드'],
+    icons: ['🍽️', '☕', '🍜'],
+    tones: [
+      { from: '#FDBA74', to: '#EA580C' },
+      { from: '#FCD34D', to: '#B45309' },
+      { from: '#FCA5A5', to: '#DC2626' },
+    ],
+    requirements: [
+      { posts: 5, short: '맛집·카페 POI 제보 5회' },
+      { crowdShares: 20, short: '웨이팅·오픈런 정보 공유 20회' },
+      { posts: 50, districtLeader: true, short: '제보 50회 + 동·구 단위 점유율 1위' },
+    ],
+  },
+  {
+    key: 'hidden:pioneer',
+    category: '숨은 명소',
+    labels: ['초보 모험가', '로컬 큐레이터', '개척자'],
+    icons: ['🔍', '📍', '🚩'],
+    tones: [
+      { from: '#A7F3D0', to: '#059669' },
+      { from: '#93C5FD', to: '#1D4ED8' },
+      { from: '#C4B5FD', to: '#6D28D9' },
+    ],
+    requirements: [
+      { unregistered: 1, short: '미등록 장소 첫 제보 1회' },
+      { unregistered: 10, hiddenVisitors: 1, short: '미등록 장소 제보 10회 + 방문자 발생' },
+      { unregistered: 30, hiddenSaves: 100, short: '미등록 장소 제보 30회 + 저장·도움돼요 100' },
+    ],
+  },
+  {
+    key: 'night:guide',
+    category: '심야 가이드',
+    labels: ['심야 입문', '야경 중계자', '어둠의 여행자'],
+    icons: ['🌙', '🌃', '✨'],
+    tones: [
+      { from: '#94A3B8', to: '#334155' },
+      { from: '#818CF8', to: '#4338CA' },
+      { from: '#FDE68A', to: '#7C3AED' },
+    ],
+    requirements: [
+      { posts: 3, short: '심야·야경 실시간 제보 3회' },
+      { posts: 15, helpful: 30, short: '심야 제보 15회 + 도움돼요 30' },
+      { posts: 30, liveCondition: 10, short: '심야 제보 30회 + 실시간 야간 현황 10회' },
+    ],
+  },
+];
+
+const THEME_TRACK_MATCHERS = {
+  'nature:bloom': matchesNatureBloom,
+  'nature:scenic': matchesNatureScenic,
+  'hotplace:landmark': matchesHotLandmark,
+  'hotplace:food': matchesHotFood,
+  'hidden:pioneer': isUnregisteredPlacePost,
+  'night:guide': isNightPost,
+};
+
+const createEmptyThemeTrackStats = () => ({
+  posts: 0,
+  helpful: 0,
+  liveCondition: 0,
+  crowdShares: 0,
+  unregistered: 0,
+  hiddenVisitors: 0,
+  hiddenSaves: 0,
+  byDistrict: {},
+});
+
+const computeThemeTrackStats = (posts = []) => {
+  const tracks = Object.fromEntries(THEME_TRACKS.map((t) => [t.key, createEmptyThemeTrackStats()]));
+  const hiddenVisitDates = new Map();
+
   for (const p of posts || []) {
-    const ms = getPostCreatedAtMs(p) || getPostCapturedAtMs(p) || 0;
-    if (!ms) continue;
-    const d = new Date(ms);
-    const meta = getSeasonMetaForDate(d);
-    const blob = getPostBlobLower(p);
-    if (!matchesAny(blob, SEASON_KW[meta.seasonId])) continue;
-    const k = `${meta.seasonYear}:${meta.seasonId}`;
-    if (!map.has(k)) {
-      map.set(k, { seasonYear: meta.seasonYear, seasonId: meta.seasonId, postCount: 0, helpfulSum: 0, uniquePois: new Set() });
+    const helpful = getPostHelpfulCount(p);
+    for (const track of THEME_TRACKS) {
+      const matcher = THEME_TRACK_MATCHERS[track.key];
+      if (!matcher?.(p)) continue;
+      const row = tracks[track.key];
+      row.posts += 1;
+      row.helpful += helpful;
+      if (isLiveNatureConditionPost(p)) row.liveCondition += 1;
+      if (track.key.startsWith('hotplace:') && isCrowdWaitingShare(p)) row.crowdShares += 1;
+      if (track.key.startsWith('hotplace:')) {
+        const district = getDistrictKey(p);
+        if (district) row.byDistrict[district] = (row.byDistrict[district] || 0) + 1;
+      }
+      if (track.key === 'hidden:pioneer') {
+        row.unregistered += 1;
+        row.hiddenSaves += helpful;
+        const poi = getPostPoiKey(p) || 'hidden';
+        const d = new Date(getPostCreatedAtMs(p) || Date.now()).toDateString();
+        if (!hiddenVisitDates.has(poi)) hiddenVisitDates.set(poi, new Set());
+        hiddenVisitDates.get(poi).add(d);
+      }
+      if (track.key === 'night:guide' && isLiveWindowPost(p)) row.liveCondition += 1;
     }
-    const row = map.get(k);
-    row.postCount += 1;
-    row.helpfulSum += getPostHelpfulCount(p);
-    const pk = getPostPoiKey(p) || (p?.coordinates ? 'gps' : null);
-    if (pk) row.uniquePois.add(pk);
   }
-  return Array.from(map.values()).map((r) => ({
-    ...r,
-    uniqueLocationCount: r.uniquePois instanceof Set ? r.uniquePois.size : 0,
-  }));
+
+  const hiddenRow = tracks['hidden:pioneer'];
+  hiddenRow.hiddenVisitors = [...hiddenVisitDates.values()].filter((dates) => dates.size >= 2).length;
+
+  for (const key of ['hotplace:landmark', 'hotplace:food']) {
+    const row = tracks[key];
+    const entries = Object.entries(row.byDistrict || {});
+    if (!entries.length) {
+      row.districtLeader = false;
+      row.topDistrict = null;
+      continue;
+    }
+    const [topDistrict, topCount] = entries.sort((a, b) => b[1] - a[1])[0];
+    row.topDistrict = topDistrict;
+    row.topDistrictCount = topCount;
+    row.districtLeader = row.posts >= 50 && topCount >= Math.ceil(row.posts * 0.5);
+  }
+
+  return tracks;
 };
 
-const tierForSeasonMastery = (postCount, helpfulSum, uniqueLocationCount) => {
-  if (postCount >= 30 && uniqueLocationCount >= 10) return { tier: 3, target: 30 };
-  if (postCount >= 15 && helpfulSum >= 20) return { tier: 2, target: 15, needsHelp: true };
-  if (postCount >= 5) return { tier: 1, target: 5 };
-  return { tier: 0, target: 5 };
+const meetsThemeRequirement = (row, req) => {
+  if (!row || !req) return false;
+  if (req.posts != null && (Number(row.posts) || 0) < req.posts) return false;
+  if (req.helpful != null && (Number(row.helpful) || 0) < req.helpful) return false;
+  if (req.liveCondition != null && (Number(row.liveCondition) || 0) < req.liveCondition) return false;
+  if (req.crowdShares != null && (Number(row.crowdShares) || 0) < req.crowdShares) return false;
+  if (req.unregistered != null && (Number(row.unregistered) || 0) < req.unregistered) return false;
+  if (req.hiddenVisitors != null && (Number(row.hiddenVisitors) || 0) < req.hiddenVisitors) return false;
+  if (req.hiddenSaves != null && (Number(row.hiddenSaves) || 0) < req.hiddenSaves) return false;
+  if (req.districtLeader && !row.districtLeader) return false;
+  return true;
 };
+
+const resolveThemeTier = (row, requirements = []) => {
+  let tier = 0;
+  for (let i = 0; i < requirements.length; i += 1) {
+    if (meetsThemeRequirement(row, requirements[i])) tier = i + 1;
+  }
+  if (tier === 0 && (Number(row?.posts) || 0) > 0) tier = 1;
+  return tier;
+};
+
+const themeProgressFor = (row, req) => {
+  if (!row || !req) return 0;
+  const parts = [];
+  if (req.posts) parts.push(Math.min(1, (Number(row.posts) || 0) / req.posts));
+  if (req.helpful) parts.push(Math.min(1, (Number(row.helpful) || 0) / req.helpful));
+  if (req.liveCondition) parts.push(Math.min(1, (Number(row.liveCondition) || 0) / req.liveCondition));
+  if (req.crowdShares) parts.push(Math.min(1, (Number(row.crowdShares) || 0) / req.crowdShares));
+  if (req.unregistered) parts.push(Math.min(1, (Number(row.unregistered) || 0) / req.unregistered));
+  if (req.hiddenVisitors) parts.push(Math.min(1, (Number(row.hiddenVisitors) || 0) / req.hiddenVisitors));
+  if (req.hiddenSaves) parts.push(Math.min(1, (Number(row.hiddenSaves) || 0) / req.hiddenSaves));
+  if (req.districtLeader) parts.push(row.districtLeader ? 1 : Math.min(1, (Number(row.posts) || 0) / (req.posts || 50)));
+  if (!parts.length) return 0;
+  return Math.min(100, (parts.reduce((sum, v) => sum + v, 0) / parts.length) * 100);
+};
+
+const findThemeTrack = (trackKey) => THEME_TRACKS.find((t) => t.key === trackKey) || null;
 
 /**
  * 정적(고정) 뱃지 정의는 제거하고, 동적(성장형) 뱃지만 운영합니다.
- * - 시즌/지역/가치 3축 + 3단계 성장형
+ * - 지역 / 여행 응원 2축 + 3단계 성장형
  * - 미획득은 기본 미노출(활동으로 진행이 생기면 자연스럽게 등장)
  */
 export const BADGE_PROGRESS_DETAIL = {};
@@ -461,9 +640,9 @@ export const calculateUserStats = (posts = [], user = {}) => {
     return Math.abs(created - captured) <= 10 * 60 * 1000;
   }).length;
 
-  const seasonMastery = computeSeasonMasteryRows(posts);
   const uid = user?.id || user?._id;
   const tripSupport = getTripSupportStats(uid);
+  const themeTracks = computeThemeTrackStats(posts);
 
   const stats = {
     totalPosts: (posts || []).length,
@@ -486,8 +665,8 @@ export const calculateUserStats = (posts = [], user = {}) => {
     waitingShares,
     fastUploads,
 
-    seasonMastery,
     tripSupport,
+    themeTracks,
 
     totalInfoViews: 0,
     preventedFailFeedback: 0,
@@ -507,27 +686,14 @@ export const calculateUserStats = (posts = [], user = {}) => {
     uniquePlaces,
     photoPosts,
     nightPosts,
-
-    // 신뢰지수는 "현재 사용자 + posts(=Supabase+로컬 병합)" 기준으로 계산해야 누적이 유지됨
-    trustScore: (() => {
-      try {
-        const uid = user?.id || user?._id;
-        if (!uid) return getTrustRawScore();
-        return getTrustRawScore(String(uid), posts || []);
-      } catch {
-        return getTrustRawScore();
-      }
-    })()
   };
 
-  logger.log(`✅ 통계 계산 완료: 총 ${stats.totalPosts}개 게시물, ${stats.visitedRegions}개 지역, 신뢰지수 ${stats.trustScore}`);
+  logger.log(`✅ 통계 계산 완료: 총 ${stats.totalPosts}개 게시물, ${stats.visitedRegions}개 지역`);
   return stats;
 };
 
 /**
- * 동적(성장형) 뱃지: 계절 한정(연도) / 지역 / 여행 응원
- * - badge.name: dyn:sm:YEAR:cherry:tier1 … (Standardized Season Master)
- * - 가치 테마(48h) 는 제거
+ * 동적(성장형) 뱃지: 지역 / 여행 응원
  */
 const buildDynamicBadges = (stats) => {
   const s = stats || null;
@@ -539,100 +705,7 @@ const buildDynamicBadges = (stats) => {
     out.push({ ...b, name, dynamic: true });
   };
 
-  // 1) 계절 한정(연·시즌 동일 룰, 획득은 시즌 창 안에서만)
-  const rows = Array.isArray(s.seasonMastery) ? s.seasonMastery : [];
-  rows.forEach((row) => {
-    const y = row.seasonYear;
-    const sid = row.seasonId;
-    const postCount = Number(row.postCount) || 0;
-    const helpfulSum = Number(row.helpfulSum) || 0;
-    const uLoc = Number(row.uniqueLocationCount) || 0;
-    if (!sid || !Number.isFinite(Number(y)) || postCount < 1) return;
-
-    const tinfo = tierForSeasonMastery(postCount, helpfulSum, uLoc);
-    const displayTier = tinfo.tier > 0 ? tinfo.tier : 1;
-    const sLabel = SEASON_LABELS_KO[sid] || '';
-    const year = String(y);
-    const makeTitle = (tier) => `${year} ${sLabel}${TIER_TITLES[tier] || TIER_TITLES[1]}`;
-
-    const base = (tier) => ({
-      displayName: makeTitle(tier),
-      icon: TIER_ICONS[sid] || '🏅',
-      category: '계절 한정',
-      difficulty: tier,
-      seasonEarning: { year: y, id: sid },
-      seasonLimited: true,
-    });
-
-    if (displayTier >= 3) {
-      mk(`sm:${year}:${sid}:tier3`, {
-        ...base(3),
-        description:
-          '같은 연·시즌(3개월) 동안 키워드가 맞는 실시간 제보 30회 + 그 시즌 글 기준으로 서로 다른 10곳(장소). 이 연도 시즌이 끝나면 획득 불가.',
-        tone: toneForDynamic(`${DYNAMIC_BADGE_PREFIX}sm:${year}:${sid}:tier3`),
-        gradientCss: (() => {
-          const t = toneForDynamic(`${DYNAMIC_BADGE_PREFIX}sm:${year}:${sid}:tier3`);
-          return t ? `linear-gradient(135deg, ${t.from}, ${t.to})` : undefined;
-        })(),
-        condition: (st) => {
-          const m = (st.seasonMastery || []).find((g) => g.seasonYear === y && g.seasonId === sid) || row;
-          return (Number(m.postCount) || 0) >= 30 && (Number(m.uniqueLocationCount) || 0) >= 10;
-        },
-        getProgress: (st) => {
-          const m = (st.seasonMastery || []).find((g) => g.seasonYear === y && g.seasonId === sid) || row;
-          return Math.min(100, Math.min((Number(m.postCount) || 0) / 30, (Number(m.uniqueLocationCount) || 0) / 10) * 100);
-        },
-        progressCurrent: postCount,
-        progressTarget: 30,
-        shortCondition: `제보 30 + 장소 10(서로 다름) · ${year} ${sLabel}`,
-      });
-    } else if (displayTier === 2) {
-      mk(`sm:${year}:${sid}:tier2`, {
-        ...base(2),
-        description:
-          '같은 연·시즌에 키워드 실시간 제보 15회 + 그 제보에 받은 도움됨(좋아요) 20(시즌 누적). 시즌 종료 후 획득 불가.',
-        tone: toneForDynamic(`${DYNAMIC_BADGE_PREFIX}sm:${year}:${sid}:tier2`),
-        gradientCss: (() => {
-          const t = toneForDynamic(`${DYNAMIC_BADGE_PREFIX}sm:${year}:${sid}:tier2`);
-          return t ? `linear-gradient(135deg, ${t.from}, ${t.to})` : undefined;
-        })(),
-        condition: (st) => {
-          const m = (st.seasonMastery || []).find((g) => g.seasonYear === y && g.seasonId === sid) || row;
-          return (Number(m.postCount) || 0) >= 15 && (Number(m.helpfulSum) || 0) >= 20;
-        },
-        getProgress: (st) => {
-          const m = (st.seasonMastery || []).find((g) => g.seasonYear === y && g.seasonId === sid) || row;
-          return Math.min(100, Math.min((Number(m.postCount) || 0) / 15, (Number(m.helpfulSum) || 0) / 20) * 100);
-        },
-        progressCurrent: postCount,
-        progressTarget: 15,
-        shortCondition: `제보 15 + 도움됨(좋아요) 20(시즌) · ${year} ${sLabel}`,
-      });
-    } else {
-      mk(`sm:${year}:${sid}:tier1`, {
-        ...base(1),
-        description: '같은 연·시즌에 시즌 키워드가 포함된 실시간 제보 5회. 이 연도 시즌이 끝나면 획득 불가.',
-        tone: toneForDynamic(`${DYNAMIC_BADGE_PREFIX}sm:${year}:${sid}:tier1`),
-        gradientCss: (() => {
-          const t = toneForDynamic(`${DYNAMIC_BADGE_PREFIX}sm:${year}:${sid}:tier1`);
-          return t ? `linear-gradient(135deg, ${t.from}, ${t.to})` : undefined;
-        })(),
-        condition: (st) => {
-          const m = (st.seasonMastery || []).find((g) => g.seasonYear === y && g.seasonId === sid) || row;
-          return (Number(m.postCount) || 0) >= 5;
-        },
-        getProgress: (st) => {
-          const m = (st.seasonMastery || []).find((g) => g.seasonYear === y && g.seasonId === sid) || row;
-          return Math.min(100, ((Number(m.postCount) || 0) / 5) * 100);
-        },
-        progressCurrent: postCount,
-        progressTarget: 5,
-        shortCondition: `시즌 실시간 제보 5회(키워드) · ${year} ${sLabel}`,
-      });
-    }
-  });
-
-  // 2) 지역 테마 (전국 지역: "활동한 지역만" 자연 노출)
+  // 1) 지역 테마 (전국 지역: "활동한 지역만" 자연 노출)
   const regionCounts = s.regionCountsByName && typeof s.regionCountsByName === 'object' ? s.regionCountsByName : {};
   const regionMeta = s.regionRealtimeMeta && typeof s.regionRealtimeMeta === 'object' ? s.regionRealtimeMeta : {};
   const regionStages = [
@@ -705,7 +778,7 @@ const buildDynamicBadges = (stats) => {
       );
     });
 
-  // 3) 여행 응원(커뮤니티) — session tripSupport
+  // 2) 여행 응원(커뮤니티) — session tripSupport
   const ts = s.tripSupport || {};
   const safety = Math.max(0, Number(ts.safetySupport) || 0);
   const cheer = Math.max(0, Number(ts.cheerReactions) || 0);
@@ -780,6 +853,43 @@ const buildDynamicBadges = (stats) => {
     });
   }
 
+  // 3) 카테고리 성장형 테마
+  const themeRows = s.themeTracks && typeof s.themeTracks === 'object' ? s.themeTracks : {};
+  THEME_TRACKS.forEach((track) => {
+    const row = themeRows[track.key] || createEmptyThemeTrackStats();
+    const hasProgress =
+      (Number(row.posts) || 0) > 0 ||
+      (Number(row.crowdShares) || 0) > 0 ||
+      (Number(row.unregistered) || 0) > 0;
+    if (!hasProgress) return;
+
+    const tier = resolveThemeTier(row, track.requirements);
+    const req = track.requirements[Math.max(0, tier - 1)] || track.requirements[0];
+    const tone = track.tones[Math.max(0, tier - 1)] || track.tones[0];
+    const dynKey = `theme:${track.key.replace(':', ':')}:tier${tier}`;
+    const dynName = `${DYNAMIC_BADGE_PREFIX}theme:${track.key.split(':')[0]}:${track.key.split(':')[1]}:tier${tier}`;
+
+    mk(`theme:${track.key}:tier${tier}`, {
+      displayName: track.labels[Math.max(0, tier - 1)] || track.labels[0],
+      description:
+        tier >= 3
+          ? `${track.category}의 최고 단계 인장입니다. 실시간 현장 정보로 여행자의 선택을 돕는 검증된 기록가예요.`
+          : `${track.category} 활동을 쌓으며 성장하는 인장입니다. 다음 단계 조건을 확인해 보세요.`,
+      icon: track.icons[Math.max(0, tier - 1)] || track.icons[0],
+      category: track.category,
+      difficulty: tier,
+      tone,
+      gradientCss: tone ? `linear-gradient(135deg, ${tone.from}, ${tone.to})` : undefined,
+      condition: (st) => meetsThemeRequirement((st.themeTracks || {})[track.key], req),
+      getProgress: (st) => themeProgressFor((st.themeTracks || {})[track.key], req),
+      progressCurrent: Number(row.posts) || Number(row.crowdShares) || Number(row.unregistered) || 0,
+      progressTarget: req.posts || req.crowdShares || req.unregistered || req.liveCondition || req.hiddenSaves || 1,
+      progressUnit: '회',
+      shortCondition: req.short,
+      masterTier: tier >= 3,
+    });
+  });
+
   return out;
 };
 
@@ -808,9 +918,7 @@ export const checkNewBadges = (stats) => {
       // 조건 확인
       try {
         const meetsCondition = badgeInfo.condition(stats);
-        const se = badgeInfo.seasonEarning;
-        const earningOk = !se || isSeasonEarningOpen(se.year, se.id);
-        if (meetsCondition && earningOk) {
+        if (meetsCondition) {
           newBadges.push(badgeInfo);
           logger.log(`🎉 새 뱃지 획득 가능: ${badgeName} (${badgeInfo.category} 카테고리)`);
         }
@@ -942,7 +1050,7 @@ export const syncEarnedBadgesFromSupabase = async (userId) => {
 export const getEarnedBadges = () => {
   try {
     const list = getEarnedBadgesCacheForUser()
-      .filter((b) => b?.name)
+      .filter((b) => b?.name && !isSeasonDynBadgeName(b.name))
       .map((b) => {
         const hydrated = hydrateBadgeFromName(b.name);
         return hydrated ? { ...hydrated, ...b } : b;
@@ -1001,7 +1109,7 @@ export const getEarnedBadgesFromStats = (stats) => {
   const dynamicBadges = buildDynamicBadges(stats);
   for (const badgeInfo of dynamicBadges) {
     const badgeName = badgeInfo?.name;
-    if (!badgeName) continue;
+    if (!badgeName || isSeasonDynBadgeName(badgeName)) continue;
     if (badgeInfo.hidden) continue;
     try {
       if (badgeInfo.condition(stats)) {
@@ -1017,7 +1125,7 @@ export const getEarnedBadgesFromStats = (stats) => {
 };
 
 /**
- * 특정 유저의 획득/추정 뱃지 (표시용, 신뢰지수 등급 제외)
+ * 특정 유저의 획득/추정 뱃지 (표시용)
  * @param {string} userId
  * @param {Array|null} posts - 해당 유저 게시물이 있으면 통계로 뱃지 추정(타인 프로필). 없으면 본인만 로컬 저장 뱃지.
  */
@@ -1068,12 +1176,9 @@ export const getAvailableBadges = (stats = null) => {
   // "미획득 뱃지 미노출": 획득했거나, 활동으로 진행도가 생긴 뱃지만 반환
   return merged.filter((b) => {
     if (!b) return false;
+    if (isSeasonDynBadgeName(b.name)) return false;
     const isEarned = !!b.isEarned || earnedSet.has(String(b.name));
     if (isEarned) return true;
-    const se = b.seasonEarning;
-    if (se && !isSeasonEarningOpen(se.year, se.id)) {
-      return false;
-    }
     if (!stats) return false;
     const cur = typeof b.progressCurrent === 'number' ? b.progressCurrent : 0;
     const prog = typeof b.progress === 'number' ? b.progress : getBadgeProgress(b.name, stats);
@@ -1087,8 +1192,11 @@ export const getAvailableBadges = (stats = null) => {
 export const getBadgeStats = () => {
   const earnedBadges = getEarnedBadgesForDisplay();
   const categoryCounts = {
-    '계절 한정': earnedBadges.filter((b) => b.category === '계절 한정').length,
     '지역 테마': earnedBadges.filter((b) => b.category === '지역 테마').length,
+    '자연·풍경': earnedBadges.filter((b) => b.category === '자연·풍경').length,
+    '명소·핫플': earnedBadges.filter((b) => b.category === '명소·핫플').length,
+    '숨은 명소': earnedBadges.filter((b) => b.category === '숨은 명소').length,
+    '심야 가이드': earnedBadges.filter((b) => b.category === '심야 가이드').length,
     '여행 응원': earnedBadges.filter((b) => b.category === '여행 응원').length,
   };
   return { total: earnedBadges.length, categoryCounts };

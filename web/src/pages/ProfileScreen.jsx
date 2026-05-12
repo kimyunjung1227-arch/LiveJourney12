@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 const LONG_PRESS_MS = 450;
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -9,7 +9,6 @@ import { getUnreadCount, notifyFollowingStarted, getActorHintsFromNotificationsC
 import { getEarnedBadgesForUser, getBadgeDisplayName } from '../utils/badgeSystem';
 import ProfileInjangSection from '../components/ProfileInjangSection';
 import ProfileLiveSyncSection from '../components/ProfileLiveSyncSection';
-import { getLiveSyncPercentRounded, getLiveSyncPercent, TRUST_GRADES } from '../utils/trustIndex';
 import { getCoordinatesByLocation } from '../utils/regionLocationMapping';
 import {
   follow,
@@ -351,7 +350,6 @@ const ProfileScreen = () => {
   const [followListPostPool, setFollowListPostPool] = useState([]);
   /** 팔로우 목록 모달: profiles 테이블 조회 결과(닉네임/아바타/bio) */
   const [followListProfiles, setFollowListProfiles] = useState({});
-  const [showTrustGradesModal, setShowTrustGradesModal] = useState(false);
   const [trustExplainOpen, setTrustExplainOpen] = useState(false);
   // 내 사진 탭 보기 방식: 'date' | 'custom'
   // 기본은 "모아보기"가 먼저 보이도록 custom으로 설정
@@ -1818,10 +1816,7 @@ const ProfileScreen = () => {
             <ProfileLiveSyncSection
               liveSync={liveSync}
               explainOpen={trustExplainOpen}
-              onToggleExplain={() => {
-                setShowTrustGradesModal(false);
-                setTrustExplainOpen((v) => !v);
-              }}
+              onToggleExplain={() => setTrustExplainOpen((v) => !v)}
               explainText={(
                 <>
                   <span className="font-semibold">라이브 싱크</span>는 내 게시물이 <span className="font-semibold">현장과 얼마나 동기화</span>되어 있는지(시차가 적은지)를 %로 보여줘요. 실시간 촬영·업로드, 도움돼요(좋아요), 지역에서의 꾸준한 업데이트가 높이고, 과거 사진·불일치 리포트는 낮춰요.
@@ -2649,76 +2644,6 @@ const ProfileScreen = () => {
           </div>
         )}
 
-        {/* (legacy) 신뢰지수 등급 전체 보기 모달 */}
-        {showTrustGradesModal && (
-          <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
-            onClick={() => setShowTrustGradesModal(false)}
-            role="dialog"
-            aria-modal="true"
-            aria-label="신뢰지수 등급"
-          >
-            <div
-              className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm shadow-xl overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">신뢰지수 등급</h2>
-                <button
-                  type="button"
-                  onClick={() => setShowTrustGradesModal(false)}
-                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"
-                  aria-label="닫기"
-                >
-                  <span className="material-symbols-outlined text-xl">close</span>
-                </button>
-              </div>
-              <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
-                <div className="mb-4 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setTrustExplainOpen((v) => !v)}
-                    className="w-full flex items-center justify-between gap-2 p-3 text-left hover:bg-gray-200/50 dark:hover:bg-gray-700/50 transition-colors"
-                    aria-expanded={trustExplainOpen}
-                  >
-                    <span className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">점수가 어떻게 올라가나요?</span>
-                    <span className={`material-symbols-outlined text-lg text-gray-500 dark:text-gray-400 transition-transform ${trustExplainOpen ? 'rotate-180' : ''}`} aria-hidden>expand_more</span>
-                  </button>
-                  {trustExplainOpen && (
-                    <div className="px-3 pb-3 pt-0 border-t border-gray-200 dark:border-gray-700">
-                      <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside pt-2">
-                        <li>게시물 업로드 (많을수록 가산)</li>
-                        <li>GPS·위치 인증된 글 작성</li>
-                        <li>상세한 캡션(50자 이상)</li>
-                        <li>다른 사람에게 &apos;정확해요&apos; 받기</li>
-                        <li>최근 48시간 이내 업로드 보너스</li>
-                      </ul>
-                    </div>
-                  )}
-                </div>
-                {(() => {
-                  const uid = (authUser || user)?.id;
-                  const rawModal = getTrustRawScore(uid ? String(uid) : null, myPosts.length ? myPosts : null);
-                  const { grade: currentGrade } = getTrustGrade(rawModal, uid ? String(uid) : null, myPosts.length ? myPosts : null);
-                  const currentGradeId = currentGrade?.id;
-                  return TRUST_GRADES.map((g) => {
-                    return (
-                  <div
-                    key={g.id}
-                    className={`flex flex-col gap-1 py-3 px-3 rounded-xl ${currentGradeId === g.id ? 'bg-primary/10 dark:bg-primary/20 border border-primary/30' : 'bg-gray-50 dark:bg-gray-800'}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl" aria-hidden>{g.icon}</span>
-                      <span className="text-sm font-medium text-text-primary-light dark:text-text-primary-dark">{g.name}</span>
-                    </div>
-                  </div>
-                    );
-                  });
-                })()}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       <BottomNavigation />

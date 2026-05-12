@@ -16,8 +16,8 @@ function frameStyleForTier(tier) {
   if (tier === 3) {
     return {
       backgroundImage:
-        'conic-gradient(from 210deg, rgba(168,85,247,1), rgba(34,211,238,1), rgba(59,130,246,1), rgba(192,38,211,1), rgba(168,85,247,1))',
-      boxShadow: '0 10px 30px rgba(168,85,247,0.22)',
+        'conic-gradient(from 210deg, rgba(251,191,36,1), rgba(245,158,11,1), rgba(234,179,8,1), rgba(217,119,6,1), rgba(251,191,36,1))',
+      boxShadow: '0 12px 34px rgba(245,158,11,0.28)',
     };
   }
   if (tier === 2) {
@@ -53,7 +53,7 @@ export default function LiveBadgeMedallion({
 
   return (
     <div
-      className={`relative inline-flex shrink-0 rounded-full ${className}`}
+      className={`relative inline-flex shrink-0 rounded-full ${tier === 3 ? 'animate-pulse' : ''} ${className}`}
       style={{
         width: size,
         height: size,

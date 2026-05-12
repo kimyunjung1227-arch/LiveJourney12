@@ -6,9 +6,11 @@ import { getBadgeDisplayName, hydrateBadgeFromName } from '../utils/badgeSystem'
 import LiveBadgeMedallion from '../components/LiveBadgeMedallion';
 
 const TIER_THRESHOLDS = {
-  sm: [5, 15, 30],
-  season: [1, 3, 6],
   region: [5, 20, 50],
+  theme: [3, 15, 40],
+  hotplace: [5, 20, 50],
+  hidden: [1, 10, 30],
+  night: [3, 15, 30],
 };
 
 function parseDynMeta(name) {
@@ -78,7 +80,13 @@ const LiveBadgeDetailScreen = () => {
   const nextLabel = next ? getBadgeDisplayName(next) || next?.displayName || next?.name : null;
 
   const kind = meta?.kind || null;
-  const thresholds = kind && TIER_THRESHOLDS[kind] ? TIER_THRESHOLDS[kind] : null;
+  const themeGroup = kind === 'theme' ? meta?.parts?.[1] : null;
+  const thresholds =
+    kind === 'theme' && themeGroup && TIER_THRESHOLDS[themeGroup]
+      ? TIER_THRESHOLDS[themeGroup]
+      : kind && TIER_THRESHOLDS[kind]
+        ? TIER_THRESHOLDS[kind]
+        : null;
   const currentTier = Number(meta?.tier || 1);
   const nextTarget = thresholds ? thresholds[Math.min(2, currentTier)] : (current?.progressTarget || null);
   const curCount = typeof current?.progressCurrent === 'number' ? current.progressCurrent : 0;
