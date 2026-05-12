@@ -34,3 +34,37 @@ export function getDefaultOgImageUrl() {
   const base = getPublicBaseUrl()
   return new URL(SEO_DEFAULT.ogImageFilename, `${base}/`).href
 }
+
+/** 주요 화면별 검색 스니펫·사이트링크 후보 URL과 일치시키는 문구 */
+export const PAGE_SEO = {
+  main: {
+    title: "지금 여기는 · 라이브저니 홈",
+    description:
+      "메인 피드에서 여행지의 지금 날씨·현장·인파를 실시간 제보로 확인하세요. 지금 여기는·실시간 핫플·추천 코스를 한곳에서.",
+    path: "/main",
+  },
+  crowdedPlace: {
+    title: "실시간 핫플 · 라이브저니",
+    description:
+      "지금 반응이 뜨거운 여행지·핫플을 실시간 순위와 현장 제보로 확인하고, 장소별 게시물을 모아 볼 수 있습니다.",
+    path: "/crowded-place",
+  },
+  map: {
+    title: "지도 · 라이브저니",
+    description:
+      "여행지 주변 실시간 제보와 게시물을 지도에서 탐색하고, 장소 검색으로 인파·분위기를 미리 파악하세요.",
+    path: "/map",
+  },
+  profile: {
+    title: "프로필 · 라이브저니",
+    description:
+      "내 여행 기록·인증·팔로우와 라이브저니 활동을 관리하는 프로필 화면입니다.",
+    path: "/profile",
+  },
+  termsOfService: {
+    title: "서비스 이용약관 · 라이브저니",
+    description:
+      "라이브저니(LiveJourney) 서비스 이용약관 전문. 회원·비회원의 권리·의무 및 서비스 제공 조건을 규정합니다.",
+    path: "/terms-of-service",
+  },
+}
