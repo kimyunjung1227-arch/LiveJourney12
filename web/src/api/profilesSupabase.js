@@ -120,10 +120,9 @@ export const updateRepresentativeBadgeSupabase = async (userId, badge) => {
   const uid = userId != null ? String(userId).trim() : '';
   if (!isValidUuid(uid)) return { ok: false, error: new Error('invalid_user_id') };
 
-  const payload = {
-    representative_badge: badge ? serializeRepresentativeBadge(badge) : null,
-    updated_at: new Date().toISOString(),
-  };
+  const serialized = badge ? serializeRepresentativeBadge(badge) : null;
+  // updated_at 은 트리거(tg_profiles_set_updated_at)가 갱신 — 클라이언트에서내면 일부 환경에서 400이 날 수 있음
+  const payload = { representative_badge: serialized };
 
   try {
     const tryUpdate = async () => {
@@ -148,7 +147,11 @@ export const updateRepresentativeBadgeSupabase = async (userId, badge) => {
     }
     return { ok: true };
   } catch (e) {
-    logger.warn('updateRepresentativeBadgeSupabase 실패:', e?.message || e);
+    logger.warn('updateRepresentativeBadgeSupabase 실패:', e?.message || e, {
+      code: e?.code,
+      details: e?.details,
+      hint: e?.hint,
+    });
     return { ok: false, error: e };
   }
 };
