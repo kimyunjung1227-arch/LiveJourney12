@@ -476,7 +476,7 @@ const CrowdedPlaceScreen = () => {
                                             }}
                                             className="group w-full overflow-hidden rounded-sm border border-zinc-100 bg-white text-left shadow-sm transition hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
                                         >
-                                            <div className="relative h-[min(42vw,150px)] w-full shrink-0 overflow-hidden bg-zinc-100 dark:bg-zinc-800 sm:h-[162px]">
+                                            <div className="relative h-[min(56vw,220px)] w-full shrink-0 overflow-hidden bg-zinc-100 dark:bg-zinc-800 sm:h-[240px]">
                                                 {img ? (
                                                     <img
                                                         src={img}
@@ -541,19 +541,19 @@ const CrowdedPlaceScreen = () => {
                                                     </div>
                                                 ) : null}
                                             </div>
-                                            <div className="px-2.5 pb-2.5 pt-2">
+                                            <div className="px-2.5 pb-2 pt-1.5">
                                                 <div className="flex items-start justify-between gap-2">
                                                     <div className="min-w-0 flex-1">
                                                         <h4 className="truncate text-[15px] font-bold leading-snug text-zinc-900 dark:text-zinc-50">
                                                             {String(place.key).trim()}
                                                         </h4>
                                                         {aiBlurb ? (
-                                                            <p className="mt-1 line-clamp-3 text-[12px] font-normal leading-snug text-zinc-700 dark:text-zinc-300">
+                                                            <p className="mt-0.5 line-clamp-2 text-[12px] font-normal leading-snug text-zinc-700 dark:text-zinc-300">
                                                                 {aiBlurb}
                                                             </p>
                                                         ) : null}
                                                         {(place.rank <= 20 && hotTagChips.length > 0) || hasWeatherPill || uploadLabel ? (
-                                                            <div className="mt-2 flex w-full min-w-0 flex-row flex-wrap items-center justify-between gap-2">
+                                                            <div className="mt-1.5 flex w-full min-w-0 flex-row flex-wrap items-center justify-between gap-2">
                                                                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
                                                                     {place.rank <= 20 &&
                                                                         hotTagChips.map((tag) => (
@@ -608,7 +608,7 @@ const CrowdedPlaceScreen = () => {
                                                             </p>
                                                         ) : null}
                                                         {socialText ? (
-                                                            <p className="mt-1 line-clamp-1 text-[11px] font-medium text-zinc-500 dark:text-zinc-500">
+                                                            <p className="mt-0.5 line-clamp-1 text-[11px] font-medium text-zinc-500 dark:text-zinc-500">
                                                                 {socialText}
                                                             </p>
                                                         ) : null}
