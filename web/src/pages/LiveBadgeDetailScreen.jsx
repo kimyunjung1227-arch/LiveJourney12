@@ -60,6 +60,13 @@ const LiveBadgeDetailScreen = () => {
   const badgeFromState = location.state?.badge || null;
   const badgeName = badgeFromState?.name || (badgeNameParam ? decodeURIComponent(badgeNameParam) : '');
 
+  const returnToFromState =
+    typeof location.state?.returnTo === 'string' &&
+    location.state.returnTo.startsWith('/') &&
+    !location.state.returnTo.startsWith('//')
+      ? location.state.returnTo
+      : null;
+
   const current = useMemo(() => {
     if (badgeFromState) return badgeFromState;
     const hydrated = hydrateBadgeFromName(badgeName);
@@ -125,7 +132,7 @@ const LiveBadgeDetailScreen = () => {
     <div className="screen-layout bg-background-light dark:bg-background-dark min-h-[100dvh]">
       <div className="screen-content">
         <header className="screen-header bg-white dark:bg-gray-900 flex items-center p-4 gap-3 border-b border-gray-100 dark:border-gray-800">
-          <BackButton onClick={() => navigate(-1)} />
+          <BackButton onClick={() => (returnToFromState ? navigate(returnToFromState) : navigate(-1))} />
           <h1 className="text-text-primary-light dark:text-text-primary-dark text-lg font-bold truncate flex-1">
             뱃지 상세
           </h1>

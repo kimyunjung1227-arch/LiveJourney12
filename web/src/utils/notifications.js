@@ -9,6 +9,7 @@ import {
   deleteNotificationSupabase,
   deleteAllNotificationsSupabase,
 } from '../api/notificationsSupabase';
+import { supabase } from '../utils/supabaseClient';
 
 const isValidUuid = (v) =>
   typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
@@ -189,6 +190,38 @@ export const syncNotificationsFromSupabase = async (userId) => {
   if (!uid) return [];
   const overlay = loadReadOverlay(uid);
   const rows = await fetchNotificationsSupabase(uid, { limit: 100 });
+
+  /** 알림 문구에 `badges.id`(UUID)가 들어간 레거시/트리거 데이터 → code·이름으로 복원 */
+  const badgeUuidSet = new Set();
+  (rows || []).forEach((r) => {
+    const rawType = r.type || 'system';
+    const isBadgeTyp =
+      rawType === 'badge' ||
+      (rawType === 'system' && String(r.message || '').includes('뱃지를 획득'));
+    if (!isBadgeTyp) return;
+    const m = String(r.message || '');
+    const q = m.match(/"([^"]+)"/);
+    if (q && q[1] && isValidUuid(String(q[1]).trim())) badgeUuidSet.add(String(q[1]).trim());
+  });
+  const uuidToMeta = {};
+  if (badgeUuidSet.size > 0) {
+    try {
+      const ids = [...badgeUuidSet];
+      const { data: brs } = await supabase.from('badges').select('id,code,name').in('id', ids);
+      (brs || []).forEach((b) => {
+        const id = String(b.id || '').trim();
+        const logical = String(b.code || '').trim() || String(b.name || '').trim();
+        if (!id || !logical) return;
+        uuidToMeta[id] = {
+          logical,
+          display: getBadgeDisplayNameFromName(logical) || String(b.name || '').trim() || logical,
+        };
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+
   const mapped = (rows || []).map((r) => {
     const rawType = r.type || 'system';
     const typ =
@@ -203,7 +236,6 @@ export const syncNotificationsFromSupabase = async (userId) => {
     let link = '/main';
     if (r.post_id) link = `/post/${r.post_id}`;
     else if (typ === 'follow' && actorId) link = `/user/${actorId}`;
-    else if (typ === 'badge') link = '/profile';
     const typeConfig = NOTIFICATION_TYPES[typ] || NOTIFICATION_TYPES.system;
     const msg = r.message || '';
 
@@ -217,13 +249,22 @@ export const syncNotificationsFromSupabase = async (userId) => {
       if (dyn && dyn[1]) {
         badgeName = String(dyn[1]).trim();
       } else {
-        // 2) `"뱃지명"` 패턴
+        // 2) `"…"` 패턴 — UUID면 badges 테이블로 논리 키(code) 복원
         const q = m.match(/"([^"]+)"/);
-        if (q && q[1]) badgeDisplayName = String(q[1]).trim();
+        if (q && q[1]) {
+          const token = String(q[1]).trim();
+          if (isValidUuid(token) && uuidToMeta[token]) {
+            badgeName = uuidToMeta[token].logical;
+            badgeDisplayName = uuidToMeta[token].display;
+          } else {
+            badgeName = token;
+            badgeDisplayName = token;
+          }
+        }
       }
       if (badgeName) {
         try {
-          badgeDisplayName = getBadgeDisplayNameFromName(badgeName);
+          badgeDisplayName = getBadgeDisplayNameFromName(badgeName) || badgeDisplayName || badgeName;
         } catch {
           badgeDisplayName = badgeDisplayName || badgeName;
         }
@@ -233,6 +274,11 @@ export const syncNotificationsFromSupabase = async (userId) => {
         const stripped = m.replace(/\s*뱃지를\s*획득했습니다[!！]?\s*$/u, '').trim();
         const candidate = stripped.replace(/^["「『]|["」』]$/g, '').trim();
         if (candidate) badgeDisplayName = candidate;
+      }
+      if (badgeName && !isValidUuid(String(badgeName))) {
+        link = `/badge/live/${encodeURIComponent(badgeName)}`;
+      } else if (typ === 'badge') {
+        link = '/profile';
       }
     }
     const nid = String(r.id);

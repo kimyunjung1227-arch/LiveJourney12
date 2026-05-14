@@ -19,6 +19,8 @@ import { setCachedFollowProfile } from '../utils/userProfileHints';
 const isValidUuid = (v) =>
   typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
 
+const isUuidLike = (s) => isValidUuid(String(s || '').trim());
+
 // 서버 운영 전환: localStorage 제거 → 친구소식 읽음 상태는 Supabase(friend_news_state)로만 동기화
 
 const typeMeta = {
@@ -367,6 +369,16 @@ const NotificationsScreen = () => {
       });
       return;
     }
+    if (tab !== 'friends' && notification.type === 'badge') {
+      persistNotificationsUiForReturn();
+      const path = String(notification.link || '').trim();
+      if (path.startsWith('/badge/live/')) {
+        navigate(path, { state: { returnTo: '/notifications' } });
+      } else {
+        navigate('/profile', { state: { returnTo: '/notifications' } });
+      }
+      return;
+    }
     if (notification.link) {
       persistNotificationsUiForReturn();
       navigate(notification.link);
@@ -521,10 +533,13 @@ const NotificationsScreen = () => {
   const mainText = (n) => {
     if (n.type === 'badge') {
       const raw = n.badge || '';
-      const display =
+      let display =
         n.badgeDisplayName ||
         (raw ? getBadgeDisplayNameFromName(raw) : '') ||
         getBadgeDisplayFromMessage(n.message);
+      if (isUuidLike(display)) {
+        display = raw && !isUuidLike(raw) ? getBadgeDisplayNameFromName(raw) : '';
+      }
       if (display) return `"${display}" 뱃지를 획득했습니다!`;
       if (n.message) return n.message;
       return '뱃지를 획득했습니다';

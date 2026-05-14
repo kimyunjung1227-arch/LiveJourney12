@@ -124,6 +124,12 @@ const mergeProfileUser = (authUser, savedUser) => {
 const ProfileScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const returnToFromState =
+    typeof location.state?.returnTo === 'string' &&
+    location.state.returnTo.startsWith('/') &&
+    !location.state.returnTo.startsWith('//')
+      ? location.state.returnTo
+      : null;
   const { user: authUser, logout, isAuthenticated, loginWithProvider, authLoading, updateUser } = useAuth();
   const [user, setUser] = useState(null);
   const [myPosts, setMyPosts] = useState([]);
@@ -1658,7 +1664,13 @@ const ProfileScreen = () => {
       <div className="screen-content">
         {/* 헤더 */}
         <header className="screen-header bg-white dark:bg-gray-900 flex items-center p-4 justify-between">
-          <BackButton onClick={() => navigate('/main', { replace: true })} />
+          <BackButton
+            onClick={() =>
+              returnToFromState
+                ? navigate(returnToFromState, { replace: true })
+                : navigate('/main', { replace: true })
+            }
+          />
           <h1 className="text-text-primary-light dark:text-text-primary-dark text-lg font-bold">프로필</h1>
           <button
             onClick={() => navigate('/settings')}
