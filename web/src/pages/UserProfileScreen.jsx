@@ -115,6 +115,7 @@ const UserProfileScreen = () => {
     setUser(null);
     setUserPosts([]);
     setEarnedBadges([]);
+    setProfileRepresentativeBadge(null);
     setRepresentativeBadge(null);
     setLiveSync(35);
     setTrustExplainOpen(false);
@@ -182,6 +183,10 @@ const UserProfileScreen = () => {
 
     setProfileRepresentativeBadge(null);
     setRepresentativeBadge(null);
+    if (profileHint?.representativeBadge) {
+      const hintRep = deserializeRepresentativeBadge(profileHint.representativeBadge);
+      if (hintRep?.name) setProfileRepresentativeBadge(hintRep);
+    }
 
     // 해당 사용자의 게시물: Supabase(다른 사용자 사진 포함) + localStorage + 기존 API
     const getPostUserId = (post) => {

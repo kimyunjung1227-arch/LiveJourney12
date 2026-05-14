@@ -1,6 +1,8 @@
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
 import { fetchCommentsForPostSupabase } from './socialSupabase';
+import { fetchProfileByIdSupabase } from './profilesSupabase';
+import { parseRepresentativeBadgeFromProfileRow } from '../utils/representativeBadge';
 
 // blob: URL은 새로고침 시 사라지므로 Supabase에는 영구 URL만 저장
 const onlyPersistentUrls = (arr) => {
@@ -342,7 +344,18 @@ export const fetchPostByIdSupabase = async (postId, currentUserId = null, opts =
       .maybeSingle();
     if (error || !data) return null;
     const likedSet = await fetchLikedPostIdsSupabase([trimmed], currentUserId);
-    const mapped = mapSupabasePostRowToPost(data, { likedByMe: likedSet.has(trimmed) });
+    let mapped = mapSupabasePostRowToPost(data, { likedByMe: likedSet.has(trimmed) });
+    if (mapped?.userId && isValidUuid(String(mapped.userId))) {
+      try {
+        const profile = await fetchProfileByIdSupabase(String(mapped.userId).trim());
+        const rep = parseRepresentativeBadgeFromProfileRow(profile);
+        if (rep?.name && mapped.user && typeof mapped.user === 'object') {
+          mapped = { ...mapped, user: { ...mapped.user, representativeBadge: rep } };
+        }
+      } catch (_) {
+        /* 작성자 profiles 병합 실패 시 게시물만 반환 */
+      }
+    }
     if (skipComments) {
       return mapped ? { ...mapped, comments: mapped?.comments || [] } : null;
     }

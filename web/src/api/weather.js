@@ -94,7 +94,7 @@ const fetchWithRetry = async (url, signal, retries = MAX_RETRIES, fetchInit = {}
   throw new Error('모든 재시도 실패');
 };
 
-/** 프론트 페이지와 Node 날씨 프록시 호스트가 다르면 CORS·Render 404 등으로 실패하기 쉬움 → Edge 우선 필요 */
+/** 프론트 페이지와 Node 날씨 프록시 호스트가 다르면 CORS로 실패하기 쉬움 → Edge 우선 필요 */
 function isKmaNodeProxyCrossOrigin() {
   if (typeof window === 'undefined') return false;
   const o = getBackendOrigin();
@@ -110,7 +110,7 @@ function isKmaNodeProxyCrossOrigin() {
 /**
  * 1) 동일 출처 `/api/proxy/kma/ultra-srt-ncst` — Vercel rewrites 등(CORS 없음).
  * 2) Supabase Edge `kma-ultra-ncst` — anon 은 쿼리 `apikey` 만(헤더 없음 → 프리플라이트 없음).
- * 동일 출처 프록시가 아니면(예: livejourney.co.kr → Render) 기본으로 Edge 먼저.
+ * 동일 출처 프록시가 아니면(프론트 도메인 ≠ API origin) 기본으로 Edge 먼저.
  * `VITE_WEATHER_EDGE_FIRST=true` 이면 항상 Edge 먼저.
  */
 function buildKmaProxyUrlList(searchParams) {

@@ -1209,9 +1209,14 @@ const PostDetailScreen = () => {
     () => authorDisplay?.profileImage || post?.userAvatar || null,
     [authorDisplay, post]
   );
-  /** 프로필 조회 전·본인 글: 세션의 대표 뱃지를 보조로 사용 */
+  /** 프로필 조회 전: 게시물에 실린 작성자 대표 뱃지(Supabase 병합) → 본인 글은 세션 값 보조 */
   const authorRepresentativeBadge = useMemo(() => {
     if (representativeBadge?.name) return representativeBadge;
+    const fromPostUser =
+      post?.user && typeof post.user === 'object' && post.user.representativeBadge != null
+        ? resolveRepresentativeBadge(post.user.representativeBadge, userBadges)
+        : null;
+    if (fromPostUser?.name) return fromPostUser;
     const aid = getPostAuthorUuid(post);
     if (post && user?.id && aid && String(aid) === String(user.id)) {
       const fromAuth = deserializeRepresentativeBadge(user?.representativeBadge);
@@ -1529,7 +1534,13 @@ const PostDetailScreen = () => {
                     if (aid && aid !== currentUserId) {
                       setCachedFollowProfile(aid, { username: userName, profileImage: authorAvatar || null });
                       navigate(`/user/${aid}`, {
-                        state: { profileHint: { username: userName, profileImage: authorAvatar || null } },
+                        state: {
+                          profileHint: {
+                            username: userName,
+                            profileImage: authorAvatar || null,
+                            representativeBadge: authorRepresentativeBadge?.name ? authorRepresentativeBadge : null,
+                          },
+                        },
                       });
                     } else if (aid && aid === currentUserId) {
                       navigate('/profile');
