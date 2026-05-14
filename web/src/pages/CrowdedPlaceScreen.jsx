@@ -399,14 +399,14 @@ const CrowdedPlaceScreen = () => {
             </header>
 
             <div ref={contentRef} className="screen-content flex-1 overflow-y-auto bg-background-light dark:bg-background-dark">
-                <div className="min-h-full px-3 pb-16 pt-1 sm:px-4">
-                    <div className="pb-4">
+                <div className="min-h-full px-3 pb-16 pt-1.5 sm:px-4">
+                    <div className="pb-5">
                         {placeRankings.length === 0 ? (
                             <div className="py-10 text-center text-sm text-text-secondary-light dark:text-text-secondary-dark">
                                 아직 실시간 핫플 게시물이 없어요.
                             </div>
                         ) : (
-                            <div className="flex flex-col gap-1.5">
+                            <div className="flex flex-col gap-2">
                                 {placeRankings.map((place, placeIndex) => {
                                     const post = place.representative;
                                     if (!post?.id) return null;
@@ -462,9 +462,9 @@ const CrowdedPlaceScreen = () => {
                                             key={place.key}
                                             type="button"
                                             onClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } })}
-                                            className="group w-full overflow-hidden rounded-xl border border-zinc-100 bg-white text-left shadow-sm transition hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
+                                            className="group w-full overflow-hidden rounded-sm border border-zinc-100 bg-white text-left shadow-sm transition hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
                                         >
-                                            <div className="relative h-[min(34vw,118px)] w-full shrink-0 overflow-hidden bg-zinc-100 dark:bg-zinc-800 sm:h-[126px]">
+                                            <div className="relative h-[min(42vw,150px)] w-full shrink-0 overflow-hidden bg-zinc-100 dark:bg-zinc-800 sm:h-[162px]">
                                                 {img ? (
                                                     <img
                                                         src={img}
@@ -482,12 +482,11 @@ const CrowdedPlaceScreen = () => {
 
                                                 {/* 우측 하단: 가벼운 사진 미리보기 */}
                                                 {thumbs.length > 1 ? (
-                                                    <div className="absolute bottom-1.5 right-1.5 z-10 flex items-center gap-1">
+                                                    <div className="absolute bottom-2 right-2 z-10 flex items-center gap-1.5">
                                                         {thumbs.map((src, i) => (
                                                             <div
                                                                 key={`${post.id}-mini-${i}`}
-                                                                className="h-[26px] w-[26px] overflow-hidden border border-white/60 bg-white/10 shadow-sm backdrop-blur-[6px]"
-                                                                style={{ borderRadius: 5 }}
+                                                                className="h-[30px] w-[30px] overflow-hidden rounded-sm border border-white/60 bg-white/10 shadow-sm backdrop-blur-[6px]"
                                                             >
                                                                 <img
                                                                     src={src}
@@ -502,10 +501,10 @@ const CrowdedPlaceScreen = () => {
                                                 ) : null}
                                                 {place.rank <= 20 ? (
                                                     <div
-                                                        className="pointer-events-none absolute left-2 top-2 select-none"
+                                                        className="pointer-events-none absolute left-2.5 top-2.5 select-none"
                                                         aria-label={`랭킹 ${place.rank}위`}
                                                         style={{
-                                                            padding: '5px 9px',
+                                                            padding: '6px 10px',
                                                             borderRadius: 9999,
                                                             background: 'rgba(15, 23, 42, 0.62)',
                                                             backdropFilter: 'blur(10px)',
@@ -517,7 +516,7 @@ const CrowdedPlaceScreen = () => {
                                                         <span
                                                             style={{
                                                                 display: 'inline-block',
-                                                                fontSize: 12,
+                                                                fontSize: 13,
                                                                 fontWeight: 950,
                                                                 letterSpacing: -0.2,
                                                                 color: '#ffffff',
@@ -530,19 +529,19 @@ const CrowdedPlaceScreen = () => {
                                                     </div>
                                                 ) : null}
                                             </div>
-                                            <div className="px-2 pb-2 pt-1.5">
-                                                <div className="flex items-start justify-between gap-1.5">
+                                            <div className="px-2.5 pb-2.5 pt-2">
+                                                <div className="flex items-start justify-between gap-2">
                                                     <div className="min-w-0 flex-1">
-                                                        <h4 className="truncate text-[14px] font-bold leading-tight text-zinc-900 dark:text-zinc-50">
+                                                        <h4 className="truncate text-[15px] font-bold leading-snug text-zinc-900 dark:text-zinc-50">
                                                             {String(place.key).trim()}
                                                         </h4>
                                                         {aiBlurb ? (
-                                                            <p className="mt-0.5 line-clamp-2 text-[11px] font-normal leading-snug text-zinc-700 dark:text-zinc-300">
+                                                            <p className="mt-1 line-clamp-3 text-[12px] font-normal leading-snug text-zinc-700 dark:text-zinc-300">
                                                                 {aiBlurb}
                                                             </p>
                                                         ) : null}
                                                         {(place.rank <= 20 && hotTagChips.length > 0) || hasWeatherPill || uploadLabel ? (
-                                                            <div className="mt-1.5 flex w-full min-w-0 flex-row flex-wrap items-center justify-between gap-1.5">
+                                                            <div className="mt-2 flex w-full min-w-0 flex-row flex-wrap items-center justify-between gap-2">
                                                                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
                                                                     {place.rank <= 20 &&
                                                                         hotTagChips.map((tag) => (
@@ -592,12 +591,12 @@ const CrowdedPlaceScreen = () => {
                                                             </div>
                                                         ) : null}
                                                         {place.warning ? (
-                                                            <p className="mt-0.5 line-clamp-1 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                                                            <p className="mt-1 line-clamp-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
                                                                 {place.warning}
                                                             </p>
                                                         ) : null}
                                                         {socialText ? (
-                                                            <p className="mt-0.5 line-clamp-1 text-[10px] font-medium text-zinc-500 dark:text-zinc-500">
+                                                            <p className="mt-1 line-clamp-1 text-[11px] font-medium text-zinc-500 dark:text-zinc-500">
                                                                 {socialText}
                                                             </p>
                                                         ) : null}
@@ -615,10 +614,10 @@ const CrowdedPlaceScreen = () => {
                                                             });
                                                         }}
                                                         aria-label="장소 모아보기"
-                                                        className="mt-0 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
+                                                        className="mt-0 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
                                                         style={{ border: `1px solid rgba(38,198,218,0.28)` }}
                                                     >
-                                                        <span className="material-symbols-outlined text-[16px]" style={{ color: PRIMARY_HEX }}>
+                                                        <span className="material-symbols-outlined text-[18px]" style={{ color: PRIMARY_HEX }}>
                                                             chevron_right
                                                         </span>
                                                     </button>
