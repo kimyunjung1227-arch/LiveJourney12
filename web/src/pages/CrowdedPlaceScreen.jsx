@@ -27,6 +27,9 @@ import { PAGE_SEO } from '../config/seo';
 
 const PRIMARY_HEX = '#26C6DA';
 
+/** 실시간 핫플 탭(/crowded-place) 랭킹 목록 최대 개수. 장소별 피드(/hotplace/...)는 변경하지 않음 */
+const CROWDED_PLACE_FEED_RANK_LIMIT = 30;
+
 const getPostTimeMs = (post) => {
     const raw = post?.timestamp || post?.createdAt || post?.time;
     const t = raw ? new Date(raw).getTime() : NaN;
@@ -275,7 +278,7 @@ const CrowdedPlaceScreen = () => {
                 return hasLikes || isRecent;
             });
             const toRank = preFiltered.length > 0 ? preFiltered : transformed;
-            const rankedPlaces = rankHotspotPlaces(toRank, { verifyFirst: true, maxItems: 50 });
+            const rankedPlaces = rankHotspotPlaces(toRank, { verifyFirst: true, maxItems: CROWDED_PLACE_FEED_RANK_LIMIT });
             const repPosts = rankedPlaces
                 .filter((p) => p?.representative?.id)
                 .map((p) => ({
@@ -284,7 +287,7 @@ const CrowdedPlaceScreen = () => {
                     _compassCount: p.compassCount,
                     _placeKey: p.key,
                 }));
-            setCrowdedData(repPosts.length > 0 ? repPosts : transformed.slice(0, 50));
+            setCrowdedData(repPosts.length > 0 ? repPosts : transformed.slice(0, CROWDED_PLACE_FEED_RANK_LIMIT));
         };
         loadData();
     }, [refreshKey, user?.id]);
@@ -292,7 +295,7 @@ const CrowdedPlaceScreen = () => {
     const filteredPosts = crowdedData;
 
     const placeRankings = useMemo(() => {
-        const ranked = rankHotspotPlaces(allHotPosts, { verifyFirst: true, maxItems: 30 });
+        const ranked = rankHotspotPlaces(allHotPosts, { verifyFirst: true, maxItems: CROWDED_PLACE_FEED_RANK_LIMIT });
         return ranked.map((x) => {
             const representative = x.representative;
             const coords = representative ? getPostCoords(representative) : null;
