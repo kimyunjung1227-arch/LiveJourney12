@@ -275,9 +275,6 @@ const isLiveWindowPost = (p) => {
   return (Date.now() - created) / (60 * 60 * 1000) <= 48;
 };
 
-const isCrowdWaitingShare = (p) =>
-  hasWaitingTag(p) || blobMatches(p, ['인파', '혼잡', '오픈런', '대기', '웨이팅', '줄서기', '만석']);
-
 const isLiveNatureConditionPost = (p) =>
   isLiveWindowPost(p) && blobMatches(p, ['개화', '만개', '절정', '파도', '수온', '실시간', '현황', '조건', '상태']);
 
@@ -287,25 +284,11 @@ const isUnregisteredPlacePost = (p) => {
   return !!poi && hasGps(p);
 };
 
-const getDistrictKey = (p) => {
-  const raw = [p?.detailedLocation, typeof p?.location === 'string' ? p.location : '', p?.placeName, p?.region]
-    .filter(Boolean)
-    .join(' ');
-  const m = String(raw || '').match(/(\S+[구동](?:\s|$))/);
-  if (m?.[1]) return normalizeLoose(m[1]);
-  const region = p?.region ? normalizeRegionName(p.region) : '';
-  return region || null;
-};
-
 const NATURE_BLOOM_KW = ['벚꽃', '개화', '만개', '꽃', '봄꽃', '꽃길', '개화상황', '개화상태'];
 const NATURE_SCENIC_KW = ['바다', '해변', '절경', '파도', '설경', '단풍', '일출', '일몰', '뷰', '전망', '오션'];
-const HOT_LANDMARK_KW = ['랜드마크', '명소', '전망대', '타워', '궁', '성', '핫플'];
-const HOT_FOOD_KW = ['맛집', '카페', '식당', '디저트', '브런치', '오픈런', '웨이팅', '대기'];
 
 const matchesNatureBloom = (p) => hasPostCategory(p, ['bloom']) || blobMatches(p, NATURE_BLOOM_KW);
 const matchesNatureScenic = (p) => hasPostCategory(p, ['scenic']) || blobMatches(p, NATURE_SCENIC_KW);
-const matchesHotLandmark = (p) => hasPostCategory(p, ['landmark']) || blobMatches(p, HOT_LANDMARK_KW);
-const matchesHotFood = (p) => hasPostCategory(p, ['food']) || blobMatches(p, HOT_FOOD_KW);
 
 const THEME_TRACKS = [
   {
@@ -338,38 +321,6 @@ const THEME_TRACKS = [
       { posts: 3, short: '바다·절경 관련 제보 3회' },
       { posts: 15, helpful: 50, short: '제보 15회 + 도움돼요 50' },
       { posts: 40, liveCondition: 10, short: '제보 40회 + 실시간 파도·풍경 현황 10회' },
-    ],
-  },
-  {
-    key: 'hotplace:landmark',
-    category: '명소·핫플',
-    labels: ['체크인 초보', '웨이팅 해결사', '핫플 정복자'],
-    icons: ['📍', '⏱️', '🏙️'],
-    tones: [
-      { from: '#CBD5E1', to: '#475569' },
-      { from: '#FDE047', to: '#CA8A04' },
-      { from: '#F472B6', to: '#9333EA' },
-    ],
-    requirements: [
-      { posts: 5, short: '주요 POI 제보 5회' },
-      { crowdShares: 20, short: '인파·대기 정보 공유 20회' },
-      { posts: 50, districtLeader: true, short: '제보 50회 + 동·구 단위 점유율 1위' },
-    ],
-  },
-  {
-    key: 'hotplace:food',
-    category: '명소·핫플',
-    labels: ['미식 탐험가', '오픈런 대장', '동네 가이드'],
-    icons: ['🍽️', '☕', '🍜'],
-    tones: [
-      { from: '#FDBA74', to: '#EA580C' },
-      { from: '#FCD34D', to: '#B45309' },
-      { from: '#FCA5A5', to: '#DC2626' },
-    ],
-    requirements: [
-      { posts: 5, short: '맛집·카페 POI 제보 5회' },
-      { crowdShares: 20, short: '웨이팅·오픈런 정보 공유 20회' },
-      { posts: 50, districtLeader: true, short: '제보 50회 + 동·구 단위 점유율 1위' },
     ],
   },
   {
@@ -409,8 +360,6 @@ const THEME_TRACKS = [
 const THEME_TRACK_MATCHERS = {
   'nature:bloom': matchesNatureBloom,
   'nature:scenic': matchesNatureScenic,
-  'hotplace:landmark': matchesHotLandmark,
-  'hotplace:food': matchesHotFood,
   'hidden:pioneer': isUnregisteredPlacePost,
   'night:guide': isNightPost,
 };
@@ -439,11 +388,6 @@ const computeThemeTrackStats = (posts = []) => {
       row.posts += 1;
       row.helpful += helpful;
       if (isLiveNatureConditionPost(p)) row.liveCondition += 1;
-      if (track.key.startsWith('hotplace:') && isCrowdWaitingShare(p)) row.crowdShares += 1;
-      if (track.key.startsWith('hotplace:')) {
-        const district = getDistrictKey(p);
-        if (district) row.byDistrict[district] = (row.byDistrict[district] || 0) + 1;
-      }
       if (track.key === 'hidden:pioneer') {
         row.unregistered += 1;
         row.hiddenSaves += helpful;
@@ -458,20 +402,6 @@ const computeThemeTrackStats = (posts = []) => {
 
   const hiddenRow = tracks['hidden:pioneer'];
   hiddenRow.hiddenVisitors = [...hiddenVisitDates.values()].filter((dates) => dates.size >= 2).length;
-
-  for (const key of ['hotplace:landmark', 'hotplace:food']) {
-    const row = tracks[key];
-    const entries = Object.entries(row.byDistrict || {});
-    if (!entries.length) {
-      row.districtLeader = false;
-      row.topDistrict = null;
-      continue;
-    }
-    const [topDistrict, topCount] = entries.sort((a, b) => b[1] - a[1])[0];
-    row.topDistrict = topDistrict;
-    row.topDistrictCount = topCount;
-    row.districtLeader = row.posts >= 50 && topCount >= Math.ceil(row.posts * 0.5);
-  }
 
   return tracks;
 };
@@ -1194,7 +1124,6 @@ export const getBadgeStats = () => {
   const categoryCounts = {
     '지역 테마': earnedBadges.filter((b) => b.category === '지역 테마').length,
     '자연·풍경': earnedBadges.filter((b) => b.category === '자연·풍경').length,
-    '명소·핫플': earnedBadges.filter((b) => b.category === '명소·핫플').length,
     '숨은 명소': earnedBadges.filter((b) => b.category === '숨은 명소').length,
     '심야 가이드': earnedBadges.filter((b) => b.category === '심야 가이드').length,
     '여행 응원': earnedBadges.filter((b) => b.category === '여행 응원').length,

@@ -31,12 +31,6 @@ const BADGE_SECTIONS = [
     matches: (b) => b?.category === '자연·풍경',
   },
   {
-    key: 'hotplace',
-    title: '명소·핫플',
-    description: '랜드마크와 맛집·카페의 인파·대기 정보를 정복하는 인장이에요.',
-    matches: (b) => b?.category === '명소·핫플',
-  },
-  {
     key: 'hidden',
     title: '숨은 명소',
     description: '미등록 장소를 발굴하고 기록하는 모험형 인장이에요.',

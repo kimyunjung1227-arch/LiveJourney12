@@ -993,32 +993,32 @@ const SearchScreen = () => {
               {searchMode === 'person' ? (
                 filteredTravelers.length > 0 ? (
                   <div
-                    className="bg-white dark:bg-[#2F2418] rounded-2xl shadow-2xl ring-2 ring-primary/30 dark:ring-primary/50 overflow-y-auto"
-                    style={{ maxHeight: 'calc(60px * 6)' }}
+                    className="bg-white dark:bg-[#2F2418] rounded-xl shadow-2xl ring-2 ring-primary/30 dark:ring-primary/50 overflow-y-auto"
+                    style={{ maxHeight: 'calc(44px * 6)' }}
                   >
                     {filteredTravelers.map((t) => (
                       <div
                         key={t.userId}
                         onClick={() => handleTravelerSuggestionClick(t)}
-                        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-[#3a2d1f] cursor-pointer transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0 min-h-[56px]"
+                        className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-[#3a2d1f] cursor-pointer transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0 min-h-[40px]"
                       >
                         {t.profileImage ? (
                           <img
                             src={getDisplayImageUrl(t.profileImage)}
                             alt=""
-                            className="w-10 h-10 rounded-full object-cover shrink-0 bg-gray-200 dark:bg-gray-600"
+                            className="w-7 h-7 rounded-full object-cover shrink-0 bg-gray-200 dark:bg-gray-600"
                           />
                         ) : (
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-sm shrink-0">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-[10px] shrink-0">
                             {String(t.username || '?').slice(0, 1)}
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <div className="text-[#1c140d] dark:text-background-light font-semibold text-base truncate">
+                          <div className="text-[#1c140d] dark:text-background-light font-semibold text-[11px] leading-tight truncate">
                             {t.username}
                           </div>
                         </div>
-                        <span className="material-symbols-outlined text-gray-400 text-[20px] shrink-0">chevron_right</span>
+                        <span className="material-symbols-outlined text-gray-400 text-[18px] shrink-0">chevron_right</span>
                       </div>
                     ))}
                   </div>
@@ -1078,38 +1078,38 @@ const SearchScreen = () => {
         >
           {/* 인물 모드: 검색어가 있으면 "검색 결과 리스트"를 화면 본문에 표시 (이미지 스타일) */}
           {searchMode === 'person' && searchQuery.trim() && (
-            <div className="px-4 pt-2 pb-2">
+            <div className="px-3 pt-1.5 pb-1.5">
               {travelerSearchResults.length === 0 ? (
-                <div className="w-full rounded-2xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#2F2418] px-4 py-5 text-center text-sm font-medium text-slate-500 dark:text-slate-300">
+                <div className="w-full rounded-xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#2F2418] px-3 py-4 text-center text-xs font-medium text-slate-500 dark:text-slate-300">
                   일치하는 여행자가 없어요
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100 dark:divide-white/10 rounded-2xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#2F2418] overflow-hidden">
+                <div className="divide-y divide-slate-100 dark:divide-white/10 rounded-xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#2F2418] overflow-hidden">
                   {travelerSearchResults.map((t) => {
                     const followed = isFollowing(null, t.userId);
                     return (
                       <div
                         key={`search-${t.userId}`}
-                        className="flex items-center gap-2 px-3 py-2 min-h-[48px]"
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 min-h-[40px]"
                       >
                         <button
                           type="button"
                           onClick={() => { if (!hasMovedRef.current) goTravelerProfile(t); }}
-                          className="flex flex-1 min-w-0 items-center gap-2 text-left"
+                          className="flex flex-1 min-w-0 items-center gap-1.5 text-left"
                         >
                           {t.profileImage ? (
                             <img
                               src={getDisplayImageUrl(t.profileImage)}
                               alt=""
-                              className="w-8 h-8 rounded-full object-cover shrink-0 bg-gray-200 dark:bg-gray-600"
+                              className="w-7 h-7 rounded-full object-cover shrink-0 bg-gray-200 dark:bg-gray-600"
                             />
                           ) : (
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-xs shrink-0">
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-[10px] shrink-0">
                               {String(t.username || '?').slice(0, 1)}
                             </div>
                           )}
                           <div className="min-w-0">
-                            <div className="text-[#1c140d] dark:text-background-light font-semibold text-sm truncate">
+                            <div className="text-[#1c140d] dark:text-background-light font-semibold text-[11px] leading-tight truncate">
                               {t.username}
                             </div>
                           </div>
@@ -1118,7 +1118,7 @@ const SearchScreen = () => {
                         <button
                           type="button"
                           onClick={(e) => toggleFollowForTraveler(e, t)}
-                          className={`shrink-0 h-8 px-2.5 rounded-md text-[11px] font-bold transition ${
+                          className={`shrink-0 h-7 px-2 rounded-md text-[10px] font-bold transition ${
                             followed
                               ? 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-100'
                               : 'bg-red-700 text-white'
@@ -1136,22 +1136,22 @@ const SearchScreen = () => {
 
           {/* 인물 모드: 팔로우/추천 여행자 프로필 섹션 */}
           {searchMode === 'person' && !searchQuery.trim() && (
-            <div className={`px-4 pt-2 pb-2 ${showSuggestions ? 'opacity-30 pointer-events-none' : ''}`}>
-              <h2 className="text-black dark:text-white text-sm font-bold leading-tight tracking-[-0.015em] mb-2">
+            <div className={`px-3 pt-1.5 pb-1.5 ${showSuggestions ? 'opacity-30 pointer-events-none' : ''}`}>
+              <h2 className="text-black dark:text-white text-xs font-bold leading-tight tracking-[-0.015em] mb-1.5">
                 여행자
               </h2>
 
               {/* 팔로우한 여행자 5 */}
-              <div className="mb-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">팔로우한 여행자</div>
+              <div className="mb-2">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">팔로우한 여행자</div>
                 </div>
                 {followedTravelersTop5.length === 0 ? (
-                  <div className="rounded-xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#2F2418] p-3 text-center text-[11px] text-slate-500 dark:text-slate-300">
+                  <div className="rounded-lg border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#2F2418] p-2.5 text-center text-[10px] text-slate-500 dark:text-slate-300">
                     팔로우한 여행자가 아직 없어요.
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-1">
                     {followedTravelersTop5.map((t) => {
                       const rep = getRepresentativeBadgeForUserId(t.userId);
                       const followed = isFollowing(null, t.userId);
@@ -1160,27 +1160,27 @@ const SearchScreen = () => {
                           key={`followed-${t.userId}`}
                           type="button"
                           onClick={() => { if (!hasMovedRef.current) goTravelerProfile(t); }}
-                          className="w-full rounded-xl border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#2F2418] px-2.5 py-2 text-left shadow-sm hover:shadow transition flex items-center gap-2"
+                          className="w-full rounded-lg border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#2F2418] px-2 py-1.5 text-left shadow-sm hover:shadow transition flex items-center gap-1.5"
                         >
                           {t.profileImage ? (
                             <img
                               src={getDisplayImageUrl(t.profileImage)}
                               alt=""
-                              className="w-9 h-9 rounded-full object-cover bg-slate-200 dark:bg-slate-700 shrink-0"
+                              className="w-7 h-7 rounded-full object-cover bg-slate-200 dark:bg-slate-700 shrink-0"
                               onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1520975682031-ae3f39f19b64?w=200&q=60'; }}
                             />
                           ) : (
-                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-xs shrink-0">
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-[10px] shrink-0">
                               {String(t.username || '?').slice(0, 1)}
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <div className="text-[12px] font-bold text-slate-900 dark:text-white truncate">{t.username}</div>
+                            <div className="flex items-center gap-1 min-w-0">
+                              <div className="text-[11px] font-bold text-slate-900 dark:text-white truncate leading-tight">{t.username}</div>
                               {rep ? (
-                                <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 dark:bg-primary/20 text-primary dark:text-[#FFC599] px-1.5 py-0.5 text-[10px] font-bold shrink-0">
-                                  <span className="text-[11px] leading-none">{rep.icon || '🏆'}</span>
-                                  <span className="truncate max-w-[110px]">{getBadgeDisplayName(rep) || rep.name}</span>
+                                <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 dark:bg-primary/20 text-primary dark:text-[#FFC599] px-1 py-0 text-[9px] font-bold shrink-0 max-w-[min(42vw,9rem)]">
+                                  <span className="text-[10px] leading-none shrink-0">{rep.icon || '🏆'}</span>
+                                  <span className="truncate min-w-0">{getBadgeDisplayName(rep) || rep.name}</span>
                                 </span>
                               ) : null}
                             </div>
@@ -1188,7 +1188,7 @@ const SearchScreen = () => {
                           <button
                             type="button"
                             onClick={(e) => toggleFollowForTraveler(e, t)}
-                            className={`shrink-0 h-8 px-2.5 rounded-full text-[11px] font-bold transition ${
+                            className={`shrink-0 h-7 px-2 rounded-full text-[10px] font-bold transition ${
                               followed
                                 ? 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-100'
                                 : 'bg-primary text-white'
@@ -1205,10 +1205,10 @@ const SearchScreen = () => {
 
               {/* 추천 여행자 5 */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">추천 여행자</div>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">추천 여행자</div>
                 </div>
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1">
                   {recommendedTravelersTop5.map((t) => {
                     const rep = getRepresentativeBadgeForUserId(t.userId);
                     const followed = isFollowing(null, t.userId);
@@ -1217,27 +1217,27 @@ const SearchScreen = () => {
                         key={`rec-${t.userId}`}
                         type="button"
                         onClick={() => { if (!hasMovedRef.current) goTravelerProfile(t); }}
-                        className="w-full rounded-xl border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#2F2418] px-2.5 py-2 text-left shadow-sm hover:shadow transition flex items-center gap-2"
+                        className="w-full rounded-lg border border-slate-200/60 dark:border-white/10 bg-white dark:bg-[#2F2418] px-2 py-1.5 text-left shadow-sm hover:shadow transition flex items-center gap-1.5"
                       >
                         {t.profileImage ? (
                           <img
                             src={getDisplayImageUrl(t.profileImage)}
                             alt=""
-                            className="w-9 h-9 rounded-full object-cover bg-slate-200 dark:bg-slate-700 shrink-0"
+                            className="w-7 h-7 rounded-full object-cover bg-slate-200 dark:bg-slate-700 shrink-0"
                             onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://images.unsplash.com/photo-1520975682031-ae3f39f19b64?w=200&q=60'; }}
                           />
                         ) : (
-                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-xs shrink-0">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-100 to-slate-200 dark:from-cyan-900/40 dark:to-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 font-bold text-[10px] shrink-0">
                             {String(t.username || '?').slice(0, 1)}
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <div className="text-[12px] font-bold text-slate-900 dark:text-white truncate">{t.username}</div>
+                          <div className="flex items-center gap-1 min-w-0">
+                            <div className="text-[11px] font-bold text-slate-900 dark:text-white truncate leading-tight">{t.username}</div>
                             {rep ? (
-                              <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 dark:bg-primary/20 text-primary dark:text-[#FFC599] px-1.5 py-0.5 text-[10px] font-bold shrink-0">
-                                <span className="text-[11px] leading-none">{rep.icon || '🏆'}</span>
-                                <span className="truncate max-w-[110px]">{getBadgeDisplayName(rep) || rep.name}</span>
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 dark:bg-primary/20 text-primary dark:text-[#FFC599] px-1 py-0 text-[9px] font-bold shrink-0 max-w-[min(42vw,9rem)]">
+                                <span className="text-[10px] leading-none shrink-0">{rep.icon || '🏆'}</span>
+                                <span className="truncate min-w-0">{getBadgeDisplayName(rep) || rep.name}</span>
                               </span>
                             ) : null}
                           </div>
@@ -1245,7 +1245,7 @@ const SearchScreen = () => {
                         <button
                           type="button"
                           onClick={(e) => toggleFollowForTraveler(e, t)}
-                          className={`shrink-0 h-8 px-2.5 rounded-full text-[11px] font-bold transition ${
+                          className={`shrink-0 h-7 px-2 rounded-full text-[10px] font-bold transition ${
                             followed
                               ? 'bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-100'
                               : 'bg-primary text-white'

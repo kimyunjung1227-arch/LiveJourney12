@@ -49,6 +49,21 @@ import 'swiper/css';
 // 서버 운영 전환: 로컬 저장소 없이 세션 내 신고만 기록
 const reportedPostIds = new Set();
 
+const isUuid = (v) =>
+  typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
+
+/** 게시물에서 작성자 UUID 추출 (필드명·형태 차이 흡수) */
+const getPostAuthorUuid = (p) => {
+  if (!p) return '';
+  const raw =
+    p.userId ??
+    p.user_id ??
+    (typeof p.user === 'object' && p.user != null ? p.user.id : null) ??
+    (typeof p.user === 'string' ? p.user : null);
+  const s = raw != null ? String(raw).trim() : '';
+  return isUuid(s) ? s : '';
+};
+
 const mapSupabaseCommentRows = (rows) => (Array.isArray(rows) ? rows : []).map((c) => ({
   id: String(c.id),
   parentId: c.parent_comment_id ? String(c.parent_comment_id) : null,
@@ -243,6 +258,25 @@ const PostDetailScreen = () => {
       setAccuracyMarked(hasUserMarkedAccurate(passedPost.id));
       setAccuracyCount(getPostAccuracyCount(passedPost.id));
       setLoading(false);
+      // 목록에서 넘어온 객체에 userId가 빠진 경우가 있어, 대표 뱃지·프로필 조회용으로 서버에서 작성자 UUID만 보강
+      const pid = String(postId || passedPost.id || '').trim();
+      if (isUuid(pid)) {
+        fetchPostByIdSupabase(pid, user?.id || null, { skipComments: true })
+          .then((fresh) => {
+            if (!fresh?.userId) return;
+            setPost((prev) => {
+              if (!prev || String(prev.id || prev._id) !== String(fresh.id)) return prev;
+              const prevUser = typeof prev.user === 'object' && prev.user ? prev.user : {};
+              const nextUser = typeof fresh.user === 'object' && fresh.user ? fresh.user : {};
+              return {
+                ...prev,
+                userId: fresh.userId || prev.userId,
+                user: { ...prevUser, ...nextUser, id: fresh.userId || nextUser.id || prevUser.id },
+              };
+            });
+          })
+          .catch(() => {});
+      }
       return;
     }
 
@@ -1031,20 +1065,13 @@ const PostDetailScreen = () => {
   useEffect(() => {
     if (!post) return;
 
-    const postUserId =
-      post?.userId ||
-      (typeof post?.user === 'string' ? post.user : post?.user?.id) ||
-      post?.user;
-
-    if (!postUserId) return;
+    const authorId = getPostAuthorUuid(post);
+    if (!authorId) return;
 
     (async () => {
-      const authorId = String(postUserId || '');
       let postsForAuthor = [];
       try {
-        if (authorId) {
-          postsForAuthor = await getMergedMyPostsForStats(authorId);
-        }
+        postsForAuthor = await getMergedMyPostsForStats(authorId);
       } catch {
         postsForAuthor = [];
       }
@@ -1052,7 +1079,7 @@ const PostDetailScreen = () => {
         postsForAuthor = [post, ...postsForAuthor];
       }
 
-      const badges = getEarnedBadgesForUser(postUserId, postsForAuthor) || [];
+      const badges = getEarnedBadgesForUser(authorId, postsForAuthor) || [];
       setUserBadges(badges);
 
       let storedRepBadge = null;
@@ -1074,13 +1101,9 @@ const PostDetailScreen = () => {
   useEffect(() => {
     if (!post) return undefined;
 
-    const postUserId =
-      post?.userId ||
-      (typeof post?.user === 'string' ? post.user : post?.user?.id) ||
-      post?.user;
-    if (!postUserId) return undefined;
+    const authorId = getPostAuthorUuid(post);
+    if (!authorId) return undefined;
 
-    const authorId = String(postUserId);
     const onRepresentativeBadgeUpdated = (event) => {
       const detail = event?.detail || {};
       if (String(detail.userId || '') !== authorId) return;
@@ -1186,6 +1209,17 @@ const PostDetailScreen = () => {
     () => authorDisplay?.profileImage || post?.userAvatar || null,
     [authorDisplay, post]
   );
+  /** 프로필 조회 전·본인 글: 세션의 대표 뱃지를 보조로 사용 */
+  const authorRepresentativeBadge = useMemo(() => {
+    if (representativeBadge?.name) return representativeBadge;
+    const aid = getPostAuthorUuid(post);
+    if (post && user?.id && aid && String(aid) === String(user.id)) {
+      const fromAuth = deserializeRepresentativeBadge(user?.representativeBadge);
+      if (fromAuth) return resolveRepresentativeBadge(fromAuth, userBadges);
+    }
+    return representativeBadge;
+  }, [post, user, representativeBadge, userBadges]);
+
   // EXIF에서 추출한 촬영 날짜 우선 사용
   const photoDate = useMemo(() => post?.photoDate || post?.exifData?.photoDate || null, [post]);
   // 상세 화면용 촬영 시간 라벨 (예: "2/10 14:30 촬영")
@@ -1282,7 +1316,12 @@ const PostDetailScreen = () => {
   }, [post]);
 
   // 작성자 팔로우 여부 로드 및 followsUpdated 구독
-  const postUserId = post ? (post.userId || (typeof post.user === 'string' ? post.user : post.user?.id) || post.user) : null;
+  const postUserId = useMemo(() => {
+    const u = getPostAuthorUuid(post);
+    if (u) return u;
+    if (!post) return null;
+    return post.userId || (typeof post.user === 'string' ? post.user : post.user?.id) || post.user || null;
+  }, [post]);
   useEffect(() => {
     if (!postUserId) return;
     const load = () => setIsFollowAuthor(isFollowing(null, postUserId));
@@ -1481,16 +1520,18 @@ const PostDetailScreen = () => {
                 <div
                   className="flex min-w-0 flex-1 items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
                   onClick={() => {
-                    const postUserId = post?.userId ||
+                    const aid =
+                      getPostAuthorUuid(post) ||
+                      post?.userId ||
                       (typeof post?.user === 'string' ? post.user : post?.user?.id) ||
                       post?.user;
                     const currentUserId = user?.id;
-                    if (postUserId && postUserId !== currentUserId) {
-                      setCachedFollowProfile(postUserId, { username: userName, profileImage: authorAvatar || null });
-                      navigate(`/user/${postUserId}`, {
+                    if (aid && aid !== currentUserId) {
+                      setCachedFollowProfile(aid, { username: userName, profileImage: authorAvatar || null });
+                      navigate(`/user/${aid}`, {
                         state: { profileHint: { username: userName, profileImage: authorAvatar || null } },
                       });
-                    } else if (postUserId && postUserId === currentUserId) {
+                    } else if (aid && aid === currentUserId) {
                       navigate('/profile');
                     }
                   }}
@@ -1505,19 +1546,24 @@ const PostDetailScreen = () => {
                       {String(userName || '여행자').charAt(0)}
                     </div>
                   )}
-                  <div className="flex min-w-0 flex-col">
-                    <div className="flex min-w-0 items-center gap-2">
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                    <div className="flex min-w-0 items-center gap-2 flex-wrap">
                       <p className="min-w-0 truncate text-sm font-bold text-[#181410] dark:text-white">
                         {userName}
                       </p>
-                      {representativeBadge && (
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <span className="text-xs">{representativeBadge.icon}</span>
-                          <span className="text-[11px] font-semibold text-gray-600 dark:text-gray-400 max-w-[92px] truncate">
-                            {getBadgeDisplayName(representativeBadge) || representativeBadge.name}
+                      {authorRepresentativeBadge?.name ? (
+                        <span
+                          className="inline-flex max-w-[min(100%,14rem)] shrink-0 items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 dark:border-gray-600 dark:bg-gray-800"
+                          title={getBadgeDisplayName(authorRepresentativeBadge) || authorRepresentativeBadge.name}
+                        >
+                          <span className="text-sm leading-none" aria-hidden>
+                            {authorRepresentativeBadge.icon || '🏆'}
                           </span>
-                        </div>
-                      )}
+                          <span className="truncate text-[11px] font-semibold text-gray-800 dark:text-gray-200">
+                            {getBadgeDisplayName(authorRepresentativeBadge) || authorRepresentativeBadge.name}
+                          </span>
+                        </span>
+                      ) : null}
                     </div>
                     {authorLiveSync != null && (
                       <p className="mt-0.5 text-[11px] text-text-secondary-light dark:text-text-secondary-dark truncate">

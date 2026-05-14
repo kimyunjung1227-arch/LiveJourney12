@@ -8,7 +8,6 @@ import LiveBadgeMedallion from '../components/LiveBadgeMedallion';
 const TIER_THRESHOLDS = {
   region: [5, 20, 50],
   theme: [3, 15, 40],
-  hotplace: [5, 20, 50],
   hidden: [1, 10, 30],
   night: [3, 15, 30],
 };

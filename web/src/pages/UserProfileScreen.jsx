@@ -82,21 +82,6 @@ const UserProfileScreen = () => {
     [userId]
   );
 
-  const repBadgeThumbOverlay = useMemo(() => {
-    if (!representativeBadge) return null;
-    const label = getBadgeDisplayName(representativeBadge) || representativeBadge.name || '';
-    return (
-      <div
-        className="pointer-events-none absolute bottom-1 left-1 z-[5] flex max-w-[calc(100%-8px)] items-center gap-0.5 rounded-full border border-white/15 bg-black/55 px-1.5 py-0.5 backdrop-blur-[2px]"
-        title={label}
-      >
-        <span className="text-[10px] leading-none" aria-hidden>
-          {representativeBadge.icon || '🏆'}
-        </span>
-      </div>
-    );
-  }, [representativeBadge]);
-
   const getPostCoords = useCallback((post) => {
     if (!post) return null;
     const c = post.coordinates;
@@ -1068,7 +1053,6 @@ const UserProfileScreen = () => {
                                     fetchPriority={index < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                                   />
                                 )}
-                                {repBadgeThumbOverlay}
                               </div>
                               <div className="space-y-0.5 min-w-0" style={{ borderTop: '3px solid #475569', background: '#f8fafc', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', padding: '12px 14px 14px' }}>
                                 <p className="text-[10px] font-medium text-text-primary-light dark:text-text-primary-dark truncate">
@@ -1126,7 +1110,6 @@ const UserProfileScreen = () => {
                               fetchPriority={index < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                             />
                           )}
-                          {repBadgeThumbOverlay}
                         </div>
                         {(post.note || locationLabel(post)) && (
                           <p className="text-[10px] text-text-secondary-light dark:text-text-secondary-dark truncate">

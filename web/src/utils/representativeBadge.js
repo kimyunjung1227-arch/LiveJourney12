@@ -33,7 +33,7 @@ export const deserializeRepresentativeBadge = (raw) => {
 };
 
 export const parseRepresentativeBadgeFromProfileRow = (row) =>
-  deserializeRepresentativeBadge(row?.representative_badge ?? null);
+  deserializeRepresentativeBadge(row?.representative_badge ?? row?.representativeBadge ?? null);
 
 export const resolveRepresentativeBadge = (storedBadge, earnedBadges = []) => {
   const stored = deserializeRepresentativeBadge(storedBadge);
