@@ -1,7 +1,7 @@
 // 날씨: Supabase Edge `kma-ultra-ncst` 우선. anon 키는 URL `apikey` 로만 전달(헤더 없음 → CORS 프리플라이트 없음).
 import { getCoordinatesByRegion } from '../utils/regionCoordinates';
 import { logger } from '../utils/logger';
-import { getFetchApiUrl } from '../utils/apiBase';
+import { getFetchApiUrl, getBackendOrigin } from '../utils/apiBase';
 
 const weatherCache = new Map();
 const CACHE_DURATION = 5 * 60 * 1000;
@@ -94,10 +94,24 @@ const fetchWithRetry = async (url, signal, retries = MAX_RETRIES, fetchInit = {}
   throw new Error('모든 재시도 실패');
 };
 
+/** 프론트 페이지와 Node 날씨 프록시 호스트가 다르면 CORS·Render 404 등으로 실패하기 쉬움 → Edge 우선 필요 */
+function isKmaNodeProxyCrossOrigin() {
+  if (typeof window === 'undefined') return false;
+  const o = getBackendOrigin();
+  if (!o) return false;
+  try {
+    const apiOrigin = new URL(o.includes('://') ? o : `https://${o}`).origin;
+    return apiOrigin !== window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * 1) 동일 출처 `/api/proxy/kma/ultra-srt-ncst` — Vercel rewrites 로 Supabase Edge 로 전달(CORS 회피).
- * 2) Supabase Edge 직접 URL — anon 은 쿼리 `apikey` 만(헤더 없음).
- * 프로덕션 빌드에서는 기본으로 1) 우선. `VITE_WEATHER_EDGE_FIRST=true` 이면 2) 우선.
+ * 1) 동일 출처 `/api/proxy/kma/ultra-srt-ncst` — Vercel rewrites 등(CORS 없음).
+ * 2) Supabase Edge `kma-ultra-ncst` — anon 은 쿼리 `apikey` 만(헤더 없음 → 프리플라이트 없음).
+ * 동일 출처 프록시가 아니면(예: livejourney.co.kr → Render) 기본으로 Edge 먼저.
+ * `VITE_WEATHER_EDGE_FIRST=true` 이면 항상 Edge 먼저.
  */
 function buildKmaProxyUrlList(searchParams) {
   const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim().replace(/\/+$/, '');
@@ -117,8 +131,9 @@ function buildKmaProxyUrlList(searchParams) {
   const nodeUrl = getFetchApiUrl(`/api/proxy/kma/ultra-srt-ncst?${withApiKey(searchParams)}`);
 
   const edgeFirst = String(import.meta.env.VITE_WEATHER_EDGE_FIRST || '').trim() === 'true';
-  /** 프로덕션: Vercel 프록시(동일 도메인) 먼저 — 개발은 Edge 직접이 편함 */
-  const proxyFirst = import.meta.env.PROD && !edgeFirst;
+  /** 동일 출처일 때만 Node 프록시 우선; 교차 출처면 Edge 먼저 */
+  const proxyFirst =
+    import.meta.env.PROD && !edgeFirst && !isKmaNodeProxyCrossOrigin();
 
   const edgeReady = Boolean(edgeUrl && anonKey);
   if (!edgeReady) {
