@@ -2023,6 +2023,17 @@ const ProfileScreen = () => {
                                   />
                                 )}
 
+                                {representativeBadge && !isEditMode && (
+                                  <div
+                                    className="pointer-events-none absolute bottom-1 left-1 z-[5] flex max-w-[calc(100%-8px)] items-center gap-0.5 rounded-full border border-white/15 bg-black/55 px-1.5 py-0.5 backdrop-blur-[2px]"
+                                    title={getBadgeDisplayName(representativeBadge) || representativeBadge.name || ''}
+                                  >
+                                    <span className="text-[10px] leading-none" aria-hidden>
+                                      {representativeBadge.icon || '🏆'}
+                                    </span>
+                                  </div>
+                                )}
+
                                 {/* 편집 모드: 선택 시 하늘색 원 */}
                                 {isEditMode && (
                                   <div
@@ -2126,6 +2137,16 @@ const ProfileScreen = () => {
                               decoding="async"
                               fetchPriority={index < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                             />
+                          )}
+                          {representativeBadge && !isEditMode && (
+                            <div
+                              className="pointer-events-none absolute bottom-1 left-1 z-[5] flex max-w-[calc(100%-8px)] items-center gap-0.5 rounded-full border border-white/15 bg-black/55 px-1.5 py-0.5 backdrop-blur-[2px]"
+                              title={getBadgeDisplayName(representativeBadge) || representativeBadge.name || ''}
+                            >
+                              <span className="text-[10px] leading-none" aria-hidden>
+                                {representativeBadge.icon || '🏆'}
+                              </span>
+                            </div>
                           )}
                           {isEditMode && (
                             <div

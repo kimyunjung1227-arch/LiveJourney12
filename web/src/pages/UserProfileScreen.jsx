@@ -29,6 +29,7 @@ import { fetchPostsByUserIdSupabase, fetchPostsSupabase } from '../api/postsSupa
 import { fetchProfilesByIdsSupabase, fetchProfileByIdSupabase } from '../api/profilesSupabase';
 import api from '../api/axios';
 import { fetchLiveSyncPctSupabase } from '../api/liveSyncSupabase';
+import { supabase } from '../utils/supabaseClient';
 // supabase 직접 조회 대신 liveSyncSupabase 유틸을 사용합니다.
 import {
   resolveUserDisplayFromPosts,
@@ -68,7 +69,6 @@ const UserProfileScreen = () => {
   const [followListIds, setFollowListIds] = useState([]);
   const [followListPostPool, setFollowListPostPool] = useState([]);
   const [followListProfiles, setFollowListProfiles] = useState({});
-  const [showTrustGradesModal, setShowTrustGradesModal] = useState(false);
   const [trustExplainOpen, setTrustExplainOpen] = useState(false);
 
   // 지도 관련
@@ -76,6 +76,26 @@ const UserProfileScreen = () => {
   const mapInstance = useRef(null);
   const markersRef = useRef([]);
   const [geoCoordsByKey, setGeoCoordsByKey] = useState({});
+
+  const isProfileUuid = useMemo(
+    () => Boolean(userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(userId).trim())),
+    [userId]
+  );
+
+  const repBadgeThumbOverlay = useMemo(() => {
+    if (!representativeBadge) return null;
+    const label = getBadgeDisplayName(representativeBadge) || representativeBadge.name || '';
+    return (
+      <div
+        className="pointer-events-none absolute bottom-1 left-1 z-[5] flex max-w-[calc(100%-8px)] items-center gap-0.5 rounded-full border border-white/15 bg-black/55 px-1.5 py-0.5 backdrop-blur-[2px]"
+        title={label}
+      >
+        <span className="text-[10px] leading-none" aria-hidden>
+          {representativeBadge.icon || '🏆'}
+        </span>
+      </div>
+    );
+  }, [representativeBadge]);
 
   const getPostCoords = useCallback((post) => {
     if (!post) return null;
@@ -112,6 +132,7 @@ const UserProfileScreen = () => {
     setEarnedBadges([]);
     setRepresentativeBadge(null);
     setLiveSync(35);
+    setTrustExplainOpen(false);
 
     // 해당 사용자의 정보 찾기 (게시물에서)
     const uploadedPosts = getUploadedPostsSafe();
@@ -222,14 +243,16 @@ const UserProfileScreen = () => {
         const prof = await fetchProfileByIdSupabase(String(userId).trim());
         if (prof) {
           setProfileRepresentativeBadge(parseRepresentativeBadgeFromProfileRow(prof));
-          if (prof.username || prof.avatar_url) {
+          if (prof.username || prof.avatar_url || prof.bio !== undefined) {
             const uName = prof.username ? String(prof.username).trim() : '';
             const av = prof.avatar_url ? String(prof.avatar_url).trim() : null;
+            const bioVal = prof.bio !== undefined && prof.bio !== null ? String(prof.bio).trim() : null;
             setUser((prev) => ({
               ...(prev || {}),
               id: String(userId),
               username: (uName && !badDisplayName(uName) ? uName : prev?.username) || '여행자',
               profileImage: av ?? prev?.profileImage ?? null,
+              ...(bioVal ? { bio: bioVal } : {}),
             }));
             if (uName && !badDisplayName(uName)) {
               setCachedFollowProfile(userId, { username: uName, profileImage: av || null });
@@ -322,6 +345,49 @@ const UserProfileScreen = () => {
     return () => {
       cancelled = true;
     };
+  }, [userId]);
+
+  // 열람 중인 프로필: 서버에서 live_sync_pct·대표뱃지가 바뀌면 즉시 반영 (내 프로필과 동일한 실시간 소스)
+  useEffect(() => {
+    if (!isProfileUuid || !userId) return undefined;
+    const uid = String(userId).trim();
+    const channel = supabase
+      .channel(`profile-live-sync-view-${uid}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${uid}` },
+        (payload) => {
+          const row = payload?.new;
+          if (!row || typeof row !== 'object') return;
+          if (row.live_sync_pct != null) {
+            const v = Number(row.live_sync_pct);
+            if (Number.isFinite(v)) {
+              setLiveSync(Math.max(0, Math.min(100, Math.round(v))));
+            }
+          }
+          if (Object.prototype.hasOwnProperty.call(row, 'representative_badge')) {
+            setProfileRepresentativeBadge(parseRepresentativeBadgeFromProfileRow(row));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      try {
+        supabase.removeChannel(channel);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [isProfileUuid, userId]);
+
+  useEffect(() => {
+    if (!userId) return undefined;
+    const onTrust = () => {
+      void fetchLiveSyncPctSupabase(userId, { bypassCache: true }).then((pct) => setLiveSync(pct));
+    };
+    window.addEventListener('trustIndexUpdated', onTrust);
+    return () => window.removeEventListener('trustIndexUpdated', onTrust);
   }, [userId]);
 
   // 팔로우 / 팔로워·팔로잉 수 로드 및 followsUpdated 구독
@@ -430,7 +496,7 @@ const UserProfileScreen = () => {
     const onRepresentativeBadgeUpdated = (event) => {
       const detail = event?.detail || {};
       if (String(detail.userId || '') !== String(userId)) return;
-      setProfileRepresentativeBadge(detail.badge ?? null);
+      setProfileRepresentativeBadge(deserializeRepresentativeBadge(detail.badge ?? null));
     };
     window.addEventListener('representativeBadgeUpdated', onRepresentativeBadgeUpdated);
     return () => window.removeEventListener('representativeBadgeUpdated', onRepresentativeBadgeUpdated);
@@ -872,23 +938,12 @@ const UserProfileScreen = () => {
 
             <ProfileLiveSyncSection
               liveSync={liveSync}
-              onToggleExplain={() => {
-                setTrustExplainOpen(false);
-                setShowTrustGradesModal(true);
-              }}
-              footerAction={(
-                <div className="flex justify-end mt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTrustExplainOpen(false);
-                      setShowTrustGradesModal(true);
-                    }}
-                    className="text-xs text-primary hover:underline"
-                  >
-                    자세히 보기
-                  </button>
-                </div>
+              explainOpen={trustExplainOpen}
+              onToggleExplain={() => setTrustExplainOpen((v) => !v)}
+              explainText={(
+                <>
+                  <span className="font-semibold">라이브 싱크</span>는 이 사용자의 게시물이 <span className="font-semibold">현장과 얼마나 동기화</span>되어 있는지(시차가 적은지)를 %로 보여줘요. 실시간 촬영·업로드, 도움돼요(좋아요), 지역에서의 꾸준한 업데이트가 높이고, 과거 사진·불일치 리포트는 낮춰요.
+                </>
               )}
             />
           </div>
@@ -1013,6 +1068,7 @@ const UserProfileScreen = () => {
                                     fetchPriority={index < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                                   />
                                 )}
+                                {repBadgeThumbOverlay}
                               </div>
                               <div className="space-y-0.5 min-w-0" style={{ borderTop: '3px solid #475569', background: '#f8fafc', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', padding: '12px 14px 14px' }}>
                                 <p className="text-[10px] font-medium text-text-primary-light dark:text-text-primary-dark truncate">
@@ -1070,6 +1126,7 @@ const UserProfileScreen = () => {
                               fetchPriority={index < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                             />
                           )}
+                          {repBadgeThumbOverlay}
                         </div>
                         {(post.note || locationLabel(post)) && (
                           <p className="text-[10px] text-text-secondary-light dark:text-text-secondary-dark truncate">
@@ -1419,77 +1476,6 @@ const UserProfileScreen = () => {
           </div>
         )}
 
-        {showTrustGradesModal && (
-          <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
-            onClick={() => setShowTrustGradesModal(false)}
-            role="dialog"
-            aria-modal="true"
-            aria-label="라이브 싱크 안내"
-          >
-            <div
-              className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm shadow-xl overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">라이브 싱크 안내</h2>
-                <button
-                  type="button"
-                  onClick={() => setShowTrustGradesModal(false)}
-                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"
-                  aria-label="닫기"
-                >
-                  <span className="material-symbols-outlined text-xl">close</span>
-                </button>
-              </div>
-              <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
-                <div className="mb-4 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setTrustExplainOpen((v) => !v)}
-                    className="w-full flex items-center justify-between gap-2 p-3 text-left hover:bg-gray-200/50 dark:hover:bg-gray-700/50 transition-colors"
-                    aria-expanded={trustExplainOpen}
-                  >
-                    <span className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">라이브 싱크가 어떻게 변하나요?</span>
-                    <span className={`material-symbols-outlined text-lg text-gray-500 dark:text-gray-400 transition-transform ${trustExplainOpen ? 'rotate-180' : ''}`} aria-hidden>expand_more</span>
-                  </button>
-                  {trustExplainOpen && (
-                    <div className="px-3 pb-3 pt-0 border-t border-gray-200 dark:border-gray-700">
-                      <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside pt-2">
-                        <li>실시간 인증: 촬영(Exif)~업로드 간격이 짧을수록 상승</li>
-                        <li>도움돼요(좋아요): 누적될수록 상승</li>
-                        <li>지역 싱크: 같은 지역에서 꾸준히 이어서 올릴수록 상승</li>
-                        <li>과거 사진: 촬영 시각이 너무 과거면 하락</li>
-                        <li>미활동: 시간이 지나면 50%를 향해 서서히 수렴</li>
-                      </ul>
-                    </div>
-                  )}
-                </div>
-                <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-3">
-                  <div className="text-xs font-bold text-gray-500 dark:text-gray-400">색상 가이드</div>
-                  <div className="mt-2 space-y-1.5 text-xs text-gray-700 dark:text-gray-200">
-                    <div className="flex items-center justify-between">
-                      <span>90% ~ 100%</span>
-                      <span className="font-semibold text-sky-600 dark:text-sky-300">실시간 동기화 완료</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>70% ~ 89%</span>
-                      <span className="font-semibold text-sky-500 dark:text-sky-300">높은 현장감</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>40% ~ 69%</span>
-                      <span className="font-semibold text-slate-500 dark:text-slate-300">일반 여행자</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>40% 미만</span>
-                      <span className="font-semibold text-orange-500 dark:text-orange-300">시차 주의</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       <BottomNavigation />
