@@ -461,7 +461,19 @@ const CrowdedPlaceScreen = () => {
                                         <button
                                             key={place.key}
                                             type="button"
-                                            onClick={() => navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } })}
+                                            onClick={() => {
+                                                const pk = String(place.key || '').trim();
+                                                if (!pk) {
+                                                    navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } });
+                                                    return;
+                                                }
+                                                navigate(`/hotplace/${encodeURIComponent(pk)}`, {
+                                                    state: {
+                                                        placeKey: pk,
+                                                        allPosts: allHotPosts,
+                                                    },
+                                                });
+                                            }}
                                             className="group w-full overflow-hidden rounded-sm border border-zinc-100 bg-white text-left shadow-sm transition hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
                                         >
                                             <div className="relative h-[min(42vw,150px)] w-full shrink-0 overflow-hidden bg-zinc-100 dark:bg-zinc-800 sm:h-[162px]">
@@ -606,14 +618,9 @@ const CrowdedPlaceScreen = () => {
                                                         onClick={(e) => {
                                                             e.preventDefault();
                                                             e.stopPropagation();
-                                                            navigate(`/hotplace/${encodeURIComponent(String(place.key || '').trim())}`, {
-                                                                state: {
-                                                                    placeKey: String(place.key || '').trim(),
-                                                                    allPosts: allHotPosts,
-                                                                },
-                                                            });
+                                                            navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } });
                                                         }}
-                                                        aria-label="장소 모아보기"
+                                                        aria-label="대표 게시물 보기"
                                                         className="mt-0 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
                                                         style={{ border: `1px solid rgba(38,198,218,0.28)` }}
                                                     >
