@@ -100,9 +100,12 @@ const BottomNavigation = React.memo(() => {
         location.pathname.startsWith('/magazine') ||
         location.pathname.startsWith('/magazines');
     }
-    // 검색 탭: /search 이하 경로
-    if (path === '/search') {
-      return location.pathname.startsWith('/search');
+    // 실시간 핫플 탭: 목록·장소별 피드
+    if (path === '/crowded-place') {
+      return (
+        location.pathname.startsWith('/crowded-place') ||
+        location.pathname.startsWith('/hotplace/')
+      );
     }
     if (path === '/upload') {
       return location.pathname === '/upload';
@@ -171,14 +174,14 @@ const BottomNavigation = React.memo(() => {
         <span className="material-symbols-outlined" style={{ fontSize: 26 }}>home</span>
         <span className="text-sm font-bold">홈</span>
       </button>
-      {/* 검색 탭 */}
       <button
-      onClick={() => navigate('/search')}
-      className={`flex flex-col items-center justify-center gap-1 py-1.5 ${isActive('/search') ? 'text-primary' : 'text-text-subtle-light dark:text-text-subtle-dark hover:text-text-primary-light dark:hover:text-text-primary-dark transition-colors'
+      type="button"
+      onClick={() => navigate('/crowded-place')}
+      className={`flex flex-col items-center justify-center gap-1 py-1.5 ${isActive('/crowded-place') ? 'text-primary' : 'text-text-subtle-light dark:text-text-subtle-dark hover:text-text-primary-light dark:hover:text-text-primary-dark transition-colors'
           }`}
       >
-        <span className="material-symbols-outlined" style={{ fontSize: 26 }}>search</span>
-        <span className="text-sm font-bold">검색</span>
+        <span className="material-symbols-outlined" style={{ fontSize: 26 }}>local_fire_department</span>
+        <span className="text-sm font-bold leading-tight text-center">실시간 핫플</span>
       </button>
       <button
         onClick={() => navigate('/upload')}

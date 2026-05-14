@@ -102,13 +102,13 @@ function MainTabs() {
         }}
       />
       <Tab.Screen
-        name="SearchTab"
-        component={SearchScreen}
+        name="HotplaceTab"
+        component={CrowdedPlaceScreen}
         options={{
-          tabBarLabel: '검색',
+          tabBarLabel: '핫플',
           tabBarIcon: ({ color, focused, size }) => (
             <Ionicons
-              name="search"
+              name="flame"
               size={24}
               color={focused ? COLORS.primary : '#8a7560'}
             />

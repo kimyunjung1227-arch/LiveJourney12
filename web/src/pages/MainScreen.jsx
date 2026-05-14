@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMe
 import { useNavigate, useLocation } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { getUnreadCount } from '../utils/notifications';
-import { getTimeAgo, filterActivePosts48 } from '../utils/timeUtils';
+import { getTimeAgo } from '../utils/timeUtils';
 import { logger } from '../utils/logger';
 import { getRecommendedRegions, getRecommendationTypesForUi } from '../utils/recommendationEngine';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
@@ -11,30 +11,19 @@ import './MainScreen.css';
 import { getCombinedPosts } from '../utils/mockData';
 import { fetchPostsSupabase, fetchQuestionPostsSupabase } from '../api/postsSupabase';
 import { getDisplayImageUrl } from '../api/upload';
-import { getMapThumbnailUri } from '../utils/postMedia';
-import { getPostAccuracyCount } from '../utils/socialInteractions';
-import { rankHotspotPlaces } from '../utils/hotnessEngine';
 import { getWeatherByRegion } from '../api/weather';
 import { listPublishedMagazines } from '../utils/magazinesStore';
-import HotFeedCard from '../components/HotFeedCard';
 import FastImage from '../components/FastImage';
 import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
-import { buildHotFeedCardProps, getHotFeedSocialLine } from '../utils/hotFeedCardModel';
 import { buildPlaceStatsMap, selectPostsForPlaceStats, transformPostForHotFeed } from '../utils/hotFeedPostTransform';
 import { useAuth } from '../contexts/AuthContext';
 import { useExifConsent } from '../contexts/ExifConsentContext';
 import ExifConsentSheet from '../components/ExifConsentSheet';
 import StatusBadge from '../components/StatusBadge';
 import { getPhotoStatusFromPost } from '../utils/photoStatus';
-import { toggleLikeForPost } from '../utils/postLikeActions';
 import { fetchRafflesForUi } from '../api/rafflesSupabase';
 import { RAFFLE_UI_ENABLED } from '../config/featureFlags';
-import { generatePlaceAiBlurb } from '../utils/placeAiBlurb';
 import { getValidWeatherSnapshot } from '../utils/weatherSnapshot';
-import { useLoginGate } from '../hooks/useLoginGate';
-import { fetchPlaceDescription } from '../api/placeDescription';
-import { normalizePlaceIdentityKey } from '../utils/placeKeyNormalize';
-import { toHotplaceDescPreview } from '../utils/hotplaceDescPreview';
 import {
     loadMainFeedSnapshotLast,
     saveMainFeedSnapshotLast,
@@ -49,12 +38,10 @@ const MainScreen = () => {
     const location = useLocation();
     const { user, authLoading } = useAuth();
     const { consentResolved, consentLoading, grantExifConsent, declineExifConsent } = useExifConsent();
-    const requireLogin = useLoginGate();
     const [selectedTag, setSelectedTag] = useState(null);
     const [popularTags, setPopularTags] = useState([]);
 
     const [realtimeData, setRealtimeData] = useState([]);
-    const [crowdedData, setCrowdedData] = useState([]);
     const [recommendedData, setRecommendedData] = useState([]);
     const [weatherByRegion, setWeatherByRegion] = useState({});
     const [allPostsForRecommend, setAllPostsForRecommend] = useState([]);
@@ -64,13 +51,9 @@ const MainScreen = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
-    const [hotFeedVideoPoster, setHotFeedVideoPoster] = useState(null);
     const [selectedRecommendTag, setSelectedRecommendTag] = useState('season_peak');
     const [recommendationTypesUi, setRecommendationTypesUi] = useState(() => getRecommendationTypesForUi());
-    const [hotFeedSlideIndex, setHotFeedSlideIndex] = useState(0);
-    const [hotFeedSocialIdx, setHotFeedSocialIdx] = useState(0);
     const [hasOngoingRaffle, setHasOngoingRaffle] = useState(false);
-    const [hotplaceAiDescription, setHotplaceAiDescription] = useState('');
     const { handleDragStart, hasMovedRef } = useHorizontalDragScroll();
     /** 새로고침 직후 세션 스냅샷으로 이미지 URL을 먼저 채워 두었는지 */
     const hydratedFromSessionRef = useRef(false);
@@ -131,7 +114,7 @@ const MainScreen = () => {
             });
             observer.disconnect();
         };
-    }, [realtimeData, crowdedData, recommendedData]);
+    }, [realtimeData, recommendedData]);
 
     const loadMockData = useCallback(async () => {
         // Supabase에서 실제 게시물 불러오기 (실패 시 빈 배열)
@@ -140,13 +123,13 @@ const MainScreen = () => {
 
         const allPosts = getCombinedPosts(supabasePosts);
 
-        // 메인 피드 기준(24h 우선·부족 시 72h 보강) + 장소별 집계 → 실시간 핫플 좌상단 태그와 공유
+        // 메인 피드 기준(24h 우선·부족 시 72h 보강) + 장소별 집계 → 카드 태그용
         const posts = selectPostsForPlaceStats(allPosts);
         const placeStats = buildPlaceStatsMap(posts);
         const transformPost = (post) => transformPostForHotFeed(post, placeStats);
         const transformedAll = posts.map(transformPost);
 
-        // "지금 여기는": 최신순 정렬 후 상위 20개
+        // "지금 여기는": 최신순 정렬 후 상위 4개 (메인은 가볍게, 핫플은 하단 탭)
         const byLatest = [...transformedAll].sort((a, b) => {
             const tA = a.timestamp || a.createdAt || a.time || 0;
             const tB = b.timestamp || b.createdAt || b.time || 0;
@@ -154,34 +137,7 @@ const MainScreen = () => {
             const dateB = typeof tB === 'number' ? tB : new Date(tB).getTime();
             return dateB - dateA;
         });
-        setRealtimeData(byLatest.slice(0, 20));
-
-        // "실시간 핫플": 더보기(/crowded-place)와 동일하게 48h + 핫니스 랭킹
-        const posts48 = filterActivePosts48(allPosts);
-        const transformed48 = posts48.map(transformPost);
-        const preFiltered = transformed48.filter((p) => {
-            const hasLikes = (p.likes || 0) > 0;
-            const isRecent = p.time && (p.time.includes('방금') || p.time.includes('분 전') || p.time.includes('시간 전'));
-            return hasLikes || isRecent;
-        });
-        const toRank = preFiltered.length > 0 ? preFiltered : transformed48;
-        const rankedPlaces = rankHotspotPlaces(toRank, { verifyFirst: true, maxItems: 50 });
-        const crowdedRanked = rankedPlaces
-            .filter((p) => p?.representative?.id)
-            .map((p) => ({
-                ...p.representative,
-                _rank: p.rank,
-                _impactLabel: p.warning || `컴퍼스 ${p.compassCount}명 동시 중계 중`,
-                _compassCount: p.compassCount,
-                _placeKey: p.key,
-                accuracyCount: getPostAccuracyCount(p.representative.id),
-            }));
-        const crowdedFallback = transformed48.slice(0, 50).map((p) => ({
-            ...p,
-            accuracyCount: getPostAccuracyCount(p.id),
-        }));
-        const crowdedFinal = crowdedRanked.length > 0 ? crowdedRanked : crowdedFallback;
-        setCrowdedData(crowdedFinal);
+        setRealtimeData(byLatest.slice(0, 4));
 
         // 추천 여행지: 현재는 Supabase/로컬에서 집계한 posts 기반으로 계산
         const recs = getRecommendedRegions(allPosts, selectedRecommendTag);
@@ -189,14 +145,13 @@ const MainScreen = () => {
         setRecommendedData(recommendedSlice);
         setAllPostsForRecommend(allPosts);
 
-        const realtimeSlice = byLatest.slice(0, 20);
+        const realtimeSlice = byLatest.slice(0, 4);
         saveMainFeedSnapshotLast({
             realtimeData: realtimeSlice,
-            crowdedData: crowdedFinal,
             recommendedData: recommendedSlice,
             allPostsForRecommend: allPosts,
         });
-    }, [user?.id]);
+    }, [user?.id, selectedRecommendTag]);
 
     const fetchPosts = useCallback(async () => {
         setLoading(true);
@@ -302,15 +257,7 @@ const MainScreen = () => {
             .slice(0, 6);
     }, [publishedMagazines, allPostsForRecommend]);
 
-    const crowdedIdsKey = useMemo(() => crowdedData.map((p) => String(p.id)).join(','), [crowdedData]);
-
     const showRealtimeFeedSkeleton = loading && realtimeData.length === 0;
-
-    const hotFeedPost = useMemo(() => {
-        if (!crowdedData.length) return null;
-        const i = hotFeedSlideIndex % crowdedData.length;
-        return crowdedData[i];
-    }, [crowdedData, hotFeedSlideIndex]);
 
     // 추천 여행지(가로 카드): 카드마다 allPostsForRecommend.filter/sort를 반복하지 않도록 한번만 인덱싱
     const recommendedPlaceBundle = useMemo(() => {
@@ -375,61 +322,6 @@ const MainScreen = () => {
         return byKey;
     }, [recommendedData, allPostsForRecommend]);
 
-    useEffect(() => {
-        let cancelled = false;
-        const post = hotFeedPost;
-        const firstVideo = post && Array.isArray(post.videos) && post.videos.length > 0 ? post.videos[0] : '';
-        if (!post || !firstVideo) {
-            setHotFeedVideoPoster(null);
-            return;
-        }
-        const still = getMapThumbnailUri(post);
-        if (still) {
-            setHotFeedVideoPoster(null);
-            return;
-        }
-
-        const capture = async () => {
-            try {
-                const url = getDisplayImageUrl(firstVideo);
-                if (!url) return;
-                const video = document.createElement('video');
-                video.crossOrigin = 'anonymous';
-                video.muted = true;
-                video.playsInline = true;
-                video.preload = 'auto';
-                video.src = url;
-
-                await new Promise((resolve, reject) => {
-                    const onLoaded = () => resolve();
-                    const onErr = () => reject(new Error('video load failed'));
-                    video.addEventListener('loadeddata', onLoaded, { once: true });
-                    video.addEventListener('error', onErr, { once: true });
-                });
-
-                const w = Math.max(1, video.videoWidth || 0);
-                const h = Math.max(1, video.videoHeight || 0);
-                if (!w || !h) return;
-
-                const canvas = document.createElement('canvas');
-                canvas.width = w;
-                canvas.height = h;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) return;
-                ctx.drawImage(video, 0, 0, w, h);
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-                if (!cancelled) setHotFeedVideoPoster(dataUrl);
-            } catch {
-                if (!cancelled) setHotFeedVideoPoster(null);
-            }
-        };
-
-        capture();
-        return () => {
-            cancelled = true;
-        };
-    }, [hotFeedPost]);
-
     // 새로고침 직후: 직전 성공 응답을 세션에서 즉시 복원 → 이미지 요청이 한 템포 빠르게 시작됨
     useLayoutEffect(() => {
         if (hydratedFromSessionRef.current) return;
@@ -438,9 +330,6 @@ const MainScreen = () => {
         hydratedFromSessionRef.current = true;
         if (Array.isArray(snap.realtimeData) && snap.realtimeData.length > 0) {
             setRealtimeData(snap.realtimeData);
-        }
-        if (Array.isArray(snap.crowdedData) && snap.crowdedData.length > 0) {
-            setCrowdedData(snap.crowdedData);
         }
         if (Array.isArray(snap.recommendedData)) {
             setRecommendedData(snap.recommendedData);
@@ -451,155 +340,9 @@ const MainScreen = () => {
     }, []);
 
     useEffect(() => {
-        const cleanup = preloadMainFeedImageUrls(realtimeData, crowdedData);
+        const cleanup = preloadMainFeedImageUrls(realtimeData, []);
         return typeof cleanup === 'function' ? cleanup : undefined;
-    }, [realtimeData, crowdedData]);
-
-    const hotFeedCardProps = useMemo(
-        () => {
-            const cp = buildHotFeedCardProps(hotFeedPost, weatherByRegion);
-            if (!cp) return null;
-            // ✅ 더보기(/crowded-place)와 동일하게: 장소 AI 블러브를 "설명"으로 우선 사용
-            const placeKey = String(hotFeedPost?._placeKey || cp.title || '').trim();
-            if (!placeKey) return cp;
-            const tagsRaw = Array.isArray(hotFeedPost?.reasonTags) && hotFeedPost.reasonTags.length > 0
-                ? hotFeedPost.reasonTags
-                : (Array.isArray(hotFeedPost?.aiHotTags) ? hotFeedPost.aiHotTags : []);
-            const tags = (tagsRaw || [])
-                .map((t) => String(t || '').replace(/#/g, '').trim())
-                .filter(Boolean)
-                .slice(0, 3)
-                .map((t) => (t.startsWith('#') ? t : `#${t}`));
-            const aiBlurb = generatePlaceAiBlurb(placeKey, {
-                tags,
-                cityDong: cp.cityDongLine || '',
-                tier: cp.hotReasonLabel || '',
-            });
-            return {
-                ...cp,
-                captionForCard: String(aiBlurb || '').trim() || cp.captionForCard,
-            };
-        },
-        [hotFeedPost, weatherByRegion]
-    );
-
-    // 실시간 핫플: "장소 자체" 설명을 AI로 생성 (사용자 제보 문장 통합)
-    useEffect(() => {
-        let cancelled = false;
-        const run = async () => {
-            try {
-                const cp = hotFeedCardProps;
-                const post = hotFeedPost;
-                const placeKey = String(post?._placeKey || cp?.title || '').trim();
-                if (!placeKey) {
-                    setHotplaceAiDescription('');
-                    return;
-                }
-                const norm = normalizePlaceIdentityKey(placeKey);
-                const pool = Array.isArray(crowdedData) ? crowdedData : [];
-                const userCaptions = pool
-                    .filter((p) => normalizePlaceIdentityKey(String(p?._placeKey || p?.placeName || p?.location || '').trim()) === norm)
-                    .map((p) => String(p?.note || p?.content || '').replace(/\s+/g, ' ').trim())
-                    .filter(Boolean)
-                    .slice(0, 6);
-
-                const tagsRaw = Array.isArray(post?.reasonTags) && post.reasonTags.length > 0
-                    ? post.reasonTags
-                    : (Array.isArray(post?.aiHotTags) ? post.aiHotTags : []);
-                const tags = (tagsRaw || [])
-                    .map((t) => String(t || '').replace(/[#_]/g, ' ').replace(/\s+/g, ' ').trim())
-                    .filter(Boolean)
-                    .slice(0, 6);
-
-                const desc = await fetchPlaceDescription({
-                    placeKey,
-                    regionHint: cp?.cityDongLine || post?.region || '',
-                    tier: cp?.hotReasonLabel || '',
-                    tags,
-                    userCaptions,
-                    cacheSalt: norm,
-                });
-                if (!cancelled) {
-                    setHotplaceAiDescription(toHotplaceDescPreview(desc, { maxChars: 220, maxSentences: 2 }));
-                }
-            } catch {
-                if (!cancelled) setHotplaceAiDescription('');
-            }
-        };
-        run();
-        return () => {
-            cancelled = true;
-        };
-    }, [hotFeedPost, hotFeedCardProps, crowdedData]);
-
-    useEffect(() => {
-        setHotFeedSlideIndex(0);
-    }, [crowdedIdsKey]);
-
-    // 핫플이 여러 개일 때 순차(라운드로빈) 자동 전환 (너무 빠르면 UX가 불안정해 보여 속도 완화)
-    useEffect(() => {
-        if (crowdedData.length <= 1) return undefined;
-        const id = setInterval(() => {
-            setHotFeedSlideIndex((n) => (n + 1) % crowdedData.length);
-        }, 9000);
-        return () => clearInterval(id);
-    }, [crowdedData.length, crowdedIdsKey]);
-
-    useEffect(() => {
-        setHotFeedSocialIdx(0);
-    }, [hotFeedPost?.id, crowdedIdsKey]);
-
-    // 조회수·좋아요·사진 찍는 중 문구 순차 표시 (전환 속도 완화)
-    useEffect(() => {
-        if (!hotFeedPost) return undefined;
-        const id = setInterval(() => {
-            setHotFeedSocialIdx((i) => (i + 1) % 3);
-        }, 4800);
-        return () => clearInterval(id);
-    }, [hotFeedPost?.id]);
-
-    const handleHotFeedLike = useCallback(async (e, post) => {
-        e.stopPropagation();
-        if (!requireLogin('좋아요')) return;
-        const prevLiked = !!post.likedByMe;
-        const prevCount = Math.max(0, Number(post.likes ?? post.likeCount ?? 0) || 0);
-        const optimisticLiked = !prevLiked;
-        const optimisticCount = Math.max(0, prevCount + (optimisticLiked ? 1 : -1));
-
-        setCrowdedData((prev) =>
-            prev.map((p) =>
-                p && p.id === post.id
-                    ? { ...p, likes: optimisticCount, likeCount: optimisticCount, likedByMe: optimisticLiked }
-                    : p
-            )
-        );
-
-        const res = await toggleLikeForPost({ postId: post.id, userId: user.id, likedBefore: prevLiked });
-        if (res?.success) {
-            const finalLiked = !!res.isLiked;
-            const finalCount = typeof res.likesCount === 'number' ? res.likesCount : optimisticCount;
-            setCrowdedData((prev) =>
-                prev.map((p) =>
-                    p && p.id === post.id
-                        ? { ...p, likes: finalCount, likeCount: finalCount, likedByMe: finalLiked }
-                        : p
-                )
-            );
-            return;
-        }
-
-        // 롤백
-        setCrowdedData((prev) =>
-            prev.map((p) =>
-                p && p.id === post.id
-                    ? { ...p, likes: prevCount, likeCount: prevCount, likedByMe: prevLiked }
-                    : p
-            )
-        );
-        if (res?.reason && res.reason !== 'non_uuid') {
-            alert(res.reason === 'no_session' ? '로그인 세션이 없어요. 다시 로그인 후 시도해 주세요.' : '좋아요 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
-        }
-    }, [user?.id, requireLogin]);
+    }, [realtimeData]);
 
     useEffect(() => {
         fetchPosts();
@@ -660,7 +403,6 @@ const MainScreen = () => {
                 return next;
             };
             setRealtimeData((prev) => prev.map(updateLikes));
-            setCrowdedData((prev) => prev.map(updateLikes));
             setRecommendedData((prev) => prev.map(updateLikes));
             setAllPostsForRecommend((prev) => (Array.isArray(prev) ? prev.map(updateLikes) : prev));
         };
@@ -676,7 +418,6 @@ const MainScreen = () => {
             const id = String(postId);
             const updateComments = (p) => (p && String(p.id) === id ? { ...p, comments } : p);
             setRealtimeData((prev) => prev.map(updateComments));
-            setCrowdedData((prev) => prev.map(updateComments));
             setRecommendedData((prev) => prev.map(updateComments));
             setAllPostsForRecommend((prev) => (Array.isArray(prev) ? prev.map(updateComments) : prev));
         };
@@ -690,7 +431,6 @@ const MainScreen = () => {
             const postId = e.detail?.postId ? String(e.detail.postId) : null;
             if (postId) {
                 setRealtimeData((prev) => prev.filter((p) => p && String(p.id) !== postId));
-                setCrowdedData((prev) => prev.filter((p) => p && String(p.id) !== postId));
                 setRecommendedData((prev) => prev.filter((p) => p && String(p.id) !== postId));
                 setAllPostsForRecommend((prev) => (Array.isArray(prev) ? prev.filter((p) => p && String(p.id) !== postId) : prev));
             }
@@ -725,7 +465,7 @@ const MainScreen = () => {
     useEffect(() => {
         const targets = [];
         const seen = new Set();
-        [...realtimeData, ...crowdedData].forEach((p) => {
+        realtimeData.forEach((p) => {
             if (!p || p.weather || p.weatherSnapshot) return;
             const r = (p.region || p.location || '').trim().split(/\s+/)[0] || p.region || p.location;
             if (!r) return;
@@ -756,7 +496,7 @@ const MainScreen = () => {
             setWeatherByRegion((prev) => ({ ...prev, ...map }));
         });
         return () => { cancelled = true; };
-    }, [realtimeData, crowdedData, weatherByRegion]);
+    }, [realtimeData, weatherByRegion]);
 
     // 새 알림이 생기면 메인 화면에서도 배지 갱신
     useEffect(() => {
@@ -1241,53 +981,6 @@ const MainScreen = () => {
 
                 {/* 메인 컨텐츠 */}
                 <div style={{ padding: '2px 16px 20px', background: '#ffffff', minHeight: '100%' }}>
-
-                        {/* 실시간 핫플 — 이미지 4:3 세로 비중 + 섹션 여백 */}
-                        <div style={{ marginBottom: '22px', paddingTop: 0, paddingBottom: '20px', background: '#ffffff' }}>
-                            <div className="main-section-heading-row">
-                                <h2 className="main-section-title">실시간 핫플</h2>
-                                <button
-                                    type="button"
-                                    onClick={() => navigate('/crowded-place')}
-                                    className="border-none bg-transparent text-primary hover:text-primary-dark dark:hover:text-primary-soft text-sm font-semibold cursor-pointer py-1.5 px-2 min-h-[36px] inline-flex shrink-0 items-center gap-0.5"
-                                >
-                                    <span>더보기</span>
-                                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>chevron_right</span>
-                                </button>
-                            </div>
-                            {!hotFeedCardProps ? (
-                                <div style={{ textAlign: 'center', padding: '12px 12px', color: '#94a3b8', fontSize: '14px' }}>
-                                    아직 실시간 핫플 게시물이 없어요.
-                                </div>
-                            ) : (
-                                (() => {
-                                    const { post } = hotFeedCardProps;
-                                    const slideIdx = crowdedData.length ? hotFeedSlideIndex % crowdedData.length : 0;
-                                    const socialText = getHotFeedSocialLine(hotFeedCardProps, hotFeedSocialIdx);
-                                    return (
-                                        <HotFeedCard
-                                            key={`${post.id}-${slideIdx}`}
-                                            imageUrlOpts={MAIN_FEED_IMAGE_OPTS}
-                                            cardProps={hotFeedCardProps}
-                                            socialText={socialText}
-                                            onCardClick={withDragCheck(() => {
-                                                const idx = crowdedData.findIndex((p) => String(p?.id) === String(post?.id));
-                                                navigate(`/post/${post.id}`, {
-                                                    state: {
-                                                        post,
-                                                        allPosts: crowdedData,
-                                                        currentPostIndex: idx >= 0 ? idx : 0,
-                                                    },
-                                                });
-                                            })}
-                                            showLike={false}
-                                            videoPosterUrl={hotFeedVideoPoster}
-                                            placeDescription={hotplaceAiDescription}
-                                        />
-                                    );
-                                })()
-                            )}
-                        </div>
 
                         {/* 현지 상황 물어보기 — 텍스트 전용 질문 리스트 */}
                         <div style={{ marginBottom: '18px', paddingBottom: '14px', background: '#ffffff' }}>

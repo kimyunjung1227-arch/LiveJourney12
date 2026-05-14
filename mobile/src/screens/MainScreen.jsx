@@ -32,9 +32,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const LAYOUT_MAX_WIDTH = 428;
 const CONTENT_WIDTH = Math.min(SCREEN_WIDTH, LAYOUT_MAX_WIDTH);
 const REALTIME_CARD_WIDTH = CONTENT_WIDTH * 0.54; // 웹: 54%
-const CROWDED_CARD_WIDTH = CONTENT_WIDTH * 0.38; // 웹: 38%
 const RECOMMEND_CARD_WIDTH = CONTENT_WIDTH * 0.85; // 웹: 85%
-const HOT_PL_IMAGE_HEIGHT = 136; // 실시간 핫플 썸네일 세로 (이전 120)
 const REALTIME_IMAGE_HEIGHT = 300; // 지금 여기는 카드 세로 (이전 280)
 
 const WeatherWidget = ({ region = '서울' }) => {
@@ -73,7 +71,6 @@ const MainScreen = () => {
   const { clearAll } = useFeedVideo();
   const [refreshing, setRefreshing] = useState(false);
   const [realtimeData, setRealtimeData] = useState([]);
-  const [crowdedData, setCrowdedData] = useState([]);
   const [recommendedData, setRecommendedData] = useState([]);
   const [selectedRecommendTag, setSelectedRecommendTag] = useState('blooming');
 
@@ -139,15 +136,8 @@ const MainScreen = () => {
 
       const transformedAll = posts.map(transformPost);
 
-      // "지금 여기는" - 전체 게시물 중 최신순
-      setRealtimeData(transformedAll.slice(0, 20));
-
-      // "실시간 급상승 핫플" - 좋아요 많은 순 + 실제 핫한 태그 포함
-      const hotPosts = [...transformedAll]
-        .filter(p => (p.likes || 0) > 0 || (p.time && (p.time.includes('방금') || p.time.includes('분 전'))))
-        .sort((a, b) => (b.likes || 0) - (a.likes || 0))
-        .slice(0, 15);
-      setCrowdedData(hotPosts.length > 0 ? hotPosts : transformedAll.slice(0, 15));
+      // "지금 여기는" - 메인은 최신 4개만 (핫플은 하단 탭)
+      setRealtimeData(transformedAll.slice(0, 4));
 
       const recs = getRecommendedRegions(allPosts, selectedRecommendTag);
       setRecommendedData(recs.slice(0, 10));
@@ -253,51 +243,6 @@ const MainScreen = () => {
                         <Text style={styles.cardLocation}>{post.location}</Text>
                         <Text style={styles.cardMeta}>{post.categoryLabel} · {post.time}</Text>
                       </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-
-              {/* 실시간 급상승 핫플 */}
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={[styles.sectionTitle, { fontSize: 18 }]}>🔥 실시간 급상승 핫플</Text>
-                  <TouchableOpacity onPress={() => navigation.navigate('CrowdedPlace')}><Text style={styles.moreText}>더보기</Text></TouchableOpacity>
-                </View>
-                <ScrollView 
-                  horizontal 
-                  showsHorizontalScrollIndicator={false} 
-                  contentContainerStyle={styles.horizontalScroll}
-                  snapToInterval={CROWDED_CARD_WIDTH + 12}
-                  decelerationRate="fast"
-                  snapToAlignment="start"
-                >
-                  {crowdedData.map((post) => (
-                    <TouchableOpacity key={post.id} style={styles.crowdedCard} onPress={() => navigation.navigate('PostDetail', { post })}>
-                      <View style={styles.crowdedImageWrapper}>
-                        <MainHorizontalMedia
-                          width={CROWDED_CARD_WIDTH}
-                          height={HOT_PL_IMAGE_HEIGHT}
-                          mediaItems={buildMediaItemsFromPost(post)}
-                          instanceId={`main-hot-${post.id}`}
-                          playPriority={1}
-                          style={{ width: '100%', height: '100%' }}
-                        />
-                        <View style={styles.surgeBadge}>
-                          <Text style={styles.surgeBadgeText}>
-                            {post.surgeIndicator === '급상승' ? '🔥 급상승' : post.surgeIndicator === '인기' ? '⭐ 인기' : '⚡ 실시간'}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text style={styles.crowdedLocation}>{post.location}</Text>
-                      {post.reasonTags && post.reasonTags.length > 0 && (
-                        <View style={styles.reasonTagsRow}>
-                          {post.reasonTags.map((tag, idx) => (
-                            <View key={idx} style={styles.reasonTag}><Text style={styles.reasonTagText}>{tag}</Text></View>
-                          ))}
-                        </View>
-                      )}
-                      <Text style={styles.crowdedCategory}>{post.categoryLabel}</Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -451,16 +396,6 @@ const styles = StyleSheet.create({
   cardOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20 },
   cardLocation: { color: '#fff', fontSize: 18, fontWeight: '900', marginBottom: 4, letterSpacing: -0.02 },
   cardMeta: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600' },
-  crowdedCard: { width: CROWDED_CARD_WIDTH, marginRight: 0 }, // 웹: gap으로 간격 처리
-  crowdedImageWrapper: { height: HOT_PL_IMAGE_HEIGHT, borderRadius: 16, overflow: 'hidden', backgroundColor: '#eee', marginBottom: 8, position: 'relative' }, // 웹과 동일
-  crowdedImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-  surgeBadge: { position: 'absolute', top: 8, left: 8, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }, // 웹: backdropFilter 추가 불가하므로 약간 어둡게
-  surgeBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' }, // 웹과 동일
-  crowdedLocation: { fontSize: 14, fontWeight: '800', color: '#111827', marginBottom: 4, paddingLeft: 4, letterSpacing: -0.3 }, // 웹과 동일
-  reasonTagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, paddingLeft: 4, marginBottom: 4 }, // 웹과 동일
-  reasonTag: { backgroundColor: '#FEE2E2', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }, // 웹과 동일
-  reasonTagText: { fontSize: 9, color: '#EF4444', fontWeight: '700' }, // 웹과 동일
-  crowdedCategory: { fontSize: 11, color: COLORS.primary, fontWeight: '800', paddingLeft: 4 }, // 웹과 동일
   tagScroll: { paddingHorizontal: 16, paddingBottom: 12, gap: 8 }, // 웹: padding: '0 0 12px 0'
   tagItem: { backgroundColor: '#f1f5f9', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 25, borderWidth: 1, borderColor: '#e2e8f0' }, // 웹과 동일
   tagItemActive: { backgroundColor: COLORS.primary, borderWidth: 0 }, // 웹: border: 'none'
