@@ -115,13 +115,14 @@ export function preloadMainFeedImageUrls(realtimeData, crowdedData, { limit = 24
 
   const rt = Array.isArray(realtimeData) ? realtimeData : [];
   for (let i = 0; i < Math.min(12, rt.length); i += 1) {
-    // transform(render) 우선 시도 → 실패하면 브라우저가 원본을 다시 받도록 <img onError>에서 폴백
-    push(firstDisplayMediaUrlForPost(rt[i], { ...imgOpts, forceTransform: true }));
+    // 카드(FastImage/getDisplayImageUrl)와 동일 옵션 — forceTransform preload는 실제 img src와 달라
+    // 브라우저가 "preloaded but not used" 경고를 내는 경우가 많음
+    push(firstDisplayMediaUrlForPost(rt[i], imgOpts));
   }
 
   const cr = Array.isArray(crowdedData) ? crowdedData : [];
   for (let i = 0; i < Math.min(4, cr.length); i += 1) {
-    push(firstDisplayMediaUrlForPost(cr[i], { ...imgOpts, forceTransform: true }));
+    push(firstDisplayMediaUrlForPost(cr[i], imgOpts));
   }
 
   const unique = Array.from(new Set(urls)).filter(Boolean).slice(0, limit);

@@ -116,32 +116,58 @@ export const searchProfilesSupabase = async (query, { limit = 20 } = {}) => {
   }
 };
 
+const rpcNotAvailable = (err) => {
+  const c = err?.code;
+  const m = String(err?.message || '').toLowerCase();
+  return (
+    c === 'PGRST202' ||
+    c === '42883' ||
+    (m.includes('function') && m.includes('does not exist')) ||
+    m.includes('could not find the function')
+  );
+};
+
 export const updateRepresentativeBadgeSupabase = async (userId, badge) => {
   const uid = userId != null ? String(userId).trim() : '';
   if (!isValidUuid(uid)) return { ok: false, error: new Error('invalid_user_id') };
 
   const serialized = badge ? serializeRepresentativeBadge(badge) : null;
-  // updated_at 은 트리거(tg_profiles_set_updated_at)가 갱신 — 클라이언트에서내면 일부 환경에서 400이 날 수 있음
   const payload = { representative_badge: serialized };
 
-  try {
-    const tryUpdate = async () => {
-      const { data: updated, error: upErr } = await supabase
-        .from('profiles')
-        .update(payload)
-        .eq('id', uid)
-        .select('id');
-      if (upErr) throw upErr;
-      return Array.isArray(updated) && updated.length > 0;
-    };
+  const tryRestUpdate = async () => {
+    const { data: updated, error: upErr } = await supabase
+      .from('profiles')
+      .update(payload)
+      .eq('id', uid)
+      .select('id');
+    if (upErr) throw upErr;
+    return Array.isArray(updated) && updated.length > 0;
+  };
 
-    if (await tryUpdate()) return { ok: true };
+  try {
+    const { data: sess } = await supabase.auth.getSession();
+    const authId = sess?.session?.user?.id;
+    if (!authId || String(authId) !== String(uid)) {
+      return { ok: false, error: new Error('not_authorized') };
+    }
+
+    const { error: rpcErr } = await supabase.rpc('set_my_representative_badge', { p_badge: serialized });
+    if (!rpcErr) return { ok: true };
+    if (!rpcNotAvailable(rpcErr)) {
+      logger.warn('set_my_representative_badge RPC 실패:', rpcErr?.message, {
+        code: rpcErr?.code,
+        details: rpcErr?.details,
+      });
+      return { ok: false, error: rpcErr };
+    }
+
+    if (await tryRestUpdate()) return { ok: true };
 
     const { error: insErr } = await supabase.from('profiles').insert({ id: uid, ...payload });
     if (insErr) {
       const code = insErr.code || insErr?.details;
       if (code === '23505' || String(insErr.message || '').includes('duplicate')) {
-        if (await tryUpdate()) return { ok: true };
+        if (await tryRestUpdate()) return { ok: true };
       }
       throw insErr;
     }
