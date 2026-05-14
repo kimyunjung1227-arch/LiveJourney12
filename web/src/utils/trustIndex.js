@@ -1,6 +1,7 @@
 /**
  * 라이브 싱크 (Live-Sync, %)
  * "정보의 시차를 없애는 것"에 집중해, 유저의 정보가 현장과 얼마나 동기화되어 있는지(현장 일치도)를 직관적으로 표시합니다.
+ * 서버(Supabase)의 `compute_live_sync_pct`와 동일 축으로, EXIF(촬영 시각·GPS·원시 DateTime)·앱 내 촬영을 반영합니다.
  *
  * - 단위: %
  * - 시작점: 50% (중립)
@@ -57,6 +58,8 @@ const LIVE_SYNC = {
   maxUpRealtime: 25,
   maxUpHelpful: 15,
   maxUpQna: 10,
+  /** 사진 EXIF(촬영일·GPS 등) 보유 비율 가산 — 서버 compute_live_sync_pct의 max_up_exif와 맞춤 */
+  maxUpExif: 12,
   maxUpRegion: 10,
   maxDownOldPhoto: 20,
   maxDownMismatchReports: 25,
@@ -86,7 +89,29 @@ const toMs = (v) => {
 };
 
 const getUploadedAtMs = (post) => toMs(post?.createdAt ?? post?.timestamp ?? post?.created ?? post?.uploadedAt ?? 0);
-const getCapturedAtMs = (post) => toMs(post?.photoDate ?? post?.capturedAt ?? post?.captured_at ?? post?.captured ?? 0);
+/** 게시물의 "촬영 시각" 밀리초 — DB captured_at·photoDate·EXIF JSON까지 순차 반영 */
+const getCapturedAtMs = (post) =>
+  toMs(
+    post?.photoDate ??
+      post?.exifData?.photoDate ??
+      post?.exif_data?.photoDate ??
+      post?.capturedAt ??
+      post?.captured_at ??
+      post?.captured ??
+      0
+  );
+
+/** EXIF(또는 앱 내 촬영)로 현장 메타가 남은 제보인지 */
+const hasExifTrustSignal = (post) => {
+  if (post?.isInAppCamera === true || post?.is_in_app_camera === true) return true;
+  const ex = post?.exifData ?? post?.exif_data;
+  if (!ex || typeof ex !== 'object') return false;
+  if (ex.photoDate) return true;
+  if (ex.dateTimeOriginalRaw && String(ex.dateTimeOriginalRaw).trim()) return true;
+  const g = ex.gpsCoordinates;
+  if (g && (g.lat != null || g.latitude != null) && (g.lng != null || g.longitude != null)) return true;
+  return false;
+};
 
 const getLikeCount = (post) => {
   const n = post?.likes ?? post?.likeCount ?? post?.likesCount ?? 0;
@@ -321,10 +346,11 @@ export const getTrustScore = (userId = null, postsOverride = null) => {
  * 라이브 싱크(%) 계산
  * - postsOverride(선택): 해당 userId의 게시물 리스트(프로필/피드 집계용)
  * - 산정에 사용되는 핵심 시그널
- *   1) 실시간 인증: 촬영시간(Exif)과 업로드시간 간격이 짧을수록 상승
+ *   1) 실시간 인증: 촬영 시각(캡처·EXIF photoDate)과 업로드 시각 간격이 짧을수록 상승
  *   2) 도움돼요(좋아요): 누적될수록 상승
- *   3) 지역 싱크: 특정 지역에서 꾸준히 이어서 올릴수록 보너스
- *   4) 과거 사진 업로드: 촬영시간이 지나치게 과거면 하락
+ *   3) 지역 싱크: 같은 지역에서 꾸준히 이어서 올릴수록 보너스
+ *   3b) EXIF 태그: 촬영일·원시 DateTime·GPS 등 메타가 붙은 제보 비율이 높을수록 보너스(서버 라이브싱크와 동일 축)
+ *   4) 과거 사진 업로드: 촬영 시각이 지나치게 과거면 하락
  *   5) 미활동: 시간이 지나면 50%로 수렴
  *
  * 현재 코드베이스에서 "지금 어때요? 채택 답변"과 "정보가 달라요 신고"는
@@ -396,6 +422,10 @@ export const getLiveSyncPercent = (userId = null, postsOverride = null) => {
   const regionT = clamp(bestRegionRun / 7, 0, 1);
   const regionScore = LIVE_SYNC.maxUpRegion * regionT;
 
+  const exifTagged = myPosts.filter(hasExifTrustSignal).length;
+  const exifRatio = myPosts.length ? exifTagged / myPosts.length : 0;
+  const exifScore = LIVE_SYNC.maxUpExif * Math.sqrt(clamp(exifRatio, 0, 1));
+
   // 4) 과거 사진 페널티(Exif 불일치)
   const oldPhotoPenalties = myPosts
     .map((p) => {
@@ -419,7 +449,15 @@ export const getLiveSyncPercent = (userId = null, postsOverride = null) => {
   const qnaScore = 0;
 
   // base + ups - downs
-  let sync = LIVE_SYNC.base + realtimeScore + helpfulScore + regionScore + qnaScore - oldPhotoPenalty - mismatchPenalty;
+  let sync =
+    LIVE_SYNC.base +
+    realtimeScore +
+    helpfulScore +
+    regionScore +
+    exifScore +
+    qnaScore -
+    oldPhotoPenalty -
+    mismatchPenalty;
   sync = clamp(sync, 0, 100);
 
   // 미활동 수렴: 시간이 지날수록 50%로 가까워짐

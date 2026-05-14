@@ -927,7 +927,7 @@ const UserProfileScreen = () => {
               onToggleExplain={() => setTrustExplainOpen((v) => !v)}
               explainText={(
                 <>
-                  <span className="font-semibold">라이브 싱크</span>는 이 사용자의 게시물이 <span className="font-semibold">현장과 얼마나 동기화</span>되어 있는지(시차가 적은지)를 %로 보여줘요. 실시간 촬영·업로드, 도움돼요(좋아요), 지역에서의 꾸준한 업데이트가 높이고, 과거 사진·불일치 리포트는 낮춰요.
+                  <span className="font-semibold">라이브 싱크</span>는 이 사용자의 게시물이 <span className="font-semibold">현장과 얼마나 동기화</span>되어 있는지(시차가 적은지)를 %로 보여줘요. 사진 <span className="font-semibold">EXIF</span>(촬영 시각·GPS 등)과 앱 내 촬영이 붙을수록, 촬영 직후 업로드일수록 올라가요. 도움돼요·지역 꾸준 업데이트도 반영되고, 촬영·업로드 시차가 크면 내려가요.
                 </>
               )}
             />
