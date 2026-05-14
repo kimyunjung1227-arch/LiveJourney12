@@ -22,6 +22,26 @@ import {
   feedGridDescStyle,
   feedGridMetaRow,
 } from '../utils/feedGridCardStyles';
+
+/** 핫플 전용: 그리드에서 사진 비중↑(세로 비율)·하단 텍스트 블록 축소 */
+const hotplaceSituationImageBox = {
+  ...feedGridImageBoxFlat,
+  paddingBottom: '148%',
+};
+
+const hotplaceSituationInfoBox = {
+  ...feedGridInfoBox,
+  padding: '5px 8px 7px',
+  gap: 0,
+};
+
+const hotplaceSituationDescStyle = {
+  ...feedGridDescStyle,
+  fontSize: '11px',
+  lineHeight: 1.3,
+  maxHeight: '1.35em',
+  WebkitLineClamp: 1,
+};
 import { normalizePlaceIdentityKey } from '../utils/placeKeyNormalize';
 import { fetchLiveSyncPctSupabase } from '../api/liveSyncSupabase';
 import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
@@ -503,7 +523,7 @@ export default function HotplaceLiveFeedScreen() {
                       }}
                       className="transition-transform active:scale-[0.98]"
                     >
-                      <div style={feedGridImageBoxFlat}>
+                      <div style={hotplaceSituationImageBox}>
                         {cover?.mode === 'img' && cover.src ? (
                           <img
                             src={cover.src}
@@ -563,8 +583,8 @@ export default function HotplaceLiveFeedScreen() {
                         )}
                       </div>
 
-                      <div style={feedGridInfoBox}>
-                        {descText ? <div style={feedGridDescStyle}>{descText}</div> : null}
+                      <div style={hotplaceSituationInfoBox}>
+                        {descText ? <div style={hotplaceSituationDescStyle}>{descText}</div> : null}
                         <div style={feedGridMetaRow}>
                           <span>{timeLabel}</span>
                           {hasWeather && (weather.icon || weather.temperature) ? (
