@@ -105,7 +105,8 @@ function MainTabs() {
         name="HotplaceTab"
         component={CrowdedPlaceScreen}
         options={{
-          tabBarLabel: '핫플',
+          tabBarLabel: '실시간 핫플',
+          tabBarLabelStyle: { fontSize: 10, fontWeight: 'bold' },
           tabBarIcon: ({ color, focused, size }) => (
             <Ionicons
               name="flame"
