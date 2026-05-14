@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { getDefaultOgImageUrl, getPublicBaseUrl, SEO_DEFAULT } from "../config/seo"
+import { getPublicBaseUrl, SEO_DEFAULT, SEO_ROBOTS_DEFAULT, withGoogleImageRobotsHints } from "../config/seo"
 
 function setMetaByProperty(property, content) {
   let el = document.querySelector(`meta[property="${property}"]`)
@@ -30,16 +30,14 @@ export default function PageSeo({ title, description, path, robots }) {
     const base = getPublicBaseUrl()
     const pathname = path.startsWith("/") ? path : `/${path}`
     const canonical = `${base}${pathname}`
-    const ogImage = getDefaultOgImageUrl()
 
     document.title = title
     setMetaByName("description", description)
-    setMetaByName("robots", robots || "index, follow")
+    setMetaByName("robots", withGoogleImageRobotsHints(robots))
 
     setMetaByProperty("og:title", title)
     setMetaByProperty("og:description", description)
     setMetaByProperty("og:url", canonical)
-    setMetaByProperty("og:image", ogImage)
 
     setMetaByName("twitter:title", title)
     setMetaByName("twitter:description", description)
@@ -56,11 +54,10 @@ export default function PageSeo({ title, description, path, robots }) {
       const root = base.endsWith("/") ? base : `${base}/`
       document.title = SEO_DEFAULT.title
       setMetaByName("description", SEO_DEFAULT.description)
-      setMetaByName("robots", "index, follow")
+      setMetaByName("robots", SEO_ROBOTS_DEFAULT)
       setMetaByProperty("og:title", SEO_DEFAULT.title)
       setMetaByProperty("og:description", SEO_DEFAULT.description)
       setMetaByProperty("og:url", root)
-      setMetaByProperty("og:image", ogImage)
       setMetaByName("twitter:title", SEO_DEFAULT.title)
       setMetaByName("twitter:description", SEO_DEFAULT.description)
       if (linkCanonical) linkCanonical.setAttribute("href", root)

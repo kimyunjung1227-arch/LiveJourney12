@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { SEO_DEFAULT, getDefaultOgImageUrl, getPublicBaseUrl } from "../config/seo"
+import { SEO_DEFAULT, SEO_ROBOTS_DEFAULT, getPublicBaseUrl } from "../config/seo"
 
 function setMetaByProperty(property, content) {
   let el = document.querySelector(`meta[property="${property}"]`)
@@ -21,17 +21,31 @@ function setMetaByName(name, content) {
   el.setAttribute("content", content)
 }
 
+function removeOgImageMetaTags() {
+  ;[
+    "og:image",
+    "og:image:alt",
+    "og:image:width",
+    "og:image:height",
+    "og:image:secure_url",
+    "og:image:type",
+  ].forEach((property) => {
+    document.querySelector(`meta[property="${property}"]`)?.remove()
+  })
+}
+
 /** 앱 마운트 시 문서 메타를 기본 SEO와 동기화(크롤러는 첫 HTML이 우선이나, SNS/브라우저 탭과 일치시킴) */
 export default function RootSeo() {
   useEffect(() => {
     const base = getPublicBaseUrl()
-    const ogImage = getDefaultOgImageUrl()
     const canonical = base.endsWith("/") ? base : `${base}/`
+
+    removeOgImageMetaTags()
 
     document.title = SEO_DEFAULT.title
     setMetaByName("description", SEO_DEFAULT.description)
     setMetaByName("keywords", SEO_DEFAULT.keywords)
-    setMetaByName("robots", "index, follow")
+    setMetaByName("robots", SEO_ROBOTS_DEFAULT)
 
     setMetaByProperty("og:type", "website")
     setMetaByProperty("og:locale", "ko_KR")
@@ -39,8 +53,6 @@ export default function RootSeo() {
     setMetaByProperty("og:title", SEO_DEFAULT.title)
     setMetaByProperty("og:description", SEO_DEFAULT.description)
     setMetaByProperty("og:url", canonical)
-    setMetaByProperty("og:image", ogImage)
-    setMetaByProperty("og:image:alt", SEO_DEFAULT.siteName)
 
     // 검색/미리보기에서 큰 이미지 카드가 뜨지 않도록 summary로 제한
     setMetaByName("twitter:card", "summary")

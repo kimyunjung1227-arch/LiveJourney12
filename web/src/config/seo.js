@@ -6,8 +6,28 @@ export const SEO_DEFAULT = {
   keywords:
     "라이브저니, Live Journey, 실시간 여행, 여행 커뮤니티, 실시간 제보, 여행 정보, 혼잡도, 날씨, 인파, 핫플, 라이브매거진, 실시간 Q&A, 지도",
   siteName: "라이브저니",
-  // 검색/미리보기에서 특정 이미지가 노출되지 않도록 투명 1x1로 지정
-  ogImageFilename: "og-empty.svg",
+}
+
+/**
+ * 구글 검색 결과의 이미지 미리보기·이미지 검색 색인을 최소화할 때 사용하는 기본값.
+ * index.html의 meta robots와 맞춰 두세요.
+ */
+export const SEO_ROBOTS_DEFAULT =
+  "index, follow, max-image-preview: none, noimageindex"
+
+/** 라우트별 robots 문자열에 이미지 관련 힌트가 없으면 덧붙입니다. */
+export function withGoogleImageRobotsHints(robots) {
+  const base = (robots && String(robots).trim()) || "index, follow"
+  const parts = base.split(",").map((s) => s.trim()).filter(Boolean)
+  const keys = new Set(
+    parts.map((p) => {
+      const i = p.indexOf(":")
+      return (i === -1 ? p : p.slice(0, i)).trim().toLowerCase()
+    })
+  )
+  if (!keys.has("max-image-preview")) parts.push("max-image-preview: none")
+  if (!keys.has("noimageindex")) parts.push("noimageindex")
+  return parts.join(", ")
 }
 
 /**
@@ -28,11 +48,6 @@ export function getPublicBaseUrl() {
   }
 
   return "https://livejourney.co.kr"
-}
-
-export function getDefaultOgImageUrl() {
-  const base = getPublicBaseUrl()
-  return new URL(SEO_DEFAULT.ogImageFilename, `${base}/`).href
 }
 
 /** 주요 화면별 검색 스니펫·사이트링크 후보 URL과 일치시키는 문구 */
