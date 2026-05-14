@@ -1054,6 +1054,21 @@ export const getEarnedBadgesFromStats = (stats) => {
   return list;
 };
 
+const mergeEarnedBadgesByName = (primary, secondary) => {
+  const byName = new Map();
+  for (const b of primary || []) {
+    const n = b?.name != null ? String(b.name).trim() : '';
+    if (n) byName.set(n, b);
+  }
+  for (const b of secondary || []) {
+    const n = b?.name != null ? String(b.name).trim() : '';
+    if (!n) continue;
+    const prev = byName.get(n);
+    byName.set(n, prev ? { ...prev, ...b, name: n } : { ...b, name: n });
+  }
+  return [...byName.values()];
+};
+
 /**
  * 특정 유저의 획득/추정 뱃지 (표시용)
  * @param {string} userId
@@ -1061,9 +1076,17 @@ export const getEarnedBadgesFromStats = (stats) => {
  */
 export const getEarnedBadgesForUser = (userId, posts = null) => {
   try {
+    const uid = userId != null ? String(userId).trim() : '';
     if (posts && Array.isArray(posts)) {
       const stats = calculateUserStats(posts, { id: userId });
       const fromStats = getEarnedBadgesFromStats(stats);
+      // 본인 + 세션 캐시(Supabase user_badges 동기화)일 때: 통계만 쓰면 DB에만 있는 뱃지가 빠져
+      // 대표 뱃지 검증·프로필 UI가 새로고침 후 깨진다. 이름 기준으로 합친다.
+      const sessionUid = String(currentEarnedBadgesUserId || '').trim();
+      if (uid && sessionUid && uid === sessionUid) {
+        const fromSession = getEarnedBadges();
+        return mergeEarnedBadgesByName(fromStats, fromSession);
+      }
       return fromStats;
     }
 

@@ -113,6 +113,46 @@ export const AuthProvider = ({ children }) => {
     };
   }, [supabaseUser?.id]);
 
+  // profiles.representative_badge 등 DB 변경 시 멀티 탭·타 기기 반영
+  useEffect(() => {
+    const uid = supabaseUser?.id ? String(supabaseUser.id).trim() : '';
+    const isUuid =
+      uid && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uid);
+    if (!isUuid) return undefined;
+
+    let alive = true;
+    const channel = supabase
+      .channel(`profiles-self:${uid}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${uid}` },
+        (payload) => {
+          if (!alive) return;
+          const row = payload?.new;
+          if (!row || typeof row !== 'object') return;
+          const representativeBadge = parseRepresentativeBadgeFromProfileRow(row);
+          setLocalUserOverride((prev) => {
+            const base = prev && String(prev.id) === uid ? prev : { id: uid };
+            return { ...base, representativeBadge: representativeBadge ?? null };
+          });
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR') {
+          logger.warn('profiles realtime 채널 에러');
+        }
+      });
+
+    return () => {
+      alive = false;
+      try {
+        supabase.removeChannel(channel);
+      } catch {
+        // ignore
+      }
+    };
+  }, [supabaseUser?.id]);
+
   // ✅ 실시간 상호작용 알림(좋아요/댓글/팔로우) 반영: notifications 테이블 insert/update를 구독
   // - 상대방이 보낸 알림이 DB에 들어오면 즉시 localStorage 캐시를 갱신하고 배지 카운트를 업데이트한다.
   // - 정책/RLS에 따라 select 권한이 없으면 동기화가 실패할 수 있으니 best-effort로 처리한다.

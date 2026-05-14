@@ -237,9 +237,9 @@ const ProfileScreen = () => {
     setEarnedBadges(next);
     setRepresentativeBadge((prev) => {
       if (!prev) return prev;
-      // 게시물 로딩/동기화 타이밍에 next가 비는 경우가 있어,
-      // "실제 획득 목록이 확인된 경우(next.length > 0)"에만 무효화한다.
-      if (next.length > 0 && !next.some((b) => b.name === prev.name)) return null;
+      // 목록이 아직 비었으면(로딩 중) 대표 뱃지를 지우지 않음
+      if (!next.length) return prev;
+      if (!next.some((b) => String(b?.name || '') === String(prev.name || ''))) return null;
       return prev;
     });
   }, [isAuthenticated, authUser?.id, user?.id, myPosts]);
