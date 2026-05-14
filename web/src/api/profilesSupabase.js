@@ -100,13 +100,13 @@ export const searchProfilesSupabase = async (query, { limit = 20 } = {}) => {
   if (q.length < 1) return [];
 
   try {
-    const like = q.replace(/[%_]/g, '\\$&');
     const lim = Math.max(1, Math.min(50, Number(limit) || 20));
+    // PostgREST `.or(\`username.ilike.${q}...\`)` 는 검색어에 쉼표·점 등이 섞이면 400이 나기 쉬워 단일 ilike로 통일
+    const pattern = `%${q}%`;
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      // prefix + contains 모두(예: "도" → "도..." + "...도...")
-      .or(`username.ilike.${like}%,username.ilike.%${like}%`)
+      .ilike('username', pattern)
       .limit(lim);
     if (error) throw error;
     return Array.isArray(data) ? data : [];
