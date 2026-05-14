@@ -24,26 +24,20 @@ export default function LiveBadgeMedallion({
   badgeName,
   tier: tierProp,
   icon,
-  gradientCss,
   size = 64,
   className = '',
 }) {
   const tier = tierProp != null ? Math.max(1, Math.min(3, Number(tierProp) || 1)) : parseTierFromDynName(badgeName);
   const frameStyle = frameStyleForTier(tier);
 
-  const innerStyle = gradientCss
-    ? { backgroundImage: gradientCss }
-    : { backgroundColor: 'rgba(255,255,255,1)' };
-
   return (
     <div
-      className={`relative inline-flex shrink-0 items-center justify-center rounded-full border-solid ${className}`}
+      className={`relative inline-flex shrink-0 items-center justify-center rounded-full border-solid bg-white dark:bg-white ${className}`}
       style={{
         width: size,
         height: size,
         borderWidth: BADGE_BORDER_WIDTH,
         ...frameStyle,
-        ...innerStyle,
       }}
       aria-hidden
     >

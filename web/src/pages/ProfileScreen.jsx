@@ -515,7 +515,7 @@ const ProfileScreen = () => {
 
   // 모든 Hook을 먼저 선언한 후 useEffect 실행
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || authLoading) return;
     const userData = mergeProfileUser(authUser, {});
     if (userData && Object.keys(userData).length > 0) {
       setUser(userData);
@@ -529,9 +529,8 @@ const ProfileScreen = () => {
     const repBadge = resolveRepresentativeBadge(authUser?.representativeBadge, badges);
     if (repBadge) {
       setRepresentativeBadge(repBadge);
-    } else {
-      setRepresentativeBadge(null);
     }
+    // fetch/세션 병합 전에는 representativeBadge가 비어 있을 수 있음 — 여기서 null로 덮어쓰지 않음(전용 useEffect가 동기화)
 
     // 목업/테스트 게시물 흔적 제거 후 내 게시물 로드 (Supabase + localStorage 병합 → 로그아웃 후 재로그인해도 기록 유지)
     cleanLegacyUploadedPosts();
@@ -646,7 +645,7 @@ const ProfileScreen = () => {
       window.removeEventListener('badgeEarned', handleBadgeUpdate);
       window.removeEventListener('userUpdated', handleUserUpdate);
     };
-  }, [isAuthenticated, authUser]);
+  }, [isAuthenticated, authUser, authLoading]);
 
   // 팔로워/팔로잉 수 로드 및 followsUpdated 구독
   useEffect(() => {
@@ -1503,13 +1502,13 @@ const ProfileScreen = () => {
   };
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || authLoading) return;
     const userId = (authUser || user)?.id;
     if (!userId) return;
     const repBadge = resolveRepresentativeBadge(authUser?.representativeBadge, earnedBadges);
     setRepresentativeBadge(repBadge);
     setPendingRepresentativeBadge(repBadge);
-  }, [isAuthenticated, authUser?.id, authUser?.representativeBadge, earnedBadges, user?.id]);
+  }, [isAuthenticated, authLoading, authUser?.id, authUser?.representativeBadge, earnedBadges, user?.id]);
 
 
   const badgeCount = earnedBadges.length;

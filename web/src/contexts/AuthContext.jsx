@@ -6,7 +6,11 @@ import { syncNotificationsFromSupabase, setNotificationsCurrentUserId } from '..
 import { setCurrentUserId as setFollowSystemCurrentUserId, syncFollowingFromSupabase } from '../utils/followSystem';
 import { getSessionOnce, signOutSafe } from '../utils/supabaseAuthCache';
 import { fetchProfileByIdSupabase, updateRepresentativeBadgeSupabase } from '../api/profilesSupabase';
-import { parseRepresentativeBadgeFromProfileRow, serializeRepresentativeBadge } from '../utils/representativeBadge';
+import {
+  deserializeRepresentativeBadge,
+  parseRepresentativeBadgeFromProfileRow,
+  serializeRepresentativeBadge,
+} from '../utils/representativeBadge';
 
 const AuthContext = createContext(null);
 
@@ -52,17 +56,23 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!supabaseUser?.id) setLocalUserOverride(null);
+  }, [supabaseUser?.id]);
+
   // 우리 앱에서 쓰기 쉬운 user 형태로 변환
   const appUser = useMemo(() => {
     if (!supabaseUser) return null;
     const meta = supabaseUser.user_metadata || {};
     const email = supabaseUser.email || meta.email || '';
+    const repFromMeta = deserializeRepresentativeBadge(meta.representative_badge);
     const base = {
       id: supabaseUser.id,
       email,
       username: meta.name || email.split('@')[0] || '여행자',
       profileImage: meta.picture || meta.avatar_url || null,
       provider: supabaseUser.app_metadata?.provider || 'supabase',
+      ...(repFromMeta ? { representativeBadge: repFromMeta } : {}),
     };
     const o = (localUserOverride && String(localUserOverride.id) === String(base.id)) ? localUserOverride : null;
     if (!o || typeof o !== 'object') return base;
@@ -72,7 +82,10 @@ export const AuthProvider = ({ children }) => {
       username: o.username ?? base.username,
       profileImage: o.profileImage !== undefined ? o.profileImage : base.profileImage,
       bio: o.bio ?? base.bio,
-      representativeBadge: o.representativeBadge ?? base.representativeBadge,
+      // `??`는 DB/오버라이드에서 명시 null(해제)일 때 메타로 되돌리므로 사용하지 않음
+      representativeBadge: Object.prototype.hasOwnProperty.call(o, 'representativeBadge')
+        ? o.representativeBadge
+        : base.representativeBadge,
     };
   }, [supabaseUser, localUserOverride]);
 
@@ -242,7 +255,17 @@ export const AuthProvider = ({ children }) => {
         }
         await supabase.auth.updateUser({ data: nextMeta });
         if (Object.prototype.hasOwnProperty.call(userObj, 'representativeBadge')) {
-          await updateRepresentativeBadgeSupabase(supabaseUser.id, userObj.representativeBadge ?? null);
+          const { ok } = await updateRepresentativeBadgeSupabase(supabaseUser.id, userObj.representativeBadge ?? null);
+          if (ok) {
+            const row = await fetchProfileByIdSupabase(supabaseUser.id);
+            if (row) {
+              const rep = parseRepresentativeBadgeFromProfileRow(row);
+              setLocalUserOverride((prev) => {
+                const basePrev = typeof prev === 'object' && prev ? prev : userObj;
+                return { ...basePrev, representativeBadge: rep };
+              });
+            }
+          }
         }
       }
     } catch (e) {
