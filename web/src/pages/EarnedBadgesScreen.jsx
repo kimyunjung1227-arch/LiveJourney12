@@ -188,6 +188,8 @@ const EarnedBadgesScreen = () => {
                                 badgeName={badge?.name}
                                 tier={badge?.difficulty}
                                 icon={icon}
+                                category={badge?.category}
+                                tone={badge?.tone}
                                 gradientCss={badge?.gradientCss}
                                 size={64}
                                 className="mb-2"

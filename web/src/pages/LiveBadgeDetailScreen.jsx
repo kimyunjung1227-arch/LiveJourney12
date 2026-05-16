@@ -4,6 +4,7 @@ import BackButton from '../components/BackButton';
 import BottomNavigation from '../components/BottomNavigation';
 import { getBadgeDisplayName, hydrateBadgeFromName } from '../utils/badgeSystem';
 import LiveBadgeMedallion from '../components/LiveBadgeMedallion';
+import { resolveBadgeTone, hexToRgbTuple } from '../utils/badgeIcons';
 
 const TIER_THRESHOLDS = {
   region: [5, 20, 50],
@@ -127,6 +128,13 @@ const LiveBadgeDetailScreen = () => {
       ? '최고 단계 달성'
       : '진행률 정보 없음';
 
+  // 라이브저니 톤 — 현재 뱃지의 톤을 화면 강조에 사용
+  const currentTone = resolveBadgeTone(current);
+  const currentGradient = current?.gradientCss || `linear-gradient(135deg, ${currentTone.from}, ${currentTone.to})`;
+  const currentFromRgb = hexToRgbTuple(currentTone.from);
+  const currentToRgb = hexToRgbTuple(currentTone.to);
+  const nextTier = Math.min(3, (Number(meta?.tier || currentTier || 1) || 1) + 1);
+
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark min-h-[100dvh]">
       <div className="screen-content">
@@ -147,13 +155,40 @@ const LiveBadgeDetailScreen = () => {
                 badgeName={current?.name}
                 tier={current?.difficulty}
                 icon={current?.icon}
+                category={current?.category}
+                tone={current?.tone}
                 gradientCss={current?.gradientCss}
-                size={92}
+                size={96}
                 className="mx-auto"
               />
               <div className="mt-3 text-base font-extrabold text-gray-900 dark:text-gray-100">
                 {currentLabel}
               </div>
+
+              {/* 성장 단계 인디케이터 — 진행할수록 점진적으로 색이 드러남 */}
+              {hasDynLadder ? (
+                <div className="mt-2.5 flex items-center gap-1.5" aria-label={`${currentTier} / 3 단계`}>
+                  {[1, 2, 3].map((step) => {
+                    const reached = step <= currentTier;
+                    return (
+                      <span
+                        key={step}
+                        className="block rounded-full transition-all"
+                        style={{
+                          width: reached ? 22 : 12,
+                          height: 5,
+                          background: reached
+                            ? currentGradient
+                            : `rgba(${currentFromRgb}, 0.18)`,
+                          boxShadow: reached
+                            ? `0 1px 4px -1px rgba(${currentToRgb}, 0.45)`
+                            : 'none',
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-5 space-y-4">
@@ -194,10 +229,17 @@ const LiveBadgeDetailScreen = () => {
                     {sectionTitle('진행 사항')}
                     {hasNextStage ? (
                       <>
-                        <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                        <div
+                          className="mt-2 h-2.5 w-full overflow-hidden rounded-full"
+                          style={{ background: `rgba(${currentFromRgb}, 0.12)` }}
+                        >
                           <div
-                            className="h-full rounded-full bg-primary transition-all"
-                            style={{ width: `${Math.round(pct * 100)}%` }}
+                            className="h-full rounded-full transition-all"
+                            style={{
+                              width: `${Math.round(pct * 100)}%`,
+                              background: currentGradient,
+                              boxShadow: `0 1px 6px -2px rgba(${currentToRgb}, 0.5)`,
+                            }}
                           />
                         </div>
                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{statusLine}</p>
@@ -211,10 +253,13 @@ const LiveBadgeDetailScreen = () => {
 
               <LiveBadgeMedallion
                 badgeName={next?.name || current?.name}
-                tier={next?.difficulty || Math.min(3, (Number(current?.difficulty || meta?.tier || 1) || 1) + 1)}
+                tier={next?.difficulty || nextTier}
                 icon={next?.icon || current?.icon}
-                gradientCss={next?.gradientCss}
-                size={72}
+                category={next?.category || current?.category}
+                tone={next?.tone || current?.tone}
+                gradientCss={next?.gradientCss || current?.gradientCss}
+                unearned={hasNextStage}
+                size={76}
                 className="shrink-0"
               />
             </div>

@@ -505,15 +505,16 @@ const BadgeListScreen = () => {
                 }`}
               >
                 {/* 뱃지 아이콘 */}
-                <div className={`${!badge.isEarned ? 'opacity-40 grayscale' : ''}`}>
-                  <LiveBadgeMedallion
-                    badgeName={badge?.name}
-                    tier={badge?.difficulty}
-                    icon={badge?.icon || '🏆'}
-                    gradientCss={badge?.gradientCss}
-                    size={64}
-                  />
-                </div>
+                <LiveBadgeMedallion
+                  badgeName={badge?.name}
+                  tier={badge?.difficulty}
+                  icon={badge?.icon || '🏆'}
+                  category={badge?.category}
+                  tone={badge?.tone}
+                  gradientCss={badge?.gradientCss}
+                  unearned={!badge.isEarned}
+                  size={64}
+                />
                 
                 {/* 뱃지 정보 */}
                 <div className="flex flex-col gap-1">
