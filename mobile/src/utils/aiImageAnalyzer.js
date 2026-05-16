@@ -109,68 +109,122 @@ const detectCategory = (keywords, location, note, brightness) => {
   return { category: 'scenic', categoryName: '추천장소', icon: '🏞️' };
 };
 
-// React Native에서 이미지 분석 (간단한 버전)
-export const analyzeImageForTags = async (imageUri, location = '', existingNote = '') => {
+// 날씨 정보로부터 2개 태그 생성
+// - 1번째: 날씨 상태 기반 (맑음/흐림/비/눈)
+// - 2번째: 기온대 기반 (한파/쌀쌀/선선/포근/더위/폭염)
+const generateWeatherTags = (weather) => {
+  if (!weather) return [];
+  const tags = [];
+
+  // 1) 상태 태그
+  const cond = String(weather.condition || '').trim();
+  if (cond) {
+    if (/(비|소나기|장마)/.test(cond)) tags.push('비오는날');
+    else if (/(눈|폭설|진눈깨비)/.test(cond)) tags.push('눈오는날');
+    else if (/(맑|쾌청)/.test(cond)) tags.push('맑은날씨');
+    else if (/(흐림|구름조금|구름많|구름)/.test(cond)) tags.push('구름낀하늘');
+    else if (/(안개|황사|미세먼지)/.test(cond)) tags.push(cond.length <= 6 ? cond : '흐린날씨');
+    else tags.push(cond.length <= 6 ? cond : '오늘날씨');
+  } else {
+    tags.push('오늘날씨');
+  }
+
+  // 2) 기온대 태그
+  const tempRaw = weather.temperature ?? weather.temp;
+  const tempNum = typeof tempRaw === 'number'
+    ? tempRaw
+    : parseFloat(String(tempRaw || '').replace(/[^0-9\-\.]/g, ''));
+
+  if (Number.isFinite(tempNum)) {
+    let tempTag;
+    if (tempNum <= -5) tempTag = '한파주의';
+    else if (tempNum <= 5) tempTag = '쌀쌀한날';
+    else if (tempNum <= 15) tempTag = '선선한날';
+    else if (tempNum <= 22) tempTag = '포근한날';
+    else if (tempNum <= 28) tempTag = '따뜻한날';
+    else if (tempNum <= 32) tempTag = '더운날씨';
+    else tempTag = '폭염주의';
+    tags.push(tempTag);
+  } else {
+    // 기온 정보가 없으면 계절 기반 보조 태그
+    const month = new Date().getMonth() + 1;
+    if (month >= 3 && month <= 5) tags.push('봄날씨');
+    else if (month >= 6 && month <= 8) tags.push('여름날씨');
+    else if (month >= 9 && month <= 11) tags.push('가을날씨');
+    else tags.push('겨울날씨');
+  }
+
+  return tags.slice(0, 2);
+};
+
+// React Native에서 이미지 분석 (AI 6태그: 일반 4 + 날씨 2)
+export const analyzeImageForTags = async (imageUri, location = '', existingNote = '', weather = null) => {
   try {
     console.log('🤖 AI 이미지 분석 시작...');
     console.log('  📍 위치:', location);
     console.log('  📝 노트:', existingNote);
-    
+    console.log('  ☁️ 날씨:', weather);
+
     const keywords = new Set();
-    
-    // 우선순위 1: 위치 기반 키워드 (가장 중요!)
+
+    // 우선순위 1: 위치 기반 키워드
     const locationKeywords = generateLocationKeywords(location);
-    if (locationKeywords.length > 0) {
-      locationKeywords.slice(0, 4).forEach(kw => keywords.add(kw));
-    }
-    
-    // 우선순위 2: 노트 내용 분석 (사용자가 직접 입력한 내용)
+    locationKeywords.slice(0, 3).forEach(kw => keywords.add(kw));
+
+    // 우선순위 2: 노트 내용 분석
     if (existingNote && existingNote.trim().length > 0) {
       Object.values(koreanTravelKeywords).forEach(categoryKeywords => {
         if (Array.isArray(categoryKeywords)) {
           categoryKeywords.forEach(keyword => {
-            if (existingNote.includes(keyword)) {
-              keywords.add(keyword);
-            }
+            if (existingNote.includes(keyword)) keywords.add(keyword);
           });
         }
       });
     }
-    
+
     // 우선순위 3: 계절 키워드
     const seasonKeywords = detectSeason();
     if (location || existingNote) {
       seasonKeywords.slice(0, 2).forEach(kw => keywords.add(kw));
     }
-    
-    // 최소 키워드가 너무 적으면 기본값 추가
+
+    // 최소 키워드 보강
     if (keywords.size < 3) {
       keywords.add('여행');
-      if (location) {
-        keywords.add('추억');
-      }
+      if (location) keywords.add('추억');
       keywords.add('풍경');
     }
-    
-    // AI 카테고리 자동 분류
+
     const categoryResult = detectCategory(keywords, location, existingNote, 0.5);
-    
-    // 중복 제거 및 배열 변환 (최대 8개로 제한)
-    const finalTags = Array.from(keywords)
-      .filter(tag => tag && tag.length >= 2)
-      .slice(0, 8);
-    
+
+    // 날씨 태그 2개를 항상 먼저 배치 → 사용자에게 명확히 노출
+    const weatherTags = generateWeatherTags(weather);
+
+    // 일반 태그 4개 (날씨 태그와 중복 제거)
+    const generalTags = Array.from(keywords)
+      .filter(tag => tag && tag.length >= 2 && !weatherTags.includes(tag))
+      .slice(0, 4);
+
+    // 총 6개 — 부족하면 추천 태그로 보강
+    let finalTags = [...weatherTags, ...generalTags].slice(0, 6);
+    if (finalTags.length < 6) {
+      const fallback = ['여행', '풍경', '추억', '힐링', '인생샷', '일상'];
+      for (const fb of fallback) {
+        if (finalTags.length >= 6) break;
+        if (!finalTags.includes(fb)) finalTags.push(fb);
+      }
+    }
+
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('✅ AI 분석 완료!');
-    console.log('📍 위치:', location || '없음');
-    console.log('📝 노트:', existingNote || '없음');
-    console.log('🏷️ 추천 태그 (' + finalTags.length + '개):', finalTags);
+    console.log('🏷️ AI 태그 (' + finalTags.length + '개, 날씨 2 + 일반 4):', finalTags);
     console.log('🎯 자동 카테고리:', categoryResult.categoryName);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    
+
     return {
       success: true,
       tags: finalTags,
+      weatherTags,
       category: categoryResult.category,
       categoryName: categoryResult.categoryName,
       categoryIcon: categoryResult.icon,
@@ -178,12 +232,12 @@ export const analyzeImageForTags = async (imageUri, location = '', existingNote 
       colorAnalysis: {},
       metadata: {}
     };
-    
+
   } catch (error) {
     console.error('❌ AI 분석 실패:', error);
     return {
       success: false,
-      tags: ['여행', '풍경', '추억'],
+      tags: ['여행', '풍경', '추억', '힐링', '오늘날씨', '봄날씨'],
       category: 'scenic',
       categoryName: '추천장소',
       categoryIcon: '🏞️',

@@ -34,7 +34,7 @@ import { ScreenLayout, ScreenContent, ScreenHeader, ScreenBody } from '../compon
 import { createPostSupabase } from '../api/postsSupabase';
 import { resolveRegionFromLocationInput } from '../utils/regionLocationMapping';
 import { metadataFromPickerAsset } from '../utils/pickerAssetMetadata';
-import { getWeatherByRegion } from '../utils/weatherApi';
+import { getWeatherByRegion, guessWeatherRegionKey } from '../utils/weatherApi';
 import {
   fetchNearbyPlaceNameFromGps,
   formatRegionLineFromReverseGeocode,
@@ -143,13 +143,24 @@ const UploadScreen = () => {
   const analyzeImageAndGenerateTags = useCallback(async (imageUri, location = '', note = '') => {
     setLoadingAITags(true);
     try {
-      const analysisResult = await analyzeImageForTags(imageUri, location, note);
-      
+      // 분석 직전 현재 위치의 날씨를 조회해 태그 2개에 반영
+      let weather = null;
+      try {
+        const regionKey = guessWeatherRegionKey(location || '');
+        const w = await getWeatherByRegion(regionKey);
+        if (w?.success && w?.weather) weather = w.weather;
+      } catch (e) {
+        console.warn('태그 분석용 날씨 조회 실패:', e?.message || e);
+      }
+
+      const analysisResult = await analyzeImageForTags(imageUri, location, note, weather);
+
       if (analysisResult.success) {
-        const hashtagged = analysisResult.tags.map(tag => 
-          tag.startsWith('#') ? tag : `#${tag}`
-        );
-        
+        // 정확히 6개로 맞춤 (AI가 더 적게 반환할 경우 보강)
+        const hashtagged = analysisResult.tags
+          .slice(0, 6)
+          .map(tag => (tag.startsWith('#') ? tag : `#${tag}`));
+
         setAutoTags(hashtagged);
         setFormData(prev => ({
           ...prev,
@@ -159,8 +170,8 @@ const UploadScreen = () => {
         }));
       } else {
         const recommendedTags = getRecommendedTags('all');
-        setAutoTags(recommendedTags.map(tag => `#${tag}`).slice(0, 8));
-        
+        setAutoTags(recommendedTags.map(tag => `#${tag}`).slice(0, 6));
+
         setFormData(prev => ({
           ...prev,
           aiCategory: 'scenic',
@@ -170,9 +181,9 @@ const UploadScreen = () => {
       }
     } catch (error) {
       console.error('AI 분석 실패:', error);
-      const defaultTags = ['여행', '추억', '풍경', '힐링', '맛집'];
+      const defaultTags = ['여행', '추억', '풍경', '힐링', '오늘날씨', '봄날씨'];
       setAutoTags(defaultTags.map(tag => `#${tag}`));
-      
+
       setFormData(prev => ({
         ...prev,
         aiCategory: 'scenic',
