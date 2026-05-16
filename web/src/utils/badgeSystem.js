@@ -75,6 +75,44 @@ const toneForDynamic = (name) => {
   return makeTone('#6B7280', '#374151');
 };
 
+// 지역/여행 응원 뱃지용 정적 카피 (이름만으로도 상세 화면에서 동일 톤 노출)
+const REGION_TIER_LABELS = ['가이드', '톡파원', '마스터'];
+const REGION_TIER_TARGETS = [5, 20, 50];
+const REGION_DESCRIPTIONS = [
+  (r) => `${r}의 현장을 처음으로 공유하는 가이드예요. 지역의 첫인상을 전하는 시작 단계입니다.`,
+  (r) => `${r}의 현장을 꾸준히 전하는 톡파원이에요. 다른 여행자들이 가장 먼저 찾는 지역 안내자로 자리 잡고 있어요.`,
+  (r) => `${r}을 가장 잘 아는 지역 마스터예요. 다양한 시간대와 장소에서 검증된 실시간 정보를 연결해, 정보 시차를 줄이는 지역 정보의 거점입니다.`,
+];
+const REGION_SHORT_CONDITIONS = [
+  (r) => `${r} 첫 현장 글 ${REGION_TIER_TARGETS[0]}회 작성`,
+  (r) => `${r} 글 ${REGION_TIER_TARGETS[1]}회 작성`,
+  (r) => `${r} 글 ${REGION_TIER_TARGETS[2]}회 + «도움돼요» 100개 + 서로 다른 장소 5곳 + 오전·오후·야간 모두 기록`,
+];
+
+const SUPPORT_COPY = {
+  guardian: {
+    description:
+      '다른 여행자가 올린 위험·주의 글에 응원과 댓글을 남겨 안전한 여행을 함께 지켜요. 든든한 동행자에게 주어지는 인장입니다.',
+    shortCondition: '위험·주의 글에 응원 또는 댓글 10회',
+    progressTarget: 10,
+    progressUnit: '회',
+  },
+  pathfinder: {
+    description:
+      '여행자의 질문에 답을 달아 현지 정보의 다리가 되어 줘요. 채택된 답이 늘수록 길잡이의 신뢰도 함께 자랍니다.',
+    shortCondition: '질문 글 5개에 답변 (채택된 답이 우선 인정)',
+    progressTarget: 5,
+    progressUnit: '회',
+  },
+  lucky: {
+    description:
+      '다른 여행자의 글에 응원(좋아요)을 누르며 커뮤니티에 활기를 더해요. 모두에게 행운을 나누는 작은 손길의 주인공입니다.',
+    shortCondition: '다른 여행자의 글에 응원(좋아요) 50회',
+    progressTarget: 50,
+    progressUnit: '회',
+  },
+};
+
 const decodeDynamicName = (name) => {
   const n = String(name || '');
   if (!n.startsWith(DYNAMIC_BADGE_PREFIX)) return null;
@@ -86,6 +124,8 @@ const decodeDynamicName = (name) => {
     const tier = Number(String(parts[3] || '').replace(/^tier/, '')) || 1;
     const track = findThemeTrack(trackKey);
     if (track) {
+      const tierIdx = Math.max(0, Math.min(2, tier - 1));
+      const req = track.requirements?.[tierIdx];
       return {
         kind: 'theme',
         trackKey,
@@ -93,6 +133,16 @@ const decodeDynamicName = (name) => {
         displayName: track.labels[tier - 1] || track.labels[0],
         icon: track.icons[tier - 1] || track.icons[0],
         category: track.category,
+        description: track.descriptions?.[tierIdx] || null,
+        shortCondition: req?.short || null,
+        progressTarget:
+          req?.posts ||
+          req?.crowdShares ||
+          req?.unregistered ||
+          req?.liveCondition ||
+          req?.hiddenSaves ||
+          null,
+        progressUnit: '회',
       };
     }
   }
@@ -100,18 +150,39 @@ const decodeDynamicName = (name) => {
   if (parts[0] === 'region') {
     const region = parts[1] || '';
     const tier = Number(String(parts[2] || '').replace(/^tier/, '')) || 1;
-    const labels = ['가이드', '톡파원', '마스터'];
-    const icon = '🧭';
-    return { kind: 'region', region, tier, displayName: `${region} ${labels[tier - 1] || '비기너'}`, icon, category: '지역 테마' };
+    const tierIdx = Math.max(0, Math.min(2, tier - 1));
+    return {
+      kind: 'region',
+      region,
+      tier,
+      displayName: `${region} ${REGION_TIER_LABELS[tierIdx] || '비기너'}`,
+      icon: '🧭',
+      category: '지역 테마',
+      description: REGION_DESCRIPTIONS[tierIdx]?.(region) || null,
+      shortCondition: REGION_SHORT_CONDITIONS[tierIdx]?.(region) || null,
+      progressTarget: REGION_TIER_TARGETS[tierIdx] || null,
+      progressUnit: '회',
+    };
   }
   // support:guardian|pathfinder|lucky
-  if (parts[0] === 'support' && (parts[1] === 'guardian' || parts[1] === 'pathfinder' || parts[1] === 'lucky')) {
+  if (parts[0] === 'support' && SUPPORT_COPY[parts[1]]) {
     const t = {
       guardian: { displayName: '실시간 가디언', icon: '🛡️' },
       pathfinder: { displayName: '랜선 길잡이', icon: '🧭' },
       lucky: { displayName: '럭키 메이커', icon: '🍀' },
     }[parts[1]];
-    if (t) return { kind: 'support', sub: parts[1], displayName: t.displayName, icon: t.icon, category: '여행 응원' };
+    const copy = SUPPORT_COPY[parts[1]];
+    return {
+      kind: 'support',
+      sub: parts[1],
+      displayName: t.displayName,
+      icon: t.icon,
+      category: '여행 응원',
+      description: copy.description,
+      shortCondition: copy.shortCondition,
+      progressTarget: copy.progressTarget,
+      progressUnit: copy.progressUnit,
+    };
   }
   return null;
 };
@@ -127,6 +198,11 @@ export const hydrateBadgeFromName = (name) => {
     icon: decoded.icon,
     category: decoded.category,
     difficulty: decoded.tier != null ? decoded.tier : decoded.sub ? 2 : 1,
+    description: decoded.description || null,
+    shortCondition: decoded.shortCondition || null,
+    progressTarget: decoded.progressTarget || null,
+    progressUnit: decoded.progressUnit || null,
+    region: decoded.region || null,
     tone,
     gradientCss: gradient,
   };
@@ -301,10 +377,15 @@ const THEME_TRACKS = [
       { from: '#F9A8D4', to: '#EC4899' },
       { from: '#FB7185', to: '#BE123C' },
     ],
+    descriptions: [
+      '벚꽃·매화·튤립 등 봄꽃 풍경을 처음으로 공유했어요. 봄을 가장 먼저 알리는 새싹 단계입니다.',
+      '개화 시기와 위치를 꾸준히 전해 다른 여행자들의 꽃놀이 계획을 도와요. 받은 «도움돼요»가 신뢰의 증거예요.',
+      '전국의 만개·개화 현황을 가장 빠르게 전하는 거점이에요. 실시간 개화 정보로 봄 여행을 이끄는 꽃의 전령사입니다.',
+    ],
     requirements: [
-      { posts: 3, short: '꽃·개화 관련 제보 3회' },
-      { posts: 15, helpful: 50, short: '제보 15회 + 도움돼요 50' },
-      { posts: 40, liveCondition: 10, short: '제보 40회 + 실시간 개화 현황 10회' },
+      { posts: 3, short: '꽃·개화 관련 글 3회 작성' },
+      { posts: 15, helpful: 50, short: '꽃·개화 글 15회 작성 + «도움돼요» 50개 누적' },
+      { posts: 40, liveCondition: 10, short: '꽃·개화 글 40회 + 실시간 개화 현황 글 10회' },
     ],
   },
   {
@@ -317,10 +398,15 @@ const THEME_TRACKS = [
       { from: '#5EEAD4', to: '#0D9488' },
       { from: '#FDE68A', to: '#D97706' },
     ],
+    descriptions: [
+      '바다·일출·뷰 한 장으로 풍경을 처음 전했어요. 한 컷의 풍경 배달부예요.',
+      '여러 풍경을 꾸준히 기록하며 «도움돼요»를 받은, 검증된 뷰 안내자예요.',
+      '파도·일몰 같은 순간의 절경을 실시간으로 전하는 신뢰의 풍경 기록가예요.',
+    ],
     requirements: [
-      { posts: 3, short: '바다·절경 관련 제보 3회' },
-      { posts: 15, helpful: 50, short: '제보 15회 + 도움돼요 50' },
-      { posts: 40, liveCondition: 10, short: '제보 40회 + 실시간 파도·풍경 현황 10회' },
+      { posts: 3, short: '바다·일출·풍경 글 3회 작성' },
+      { posts: 15, helpful: 50, short: '풍경 글 15회 + «도움돼요» 50개 누적' },
+      { posts: 40, liveCondition: 10, short: '풍경 글 40회 + 실시간 파도·풍경 현황 10회' },
     ],
   },
   {
@@ -333,10 +419,15 @@ const THEME_TRACKS = [
       { from: '#93C5FD', to: '#1D4ED8' },
       { from: '#C4B5FD', to: '#6D28D9' },
     ],
+    descriptions: [
+      '지도에 없던 새로운 장소를 처음으로 등록했어요. 숨은 명소 발굴의 첫걸음을 뗐습니다.',
+      '당신이 등록한 숨은 장소가 다른 여행자들을 불러 모으고 있어요. 로컬의 시선을 가진 큐레이터예요.',
+      '여러 숨은 명소가 저장·«도움돼요»로 검증된, 새로운 여행지를 발굴하는 진짜 개척자예요.',
+    ],
     requirements: [
-      { unregistered: 1, short: '미등록 장소 첫 제보 1회' },
-      { unregistered: 10, hiddenVisitors: 1, short: '미등록 장소 제보 10회 + 방문자 발생' },
-      { unregistered: 30, hiddenSaves: 100, short: '미등록 장소 제보 30회 + 저장·도움돼요 100' },
+      { unregistered: 1, short: '지도에 없던 장소 처음 등록 1회' },
+      { unregistered: 10, hiddenVisitors: 1, short: '신규 장소 등록 10회 + 다른 여행자 방문 발생' },
+      { unregistered: 30, hiddenSaves: 100, short: '신규 장소 등록 30회 + 저장·«도움돼요» 합계 100' },
     ],
   },
   {
@@ -349,10 +440,15 @@ const THEME_TRACKS = [
       { from: '#818CF8', to: '#4338CA' },
       { from: '#FDE68A', to: '#7C3AED' },
     ],
+    descriptions: [
+      '밤 시간대(20시~새벽 5시)의 현장을 처음으로 공유했어요. 밤이 시작되는 길에 첫 발을 디뎠습니다.',
+      '야경·심야 거리를 꾸준히 전해 늦은 시간대 여행을 돕고 있어요. «도움돼요»가 쌓이는 야경 중계자입니다.',
+      '심야 현장 실시간 정보를 가장 자주 갱신하는, 어둠 속 여행자의 가장 든든한 길잡이예요.',
+    ],
     requirements: [
-      { posts: 3, short: '심야·야경 실시간 제보 3회' },
-      { posts: 15, helpful: 30, short: '심야 제보 15회 + 도움돼요 30' },
-      { posts: 30, liveCondition: 10, short: '심야 제보 30회 + 실시간 야간 현황 10회' },
+      { posts: 3, short: '야간(20~05시) 현장 글 3회 작성' },
+      { posts: 15, helpful: 30, short: '심야 글 15회 + «도움돼요» 30개 누적' },
+      { posts: 30, liveCondition: 10, short: '심야 글 30회 + 실시간 야간 현황 10회' },
     ],
   },
 ];
@@ -669,8 +765,17 @@ const buildDynamicBadges = (stats) => {
 
       const shortCondition =
         st.tier === 3
-          ? `${region} 제보 ${regionStages[2].targetUploads}회 + 도움돼요 ${regionStages[2].targetHelpful} + 시간대 3종 + POI 5곳`
-          : `${region} 제보 ${st.targetUploads}회`;
+          ? `${region} 글 ${regionStages[2].targetUploads}회 + «도움돼요» ${regionStages[2].targetHelpful}개 + 서로 다른 장소 ${regionStages[2].targetPoi}곳 + 오전·오후·야간 모두 기록`
+          : st.tier === 2
+            ? `${region} 글 ${st.targetUploads}회 작성`
+            : `${region} 첫 현장 글 ${st.targetUploads}회 작성`;
+
+      const description =
+        st.tier === 3
+          ? `${region}을 가장 잘 아는 지역 마스터예요. 다양한 시간대와 장소에서 검증된 실시간 정보를 연결해, 정보 시차를 줄이는 지역 정보의 거점입니다.`
+          : st.tier === 2
+            ? `${region}의 현장을 꾸준히 전하는 톡파원이에요. 다른 여행자들이 가장 먼저 찾는 지역 안내자로 자리 잡고 있어요.`
+            : `${region}의 현장을 처음으로 공유하는 가이드예요. 지역의 첫인상을 전하는 시작 단계입니다.`;
 
       const progressTarget =
         st.tier === 3
@@ -680,10 +785,7 @@ const buildDynamicBadges = (stats) => {
         `region:${region}:tier${st.tier}`,
         {
           displayName: `${region} ${st.label}`,
-          description:
-            st.tier === 3
-              ? `${region}의 정보 시차를 줄이는 '지역 마스터'예요. 다양한 시간대·장소에서 검증된 실시간 정보를 연결합니다.`
-              : `${region}의 실시간 정보를 꾸준히 공유하며 지역과 여행자를 연결해요.`,
+          description,
           icon: '🧭',
           category: '지역 테마',
           difficulty: st.tier,
@@ -717,7 +819,8 @@ const buildDynamicBadges = (stats) => {
   if (safety > 0) {
     mk('support:guardian', {
       displayName: '실시간 가디언',
-      description: '타인이 올린 위험·주의(안전) 맥락의 실시간 글에 응원/댓글을 남기며 집단의 안전 여행을 돕는 역할',
+      description:
+        '다른 여행자가 올린 위험·주의 글에 응원과 댓글을 남겨 안전한 여행을 함께 지켜요. 든든한 동행자에게 주어지는 인장입니다.',
       icon: '🛡️',
       category: '여행 응원',
       difficulty: 2,
@@ -734,14 +837,14 @@ const buildDynamicBadges = (stats) => {
       progressCurrent: safety,
       progressTarget: 10,
       progressUnit: '회',
-      shortCondition: "타인 안전·주의 글 응원/댓글 10회 (post_category safety 등)",
+      shortCondition: '위험·주의 글에 응원 또는 댓글 10회',
     });
   }
   if (pathProgress > 0) {
     mk('support:pathfinder', {
       displayName: '랜선 길잡이',
       description:
-        '질문(Q&A) 게시에 채택 5(우선) — 채택 UI를 붙이기 전엔, 서로 다른 질문 글에 답을 단 횟수(최대치)로 진행도를 표시합니다.',
+        '여행자의 질문에 답을 달아 현지 정보의 다리가 되어 줘요. 채택된 답이 늘수록 길잡이의 신뢰도 함께 자랍니다.',
       icon: '🧭',
       category: '여행 응원',
       difficulty: 2,
@@ -757,13 +860,15 @@ const buildDynamicBadges = (stats) => {
       },
       progressCurrent: pathProgress,
       progressTarget: 5,
-      shortCondition: "질문에 채택 5(또는 서로 다른 질문 글 답변 5) — is_accepted·is_question",
+      progressUnit: '회',
+      shortCondition: '질문 글 5개에 답변 (채택된 답이 우선 인정)',
     });
   }
   if (cheer > 0) {
     mk('support:lucky', {
       displayName: '럭키 메이커',
-      description: '타인의 «라이브저니» 게시글에 응원(좋아요·하트)를 누적. 추적: reaction_type cheer(내부).',
+      description:
+        '다른 여행자의 글에 응원(좋아요)을 누르며 커뮤니티에 활기를 더해요. 모두에게 행운을 나누는 작은 손길의 주인공입니다.',
       icon: '🍀',
       category: '여행 응원',
       difficulty: 2,
@@ -779,7 +884,8 @@ const buildDynamicBadges = (stats) => {
       },
       progressCurrent: cheer,
       progressTarget: 50,
-      shortCondition: "타인 글 응원(좋아요) 50 (reaction: cheer)",
+      progressUnit: '회',
+      shortCondition: '다른 여행자의 글에 응원(좋아요) 50회',
     });
   }
 
@@ -799,12 +905,15 @@ const buildDynamicBadges = (stats) => {
     const dynKey = `theme:${track.key.replace(':', ':')}:tier${tier}`;
     const dynName = `${DYNAMIC_BADGE_PREFIX}theme:${track.key.split(':')[0]}:${track.key.split(':')[1]}:tier${tier}`;
 
+    const trackDescriptions = Array.isArray(track.descriptions) ? track.descriptions : [];
+    const tierIdx = Math.max(0, Math.min(2, tier - 1));
     mk(`theme:${track.key}:tier${tier}`, {
-      displayName: track.labels[Math.max(0, tier - 1)] || track.labels[0],
+      displayName: track.labels[tierIdx] || track.labels[0],
       description:
-        tier >= 3
+        trackDescriptions[tierIdx] ||
+        (tier >= 3
           ? `${track.category}의 최고 단계 인장입니다. 실시간 현장 정보로 여행자의 선택을 돕는 검증된 기록가예요.`
-          : `${track.category} 활동을 쌓으며 성장하는 인장입니다. 다음 단계 조건을 확인해 보세요.`,
+          : `${track.category} 활동을 쌓으며 성장하는 인장입니다. 다음 단계 조건을 확인해 보세요.`),
       icon: track.icons[Math.max(0, tier - 1)] || track.icons[0],
       category: track.category,
       difficulty: tier,
