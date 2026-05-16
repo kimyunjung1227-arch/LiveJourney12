@@ -165,26 +165,70 @@ const LiveBadgeDetailScreen = () => {
                 {currentLabel}
               </div>
 
-              {/* 성장 단계 인디케이터 — 진행할수록 점진적으로 색이 드러남 */}
+              {/* 성장 단계 인디케이터 — 3단계 미니 메달리온이 순차적으로 피어남 */}
               {hasDynLadder ? (
-                <div className="mt-2.5 flex items-center gap-1.5" aria-label={`${currentTier} / 3 단계`}>
-                  {[1, 2, 3].map((step) => {
+                <div
+                  className="mt-4 flex items-center justify-center gap-2"
+                  aria-label={`${currentTier} / 3 단계`}
+                >
+                  {[1, 2, 3].map((step, idx) => {
                     const reached = step <= currentTier;
+                    const isCurrent = step === currentTier;
                     return (
-                      <span
-                        key={step}
-                        className="block rounded-full transition-all"
-                        style={{
-                          width: reached ? 22 : 12,
-                          height: 5,
-                          background: reached
-                            ? currentGradient
-                            : `rgba(${currentFromRgb}, 0.18)`,
-                          boxShadow: reached
-                            ? `0 1px 4px -1px rgba(${currentToRgb}, 0.45)`
-                            : 'none',
-                        }}
-                      />
+                      <React.Fragment key={step}>
+                        <div className="flex flex-col items-center gap-1">
+                          <div
+                            className="relative transition-transform"
+                            style={{
+                              transform: isCurrent ? 'scale(1.12)' : 'scale(1)',
+                            }}
+                          >
+                            <LiveBadgeMedallion
+                              badgeName={current?.name}
+                              tier={step}
+                              icon={current?.icon}
+                              category={current?.category}
+                              tone={current?.tone}
+                              gradientCss={current?.gradientCss}
+                              unearned={!reached}
+                              size={isCurrent ? 44 : 38}
+                            />
+                            {isCurrent ? (
+                              <span
+                                className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full whitespace-nowrap"
+                                style={{
+                                  background: currentGradient,
+                                  color: '#fff',
+                                  boxShadow: `0 2px 6px -2px rgba(${currentToRgb}, 0.6)`,
+                                }}
+                              >
+                                NOW
+                              </span>
+                            ) : null}
+                          </div>
+                          <span
+                            className="text-[10px] font-bold mt-1"
+                            style={{
+                              color: reached ? currentTone.to : '#9ca3af',
+                              opacity: reached ? 1 : 0.7,
+                            }}
+                          >
+                            {step}단계
+                          </span>
+                        </div>
+                        {idx < 2 ? (
+                          <span
+                            className="block h-[3px] w-6 rounded-full"
+                            style={{
+                              background:
+                                step < currentTier
+                                  ? currentGradient
+                                  : `rgba(${currentFromRgb}, 0.2)`,
+                              marginBottom: 14,
+                            }}
+                          />
+                        ) : null}
+                      </React.Fragment>
                     );
                   })}
                 </div>

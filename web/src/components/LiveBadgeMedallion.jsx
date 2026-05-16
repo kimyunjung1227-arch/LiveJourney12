@@ -51,8 +51,29 @@ export default function LiveBadgeMedallion({
   const toRgb = hexToRgbTuple(tone.to);
   const symbol = resolveBadgeSymbol(badgeShape);
 
+  // 티어별로 시각 차이를 극적으로 — "성장"이 한눈에 보이도록 설계
   const styles = (() => {
     if (tier >= 3) {
+      // 풀 블룸: 외곽 헤일로 + 두꺼운 그라데이션 링 + 굵은 아이콘 + 강한 글로우
+      return {
+        ringBg: gradient,
+        ringPadding: Math.max(4, Math.round(size * 0.07)),
+        innerBg: '#ffffff',
+        iconGradient: gradient,
+        iconColor: null,
+        iconWeight: 800,
+        iconScale: 1,
+        iconFontRatio: 0.5,
+        shadow: [
+          `0 0 0 3px rgba(${fromRgb}, 0.18)`,
+          `0 0 0 1px rgba(${fromRgb}, 0.4)`,
+          `0 14px 30px -10px rgba(${toRgb}, 0.75)`,
+          `0 4px 12px -6px rgba(${fromRgb}, 0.5)`,
+        ].join(', '),
+      };
+    }
+    if (tier === 2) {
+      // 완전 reveal: 또렷한 그라데이션 링 + 풀 그라데이션 아이콘
       return {
         ringBg: gradient,
         ringPadding: Math.max(3, Math.round(size * 0.05)),
@@ -60,33 +81,28 @@ export default function LiveBadgeMedallion({
         iconGradient: gradient,
         iconColor: null,
         iconWeight: 700,
-        shadow: `0 10px 24px -10px rgba(${toRgb}, 0.7), 0 0 0 1px rgba(${fromRgb}, 0.18)`,
+        iconScale: 1,
+        iconFontRatio: 0.46,
+        shadow: `0 6px 16px -8px rgba(${toRgb}, 0.5)`,
       };
     }
-    if (tier === 2) {
-      return {
-        ringBg: `rgba(${fromRgb}, 0.9)`,
-        ringPadding: Math.max(2.5, Math.round(size * 0.04)),
-        innerBg: '#ffffff',
-        iconGradient: gradient,
-        iconColor: null,
-        iconWeight: 600,
-        shadow: `0 5px 14px -8px rgba(${toRgb}, 0.45)`,
-      };
-    }
+    // 새싹 단계: 거의 보이지 않을 정도로 옅음, muted 아이콘
     return {
-      ringBg: `rgba(${fromRgb}, 0.5)`,
-      ringPadding: Math.max(1.5, Math.round(size * 0.03)),
-      innerBg: `rgba(${fromRgb}, 0.07)`,
+      ringBg: `rgba(${fromRgb}, 0.25)`,
+      ringPadding: Math.max(1, Math.round(size * 0.02)),
+      innerBg: '#ffffff',
       iconGradient: null,
-      iconColor: `rgba(${toRgb}, 0.72)`,
-      iconWeight: 500,
-      shadow: `0 2px 6px -4px rgba(${toRgb}, 0.22)`,
+      iconColor: `rgba(${toRgb}, 0.5)`,
+      iconWeight: 400,
+      iconScale: 0.88,
+      iconFontRatio: 0.42,
+      shadow: 'none',
     };
   })();
 
+  // 미획득(다음 뱃지 미리보기): 채도는 유지하되 투명도만 낮춰 "이래서 얻고 싶다"는 느낌
   const ghostStyle = unearned
-    ? { opacity: 0.42, filter: 'grayscale(55%)' }
+    ? { opacity: 0.55, filter: 'saturate(0.85)' }
     : null;
 
   return (
@@ -109,8 +125,9 @@ export default function LiveBadgeMedallion({
         <span
           className="material-symbols-outlined select-none"
           style={{
-            fontSize: Math.round(size * 0.46),
+            fontSize: Math.round(size * styles.iconFontRatio),
             lineHeight: 1,
+            transform: styles.iconScale !== 1 ? `scale(${styles.iconScale})` : undefined,
             ...(styles.iconGradient
               ? {
                   background: styles.iconGradient,
@@ -126,6 +143,24 @@ export default function LiveBadgeMedallion({
           {symbol}
         </span>
       </div>
+
+      {/* 티어 3: 모서리 별 데코레이션 (성장 완성을 강조) */}
+      {tier >= 3 && !unearned && size >= 56 ? (
+        <span
+          className="material-symbols-outlined absolute select-none"
+          style={{
+            top: -2,
+            right: -2,
+            fontSize: Math.round(size * 0.28),
+            lineHeight: 1,
+            color: tone.from,
+            filter: `drop-shadow(0 1px 2px rgba(${toRgb}, 0.6))`,
+            fontVariationSettings: "'FILL' 1, 'wght' 700, 'GRAD' 0, 'opsz' 24",
+          }}
+        >
+          star
+        </span>
+      ) : null}
     </div>
   );
 }
