@@ -38,6 +38,7 @@ const RegionDetailScreen = () => {
   const [realtimePhotos, setRealtimePhotos] = useState([]);
   const [allRegionPosts, setAllRegionPosts] = useState([]); // 전체 게시물 저장
   const [activeFilter, setActiveFilter] = useState('all'); // 필터 상태: 'all', 'blooming', 'spots', 'food'
+  const [filterOpen, setFilterOpen] = useState(false); // 필터 행 펼침 상태 (기본 접힘)
 
   const filterScrollRef = useRef(null);
   const filterButtonRefs = useRef({});
@@ -346,15 +347,40 @@ const RegionDetailScreen = () => {
 
             {/* 현장 실시간 정보 */}
             <div>
-              {/* 제목 */}
+              {/* 제목 + 필터 토글 아이콘 */}
               <div className="flex items-center justify-between px-4 pb-1 pt-4">
                 <h2 className="text-[17px] font-semibold leading-tight tracking-[-0.01em] text-text-headings dark:text-gray-100">
                   {headerTitle} 현지 실시간 상황
                 </h2>
+                <button
+                  type="button"
+                  onClick={() => setFilterOpen((v) => !v)}
+                  aria-expanded={filterOpen}
+                  aria-controls="region-filter-panel"
+                  aria-label={filterOpen ? '필터 접기' : '필터 펼치기'}
+                  className={`relative w-8 h-8 inline-flex items-center justify-center rounded-full border transition-colors shrink-0 ${
+                    filterOpen
+                      ? 'bg-primary text-white border-primary shadow-sm'
+                      : activeFilter !== 'all'
+                        ? 'bg-primary-soft text-primary border-primary/30'
+                        : 'bg-white dark:bg-card-dark text-text-secondary-light dark:text-text-secondary-dark border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[18px]" aria-hidden>
+                    tune
+                  </span>
+                  {activeFilter !== 'all' && !filterOpen && (
+                    <span
+                      className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-primary border border-white dark:border-card-dark"
+                      aria-hidden
+                    />
+                  )}
+                </button>
               </div>
 
               {/* 필터 버튼 - 슬라이드 가능 (좌·우 여백: 핸드폰에서 잘리지 않도록) */}
-              <div className="pb-2 w-full">
+              {filterOpen && (
+              <div id="region-filter-panel" className="pb-2 w-full">
                 <div
                   ref={filterScrollRef}
                   onMouseDown={handleFilterDrag}
@@ -423,6 +449,7 @@ const RegionDetailScreen = () => {
                   </button>
                 </div>
               </div>
+              )}
 
               {realtimePhotos.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 px-4">
