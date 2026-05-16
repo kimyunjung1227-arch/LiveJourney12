@@ -373,22 +373,68 @@ const RegionDetailScreen = () => {
         >
           <main>
 
+            {/* 대표명소 — 인라인 칩 (모달 없이 한눈에) */}
+            {(() => {
+              const landmarks = getLandmarksByRegion(region.name);
+              if (!landmarks || landmarks.length === 0) return null;
+              return (
+                <div className="pt-4 pb-1">
+                  <div className="flex items-center justify-between px-4 pb-2">
+                    <h2 className="text-[17px] font-semibold leading-tight tracking-[-0.01em] text-text-headings dark:text-gray-100 inline-flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[18px] text-primary" aria-hidden>place</span>
+                      {region.name} 대표명소
+                    </h2>
+                    {selectedLandmarks.length > 0 && (
+                      <button
+                        onClick={() => setSelectedLandmarks([])}
+                        className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-text-secondary-light dark:text-text-secondary-dark bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors whitespace-nowrap"
+                      >
+                        선택 해제 ({selectedLandmarks.length})
+                      </button>
+                    )}
+                  </div>
+                  <div
+                    className="flex gap-2 overflow-x-scroll overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden scroll-smooth"
+                    style={{
+                      WebkitOverflowScrolling: 'touch',
+                      paddingLeft: 'max(16px, env(safe-area-inset-left, 12px))',
+                      paddingRight: 'max(16px, env(safe-area-inset-right, 12px))',
+                    }}
+                  >
+                    {landmarks.map((landmark) => {
+                      const isSelected = selectedLandmarks.includes(landmark.id);
+                      return (
+                        <button
+                          key={landmark.id}
+                          onClick={() => {
+                            setSelectedLandmarks((prev) =>
+                              prev.includes(landmark.id)
+                                ? prev.filter((id) => id !== landmark.id)
+                                : [...prev, landmark.id]
+                            );
+                          }}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors whitespace-nowrap flex-shrink-0 ${
+                            isSelected
+                              ? 'bg-primary text-white border-primary shadow-sm'
+                              : 'bg-primary-soft text-primary border-primary/30 hover:bg-primary/15'
+                          }`}
+                        >
+                          {landmark.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* 현장 실시간 정보 */}
             <div>
-              {/* 제목 + 대표명소 버튼 (우측) */}
+              {/* 제목 */}
               <div className="flex items-center justify-between px-4 pb-1 pt-4">
                 <h2 className="text-[17px] font-semibold leading-tight tracking-[-0.01em] text-text-headings dark:text-gray-100">
                   {headerTitle} 현지 실시간 상황
                 </h2>
-                <button
-                  onClick={() => setShowLandmarkModal(true)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-primary bg-primary-soft hover:bg-primary/20 transition-colors whitespace-nowrap"
-                >
-                  {selectedLandmarks.length > 0
-                    ? `${region.name} 대표명소 (${selectedLandmarks.length})`
-                    : `${region.name} 대표명소 보기`
-                  }
-                </button>
               </div>
 
               {/* 필터 버튼 - 슬라이드 가능 (좌·우 여백: 핸드폰에서 잘리지 않도록) */}
