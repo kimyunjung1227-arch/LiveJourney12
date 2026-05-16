@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getWeatherByRegion } from '../api/weather';
+import { logger } from '../utils/logger';
 
 const WeatherWidget = ({ region = '서울' }) => {
     const [weather, setWeather] = useState(null);
@@ -13,7 +14,7 @@ const WeatherWidget = ({ region = '서울' }) => {
                     setWeather(data.weather);
                 }
             } catch (error) {
-                console.error('Failed to fetch weather:', error);
+                logger.error('Failed to fetch weather:', error);
             } finally {
                 setLoading(false);
             }

@@ -24,6 +24,7 @@ import { toHotplaceDescPreview } from '../utils/hotplaceDescPreview';
 import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
+import { distanceKmBetween } from '../utils/geoDistance';
 
 const PRIMARY_HEX = '#26C6DA';
 
@@ -51,17 +52,8 @@ const getPostCoords = (post) => {
 
 const haversineKm = (a, b) => {
     if (!a || !b) return null;
-    const R = 6371;
-    const toRad = (v) => (v * Math.PI) / 180;
-    const dLat = toRad(b.lat - a.lat);
-    const dLng = toRad(b.lng - a.lng);
-    const lat1 = toRad(a.lat);
-    const lat2 = toRad(b.lat);
-    const s =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(lat1) * Math.cos(lat2);
-    const c = 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
-    return R * c;
+    const km = distanceKmBetween(a, b);
+    return Number.isFinite(km) ? km : null;
 };
 
 const formatAgo = (ms) => {

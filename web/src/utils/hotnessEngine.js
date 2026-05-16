@@ -8,6 +8,7 @@ import { getPostAgeInHours } from './timeUtils';
 import { getConversionCountByPost, getConversionCount } from './conversionEvents';
 import { filterVerifiedPosts } from './hotspotVerification';
 import { normalizePlaceIdentityKey, pickPreferredPlaceDisplayLabel } from './placeKeyNormalize';
+import { getDistanceKm } from './geoDistance';
 
 const getUserIdForPost = (post) => {
   const uid = post?.userId ?? post?.user?.id ?? post?.user?.uid ?? post?.user ?? post?.authorId ?? post?.author?.id;
@@ -34,18 +35,6 @@ const getPostCoords = (post) => {
     if (lat != null && lng != null) return { lat: Number(lat), lng: Number(lng) };
   }
   return null;
-};
-
-const getDistanceKm = (lat1, lon1, lat2, lon2) => {
-  const toRad = (v) => (v * Math.PI) / 180;
-  const R = 6371;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
 };
 
 const RADIUS_KM = 0.5;

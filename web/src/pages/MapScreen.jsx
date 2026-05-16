@@ -12,6 +12,7 @@ import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
 import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
+import { distanceKmBetween } from '../utils/geoDistance';
 
 const DEFAULT_CENTER = { lat: 37.5665, lng: 126.9780 };
 
@@ -124,19 +125,7 @@ const ensureKakaoMapsReady = async () => {
   });
 };
 
-const haversineKm = (a, b) => {
-  if (!a || !b) return Infinity;
-  const R = 6371;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-  const lat1 = (a.lat * Math.PI) / 180;
-  const lat2 = (b.lat * Math.PI) / 180;
-  const s =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(lat1) * Math.cos(lat2);
-  const c = 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
-  return R * c;
-};
+const haversineKm = (a, b) => (a && b ? distanceKmBetween(a, b) : Infinity);
 
 function metersToLatLngDeltaMeters(meters, atLat) {
   const lat = Number(atLat) || 0;

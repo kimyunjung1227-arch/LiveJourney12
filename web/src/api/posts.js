@@ -20,7 +20,7 @@ export const getPosts = async (params = {}) => {
       }
       return { success: false, posts: [] };
     }
-    console.error('게시물 조회 실패:', error);
+    logger.error('게시물 조회 실패:', error);
     throw error;
   }
 };
@@ -34,7 +34,7 @@ export const getTags = async () => {
     if (error.code === 'ERR_NETWORK' || error.code === 'ERR_CONNECTION_REFUSED') {
       return { success: false, tags: [] };
     }
-    console.error('태그 조회 실패:', error);
+    logger.error('태그 조회 실패:', error);
     throw error;
   }
 };
@@ -64,7 +64,7 @@ export const createPost = async (postData) => {
     if (error.code === 'ERR_NETWORK' || error.code === 'ERR_CONNECTION_REFUSED') {
       return { success: false };
     }
-    console.error('게시물 작성 실패:', error);
+    logger.error('게시물 작성 실패:', error);
     throw error;
   }
 };
@@ -79,7 +79,7 @@ export const likePost = async (postId) => {
     if (error.code === 'ERR_NETWORK' || error.code === 'ERR_CONNECTION_REFUSED') {
       return { success: false };
     }
-    console.error('좋아요 실패:', error);
+    logger.error('좋아요 실패:', error);
     throw error;
   }
 };
@@ -128,10 +128,6 @@ export const answerQuestion = async (questionId, answer) => {
     throw error;
   }
 };
-
-
-
-
 
 
 

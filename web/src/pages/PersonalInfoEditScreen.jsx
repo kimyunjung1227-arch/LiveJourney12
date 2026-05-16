@@ -54,7 +54,7 @@ const PersonalInfoEditScreen = () => {
       // 사용자 정보 업데이트 이벤트 발생 (다른 컴포넌트에서 감지)
       window.dispatchEvent(new Event('userUpdated'));
       
-      console.log('✅ 개인 정보 저장 완료:', updatedUserData);
+      logger.debug('✅ 개인 정보 저장 완료');
       alert('개인 정보가 저장되었습니다!');
       navigate('/settings');
     } catch (error) {

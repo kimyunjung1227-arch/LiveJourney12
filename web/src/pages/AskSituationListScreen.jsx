@@ -6,25 +6,13 @@ import { getTimeAgo } from '../utils/timeUtils';
 import { useAuth } from '../contexts/AuthContext';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
+import { distanceKmBetween as haversineKm } from '../utils/geoDistance';
 
 const FILTERS = [
   { id: 'all', label: '전체' },
   { id: 'near', label: '내 주변' },
   { id: 'waiting', label: '답변 대기 중' },
 ];
-
-const haversineKm = (a, b) => {
-  if (!a || !b) return Number.POSITIVE_INFINITY;
-  const toRad = (v) => (v * Math.PI) / 180;
-  const R = 6371;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-  const x = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-  return R * c;
-};
 
 export default function AskSituationListScreen() {
   const navigate = useNavigate();

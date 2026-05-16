@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { createPostSupabase, mapSupabasePostRowToPost } from '../api/postsSupabase';
 import { logger } from '../utils/logger';
+import { haversineM } from '../utils/geoDistance';
 
 const STORAGE_KEY = 'mapSituationQuestions_v1';
 
@@ -64,17 +65,6 @@ const ensureKakaoMapsReady = async () => {
     }
   });
 };
-
-function haversineM(lat1, lng1, lat2, lng2) {
-  const R = 6371000;
-  const toRad = (d) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
-}
 
 export default function MapAskSituationScreen() {
   const navigate = useNavigate();

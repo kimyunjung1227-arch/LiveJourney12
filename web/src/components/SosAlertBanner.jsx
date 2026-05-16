@@ -1,33 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { logger } from '../utils/logger';
+import { getDistanceKm } from '../utils/geoDistance';
 
 const SosAlertBanner = () => {
   const location = useLocation();
   const [nearbySosRequests, setNearbySosRequests] = useState([]);
   const [currentLocation, setCurrentLocation] = useState(null);
-  const [dismissedSosIds, setDismissedSosIds] = useState(() => {
-    try {
-      return [];
-    } catch (error) {
-      return [];
-    }
-  });
-
-  const getDistanceKm = (lat1, lon1, lat2, lon2) => {
-    const toRad = (v) => (v * Math.PI) / 180;
-    const R = 6371;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRad(lat1)) *
-        Math.cos(toRad(lat2)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
+  const [dismissedSosIds, setDismissedSosIds] = useState([]);
 
   const loadSosRequests = useCallback(() => {
     try {

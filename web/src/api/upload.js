@@ -540,7 +540,7 @@ export const uploadProfileImage = async (file) => {
     });
     return { ...response.data, meta };
   } catch (error) {
-    console.error('프로필 이미지 업로드 실패:', error);
+    logger.error('프로필 이미지 업로드 실패:', error);
     throw error;
   }
 };

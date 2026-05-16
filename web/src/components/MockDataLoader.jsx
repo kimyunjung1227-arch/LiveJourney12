@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { seedMockData, clearMockData, getMockDataStats } from '../utils/mockUploadData';
+import { logger } from '../utils/logger';
 
 const MockDataLoader = () => {
   const [stats, setStats] = useState(null);
@@ -50,17 +51,13 @@ const MockDataLoader = () => {
   }, []);
 
   useEffect(() => {
-    const existingPosts = [];
-    console.log('📊 현재 게시물: (server mode)');
-    
+    logger.log('📊 현재 게시물: (server mode)');
+
     // 프로덕션(배포) 환경에서는 첫 접속 시 데모용 Mock 데이터 자동 생성
-    if (import.meta.env.MODE === 'production' && existingPosts.length === 0) {
-      console.log('🌱 프로덕션 최초 접속 - 데모용 Mock 데이터 자동 생성');
+    if (import.meta.env.MODE === 'production') {
+      logger.log('🌱 프로덕션 최초 접속 - 데모용 Mock 데이터 자동 생성');
       const result = seedMockData(200); // 한국 전역 사진 + 여러 사용자
       setStats(result);
-    } else if (existingPosts.length > 0) {
-      const currentStats = getMockDataStats();
-      setStats(currentStats);
     }
 
     // 개발 모드에서 window 객체에 유틸리티 함수 추가 (수동 제어용)
@@ -68,23 +65,23 @@ const MockDataLoader = () => {
       window.mockData = {
         seed: (count = 50) => {
           const result = seedMockData(count);
-          console.log(`✅ ${count}개의 Mock 데이터가 생성되었습니다!`);
+          logger.log(`✅ ${count}개의 Mock 데이터가 생성되었습니다!`);
           window.location.reload();
           return result;
         },
         clear: () => {
           clearMockData();
-          console.log('🗑️ Mock 데이터가 삭제되었습니다.');
+          logger.log('🗑️ Mock 데이터가 삭제되었습니다.');
           window.location.reload();
         },
         stats: () => {
           const stats = getMockDataStats();
-          console.log('📊 Mock 데이터 통계:', stats);
+          logger.log('📊 Mock 데이터 통계:', stats);
           return stats;
-        }
+        },
       };
-      
-      console.log('💡 콘솔에서 수동 제어: window.mockData.seed(개수), window.mockData.clear()');
+
+      logger.log('💡 콘솔에서 수동 제어: window.mockData.seed(개수), window.mockData.clear()');
     }
 
     window.addEventListener('newPostsAdded', handleNewPosts);
@@ -195,10 +192,6 @@ const MockDataLoader = () => {
 };
 
 export default MockDataLoader;
-
-
-
-
 
 
 
