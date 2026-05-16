@@ -12,6 +12,34 @@ function sortBadgesForDisplay(badges) {
   });
 }
 
+// 카테고리별 기본 톤 (badge.tone이 없을 때 fallback)
+const CATEGORY_DEFAULT_TONE = {
+  '자연·풍경': { from: '#7DD3FC', to: '#2563EB' },
+  '숨은 명소': { from: '#A7F3D0', to: '#059669' },
+  '심야 가이드': { from: '#818CF8', to: '#4338CA' },
+  '여행 응원': { from: '#FBBF24', to: '#B45309' },
+  '지역 테마': { from: '#A78BFA', to: '#5B21B6' },
+};
+const FALLBACK_TONE = { from: '#94A3B8', to: '#475569' };
+
+// '#RRGGBB' → 'r, g, b'
+const hexToRgbTuple = (hex) => {
+  const s = String(hex || '').replace('#', '').trim();
+  if (s.length !== 6) return '148, 163, 184';
+  const r = parseInt(s.slice(0, 2), 16);
+  const g = parseInt(s.slice(2, 4), 16);
+  const b = parseInt(s.slice(4, 6), 16);
+  if ([r, g, b].some((n) => Number.isNaN(n))) return '148, 163, 184';
+  return `${r}, ${g}, ${b}`;
+};
+
+const resolveBadgeTone = (badge) => {
+  const t = badge?.tone;
+  if (t?.from && t?.to) return t;
+  const cat = String(badge?.category || '').trim();
+  return CATEGORY_DEFAULT_TONE[cat] || FALLBACK_TONE;
+};
+
 /** 획득 뱃지가 이 개수 이상일 때만 「모두보기」 노출 */
 const MIN_BADGES_FOR_VIEW_ALL = 5;
 
@@ -79,6 +107,10 @@ export default function ProfileInjangSection({ badges, onViewAll, onOpenBadge, c
           {preview.map((badge, index) => {
             const label = getBadgeDisplayName(badge) || badge?.name || '뱃지';
             const icon = badge?.icon;
+            const tone = resolveBadgeTone(badge);
+            const gradient = `linear-gradient(135deg, ${tone.from}, ${tone.to})`;
+            const fromRgb = hexToRgbTuple(tone.from);
+            const toRgb = hexToRgbTuple(tone.to);
             return (
               <button
                 key={`${badge?.name || 'b'}-${index}`}
@@ -86,22 +118,40 @@ export default function ProfileInjangSection({ badges, onViewAll, onOpenBadge, c
                 onClick={() => openBadge(badge)}
                 className="flex flex-col items-center shrink-0 w-[84px] text-left"
               >
+                {/* 그라데이션 링 + 흰 디스크 (뱃지 톤에 맞춤) */}
                 <div
-                  className="w-[56px] h-[56px] rounded-full bg-white dark:bg-gray-950 border-[3px] border-primary flex items-center justify-center shadow-sm overflow-hidden"
+                  className="w-[58px] h-[58px] rounded-full flex items-center justify-center"
+                  style={{
+                    background: gradient,
+                    padding: 2.5,
+                    boxShadow: `0 4px 10px -4px rgba(${toRgb}, 0.5)`,
+                  }}
                   aria-hidden
                 >
-                  {icon ? (
-                    <span className="text-[26px] leading-none select-none">{icon}</span>
-                  ) : (
-                    <span className="text-[10px] font-bold text-primary text-center px-1 leading-tight line-clamp-2">
-                      {label.slice(0, 8)}
-                    </span>
-                  )}
+                  <div
+                    className="w-full h-full rounded-full bg-white dark:bg-gray-950 flex items-center justify-center overflow-hidden"
+                  >
+                    {icon ? (
+                      <span className="text-[26px] leading-none select-none">{icon}</span>
+                    ) : (
+                      <span
+                        className="text-[10px] font-bold text-center px-1 leading-tight line-clamp-2"
+                        style={{ color: tone.to }}
+                      >
+                        {label.slice(0, 8)}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                {/* 뱃지(칩) 스타일 */}
+                {/* 이름 칩 — 뱃지 톤에 맞춘 색 */}
                 <span
-                  className="mt-1.5 w-full text-center text-[11px] font-semibold px-2 py-1 rounded-full border bg-primary/10 dark:bg-primary/15 border-primary/25 text-primary truncate"
+                  className="mt-2 w-full text-center text-[11px] font-bold px-2 py-1 rounded-full truncate"
+                  style={{
+                    background: `rgba(${fromRgb}, 0.14)`,
+                    border: `1px solid rgba(${fromRgb}, 0.35)`,
+                    color: tone.to,
+                  }}
                   title={label}
                 >
                   {label}
