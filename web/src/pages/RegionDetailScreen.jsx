@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { getWeatherByRegion } from '../api/weather';
 import { filterRecentPosts, filterActivePosts48 } from '../utils/timeUtils';
-import { getLandmarksByRegion } from '../utils/regionLandmarks';
-import { fetchAiLandmarksForRegion, getCachedAiLandmarks } from '../api/regionLandmarksAi';
 import { logger } from '../utils/logger';
 import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
@@ -52,74 +50,6 @@ const RegionDetailScreen = () => {
     loading: false
   });
 
-  const [selectedLandmarks, setSelectedLandmarks] = useState([]); // 선택된 명소 ID 목록
-  const [showLandmarkModal, setShowLandmarkModal] = useState(false); // 명소 선택 모달 표시 여부 (레거시)
-  const [landmarksExpanded, setLandmarksExpanded] = useState(false); // 대표명소 펼치기/접기
-  const [aiLandmarks, setAiLandmarks] = useState(() => getCachedAiLandmarks(canonicalRegionName));
-  const [aiLoading, setAiLoading] = useState(false);
-
-  // 지역이 바뀌면 캐시된 AI 명소도 다시 읽고, 펼침/선택 상태 초기화
-  useEffect(() => {
-    setAiLandmarks(getCachedAiLandmarks(canonicalRegionName));
-    setLandmarksExpanded(false);
-    setSelectedLandmarks([]);
-  }, [canonicalRegionName]);
-
-  // 정적 + AI 명소 통합 리스트 (필터 매칭·UI 양쪽에서 사용)
-  const combinedLandmarks = useMemo(() => {
-    const staticList = getLandmarksByRegion(region.name) || [];
-    const aiList = Array.isArray(aiLandmarks) ? aiLandmarks : [];
-    // 같은 이름은 중복 제외 (정적 우선)
-    const seen = new Set(staticList.map((l) => l.name.replace(/\s+/g, '').toLowerCase()));
-    const merged = [...staticList];
-    aiList.forEach((l) => {
-      const key = String(l.name || '').replace(/\s+/g, '').toLowerCase();
-      if (!key || seen.has(key)) return;
-      seen.add(key);
-      merged.push(l);
-    });
-    return merged;
-  }, [region.name, aiLandmarks]);
-
-  const handleFetchAiLandmarks = useCallback(async () => {
-    if (aiLoading) return;
-    setAiLoading(true);
-    try {
-      const staticList = getLandmarksByRegion(region.name) || [];
-      const excludeNames = [
-        ...staticList.map((l) => l.name),
-        ...(Array.isArray(aiLandmarks) ? aiLandmarks.map((l) => l.name) : []),
-      ];
-      const next = await fetchAiLandmarksForRegion(region.name, {
-        excludeNames,
-        forceRefresh: true,
-        count: 12,
-      });
-      if (Array.isArray(next) && next.length > 0) {
-        setAiLandmarks((prev) => {
-          const seen = new Set(
-            [...staticList, ...(Array.isArray(prev) ? prev : [])].map((l) =>
-              String(l.name || '').replace(/\s+/g, '').toLowerCase()
-            )
-          );
-          const dedup = next.filter((l) => {
-            const k = String(l.name || '').replace(/\s+/g, '').toLowerCase();
-            if (!k || seen.has(k)) return false;
-            seen.add(k);
-            return true;
-          });
-          return [...(Array.isArray(prev) ? prev : []), ...dedup];
-        });
-      } else {
-        alert('AI 추천 결과가 없습니다. 잠시 후 다시 시도해 주세요.');
-      }
-    } catch (e) {
-      logger.warn('AI 명소 호출 실패:', e?.message || e);
-      alert('AI 추천에 실패했어요. 잠시 후 다시 시도해 주세요.');
-    } finally {
-      setAiLoading(false);
-    }
-  }, [region.name, aiLandmarks, aiLoading]);
   const bodyRef = useRef(null);
 
   // 시간을 숫자로 변환하는 함수 (정렬용)
@@ -166,31 +96,6 @@ const RegionDetailScreen = () => {
         logger.log(`🎯 상세 위치 필터 적용: ${focusLocation} → ${narrowed.length}개 게시물`);
       }
       regionPosts = narrowed;
-    }
-
-    // 선택된 명소로 필터링 (정적 + AI 통합 명소 사용)
-    if (selectedLandmarks.length > 0) {
-      const selectedLandmarkObjects = combinedLandmarks.filter((l) =>
-        selectedLandmarks.includes(l.id)
-      );
-
-      if (selectedLandmarkObjects.length > 0) {
-        regionPosts = regionPosts.filter(post => {
-          // 게시물의 위치 정보
-          const postLocation = (post.detailedLocation || post.placeName || post.location || '').toLowerCase();
-          const postTags = (post.tags || []).join(' ').toLowerCase();
-          const postNote = (post.note || post.content || '').toLowerCase();
-          const searchText = `${postLocation} ${postTags} ${postNote}`;
-
-          // 선택된 명소 중 하나라도 키워드와 일치하면 true
-          return selectedLandmarkObjects.some(landmark => {
-            return landmark.keywords.some(keyword => {
-              return searchText.includes(keyword.toLowerCase());
-            });
-          });
-        });
-        logger.log(`🏛️ ${region.name} 명소 필터 적용: ${selectedLandmarks.length}개 명소 → ${regionPosts.length}개 게시물`);
-      }
     }
 
     regionPosts = regionPosts
@@ -242,7 +147,7 @@ const RegionDetailScreen = () => {
     logger.log('📊 지역 게시물 로드:', {
       total: dedupedPosts.length
     });
-  }, [canonicalRegionName, region.name, timeToMinutes, selectedLandmarks, combinedLandmarks, focusLocation, user?.id]);
+  }, [canonicalRegionName, region.name, timeToMinutes, focusLocation, user?.id]);
 
   // 필터에 따른 게시물 필터링 및 표시
   useEffect(() => {
@@ -438,100 +343,6 @@ const RegionDetailScreen = () => {
           style={{ overflowY: 'auto', maxHeight: '62vh' }}
         >
           <main>
-
-            {/* 대표명소 — 접었다 펼쳤다 (정적 + AI 통합) */}
-            {combinedLandmarks.length > 0 && (
-              <div className="pt-4 pb-1">
-                <button
-                  type="button"
-                  onClick={() => setLandmarksExpanded((v) => !v)}
-                  className="w-full flex items-center justify-between px-4 py-2 text-left"
-                  aria-expanded={landmarksExpanded}
-                  aria-controls="region-landmarks-panel"
-                >
-                  <span className="inline-flex items-center gap-1.5 text-[17px] font-semibold leading-tight tracking-[-0.01em] text-text-headings dark:text-gray-100">
-                    <span className="material-symbols-outlined text-[18px] text-primary" aria-hidden>place</span>
-                    {region.name} 대표명소
-                    <span className="ml-1 text-[12px] font-semibold text-primary bg-primary-soft px-1.5 py-0.5 rounded-md">
-                      {combinedLandmarks.length}
-                    </span>
-                    {selectedLandmarks.length > 0 && (
-                      <span className="ml-1 text-[11px] font-medium text-text-secondary-light dark:text-text-secondary-dark">
-                        · {selectedLandmarks.length}개 선택됨
-                      </span>
-                    )}
-                  </span>
-                  <span
-                    className="material-symbols-outlined text-text-secondary-light dark:text-text-secondary-dark transition-transform"
-                    style={{ transform: landmarksExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
-                    aria-hidden
-                  >
-                    expand_more
-                  </span>
-                </button>
-
-                {landmarksExpanded && (
-                  <div id="region-landmarks-panel" className="px-4 pb-2">
-                    <div className="flex flex-wrap gap-2">
-                      {combinedLandmarks.map((landmark) => {
-                        const isSelected = selectedLandmarks.includes(landmark.id);
-                        const isAi = String(landmark.id || '').startsWith('ai-');
-                        return (
-                          <button
-                            key={landmark.id}
-                            onClick={() => {
-                              setSelectedLandmarks((prev) =>
-                                prev.includes(landmark.id)
-                                  ? prev.filter((id) => id !== landmark.id)
-                                  : [...prev, landmark.id]
-                              );
-                            }}
-                            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors whitespace-nowrap ${
-                              isSelected
-                                ? 'bg-primary text-white border-primary shadow-sm'
-                                : 'bg-primary-soft text-primary border-primary/30 hover:bg-primary/15'
-                            }`}
-                          >
-                            {isAi && (
-                              <span
-                                className={`material-symbols-outlined text-[14px] ${isSelected ? 'text-white' : 'text-primary/70'}`}
-                                aria-hidden
-                              >
-                                auto_awesome
-                              </span>
-                            )}
-                            {landmark.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handleFetchAiLandmarks}
-                        disabled={aiLoading}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-primary/40 text-primary bg-white dark:bg-card-dark hover:bg-primary/10 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <span className="material-symbols-outlined text-[16px]" aria-hidden>
-                          {aiLoading ? 'progress_activity' : 'auto_awesome'}
-                        </span>
-                        {aiLoading ? 'AI 추천 불러오는 중…' : 'AI로 더 찾아보기'}
-                      </button>
-                      {selectedLandmarks.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setSelectedLandmarks([])}
-                          className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-text-secondary-light dark:text-text-secondary-dark bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors whitespace-nowrap"
-                        >
-                          선택 해제
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* 현장 실시간 정보 */}
             <div>
@@ -767,110 +578,6 @@ const RegionDetailScreen = () => {
       </button>
 
       <BottomNavigation />
-
-      {/* 명소 선택 모달 - 화면 가운데 */}
-      {showLandmarkModal && (
-        <div
-          className="fixed inset-0 bg-black/30 md:bg-black/40 flex items-center justify-center z-[200] p-4"
-          onClick={() => setShowLandmarkModal(false)}
-        >
-          <div
-            className="w-full max-w-lg bg-background-light dark:bg-background-dark rounded-2xl max-h-[85vh] flex flex-col shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* 헤더 */}
-            <div className="flex items-center justify-between p-4 border-b border-border-light dark:border-border-dark">
-              <h3 className="text-lg font-bold text-text-headings dark:text-gray-100">
-                {region.name} 대표 명소
-              </h3>
-              <button
-                onClick={() => setShowLandmarkModal(false)}
-                className="material-symbols-outlined text-text-secondary-light dark:text-text-secondary-dark"
-              >
-                close
-              </button>
-            </div>
-
-            {/* 설명 */}
-            <div className="px-4 pt-4">
-              <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                {region.name}의 대표 명소를 선택하세요. 선택한 명소의 사진만 표시됩니다.
-              </p>
-            </div>
-
-            {/* 명소 목록 - 현재 지역만 */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {(() => {
-                const currentLandmarks = getLandmarksByRegion(region.name);
-
-                if (currentLandmarks.length === 0) {
-                  return (
-                    <div className="flex flex-col items-center justify-center py-12">
-                      <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600 mb-4">location_off</span>
-                      <p className="text-base font-medium text-gray-700 dark:text-gray-300 text-center">
-                        {region.name}의 대표 명소 정보가 없습니다.
-                      </p>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="space-y-2">
-                    {currentLandmarks.map((landmark) => {
-                      const isSelected = selectedLandmarks.includes(landmark.id);
-                      return (
-                        <button
-                          key={landmark.id}
-                          onClick={() => {
-                            if (isSelected) {
-                              setSelectedLandmarks(selectedLandmarks.filter(id => id !== landmark.id));
-                            } else {
-                              setSelectedLandmarks([...selectedLandmarks, landmark.id]);
-                            }
-                          }}
-                          className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors ${isSelected
-                            ? 'bg-primary-soft border-primary text-primary'
-                            : 'bg-background dark:bg-card-dark border-border-light dark:border-border-dark text-text-headings dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800'
-                            }`}
-                        >
-                          <span className={`text-sm font-medium ${isSelected ? 'text-primary' : ''}`}>
-                            {landmark.name}
-                          </span>
-                          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                            {isSelected ? 'check_circle' : 'radio_button_unchecked'}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* 푸터 */}
-            <div className="flex gap-2 p-4 border-t border-border-light dark:border-border-dark">
-              <button
-                onClick={() => {
-                  setSelectedLandmarks([]);
-                  setShowLandmarkModal(false);
-                }}
-                className="flex-1 px-4 py-3 rounded-xl bg-background dark:bg-card-dark text-text-secondary-light dark:text-text-secondary-dark font-semibold hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              >
-                초기화
-              </button>
-              <button
-                onClick={() => {
-                  setShowLandmarkModal(false);
-                  loadRegionData();
-                }}
-                className="flex-1 px-4 py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary-dark transition-colors"
-              >
-                {selectedLandmarks.length > 0 ? `${selectedLandmarks.length}개 선택됨` : '확인'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
