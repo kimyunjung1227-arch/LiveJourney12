@@ -164,6 +164,217 @@ const parseMagazinePaste = (raw) => {
   return { title: titleLine, sections: blocks };
 };
 
+/**
+ * 보편 paste 파서 — strict한 numbered/장소 제목 양식이 모두 실패했을 때 시도되는 fallback.
+ *
+ * 인식하는 패턴:
+ * - 블록 구분: "1.", "1)", "(1)", "①~⑳", "❶~❿", "# 1.", "## 1.", "장소 제목:", "장소 이름:"
+ * - 라벨(:/：) 다양: 장소(이름/제목/명), 위치/주소/장소 위치, 설명/장소 설명/소개,
+ *   분위기, 주변(장소/맛집/명소), 그리고 영문 별칭(title/location/address/description/nearby).
+ * - 마크다운 강조(**, __, _, *, ##, > 등) 자동 제거.
+ * - 라벨이 없는 줄은 현재 active 필드(기본: description)에 누적되어 본문이 자연스럽게 합쳐짐.
+ */
+const MAGAZINE_LABEL_VARIANTS = {
+  locationTitle: [
+    /^장소\s*(?:이름|제목|명)$/i,
+    /^place(?:\s*name)?$/i,
+    /^title$/i,
+    /^이름$/,
+    /^제목$/,
+  ],
+  locationInfo: [
+    /^장소\s*(?:위치|주소)$/i,
+    /^위치(?:\s*정보)?$/i,
+    /^주소$/,
+    /^address$/i,
+    /^location$/i,
+  ],
+  description: [
+    /^장소\s*설명$/i,
+    /^설명$/,
+    /^소개$/,
+    /^본문$/,
+    /^내용$/,
+    /^description$/i,
+    /^desc$/i,
+    /^about$/i,
+    /^intro$/i,
+  ],
+  moodTitle: [
+    /^분위기(?:\s*제목)?$/i,
+    /^키워드$/,
+    /^테마$/,
+    /^mood$/i,
+    /^theme$/i,
+    /^한\s*줄$/,
+  ],
+  around: [
+    /^주변(?:\s*(?:장소|스폿|맛집|명소))?$/i,
+    /^함께\s*(?:가볼|가볼만한|볼만한)/i,
+    /^추천\s*(?:장소|코스)$/i,
+    /^nearby$/i,
+  ],
+};
+
+const stripMarkdown = (line) =>
+  String(line || '')
+    .replace(/^#{1,6}\s*/, '')
+    .replace(/^\s*[-*+•]\s+/, '')
+    .replace(/^>+\s*/, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '$1')
+    .replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .trim();
+
+const BLOCK_DELIMITER_PATTERNS = [
+  /^\s*(\d+)\s*[.)]\s+\S/,
+  /^\s*\((\d+)\)\s+\S/,
+  /^\s*[①-⑳]\s*\S/,
+  /^\s*[❶-❿]\s*\S/,
+  /^\s*#{1,3}\s*\d+\s*[.)]\s+/,
+  /^\s*장소\s*(?:제목|이름|명)?\s*[:：]\s*\S/i,
+];
+
+const isBlockDelimiter = (cleaned) => BLOCK_DELIMITER_PATTERNS.some((re) => re.test(cleaned));
+
+const stripBlockPrefix = (cleaned) =>
+  String(cleaned || '')
+    .replace(/^\s*\d+\s*[.)]\s+/, '')
+    .replace(/^\s*\(\d+\)\s+/, '')
+    .replace(/^\s*[①-⑳]\s*/, '')
+    .replace(/^\s*[❶-❿]\s*/, '')
+    .replace(/^\s*#{1,3}\s*\d+\s*[.)]\s+/, '')
+    .replace(/^\s*장소\s*(?:제목|이름|명)?\s*[:：]\s*/i, '')
+    .replace(/^["“'`]|["”'`]$/g, '')
+    .trim();
+
+const findMagazineLabelKey = (rawLabel) => {
+  const normalized = normalizeSpace(rawLabel).replace(/[*_`~]/g, '');
+  for (const [key, patterns] of Object.entries(MAGAZINE_LABEL_VARIANTS)) {
+    if (patterns.some((re) => re.test(normalized))) return key;
+  }
+  return null;
+};
+
+/** strict 파서들이 모두 실패했을 때 사용하는 매거진 paste 보편 파서 */
+const parseMagazinePasteUniversal = (raw) => {
+  const text = String(raw || '').replace(/\r\n/g, '\n').trim();
+  if (!text) return null;
+
+  const linesRaw = text.split('\n');
+  const lines = linesRaw.map((l) => stripMarkdown(l));
+
+  // 매거진 전체 타이틀 후보: 첫 비어있지 않은 블록 구분자 아닌 줄
+  let title = '';
+  for (let i = 0; i < Math.min(lines.length, 6); i += 1) {
+    const c = lines[i];
+    if (!c) continue;
+    if (isBlockDelimiter(c)) break;
+    title = c.replace(/^[\[【]|[\]】]$/g, '').trim();
+    break;
+  }
+
+  const blocks = [];
+  let current = null;
+  let activeField = 'description';
+
+  const flush = () => {
+    if (!current) return;
+    current.description = String(current.description || '').replace(/\n{3,}/g, '\n\n').trim();
+    if (Array.isArray(current.around)) {
+      current.around = current.around.map((x) => normalizeSpace(x)).filter(Boolean);
+    }
+    blocks.push(current);
+    current = null;
+    activeField = 'description';
+  };
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const cleaned = lines[i];
+
+    if (isBlockDelimiter(cleaned)) {
+      flush();
+      const head = stripBlockPrefix(cleaned);
+      current = {
+        moodTitle: '',
+        locationTitle: head,
+        locationInfo: '',
+        description: '',
+        around: [],
+      };
+      activeField = 'description';
+      continue;
+    }
+
+    if (!current) {
+      if (!cleaned) continue;
+      if (title && cleaned === title) continue;
+      // 첫 헤딩이 곧 첫 장소 이름이 되는 케이스
+      current = {
+        moodTitle: '',
+        locationTitle: cleaned,
+        locationInfo: '',
+        description: '',
+        around: [],
+      };
+      activeField = 'description';
+      continue;
+    }
+
+    if (!cleaned) {
+      if (activeField === 'description' && current.description) {
+        current.description += '\n\n';
+      }
+      continue;
+    }
+
+    const labelMatch = cleaned.match(/^([^:：]{1,16})\s*[:：]\s*(.*)$/);
+    if (labelMatch) {
+      const key = findMagazineLabelKey(labelMatch[1]);
+      if (key) {
+        const value = String(labelMatch[2] || '').trim();
+        if (key === 'around') {
+          current.around = splitCommaList(value);
+          activeField = 'around';
+        } else if (key === 'description') {
+          if (value) {
+            current.description = current.description
+              ? `${current.description}\n${value}`
+              : value;
+          }
+          activeField = 'description';
+        } else {
+          current[key] = value;
+          activeField = key;
+        }
+        continue;
+      }
+    }
+
+    // 라벨 없음 → 현재 active 필드에 누적
+    if (activeField === 'description') {
+      current.description = current.description ? `${current.description}\n${cleaned}` : cleaned;
+    } else if (activeField === 'around') {
+      current.around = [...(current.around || []), ...splitCommaList(cleaned)];
+    } else if (typeof current[activeField] === 'string') {
+      current[activeField] = current[activeField] ? `${current[activeField]} ${cleaned}` : cleaned;
+    }
+  }
+  flush();
+
+  const filtered = blocks.filter(
+    (b) =>
+      String(b.locationTitle || '').trim() ||
+      String(b.description || '').trim() ||
+      String(b.locationInfo || '').trim()
+  );
+
+  if (filtered.length === 0) return null;
+  return { title, sections: filtered };
+};
+
 const createEmptySection = (seed = {}) => ({
   id: `sec-${Date.now()}-${Math.random().toString(16).slice(2)}`,
   moodTitle: seed.moodTitle || '',
@@ -173,6 +384,18 @@ const createEmptySection = (seed = {}) => ({
   around: Array.isArray(seed.around) ? seed.around : [],
 });
 
+/** strict 파서 → 보편 파서 순서로 시도. 결과 + 어느 파서가 매칭됐는지 반환 */
+const tryParseMagazinePaste = (raw) => {
+  if (!String(raw || '').trim()) return null;
+  const strict = parseMagazinePaste(raw);
+  if (strict?.sections?.length) return { ...strict, source: 'strict' };
+  const free = parseMagazinePasteFreeform(raw);
+  if (free?.sections?.length) return { ...free, source: 'freeform' };
+  const universal = parseMagazinePasteUniversal(raw);
+  if (universal?.sections?.length) return { ...universal, source: 'universal' };
+  return null;
+};
+
 const MagazineWriteScreen = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -180,6 +403,7 @@ const MagazineWriteScreen = () => {
   const [title, setTitle] = useState('');
   const [sections, setSections] = useState([createEmptySection()]);
   const [pasteText, setPasteText] = useState('');
+  const [pasteStatus, setPasteStatus] = useState(null); // { kind: 'ok'|'fail', message: string }
   const [saving, setSaving] = useState(false);
   const [allPosts, setAllPosts] = useState([]);
   const [feedRefresh, setFeedRefresh] = useState(0);
@@ -228,11 +452,24 @@ const MagazineWriteScreen = () => {
   }, []);
 
   const applyPaste = useCallback((raw) => {
-    const parsed = parseMagazinePaste(raw);
-    if (!parsed) return false;
+    const parsed = tryParseMagazinePaste(raw);
+    if (!parsed) {
+      setPasteStatus({
+        kind: 'fail',
+        message:
+          '장소를 자동 인식하지 못했어요. "장소 이름:", "위치:", "설명:" 같은 라벨이나 "1. 장소명" 번호 매김을 포함해 주세요.',
+      });
+      return false;
+    }
     if (parsed.title) setTitle(parsed.title);
     setSections(parsed.sections.map((s) => createEmptySection(s)));
     setPasteText('');
+    setPasteStatus({
+      kind: 'ok',
+      message: `${parsed.sections.length}개 장소가 자동으로 채워졌어요.${
+        parsed.source === 'universal' ? ' (자유 형식 인식)' : ''
+      }`,
+    });
     return true;
   }, []);
 
@@ -465,43 +702,38 @@ const MagazineWriteScreen = () => {
                   </label>
                   <textarea
                     className="w-full min-h-[100px] rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-gray-900/30 px-3 py-2 text-[13px] leading-relaxed text-gray-900 dark:text-gray-50 focus:outline-none resize-none"
-                    placeholder="전체 문구를 붙여넣으면 장소·설명·주변이 채워져요."
+                    placeholder={'전체 문구를 붙여넣으면 장소·설명·주변이 자동으로 채워져요.\n번호(1.) / "장소 이름:" / "위치:" / "설명:" 등의 라벨을 인식해요.'}
                     value={pasteText}
-                    onChange={(e) => setPasteText(e.target.value)}
+                    onChange={(e) => {
+                      setPasteText(e.target.value);
+                      if (pasteStatus) setPasteStatus(null);
+                    }}
                     onPaste={(e) => {
                       const clip = e?.clipboardData?.getData?.('text/plain');
                       if (!clip) return;
                       e.preventDefault();
-                      setPasteText(clip);
-                      const parsed = parseMagazinePaste(clip) || parseMagazinePasteFreeform(clip);
-                      if (!parsed) return;
-                      if (parsed.title) setTitle(parsed.title);
-                      setSections(parsed.sections.map((s) => createEmptySection(s)));
-                      setPasteText('');
+                      applyPaste(clip);
                     }}
                     onBlur={() => {
-                      if (applyPaste(pasteText)) return;
-                      const parsed = parseMagazinePasteFreeform(pasteText);
-                      if (!parsed) return;
-                      if (parsed.title) setTitle(parsed.title);
-                      setSections(parsed.sections.map((s) => createEmptySection(s)));
-                      setPasteText('');
+                      if (!pasteText.trim()) return;
+                      applyPaste(pasteText);
                     }}
                   />
+                  {pasteStatus ? (
+                    <p
+                      className={`mt-2 text-[12px] font-semibold ${
+                        pasteStatus.kind === 'ok'
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-rose-600 dark:text-rose-400'
+                      }`}
+                    >
+                      {pasteStatus.message}
+                    </p>
+                  ) : null}
                   <div className="mt-2 flex justify-end">
                     <button
                       type="button"
-                      onClick={() => {
-                        const ok = applyPaste(pasteText) || (() => {
-                          const parsed = parseMagazinePasteFreeform(pasteText);
-                          if (!parsed) return false;
-                          if (parsed.title) setTitle(parsed.title);
-                          setSections(parsed.sections.map((s) => createEmptySection(s)));
-                          setPasteText('');
-                          return true;
-                        })();
-                        if (!ok) return;
-                      }}
+                      onClick={() => applyPaste(pasteText)}
                       className="rounded-full bg-gray-900 text-white px-4 py-2 text-[12px] font-semibold"
                     >
                       자동 채우기
