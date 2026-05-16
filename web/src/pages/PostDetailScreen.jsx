@@ -461,7 +461,7 @@ const PostDetailScreen = () => {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [postId, refreshPostFromSupabase]);
 
-  // 정보가 정확해요 버튼 클릭 (다른 사용자가 누르면 작성자 라이브 싱크에 간접 반영)
+  // '도움이 되었어요' 버튼 클릭 (다른 사용자가 누르면 작성자 라이브 싱크에 간접 반영)
   const handleAccuracyClick = useCallback(async () => {
     if (!post?.id) return;
     const result = await toggleAccuracyFeedback(post.id);
@@ -1400,7 +1400,11 @@ const PostDetailScreen = () => {
         <div className="flex w-full bg-transparent dark:bg-transparent" style={{ marginTop: 0 }}>
           <div
             className="image-swipe-area relative flex w-full gap-1 overflow-hidden rounded-b-2xl bg-white shadow-md dark:bg-gray-900"
-            style={{ height: '60vh', minHeight: '330px', marginTop: '-64px' }}
+            style={{
+              height: 'calc(60vh + env(safe-area-inset-top, 0px) + 64px)',
+              minHeight: 'calc(330px + env(safe-area-inset-top, 0px) + 64px)',
+              marginTop: 'calc(-64px - env(safe-area-inset-top, 0px))',
+            }}
           >
             <Swiper
               key={post?.id ?? 'post-media'}
@@ -1844,9 +1848,9 @@ const PostDetailScreen = () => {
             )}
           </div>
 
-          {/* 정보가 정확해요 - 다른 사용자들이 정보 정확도 평가 */}
+          {/* 도움이 되었어요 — 다른 여행자에게 이 글이 유용했는지 평가 */}
           <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">이 정보가 도움이 되었나요?</p>
+            <p className="text-center text-xs text-gray-500 dark:text-gray-400 mb-2">이 글이 여행에 도움이 되었나요?</p>
             <button
               type="button"
               onClick={handleAccuracyClick}
@@ -1857,9 +1861,9 @@ const PostDetailScreen = () => {
               }`}
             >
               <span className={`material-symbols-outlined text-xl ${accuracyMarked ? 'text-primary' : ''}`} style={accuracyMarked ? { fontVariationSettings: "'FILL' 1" } : {}}>
-                check_circle
+                thumb_up
               </span>
-              <span>정보가 정확해요</span>
+              <span>도움이 되었어요</span>
               {accuracyCount > 0 && (
                 <span className="font-bold text-primary">({accuracyCount})</span>
               )}
