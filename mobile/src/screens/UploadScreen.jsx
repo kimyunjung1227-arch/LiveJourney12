@@ -990,7 +990,7 @@ const UploadScreen = () => {
                     <Text style={styles.uploadButtonText}>업로드 중...</Text>
                   </>
                 ) : (
-                  <Text style={styles.uploadButtonText}>📤 여행 기록 업로드하기</Text>
+                  <Text style={styles.uploadButtonText}>📤 업로드하기</Text>
                 )}
               </TouchableOpacity>
               {(formData.images.length === 0 || !formData.location.trim()) && (
@@ -1054,7 +1054,7 @@ const UploadScreen = () => {
               </View>
               <Text style={styles.loadingTitle}>업로드 중...</Text>
               <Text style={styles.loadingMessage}>
-                여행 기록을 업로드하고 있습니다
+                잠시만 기다려 주세요
               </Text>
 
               {/* 진행률 바 */}
@@ -1098,7 +1098,7 @@ const UploadScreen = () => {
               </View>
               <Text style={styles.successTitle}>업로드 완료!</Text>
               <Text style={styles.successMessage}>
-                여행 기록이 성공적으로 업로드되었습니다
+                사진이 정상적으로 업로드되었습니다
               </Text>
               <View style={styles.progressContainer}>
                 <View style={styles.progressBar}>
