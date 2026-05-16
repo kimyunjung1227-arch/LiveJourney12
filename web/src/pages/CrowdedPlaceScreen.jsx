@@ -430,29 +430,25 @@ const CrowdedPlaceScreen = () => {
     return (
         <div className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col">
             <PageSeo {...PAGE_SEO.crowdedPlace} />
-            <header className="sticky top-0 z-30 flex shrink-0 items-center gap-2 border-b border-border-light bg-background-light px-3 py-3 dark:border-border-dark dark:bg-background-dark">
+            <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center border-b border-border-light bg-background-light px-3 dark:border-border-dark dark:bg-background-dark">
                 <button
                     type="button"
                     onClick={() => navigate(-1)}
                     aria-label="뒤로가기"
-                    className="flex size-10 shrink-0 items-center justify-center rounded-full text-text-primary-light hover:bg-black/5 dark:text-text-primary-dark dark:hover:bg-white/10"
+                    className="absolute left-3 top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-text-primary-light hover:bg-black/5 dark:text-text-primary-dark dark:hover:bg-white/10"
                 >
                     <span className="material-symbols-outlined text-2xl">arrow_back</span>
                 </button>
-                <h1 className="min-w-0 flex-1 pr-1 text-center text-[17px] font-bold leading-snug text-text-primary-light dark:text-text-primary-dark">
+                <h1 className="pointer-events-none absolute left-1/2 top-1/2 w-[min(70%,260px)] -translate-x-1/2 -translate-y-1/2 truncate text-center text-[17px] font-bold leading-snug text-text-primary-light dark:text-text-primary-dark">
                     실시간 급상승 핫플
                 </h1>
-                <div ref={scopeMenuWrapRef} className="relative shrink-0">
+                <div ref={scopeMenuWrapRef} className="absolute right-3 top-1/2 z-10 -translate-y-1/2">
                     <button
                         type="button"
                         onClick={() => setScopeMenuOpen((o) => !o)}
                         aria-haspopup="listbox"
                         aria-expanded={scopeMenuOpen}
-                        className="flex h-10 items-center gap-1 border bg-white px-3 text-[13px] font-bold text-zinc-800 shadow-sm hover:border-zinc-300 dark:bg-zinc-900 dark:text-zinc-100"
-                        style={{
-                            borderColor: regionScope === 'national' ? 'rgba(228,231,236,1)' : 'rgba(38,198,218,0.55)',
-                            borderRadius: 0,
-                        }}
+                        className="flex h-10 items-center gap-1 bg-transparent px-1 text-[13px] font-bold text-zinc-800 hover:opacity-80 dark:text-zinc-100"
                     >
                         <span className="material-symbols-outlined text-[18px]" style={{ color: PRIMARY_HEX }}>
                             {getScopeIcon(regionScope)}
@@ -633,11 +629,10 @@ const CrowdedPlaceScreen = () => {
                                                 {(() => {
                                                     const displayRank = Number.isFinite(place?.scopedRank) ? place.scopedRank : place.rank;
                                                     if (!displayRank || displayRank > 20) return null;
-                                                    const scopeLabel = REGION_SCOPE_LABEL[regionScope] || '';
                                                     return (
                                                         <div
                                                             className="pointer-events-none absolute left-2.5 top-2.5 select-none"
-                                                            aria-label={`${scopeLabel} ${displayRank}위`}
+                                                            aria-label={`${displayRank}위`}
                                                             style={{
                                                                 padding: '6px 10px',
                                                                 borderRadius: 9999,
@@ -646,24 +641,11 @@ const CrowdedPlaceScreen = () => {
                                                                 WebkitBackdropFilter: 'blur(10px)',
                                                                 border: '1px solid rgba(255,255,255,0.32)',
                                                                 boxShadow: '0 10px 28px rgba(15, 23, 42, 0.28)',
-                                                                display: 'inline-flex',
-                                                                alignItems: 'center',
-                                                                gap: 6,
                                                             }}
                                                         >
                                                             <span
                                                                 style={{
-                                                                    fontSize: 11,
-                                                                    fontWeight: 800,
-                                                                    letterSpacing: -0.2,
-                                                                    color: 'rgba(255,255,255,0.85)',
-                                                                    lineHeight: 1,
-                                                                }}
-                                                            >
-                                                                {scopeLabel}
-                                                            </span>
-                                                            <span
-                                                                style={{
+                                                                    display: 'inline-block',
                                                                     fontSize: 13,
                                                                     fontWeight: 950,
                                                                     letterSpacing: -0.2,
