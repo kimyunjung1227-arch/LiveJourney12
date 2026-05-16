@@ -1397,18 +1397,14 @@ const PostDetailScreen = () => {
           </>
         )}
 
-        {/* 사진 + 프로필 통합 카드 — 시각적으로 한 덩어리로 묶음 */}
-        <div
-          className="flex w-full flex-col bg-white shadow-md overflow-hidden rounded-b-2xl dark:bg-gray-900"
-          style={{
-            marginTop: 'calc(-64px - env(safe-area-inset-top, 0px))',
-          }}
-        >
+        {/* 사진 카드 — 단독 카드 (프로필과 명확히 분리) */}
+        <div className="flex w-full bg-transparent dark:bg-transparent" style={{ marginTop: 0 }}>
           <div
-            className="image-swipe-area relative flex w-full gap-1 overflow-hidden"
+            className="image-swipe-area relative flex w-full gap-1 overflow-hidden rounded-b-2xl bg-white shadow-md dark:bg-gray-900"
             style={{
               height: 'calc(60vh + env(safe-area-inset-top, 0px) + 64px)',
               minHeight: 'calc(330px + env(safe-area-inset-top, 0px) + 64px)',
+              marginTop: 'calc(-64px - env(safe-area-inset-top, 0px))',
             }}
           >
             <Swiper
@@ -1531,9 +1527,13 @@ const PostDetailScreen = () => {
               </button>
             )}
           </div>
+        </div>
 
-          {/* 프로필 — 사진과 같은 카드 안 (사진 바로 아래에 붙임) */}
-          <div className="flex items-center justify-between gap-3 px-4 pt-3 pb-3">
+        <main className="flex flex-col w-full max-w-full bg-white dark:bg-gray-900" style={{ minHeight: 'auto' }}>
+          <div className="w-full max-w-full px-4 pt-4 pb-3">
+            <div className="w-full max-w-full space-y-4">
+              {/* 프로필 — 사진과 명확히 구분되도록 main 콘텐츠 영역의 첫 행 */}
+              <div className="flex items-center justify-between gap-3">
             <div
               className="flex min-w-0 flex-1 items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => {
@@ -1667,11 +1667,7 @@ const PostDetailScreen = () => {
               )}
             </div>
           </div>
-        </div>
 
-        <main className="flex flex-col w-full max-w-full bg-white dark:bg-gray-900" style={{ minHeight: 'auto' }}>
-          <div className="w-full max-w-full px-4 pt-4 pb-3">
-            <div className="w-full max-w-full space-y-4">
               {/* 위치 + 작성자 메뉴(수정·삭제) */}
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
