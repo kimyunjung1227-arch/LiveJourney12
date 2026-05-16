@@ -1397,13 +1397,18 @@ const PostDetailScreen = () => {
           </>
         )}
 
-        <div className="flex w-full bg-transparent dark:bg-transparent" style={{ marginTop: 0 }}>
+        {/* 사진 + 프로필 통합 카드 — 시각적으로 한 덩어리로 묶음 */}
+        <div
+          className="flex w-full flex-col bg-white shadow-md overflow-hidden rounded-b-2xl dark:bg-gray-900"
+          style={{
+            marginTop: 'calc(-64px - env(safe-area-inset-top, 0px))',
+          }}
+        >
           <div
-            className="image-swipe-area relative flex w-full gap-1 overflow-hidden rounded-b-2xl bg-white shadow-md dark:bg-gray-900"
+            className="image-swipe-area relative flex w-full gap-1 overflow-hidden"
             style={{
               height: 'calc(60vh + env(safe-area-inset-top, 0px) + 64px)',
               minHeight: 'calc(330px + env(safe-area-inset-top, 0px) + 64px)',
-              marginTop: 'calc(-64px - env(safe-area-inset-top, 0px))',
             }}
           >
             <Swiper
@@ -1520,147 +1525,147 @@ const PostDetailScreen = () => {
               </button>
             )}
           </div>
+
+          {/* 프로필 — 사진과 같은 카드 안 (아래쪽에 위치) */}
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-gray-100 dark:border-gray-800">
+            <div
+              className="flex min-w-0 flex-1 items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => {
+                const aid =
+                  getPostAuthorUuid(post) ||
+                  post?.userId ||
+                  (typeof post?.user === 'string' ? post.user : post?.user?.id) ||
+                  post?.user;
+                const currentUserId = user?.id;
+                if (aid && aid !== currentUserId) {
+                  setCachedFollowProfile(aid, { username: userName, profileImage: authorAvatar || null });
+                  navigate(`/user/${aid}`, {
+                    state: {
+                      profileHint: {
+                        username: userName,
+                        profileImage: authorAvatar || null,
+                        representativeBadge: authorRepresentativeBadge?.name ? authorRepresentativeBadge : null,
+                      },
+                    },
+                  });
+                } else if (aid && aid === currentUserId) {
+                  navigate('/profile');
+                }
+              }}
+            >
+              {authorAvatar ? (
+                <div
+                  className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-10 w-10 flex-shrink-0"
+                  style={{ backgroundImage: `url("${getDisplayImageUrl(authorAvatar)}")` }}
+                />
+              ) : (
+                <div className="rounded-full h-10 w-10 flex-shrink-0 bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-semibold text-gray-700 dark:text-gray-100">
+                  {String(userName || '여행자').charAt(0)}
+                </div>
+              )}
+              {/* 이름 · 싱크점수 · 대표 뱃지를 한 줄로 정렬 */}
+              <div className="flex min-w-0 flex-1 items-center gap-2 flex-wrap">
+                <p className="min-w-0 max-w-full truncate text-sm font-bold text-[#181410] dark:text-white">
+                  {userName}
+                </p>
+                {authorLiveSync != null && (() => {
+                  const pct = typeof authorLiveSync === 'number' ? authorLiveSync : 35;
+                  const tone =
+                    pct >= 90 ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-600/40' :
+                    pct >= 70 ? 'bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-900/30 dark:text-cyan-200 dark:border-cyan-600/40' :
+                    pct >= 40 ? 'bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-900/30 dark:text-sky-200 dark:border-sky-600/40' :
+                    'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600';
+                  return (
+                    <span
+                      className={`inline-flex w-fit shrink-0 items-center gap-0.5 rounded-full border px-2 py-0.5 text-[11px] font-bold ${tone}`}
+                      title={`라이브 싱크 ${pct}%`}
+                    >
+                      <span className="material-symbols-outlined text-[12px]" aria-hidden>bolt</span>
+                      <span>{pct}%</span>
+                    </span>
+                  );
+                })()}
+                {authorRepresentativeBadge?.name ? (() => {
+                  const badgeTone = resolveBadgeTone(authorRepresentativeBadge);
+                  const badgeGradient = `linear-gradient(135deg, ${badgeTone.from}, ${badgeTone.to})`;
+                  const badgeFromRgb = hexToRgbTuple(badgeTone.from);
+                  const badgeSymbol = resolveBadgeSymbol(authorRepresentativeBadge);
+                  const badgeLabel = getBadgeDisplayName(authorRepresentativeBadge) || authorRepresentativeBadge.name;
+                  return (
+                    <span
+                      className="inline-flex max-w-[min(100%,14rem)] shrink-0 items-center gap-1 rounded-full px-2 py-0.5"
+                      style={{
+                        background: `rgba(${badgeFromRgb}, 0.12)`,
+                        border: `1px solid rgba(${badgeFromRgb}, 0.32)`,
+                        color: badgeTone.to,
+                      }}
+                      title={badgeLabel}
+                    >
+                      <span
+                        className="material-symbols-outlined select-none"
+                        aria-label={badgeLabel}
+                        style={{
+                          fontSize: 13,
+                          lineHeight: 1,
+                          background: badgeGradient,
+                          WebkitBackgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent',
+                          backgroundClip: 'text',
+                          color: 'transparent',
+                          fontVariationSettings: "'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 20",
+                        }}
+                      >
+                        {badgeSymbol}
+                      </span>
+                      <span className="truncate text-[11px] font-bold" style={{ color: badgeTone.to }}>
+                        {badgeLabel}
+                      </span>
+                    </span>
+                  );
+                })() : null}
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              {postUserId && user?.id && String(postUserId) !== String(user.id) && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isFollowAuthor) {
+                      unfollow(postUserId);
+                      setIsFollowAuthor(false);
+                    } else {
+                      const r = follow(postUserId);
+                      if (r.success) {
+                        setIsFollowAuthor(true);
+                        setCachedFollowProfile(postUserId, {
+                          username: userName,
+                          profileImage: authorAvatar || null,
+                        });
+                        /* followSystem → followSupabase에서 수신자에게 원격 알림 */
+                        notifyFollowingStarted(userName, user.id, {
+                          targetUserId: postUserId,
+                          targetAvatar: authorAvatar || null,
+                        });
+                      }
+                    }
+                  }}
+                  className={`shrink-0 py-1.5 px-3 rounded-xl text-xs font-semibold ${
+                    isFollowAuthor
+                      ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                      : 'bg-primary text-white hover:opacity-90'
+                  }`}
+                >
+                  {isFollowAuthor ? '팔로잉' : '팔로우'}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         <main className="flex flex-col w-full max-w-full bg-white dark:bg-gray-900" style={{ minHeight: 'auto' }}>
           <div className="w-full max-w-full px-4 pt-4 pb-3">
             <div className="w-full max-w-full space-y-4">
-              {/* 프로필 - 사진 아래 (박스/배경 없이) */}
-              <div className="flex items-center justify-between gap-3">
-                <div
-                  className="flex min-w-0 flex-1 items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-                  onClick={() => {
-                    const aid =
-                      getPostAuthorUuid(post) ||
-                      post?.userId ||
-                      (typeof post?.user === 'string' ? post.user : post?.user?.id) ||
-                      post?.user;
-                    const currentUserId = user?.id;
-                    if (aid && aid !== currentUserId) {
-                      setCachedFollowProfile(aid, { username: userName, profileImage: authorAvatar || null });
-                      navigate(`/user/${aid}`, {
-                        state: {
-                          profileHint: {
-                            username: userName,
-                            profileImage: authorAvatar || null,
-                            representativeBadge: authorRepresentativeBadge?.name ? authorRepresentativeBadge : null,
-                          },
-                        },
-                      });
-                    } else if (aid && aid === currentUserId) {
-                      navigate('/profile');
-                    }
-                  }}
-                >
-                  {authorAvatar ? (
-                    <div
-                      className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-10 w-10 flex-shrink-0"
-                      style={{ backgroundImage: `url("${getDisplayImageUrl(authorAvatar)}")` }}
-                    />
-                  ) : (
-                    <div className="rounded-full h-10 w-10 flex-shrink-0 bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-semibold text-gray-700 dark:text-gray-100">
-                      {String(userName || '여행자').charAt(0)}
-                    </div>
-                  )}
-                    {/* 이름 · 싱크점수 · 대표 뱃지를 한 줄로 정렬 */}
-                    <div className="flex min-w-0 flex-1 items-center gap-2 flex-wrap">
-                      <p className="min-w-0 max-w-full truncate text-sm font-bold text-[#181410] dark:text-white">
-                        {userName}
-                      </p>
-                      {authorLiveSync != null && (() => {
-                        const pct = typeof authorLiveSync === 'number' ? authorLiveSync : 35;
-                        const tone =
-                          pct >= 90 ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-600/40' :
-                          pct >= 70 ? 'bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-900/30 dark:text-cyan-200 dark:border-cyan-600/40' :
-                          pct >= 40 ? 'bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-900/30 dark:text-sky-200 dark:border-sky-600/40' :
-                          'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600';
-                        return (
-                          <span
-                            className={`inline-flex w-fit shrink-0 items-center gap-0.5 rounded-full border px-2 py-0.5 text-[11px] font-bold ${tone}`}
-                            title={`라이브 싱크 ${pct}%`}
-                          >
-                            <span className="material-symbols-outlined text-[12px]" aria-hidden>bolt</span>
-                            <span>{pct}%</span>
-                          </span>
-                        );
-                      })()}
-                      {authorRepresentativeBadge?.name ? (() => {
-                        const badgeTone = resolveBadgeTone(authorRepresentativeBadge);
-                        const badgeGradient = `linear-gradient(135deg, ${badgeTone.from}, ${badgeTone.to})`;
-                        const badgeFromRgb = hexToRgbTuple(badgeTone.from);
-                        const badgeSymbol = resolveBadgeSymbol(authorRepresentativeBadge);
-                        const badgeLabel = getBadgeDisplayName(authorRepresentativeBadge) || authorRepresentativeBadge.name;
-                        return (
-                          <span
-                            className="inline-flex max-w-[min(100%,14rem)] shrink-0 items-center gap-1 rounded-full px-2 py-0.5"
-                            style={{
-                              background: `rgba(${badgeFromRgb}, 0.12)`,
-                              border: `1px solid rgba(${badgeFromRgb}, 0.32)`,
-                              color: badgeTone.to,
-                            }}
-                            title={badgeLabel}
-                          >
-                            <span
-                              className="material-symbols-outlined select-none"
-                              aria-label={badgeLabel}
-                              style={{
-                                fontSize: 13,
-                                lineHeight: 1,
-                                background: badgeGradient,
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                                backgroundClip: 'text',
-                                color: 'transparent',
-                                fontVariationSettings: "'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 20",
-                              }}
-                            >
-                              {badgeSymbol}
-                            </span>
-                            <span className="truncate text-[11px] font-bold" style={{ color: badgeTone.to }}>
-                              {badgeLabel}
-                            </span>
-                          </span>
-                        );
-                      })() : null}
-                    </div>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  {postUserId && user?.id && String(postUserId) !== String(user.id) && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (isFollowAuthor) {
-                          unfollow(postUserId);
-                          setIsFollowAuthor(false);
-                        } else {
-                          const r = follow(postUserId);
-                          if (r.success) {
-                            setIsFollowAuthor(true);
-                            setCachedFollowProfile(postUserId, {
-                              username: userName,
-                              profileImage: authorAvatar || null,
-                            });
-                            /* followSystem → followSupabase에서 수신자에게 원격 알림 */
-                            notifyFollowingStarted(userName, user.id, {
-                              targetUserId: postUserId,
-                              targetAvatar: authorAvatar || null,
-                            });
-                          }
-                        }
-                      }}
-                      className={`shrink-0 py-1.5 px-3 rounded-xl text-xs font-semibold ${
-                        isFollowAuthor
-                          ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                          : 'bg-primary text-white hover:opacity-90'
-                      }`}
-                    >
-                      {isFollowAuthor ? '팔로잉' : '팔로우'}
-                    </button>
-                  )}
-                </div>
-              </div>
-
               {/* 위치 + 작성자 메뉴(수정·삭제) */}
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
