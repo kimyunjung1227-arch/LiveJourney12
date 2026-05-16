@@ -1426,8 +1426,11 @@ const PostDetailScreen = () => {
                 ? mediaItems.map((media, index) => (
                     <SwiperSlide key={index}>
                       <div
-                        className="w-full flex-shrink-0 relative bg-black"
-                        style={{ height: '60vh', minHeight: '330px' }}
+                        className="w-full h-full flex-shrink-0 relative bg-black"
+                        style={{
+                          height: 'calc(60vh + env(safe-area-inset-top, 0px) + 64px)',
+                          minHeight: 'calc(330px + env(safe-area-inset-top, 0px) + 64px)',
+                        }}
                       >
                         {media.type === 'video' ? (
                           <video
@@ -1458,11 +1461,14 @@ const PostDetailScreen = () => {
                       <img
                         src={image}
                         alt=""
-                        className="w-full flex-shrink-0 object-cover"
+                        className="w-full h-full flex-shrink-0 object-cover"
                         loading="eager"
                         decoding="async"
                         fetchPriority={index < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
-                        style={{ height: '60vh', minHeight: '330px' }}
+                        style={{
+                          height: 'calc(60vh + env(safe-area-inset-top, 0px) + 64px)',
+                          minHeight: 'calc(330px + env(safe-area-inset-top, 0px) + 64px)',
+                        }}
                       />
                     </SwiperSlide>
                   ))}
@@ -1526,8 +1532,8 @@ const PostDetailScreen = () => {
             )}
           </div>
 
-          {/* 프로필 — 사진과 같은 카드 안 (아래쪽에 위치) */}
-          <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-gray-100 dark:border-gray-800">
+          {/* 프로필 — 사진과 같은 카드 안 (사진 바로 아래에 붙임) */}
+          <div className="flex items-center justify-between gap-3 px-4 pt-3 pb-3">
             <div
               className="flex min-w-0 flex-1 items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => {
