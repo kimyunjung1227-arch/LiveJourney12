@@ -1402,8 +1402,8 @@ const PostDetailScreen = () => {
           <div
             className="image-swipe-area relative flex w-full gap-1 overflow-hidden rounded-b-2xl bg-white shadow-md dark:bg-gray-900"
             style={{
-              height: 'calc(60vh + env(safe-area-inset-top, 0px) + 64px)',
-              minHeight: 'calc(330px + env(safe-area-inset-top, 0px) + 64px)',
+              height: 'calc(54vh + env(safe-area-inset-top, 0px) + 64px)',
+              minHeight: 'calc(300px + env(safe-area-inset-top, 0px) + 64px)',
               marginTop: 'calc(-64px - env(safe-area-inset-top, 0px))',
             }}
           >
@@ -1424,8 +1424,8 @@ const PostDetailScreen = () => {
                       <div
                         className="w-full h-full flex-shrink-0 relative bg-black"
                         style={{
-                          height: 'calc(60vh + env(safe-area-inset-top, 0px) + 64px)',
-                          minHeight: 'calc(330px + env(safe-area-inset-top, 0px) + 64px)',
+                          height: 'calc(54vh + env(safe-area-inset-top, 0px) + 64px)',
+                          minHeight: 'calc(300px + env(safe-area-inset-top, 0px) + 64px)',
                         }}
                       >
                         {media.type === 'video' ? (
@@ -1462,8 +1462,8 @@ const PostDetailScreen = () => {
                         decoding="async"
                         fetchPriority={index < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
                         style={{
-                          height: 'calc(60vh + env(safe-area-inset-top, 0px) + 64px)',
-                          minHeight: 'calc(330px + env(safe-area-inset-top, 0px) + 64px)',
+                          height: 'calc(54vh + env(safe-area-inset-top, 0px) + 64px)',
+                          minHeight: 'calc(300px + env(safe-area-inset-top, 0px) + 64px)',
                         }}
                       />
                     </SwiperSlide>
