@@ -1066,7 +1066,7 @@ const UploadScreen = () => {
                 fontFamily: "'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
               }}
             >
-              업로드: 여행 기록
+              업로드
             </h1>
           </div>
           <button
@@ -1420,7 +1420,7 @@ const UploadScreen = () => {
                     <span>업로드 중...</span>
                   </>
                 ) : (
-                  <span>여행 기록 업로드</span>
+                  <span>업로드</span>
                 )}
               </button>
             </div>
@@ -1490,7 +1490,7 @@ const UploadScreen = () => {
               </h1>
               
               <p className="text-gray-700 dark:text-gray-300 text-base font-normal leading-normal pb-4 text-center">
-                여행 기록이 성공적으로 업로드되었습니다
+                사진이 정상적으로 업로드되었습니다
               </p>
 
               <div className="mt-2">
