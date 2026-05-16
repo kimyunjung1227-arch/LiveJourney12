@@ -243,7 +243,30 @@ const NotificationsScreen = () => {
             if (/게시물.*업데이트/i.test(String(n?.message || ''))) return false;
             return true;
           });
-    return [...filtered].sort((a, b) => notificationTimeMs(b) - notificationTimeMs(a));
+    const sorted = [...filtered].sort((a, b) => notificationTimeMs(b) - notificationTimeMs(a));
+    // 같은 뱃지 알림이 클라이언트 notifyBadge + Supabase user_badges 트리거로 두 번 쌓이는 경우가 있어
+    // 같은 뱃지(혹은 동일 메시지 내 뱃지명) 기준으로 가장 최근 1건만 남긴다.
+    const seenBadgeKeys = new Set();
+    return sorted.filter((n) => {
+      if (n?.type !== 'badge') return true;
+      const raw = n.badge && !isUuidLike(n.badge) ? String(n.badge).trim() : '';
+      let badgeKey = '';
+      if (raw) {
+        const display = getBadgeDisplayNameFromName(raw);
+        badgeKey = isUuidLike(display) ? raw : (display || raw);
+      } else {
+        const m = String(n?.message || '').match(/["“']([^"”']+)["”']\s*뱃지/);
+        if (m && m[1]) {
+          const candidate = m[1].trim();
+          const display = getBadgeDisplayNameFromName(candidate);
+          badgeKey = isUuidLike(display) ? candidate : (display || candidate);
+        }
+      }
+      if (!badgeKey) return true;
+      if (seenBadgeKeys.has(badgeKey)) return false;
+      seenBadgeKeys.add(badgeKey);
+      return true;
+    });
   }, [allNotifications, friendNews, tab]);
 
   const grouped = useMemo(() => {
