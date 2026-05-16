@@ -380,7 +380,7 @@ const RegionDetailScreen = () => {
 
               {/* 필터 버튼 - 슬라이드 가능 (좌·우 여백: 핸드폰에서 잘리지 않도록) */}
               {filterOpen && (
-              <div id="region-filter-panel" className="pb-2 w-full">
+              <div id="region-filter-panel" className="pb-2 pt-1 w-full">
                 <div
                   ref={filterScrollRef}
                   onMouseDown={handleFilterDrag}
@@ -392,61 +392,41 @@ const RegionDetailScreen = () => {
                     width: '100%',
                     scrollSnapType: 'x mandatory',
                     paddingLeft: 'max(16px, env(safe-area-inset-left, 12px))',
-                    paddingRight: 'max(16px, env(safe-area-inset-right, 12px))'
+                    paddingRight: 'max(16px, env(safe-area-inset-right, 12px))',
                   }}
                 >
-                  <button
-                    ref={(el) => filterButtonRefs.current['all'] = el}
-                    onClick={() => {
-                      if (!filterHasMovedRef.current) setActiveFilter('all');
-                    }}
-                    style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${activeFilter === 'all'
-                      ? 'bg-primary text-white'
-                      : 'bg-gray-100 dark:bg-gray-800 text-text-secondary-light dark:text-text-secondary-dark hover:bg-gray-200 dark:hover:bg-gray-700'
-                      }`}
-                  >
-                    전체
-                  </button>
-                  <button
-                    ref={(el) => filterButtonRefs.current['blooming'] = el}
-                    onClick={() => {
-                      if (!filterHasMovedRef.current) setActiveFilter('blooming');
-                    }}
-                    style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${activeFilter === 'blooming'
-                      ? 'bg-primary text-white'
-                      : 'bg-gray-100 dark:bg-gray-800 text-text-secondary-light dark:text-text-secondary-dark hover:bg-gray-200 dark:hover:bg-gray-700'
-                      }`}
-                  >
-                    🌸 개화정보
-                  </button>
-                  <button
-                    ref={(el) => filterButtonRefs.current['spots'] = el}
-                    onClick={() => {
-                      if (!filterHasMovedRef.current) setActiveFilter('spots');
-                    }}
-                    style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${activeFilter === 'spots'
-                      ? 'bg-primary text-white'
-                      : 'bg-gray-100 dark:bg-gray-800 text-text-secondary-light dark:text-text-secondary-dark hover:bg-gray-200 dark:hover:bg-gray-700'
-                      }`}
-                  >
-                    🏞️ 가볼만한 곳
-                  </button>
-                  <button
-                    ref={(el) => filterButtonRefs.current['food'] = el}
-                    onClick={() => {
-                      if (!filterHasMovedRef.current) setActiveFilter('food');
-                    }}
-                    style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${activeFilter === 'food'
-                      ? 'bg-primary text-white'
-                      : 'bg-gray-100 dark:bg-gray-800 text-text-secondary-light dark:text-text-secondary-dark hover:bg-gray-200 dark:hover:bg-gray-700'
-                      }`}
-                  >
-                    🍜 맛집 정보
-                  </button>
+                  {[
+                    { key: 'all', label: '전체', icon: 'apps', accent: 'text-indigo-500' },
+                    { key: 'blooming', label: '개화정보', icon: 'local_florist', accent: 'text-pink-500' },
+                    { key: 'spots', label: '가볼만한 곳', icon: 'landscape', accent: 'text-emerald-500' },
+                    { key: 'food', label: '맛집 정보', icon: 'restaurant', accent: 'text-amber-500' },
+                  ].map(({ key, label, icon, accent }) => {
+                    const isActive = activeFilter === key;
+                    return (
+                      <button
+                        key={key}
+                        ref={(el) => (filterButtonRefs.current[key] = el)}
+                        onClick={() => {
+                          if (!filterHasMovedRef.current) setActiveFilter(key);
+                        }}
+                        style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}
+                        className={`group inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap flex-shrink-0 border transition-all duration-150 ${
+                          isActive
+                            ? 'bg-primary text-white border-primary shadow-[0_4px_12px_-2px_rgba(38,198,218,0.55)] scale-[1.02]'
+                            : 'bg-white dark:bg-card-dark text-text-headings dark:text-gray-100 border-gray-200 dark:border-gray-700 hover:border-primary/40 hover:bg-primary/5'
+                        }`}
+                        aria-pressed={isActive}
+                      >
+                        <span
+                          className={`material-symbols-outlined text-[16px] leading-none ${isActive ? 'text-white' : accent}`}
+                          aria-hidden
+                        >
+                          {icon}
+                        </span>
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               )}
