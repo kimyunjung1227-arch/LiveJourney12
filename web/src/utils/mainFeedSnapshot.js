@@ -102,51 +102,16 @@ function firstDisplayMediaUrlForPost(post, imgOpts) {
 }
 
 /**
- * 브라우저가 상단 카드 이미지를 미리 가져가도록 힌트 (동일 세션·직후 요청에도 유리)
+ * 메인 상단 카드 이미지 프리로드 — no-op
+ *
+ * 과거에는 `<link rel="preload" as="image">`를 동적 생성했으나,
+ * 실제 `<img>`의 fetchPriority/loading 속성과 정확히 매칭되지 않거나
+ * 데이터 갱신으로 노드가 제거되면 "preloaded but not used" 경고가
+ * 콘솔에 다수 출력되는 문제가 있었다.
+ * 메인 카드 상단은 이미 `loading="eager"` + `fetchPriority="high"`로
+ * 브라우저가 우선 가져가므로, 별도 preload 링크는 불필요.
+ * 호출부 호환을 위해 함수 시그니처와 cleanup 패턴만 유지한다.
  */
-export function preloadMainFeedImageUrls(realtimeData, crowdedData, { limit = 24, imgOpts = MAIN_FEED_IMAGE_OPTS } = {}) {
-  if (typeof document === 'undefined') return () => {};
-  const urls = [];
-  const push = (u) => {
-    const s = typeof u === 'string' ? u.trim() : '';
-    if (!s || s.startsWith('data:') || s.startsWith('blob:')) return;
-    urls.push(s);
-  };
-
-  const rt = Array.isArray(realtimeData) ? realtimeData : [];
-  for (let i = 0; i < Math.min(12, rt.length); i += 1) {
-    // 카드(FastImage/getDisplayImageUrl)와 동일 옵션 — forceTransform preload는 실제 img src와 달라
-    // 브라우저가 "preloaded but not used" 경고를 내는 경우가 많음
-    push(firstDisplayMediaUrlForPost(rt[i], imgOpts));
-  }
-
-  const cr = Array.isArray(crowdedData) ? crowdedData : [];
-  for (let i = 0; i < Math.min(4, cr.length); i += 1) {
-    push(firstDisplayMediaUrlForPost(cr[i], imgOpts));
-  }
-
-  const unique = Array.from(new Set(urls)).filter(Boolean).slice(0, limit);
-  const nodes = [];
-  unique.forEach((href, idx) => {
-    const id = `lj-preload-main-feed-${idx}`;
-    if (document.getElementById(id)) return;
-    const link = document.createElement('link');
-    link.id = id;
-    link.rel = 'preload';
-    link.as = 'image';
-    link.href = href;
-    // crossOrigin 을 넣으면 `<img>` 기본 로드(credentials 모드 불일치)와 맞지 않아 preload 가 무시되는 경우가 많음
-    document.head.appendChild(link);
-    nodes.push(link);
-  });
-
-  return () => {
-    nodes.forEach((n) => {
-      try {
-        n.remove();
-      } catch {
-        /* ignore */
-      }
-    });
-  };
+export function preloadMainFeedImageUrls() {
+  return () => {};
 }
