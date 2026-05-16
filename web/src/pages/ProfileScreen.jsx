@@ -8,6 +8,7 @@ import BottomNavigation from '../components/BottomNavigation';
 import { getUnreadCount, notifyFollowingStarted, getActorHintsFromNotificationsCache } from '../utils/notifications';
 import { getEarnedBadgesForUser, getBadgeDisplayName } from '../utils/badgeSystem';
 import { resolveRepresentativeBadge } from '../utils/representativeBadge';
+import { resolveBadgeTone, resolveBadgeSymbol, hexToRgbTuple } from '../utils/badgeIcons';
 import ProfileInjangSection from '../components/ProfileInjangSection';
 import ProfileLiveSyncSection from '../components/ProfileLiveSyncSection';
 import { getCoordinatesByLocation } from '../utils/regionLocationMapping';
@@ -1682,26 +1683,61 @@ const ProfileScreen = () => {
                       {currentUser?.username || '모사모'}
                     </h2>
 
-                    {/* 대표 뱃지 - 클릭 가능 */}
-                    <button
-                      onClick={openRepresentativeBadgeSelector}
-                      disabled={earnedBadges.length === 0}
-                      className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed max-w-[140px]"
-                      title={representativeBadge ? (getBadgeDisplayName(representativeBadge) || representativeBadge.name) : '뱃지 없음'}
-                    >
-                      {representativeBadge ? (
-                        <>
-                          <span className="text-base leading-none" role="img" aria-label={getBadgeDisplayName(representativeBadge) || representativeBadge.name}>
-                            {representativeBadge.icon || '🏆'}
-                          </span>
-                          <span className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">
-                            {getBadgeDisplayName(representativeBadge) || representativeBadge.name}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark">뱃지 없음</span>
-                      )}
-                    </button>
+                    {/* 대표 뱃지 - 클릭 가능 (라이브저니 톤: Material Symbols + 톤 그라데이션) */}
+                    {(() => {
+                      const repTone = representativeBadge ? resolveBadgeTone(representativeBadge) : null;
+                      const repGradient = repTone ? `linear-gradient(135deg, ${repTone.from}, ${repTone.to})` : null;
+                      const repFromRgb = repTone ? hexToRgbTuple(repTone.from) : null;
+                      const repSymbol = representativeBadge ? resolveBadgeSymbol(representativeBadge) : null;
+                      const repLabel = representativeBadge ? (getBadgeDisplayName(representativeBadge) || representativeBadge.name) : '뱃지 없음';
+                      return (
+                        <button
+                          onClick={openRepresentativeBadgeSelector}
+                          disabled={earnedBadges.length === 0}
+                          className={`flex items-center gap-1.5 px-2 py-1 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed max-w-[140px] ${
+                            representativeBadge
+                              ? ''
+                              : 'bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-600'
+                          }`}
+                          style={
+                            representativeBadge
+                              ? {
+                                  background: `rgba(${repFromRgb}, 0.12)`,
+                                  border: `1px solid rgba(${repFromRgb}, 0.32)`,
+                                  color: repTone.to,
+                                }
+                              : undefined
+                          }
+                          title={repLabel}
+                        >
+                          {representativeBadge ? (
+                            <>
+                              <span
+                                className="material-symbols-outlined select-none"
+                                aria-label={repLabel}
+                                style={{
+                                  fontSize: 16,
+                                  lineHeight: 1,
+                                  background: repGradient,
+                                  WebkitBackgroundClip: 'text',
+                                  WebkitTextFillColor: 'transparent',
+                                  backgroundClip: 'text',
+                                  color: 'transparent',
+                                  fontVariationSettings: "'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 20",
+                                }}
+                              >
+                                {repSymbol}
+                              </span>
+                              <span className="text-xs font-bold truncate" style={{ color: repTone.to }}>
+                                {repLabel}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-xs font-medium text-text-secondary-light dark:text-text-secondary-dark px-1">뱃지 없음</span>
+                          )}
+                        </button>
+                      );
+                    })()}
                   </div>
 
                   {/* 수정 버튼 */}
@@ -2436,30 +2472,49 @@ const ProfileScreen = () => {
                 )}
 
                 <div className="grid grid-cols-2 gap-3">
-                  {earnedBadges.map((badge, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => setPendingRepresentativeBadge(badge)}
-                      className={`p-4 rounded-xl border-2 transition-all ${pendingRepresentativeBadge?.name === badge.name
-                          ? 'bg-gradient-to-br from-primary/20 to-accent/20 border-primary shadow-lg'
-                          : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500'
-                        }`}
-                    >
-                      <div className="flex flex-col items-center gap-2">
-                        <span className="text-5xl leading-none" role="img" aria-label={getBadgeDisplayName(badge)}>
-                          {badge.icon || '🏆'}
-                        </span>
-                        <p className="text-sm font-bold text-center">{getBadgeDisplayName(badge)}</p>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badge.difficulty === '상' ? 'bg-gray-700 dark:bg-gray-600 text-white' :
-                            badge.difficulty === '중' ? 'bg-blue-500 text-white' :
-                              'bg-green-500 text-white'
-                          }`}>
-                          {badge.difficulty}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
+                  {earnedBadges.map((badge, index) => {
+                    const tone = resolveBadgeTone(badge);
+                    const gradient = `linear-gradient(135deg, ${tone.from}, ${tone.to})`;
+                    const symbol = resolveBadgeSymbol(badge);
+                    const isSelected = pendingRepresentativeBadge?.name === badge.name;
+                    return (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => setPendingRepresentativeBadge(badge)}
+                        className={`p-4 rounded-xl border-2 transition-all ${isSelected
+                            ? 'bg-gradient-to-br from-primary/20 to-accent/20 border-primary shadow-lg'
+                            : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500'
+                          }`}
+                      >
+                        <div className="flex flex-col items-center gap-2">
+                          <span
+                            className="material-symbols-outlined select-none"
+                            aria-label={getBadgeDisplayName(badge)}
+                            style={{
+                              fontSize: 48,
+                              lineHeight: 1,
+                              background: gradient,
+                              WebkitBackgroundClip: 'text',
+                              WebkitTextFillColor: 'transparent',
+                              backgroundClip: 'text',
+                              color: 'transparent',
+                              fontVariationSettings: "'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 48",
+                            }}
+                          >
+                            {symbol}
+                          </span>
+                          <p className="text-sm font-bold text-center">{getBadgeDisplayName(badge)}</p>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badge.difficulty === '상' ? 'bg-gray-700 dark:bg-gray-600 text-white' :
+                              badge.difficulty === '중' ? 'bg-blue-500 text-white' :
+                                'bg-green-500 text-white'
+                            }`}>
+                            {badge.difficulty}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

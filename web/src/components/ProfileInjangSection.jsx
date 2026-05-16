@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getBadgeDisplayName } from '../utils/badgeSystem';
+import { resolveBadgeTone, resolveBadgeSymbol, hexToRgbTuple } from '../utils/badgeIcons';
 
 function sortBadgesForDisplay(badges) {
   if (!Array.isArray(badges)) return [];
@@ -11,34 +12,6 @@ function sortBadgesForDisplay(badges) {
     return String(a?.name || '').localeCompare(String(b?.name || ''));
   });
 }
-
-// 카테고리별 기본 톤 (badge.tone이 없을 때 fallback)
-const CATEGORY_DEFAULT_TONE = {
-  '자연·풍경': { from: '#7DD3FC', to: '#2563EB' },
-  '숨은 명소': { from: '#A7F3D0', to: '#059669' },
-  '심야 가이드': { from: '#818CF8', to: '#4338CA' },
-  '여행 응원': { from: '#FBBF24', to: '#B45309' },
-  '지역 테마': { from: '#A78BFA', to: '#5B21B6' },
-};
-const FALLBACK_TONE = { from: '#94A3B8', to: '#475569' };
-
-// '#RRGGBB' → 'r, g, b'
-const hexToRgbTuple = (hex) => {
-  const s = String(hex || '').replace('#', '').trim();
-  if (s.length !== 6) return '148, 163, 184';
-  const r = parseInt(s.slice(0, 2), 16);
-  const g = parseInt(s.slice(2, 4), 16);
-  const b = parseInt(s.slice(4, 6), 16);
-  if ([r, g, b].some((n) => Number.isNaN(n))) return '148, 163, 184';
-  return `${r}, ${g}, ${b}`;
-};
-
-const resolveBadgeTone = (badge) => {
-  const t = badge?.tone;
-  if (t?.from && t?.to) return t;
-  const cat = String(badge?.category || '').trim();
-  return CATEGORY_DEFAULT_TONE[cat] || FALLBACK_TONE;
-};
 
 /** 획득 뱃지가 이 개수 이상일 때만 「모두보기」 노출 */
 const MIN_BADGES_FOR_VIEW_ALL = 5;
@@ -106,11 +79,11 @@ export default function ProfileInjangSection({ badges, onViewAll, onOpenBadge, c
         <div className="flex gap-4 overflow-x-auto pb-1 -mx-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {preview.map((badge, index) => {
             const label = getBadgeDisplayName(badge) || badge?.name || '뱃지';
-            const icon = badge?.icon;
             const tone = resolveBadgeTone(badge);
             const gradient = `linear-gradient(135deg, ${tone.from}, ${tone.to})`;
             const fromRgb = hexToRgbTuple(tone.from);
             const toRgb = hexToRgbTuple(tone.to);
+            const symbol = resolveBadgeSymbol(badge);
             return (
               <button
                 key={`${badge?.name || 'b'}-${index}`}
@@ -118,7 +91,7 @@ export default function ProfileInjangSection({ badges, onViewAll, onOpenBadge, c
                 onClick={() => openBadge(badge)}
                 className="flex flex-col items-center shrink-0 w-[84px] text-left"
               >
-                {/* 그라데이션 링 + 흰 디스크 (뱃지 톤에 맞춤) */}
+                {/* 그라데이션 링 + 흰 디스크 + Material Symbol (라이브저니 톤) */}
                 <div
                   className="w-[58px] h-[58px] rounded-full flex items-center justify-center"
                   style={{
@@ -131,16 +104,21 @@ export default function ProfileInjangSection({ badges, onViewAll, onOpenBadge, c
                   <div
                     className="w-full h-full rounded-full bg-white dark:bg-gray-950 flex items-center justify-center overflow-hidden"
                   >
-                    {icon ? (
-                      <span className="text-[26px] leading-none select-none">{icon}</span>
-                    ) : (
-                      <span
-                        className="text-[10px] font-bold text-center px-1 leading-tight line-clamp-2"
-                        style={{ color: tone.to }}
-                      >
-                        {label.slice(0, 8)}
-                      </span>
-                    )}
+                    <span
+                      className="material-symbols-outlined select-none"
+                      style={{
+                        fontSize: 28,
+                        lineHeight: 1,
+                        background: gradient,
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                        color: 'transparent',
+                        fontVariationSettings: "'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 40",
+                      }}
+                    >
+                      {symbol}
+                    </span>
                   </div>
                 </div>
 
