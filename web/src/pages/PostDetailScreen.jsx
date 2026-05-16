@@ -1576,11 +1576,23 @@ const PostDetailScreen = () => {
                         </span>
                       ) : null}
                     </div>
-                    {authorLiveSync != null && (
-                      <p className="mt-0.5 text-[11px] text-text-secondary-light dark:text-text-secondary-dark truncate">
-                        라이브 싱크 <span className="font-semibold text-gray-700 dark:text-gray-300">{typeof authorLiveSync === 'number' ? authorLiveSync : 35}%</span>
-                      </p>
-                    )}
+                    {authorLiveSync != null && (() => {
+                      const pct = typeof authorLiveSync === 'number' ? authorLiveSync : 35;
+                      const tone =
+                        pct >= 90 ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-600/40' :
+                        pct >= 70 ? 'bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-900/30 dark:text-cyan-200 dark:border-cyan-600/40' :
+                        pct >= 40 ? 'bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-900/30 dark:text-sky-200 dark:border-sky-600/40' :
+                        'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600';
+                      return (
+                        <span
+                          className={`mt-1 inline-flex w-fit items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold ${tone}`}
+                          title="라이브 싱크: 현장 동기화율"
+                        >
+                          <span className="material-symbols-outlined text-[12px]" aria-hidden>bolt</span>
+                          <span>라이브 싱크 {pct}%</span>
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">

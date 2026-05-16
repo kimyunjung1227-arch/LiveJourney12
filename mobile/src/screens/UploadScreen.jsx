@@ -38,6 +38,8 @@ import { getWeatherByRegion, guessWeatherRegionKey } from '../utils/weatherApi';
 import {
   fetchNearbyPlaceNameFromGps,
   formatRegionLineFromReverseGeocode,
+  shortCityFromReverseGeocode,
+  formatCityPoiLabel,
 } from '../utils/nearbyPlaceFromGps';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -107,8 +109,16 @@ const UploadScreen = () => {
 
       if (reverseGeocode && reverseGeocode.length > 0) {
         const address = reverseGeocode[0];
+        const shortCity = shortCityFromReverseGeocode(address);
         const regionFallback = formatRegionLineFromReverseGeocode(address);
-        const locationName = poiName || regionFallback || address.city || address.district || '서울';
+        // 우선순위: '서울 남산타워'(POI + 도시) > 시·구 행정 폴백 > 도시명만
+        const locationName =
+          (poiName ? formatCityPoiLabel(shortCity, poiName) : '') ||
+          regionFallback ||
+          shortCity ||
+          address.city ||
+          address.district ||
+          '서울';
 
         setFormData(prev => ({
           ...prev,
@@ -273,10 +283,12 @@ const UploadScreen = () => {
           const reverseGeocode = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
           if (reverseGeocode && reverseGeocode.length > 0) {
             const address = reverseGeocode[0];
+            const shortCity = shortCityFromReverseGeocode(address);
             const regionFallback = formatRegionLineFromReverseGeocode(address);
             const locationName =
-              poiName ||
+              (poiName ? formatCityPoiLabel(shortCity, poiName) : '') ||
               regionFallback ||
+              shortCity ||
               address.city ||
               address.district ||
               `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
@@ -589,41 +601,88 @@ const UploadScreen = () => {
   }, [badgeIconScale, badgeIconRotation, badgeGlowOpacity, badgeSparkleOpacity]);
 
   const handleSubmit = useCallback(async () => {
+    if (uploading) return; // 중복 탭 방지
     if (formData.images.length === 0 && formData.videos.length === 0) {
       Alert.alert('알림', '사진 또는 동영상을 추가해주세요');
       return;
     }
-
     if (!formData.location.trim()) {
       Alert.alert('알림', '위치를 입력해주세요');
       return;
     }
 
-    try {
-      setUploading(true);
-      setUploadProgress(10);
-      
-      const aiCategory = formData.aiCategory || 'scenic';
-      const aiCategoryName = formData.aiCategoryName || '추천 장소';
-      
-      setUploadProgress(60);
-      
-      const userJson = await AsyncStorage.getItem('user');
-      const savedUser = userJson ? JSON.parse(userJson) : {};
-      const currentUser = user || savedUser;
-      const username = currentUser?.username || currentUser?.email?.split('@')[0] || '여행자';
-      const currentUserId = currentUser?.id || savedUser?.id || null;
-      
-      console.log('📸 게시물 저장 정보:', {
-        userId: currentUserId,
-        username: username,
-        images: formData.images.length,
-        location: formData.location
-      });
-      
-      // 지역 정보 (명소만 입력 시 상위 시·군으로 귀속, 예: 연화지 → 김천)
-      const region = resolveRegionFromLocationInput(formData.location) || '기타';
+    setUploading(true); // 버튼 비활성화(연타 방지) — 화면 이동 시 자동 정리
 
+    // ─────────────────────────────────────────────
+    // 즉시 응답 전략 (낙관적 업로드)
+    //  1) 사용자 클릭 → 로컬 AsyncStorage에 즉시 게시물 저장
+    //  2) 성공 모달 표시 후 0.5초 뒤 메인 탭으로 이동
+    //  3) Supabase 업로드·날씨 조회·뱃지/타이틀/EXP는 백그라운드
+    //  4) 백그라운드 작업이 끝나면 로컬 게시물의 이미지 URL을 클라우드 주소로 교체
+    // ─────────────────────────────────────────────
+
+    const aiCategory = formData.aiCategory || 'scenic';
+    const aiCategoryName = formData.aiCategoryName || '추천 장소';
+
+    const userJson = await AsyncStorage.getItem('user');
+    const savedUser = userJson ? JSON.parse(userJson) : {};
+    const currentUser = user || savedUser;
+    const username = currentUser?.username || currentUser?.email?.split('@')[0] || '여행자';
+    const currentUserId = currentUser?.id || savedUser?.id || null;
+
+    const region = resolveRegionFromLocationInput(formData.location) || '기타';
+    const optimisticId = `local-${Date.now()}`;
+
+    const optimisticPost = {
+      id: optimisticId,
+      userId: currentUserId,
+      // 로컬 URI는 즉시 표시 가능 — 백그라운드 업로드 후 클라우드 URL로 교체
+      images: Array.isArray(formData.images) ? [...formData.images] : [],
+      videos: Array.isArray(formData.videos) ? [...formData.videos] : [],
+      imageCount: formData.images.length,
+      videoCount: formData.videos.length,
+      location: formData.location,
+      tags: formData.tags,
+      note: formData.note,
+      timestamp: getCurrentTimestamp(),
+      createdAt: getCurrentTimestamp(),
+      timeLabel: getTimeAgo(new Date()),
+      user: username,
+      likes: 0,
+      isNew: true,
+      isLocal: true,
+      isUploading: true, // 백그라운드 클라우드 동기화 진행 중
+      category: aiCategory,
+      categoryName: aiCategoryName,
+      coordinates: formData.coordinates,
+      detailedLocation: formData.detailedLocation || formData.location,
+      placeName: formData.placeName || formData.location,
+      region,
+      photoDate: formData.photoDate || null,
+      exifData: formData.exifData || null,
+    };
+
+    // 로컬 즉시 저장 (이게 끝나면 곧바로 성공 처리)
+    try {
+      const existingPostsJson = await AsyncStorage.getItem('uploadedPosts');
+      const existingPosts = existingPostsJson ? JSON.parse(existingPostsJson) : [];
+      await AsyncStorage.setItem(
+        'uploadedPosts',
+        JSON.stringify([optimisticPost, ...existingPosts])
+      );
+    } catch (e) {
+      console.warn('로컬 저장 실패(계속 진행):', e?.message || e);
+    }
+
+    // 짧은 성공 모달 → 메인 탭으로 즉시 이동
+    setShowSuccessModal(true);
+    setTimeout(() => {
+      setShowSuccessModal(false);
+      navigation.navigate('MainTab');
+    }, 500);
+
+    // 백그라운드: 날씨 → Supabase 업로드 → 로컬 게시물 갱신 → 뱃지/타이틀/EXP
+    void (async () => {
       let weatherSnapshot = null;
       try {
         const w = await getWeatherByRegion(region);
@@ -638,9 +697,6 @@ const UploadScreen = () => {
         console.warn('업로드 시 날씨 스냅샷 실패:', e?.message || e);
       }
 
-      setUploadProgress(70);
-
-      // ✅ Supabase에 업로드(이미지 → Storage 업로드 후 public URL 저장, posts row 생성)
       let created = null;
       try {
         created = await createPostSupabase({
@@ -653,112 +709,57 @@ const UploadScreen = () => {
           },
         });
       } catch (e) {
-        console.warn('Supabase 업로드 실패(로컬 저장은 계속):', e?.message || e);
+        console.warn('Supabase 업로드 실패(로컬만 유지):', e?.message || e);
       }
-      
-      // localStorage/AsyncStorage에는 이미지를 저장하지 않음 (용량 문제)
-      // 메타데이터만 저장하고, 이미지는 서버에서 불러옴
-      const uploadedPost = {
-        id: created?.id || `local-${Date.now()}`,
-        userId: currentUserId,
-        images: Array.isArray(created?.images) ? created.images : [], // Supabase 업로드 성공 시 URL 저장
-        videos: Array.isArray(created?.videos) ? created.videos : [],
-        imageCount: Array.isArray(created?.images) ? created.images.length : formData.images.length,
-        videoCount: Array.isArray(created?.videos) ? created.videos.length : formData.videos.length,
-        location: formData.location,
-        tags: formData.tags,
-        note: formData.note,
-        timestamp: getCurrentTimestamp(),
-        createdAt: getCurrentTimestamp(),
-        timeLabel: getTimeAgo(new Date()),
-        user: username,
-        likes: 0,
-        isNew: true,
-        isLocal: true,
-        category: aiCategory,
-        categoryName: aiCategoryName,
-        coordinates: formData.coordinates,
-        detailedLocation: formData.location,
-        placeName: formData.location,
-        region: region, // 지역 정보 추가
-        weather: weatherSnapshot,
-        weatherSnapshot,
-        photoDate: formData.photoDate || null,
-        exifData: formData.exifData || null,
-      };
-      
-      const existingPostsJson = await AsyncStorage.getItem('uploadedPosts');
-      const existingPosts = existingPostsJson ? JSON.parse(existingPostsJson) : [];
-      const updatedPosts = [uploadedPost, ...existingPosts];
-      await AsyncStorage.setItem('uploadedPosts', JSON.stringify(updatedPosts));
-      
-      console.log('✅ 게시물 저장 완료:', {
-        저장된게시물수: updatedPosts.length,
-        새게시물ID: uploadedPost.id,
-        새게시물userId: uploadedPost.userId
-      });
-      
-      setUploadProgress(100);
-      setShowSuccessModal(true);
-      
-      // 데이터 저장 완료 대기 후 뱃지 체크
-      setTimeout(async () => {
-        // 사진 업로드 시 레벨 상승 (실제 업로드만)
+
+      // 로컬 게시물에 클라우드 URL·날씨 반영
+      try {
+        const json = await AsyncStorage.getItem('uploadedPosts');
+        const list = json ? JSON.parse(json) : [];
+        const merged = list.map((p) =>
+          p && p.id === optimisticId
+            ? {
+                ...p,
+                id: created?.id || p.id,
+                images: Array.isArray(created?.images) ? created.images : p.images,
+                videos: Array.isArray(created?.videos) ? created.videos : p.videos,
+                weather: weatherSnapshot || p.weather,
+                weatherSnapshot: weatherSnapshot || p.weatherSnapshot,
+                isUploading: false,
+              }
+            : p
+        );
+        await AsyncStorage.setItem('uploadedPosts', JSON.stringify(merged));
+      } catch (e) {
+        console.warn('업로드 후 로컬 갱신 실패:', e?.message || e);
+      }
+
+      // 보상 처리 — 결과 모달이 필요하면 UploadScreen이 unmount된 뒤일 수 있어
+      // navigation event로 우회하거나 이벤트 emitter로 전달하는 게 이상적이나,
+      // 우선은 EXP/뱃지/타이틀 갱신만 백그라운드로 안전하게 수행
+      try {
         const expResult = await gainExp('사진 업로드');
-        if (expResult.levelUp) {
-          console.log(`Level up! Lv.${expResult.newLevel}`);
-        }
-        
-        // 뱃지 체크 (타이틀보다 먼저 체크)
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('🏆 뱃지 체크 시작');
-        const earnedBadgeResult = await checkAndAwardBadge();
-        console.log('뱃지 체크 완료 - 진행률 업데이트됨');
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        
-        // 뱃지를 획득했으면 성공 모달 닫고 뱃지 모달 표시
-        if (earnedBadgeResult) {
-          console.log('✅ 뱃지 획득! 성공 모달 닫고 뱃지 모달 표시');
-          setShowSuccessModal(false);
-          // 뱃지 모달은 checkAndAwardBadge에서 이미 표시됨
-          // 뱃지 모달 표시 후 3초 뒤 메인으로 이동
-          setTimeout(() => {
-            setShowBadgeModal(false);
-            navigation.navigate('MainTab');
-          }, 3000);
-          return;
-        }
-        
-        // 타이틀 체크 (뱃지가 없을 때만)
-        const earnedTitleResult = await checkAndAwardTitles(user?.id || savedUser.id || 'test_user_001');
+        if (expResult?.levelUp) console.log(`Level up! Lv.${expResult.newLevel}`);
+      } catch (e) {
+        console.warn('EXP 갱신 실패:', e?.message || e);
+      }
+      try {
+        await checkAndAwardBadge();
+      } catch (e) {
+        console.warn('뱃지 체크 실패:', e?.message || e);
+      }
+      try {
+        const earnedTitleResult = await checkAndAwardTitles(
+          currentUserId || savedUser?.id || 'test_user_001'
+        );
         if (earnedTitleResult) {
-          console.log(`24-hour title earned: ${earnedTitleResult.name}`);
-          setEarnedTitle(earnedTitleResult);
-          setShowSuccessModal(false); // 성공 모달 닫기
-          setShowTitleModal(true);
           await gainExp('24시간 타이틀');
-          // 타이틀 모달 표시 후 3초 뒤 메인으로 이동
-          setTimeout(() => {
-            setShowTitleModal(false);
-            navigation.navigate('MainTab');
-          }, 3000);
-          return;
         }
-        
-        // 뱃지도 타이틀도 없으면 성공 모달만 표시 후 메인으로 이동
-        setTimeout(() => {
-          setShowSuccessModal(false);
-          navigation.navigate('MainTab');
-        }, 2000);
-      }, 1000); // 500ms -> 1000ms로 증가하여 데이터 저장 완료 대기
-    } catch (error) {
-      console.error('Upload failed:', error);
-      Alert.alert('오류', '업로드에 실패했습니다. 다시 시도해주세요');
-    } finally {
-      setUploading(false);
-      setUploadProgress(0);
-    }
-  }, [formData, user, navigation, checkAndAwardBadge]);
+      } catch (e) {
+        console.warn('타이틀 체크 실패:', e?.message || e);
+      }
+    })();
+  }, [uploading, formData, user, navigation, checkAndAwardBadge]);
 
   return (
     <ScreenLayout>
@@ -776,7 +777,7 @@ const UploadScreen = () => {
             >
               <Ionicons name="arrow-back" size={24} color="#333" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>업로드: 여행 기록</Text>
+            <Text style={styles.headerTitle}>업로드</Text>
             <TouchableOpacity
               style={styles.submitButton}
               onPress={handleSubmit}

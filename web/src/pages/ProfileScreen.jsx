@@ -383,10 +383,11 @@ const ProfileScreen = () => {
     const ensureCoords = (post) =>
       new Promise((resolve) => {
         if (!post) return resolve(post);
-        if (getPostCoordinates(post)) return resolve(post);
         const q = getQuery(post);
+        // 사용자 입력 위치가 비어 있을 때만 기존 GPS 좌표 그대로 사용
         if (!q) return resolve(post);
 
+        // 사용자 입력 위치를 GPS보다 우선해서 항상 지오코딩
         const cached = geoCacheRef.current?.[q];
         if (cached && cached.lat != null && cached.lng != null) {
           return resolve({ ...post, coordinates: { lat: Number(cached.lat), lng: Number(cached.lng) } });
@@ -875,16 +876,6 @@ const ProfileScreen = () => {
             map: map
           });
 
-          const infoWindow = new window.kakao.maps.InfoWindow({
-            content: `
-              <div style="padding: 12px; min-width: 200px; max-width: 300px;">
-                <div style="font-weight: bold; margin-bottom: 4px; font-size: 14px;">${post.location || '여행지'}</div>
-                ${post.note ? `<div style="font-size: 12px; color: #666; margin-top: 4px;">${post.note}</div>` : ''}
-              </div>
-            `,
-            removable: true
-          });
-
           window.kakao.maps.event.addListener(marker, 'click', () => {
             const currentIndex = filteredPosts.findIndex(p => p.id === post.id);
             navigate(`/post/${post.id}`, {
@@ -894,14 +885,6 @@ const ProfileScreen = () => {
                 currentPostIndex: currentIndex >= 0 ? currentIndex : 0
               }
             });
-          });
-
-          window.kakao.maps.event.addListener(marker, 'mouseover', () => {
-            infoWindow.open(map, marker);
-          });
-
-          window.kakao.maps.event.addListener(marker, 'mouseout', () => {
-            infoWindow.close();
           });
 
           markersRef.current.push({ marker: marker, overlay: null, post: post });
@@ -979,42 +962,6 @@ const ProfileScreen = () => {
 
           overlay.setMap(map);
 
-          // 인포윈도우 생성 (썸네일 이미지도 실제 사진으로)
-          const infoImgUrl = getPostPinImageUrl(post);
-          const infoWindow = new window.kakao.maps.InfoWindow({
-            content: `
-              <div style="padding: 12px; min-width: 200px; max-width: 300px;">
-                ${infoImgUrl ? `
-                  <img 
-                    src="${escapeHtmlAttr(infoImgUrl)}" 
-                    alt="${escapeHtmlAttr(post.location || '여행지')}"
-                    style="width: 100%; height: 150px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;"
-                    onerror="this.style.display='none'"
-                  />
-                ` : ''}
-                <div style="font-weight: bold; margin-bottom: 4px; font-size: 14px;">${(post.location || '여행지').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
-                ${post.note ? `<div style="font-size: 12px; color: #666; margin-top: 4px;">${String(post.note).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>` : ''}
-              </div>
-            `,
-            removable: true
-          });
-
-          // 임시 마커 (인포윈도우 표시용)
-          const tempMarker = new window.kakao.maps.Marker({
-            position: position
-          });
-
-          // 마우스오버 이벤트
-          if (button) {
-            button.addEventListener('mouseenter', () => {
-              infoWindow.open(map, tempMarker);
-            });
-
-            button.addEventListener('mouseleave', () => {
-              infoWindow.close();
-            });
-          }
-
           markersRef.current.push({
             id: post.id,
             marker: null,
@@ -1026,9 +973,10 @@ const ProfileScreen = () => {
         };
 
         // 필터링된 게시물에 대해 마커 생성 및 좌표 수집
+        //  - 폴리라인 순서: 촬영일(photoDate) 우선 → 업로드 시각 fallback (실제 여행 순서 반영)
         const sortedPosts = [...filteredPosts].sort((a, b) => {
-          const dateA = new Date(a.createdAt || a.timestamp || 0);
-          const dateB = new Date(b.createdAt || b.timestamp || 0);
+          const dateA = new Date(a.photoDate || a.createdAt || a.timestamp || 0);
+          const dateB = new Date(b.photoDate || b.createdAt || b.timestamp || 0);
           return dateA - dateB;
         });
 
@@ -1042,29 +990,43 @@ const ProfileScreen = () => {
           createMarker(post, index, map, bounds);
         });
 
-        // 경로 선 그리기 (2개 이상의 좌표가 있을 때)
+        // 경로 선 — 깔끔한 점선 스타일 (얇고 균일)
         if (mapInitGenerationRef.current === gen && pathCoordinates.length >= 2) {
           const polyline = new window.kakao.maps.Polyline({
             path: pathCoordinates,
-            strokeWeight: 3,
-            strokeColor: '#14B8A6', // primary 색상
-            strokeOpacity: 0.7,
-            strokeStyle: 'solid'
+            strokeWeight: 2,
+            strokeColor: '#0ea5e9', // sky-500 — 핀과 자연스럽게 어울리는 차분한 청색
+            strokeOpacity: 0.9,
+            strokeStyle: 'shortdash',
           });
           polyline.setMap(map);
           markersRef.current.push({ polyline: polyline });
         }
 
-        // 날짜/탭 진입 시 항상 핀 위치로 지도 이동 (한눈에 보이도록)
+        // 날짜/탭 진입 시 지도 위치 조정
+        //  - "전체" 필터(selectedDate 미선택): 전국 한눈에 보이도록 한국 전역 뷰로 줌아웃
+        //  - 특정 날짜 필터: 해당 날짜 핀에 맞춰 자연스럽게 fit
         const overlayMarkers = markersRef.current.filter(m => m.overlay || m.marker);
         if (overlayMarkers.length > 0) {
           const moveToPins = () => {
             if (mapInitGenerationRef.current !== gen) return;
-            // 이미 한 번 자동으로 이동했다면 더 이상 지도를 강제로 움직이지 않음
             if (mapInitialBoundsDoneRef.current) {
               logger.debug('🔒 지도 자동 이동 생략 (사용자 제어 모드)');
               return;
             }
+
+            // 전체 필터: 한국 전국 뷰 고정 (남해안~휴전선 + 제주 포함)
+            if (!selectedDate) {
+              const koreaBounds = new window.kakao.maps.LatLngBounds(
+                new window.kakao.maps.LatLng(33.10, 124.50), // 남서쪽(제주 남단·서해)
+                new window.kakao.maps.LatLng(38.62, 131.90)  // 북동쪽(휴전선·독도)
+              );
+              map.setBounds(koreaBounds, 16, 16, 16, 16);
+              mapInitialBoundsDoneRef.current = true;
+              logger.debug('🌏 전체 필터 — 전국 뷰로 지도 표시');
+              return;
+            }
+
             const validBounds = new window.kakao.maps.LatLngBounds();
             overlayMarkers.forEach(markerData => {
               if (markerData.overlay) {
@@ -1074,8 +1036,8 @@ const ProfileScreen = () => {
               }
             });
             if (overlayMarkers.length >= 2) {
-              map.setBounds(validBounds, 50, 50, 50, 50); // 패딩
-              logger.debug('✅ 지도 범위 조정 완료 (핀 전체)');
+              map.setBounds(validBounds, 50, 50, 50, 50);
+              logger.debug('✅ 지도 범위 조정 완료 (날짜 필터 핀 전체)');
             } else {
               const first = overlayMarkers[0];
               const pos = first.overlay ? first.overlay.getPosition() : first.marker.getPosition();
@@ -1086,6 +1048,14 @@ const ProfileScreen = () => {
             mapInitialBoundsDoneRef.current = true;
           };
           scheduleMapTimeout(moveToPins, 350);
+        } else if (!selectedDate && mapInitGenerationRef.current === gen) {
+          // 핀이 아직 없을 때도 전체 필터면 전국 뷰
+          const koreaBounds = new window.kakao.maps.LatLngBounds(
+            new window.kakao.maps.LatLng(33.10, 124.50),
+            new window.kakao.maps.LatLng(38.62, 131.90)
+          );
+          map.setBounds(koreaBounds, 16, 16, 16, 16);
+          mapInitialBoundsDoneRef.current = true;
         }
       };
 
@@ -1147,6 +1117,8 @@ const ProfileScreen = () => {
       const gen = mapInitGenerationRef.current;
       kakaoInitWaitAttemptsRef.current = 0;
       clearMapInitTimeouts();
+      // 필터(전체↔날짜) 전환 시마다 다시 적절한 뷰로 fit 하기 위해 잠금 해제
+      mapInitialBoundsDoneRef.current = false;
 
       setMapLoading(true);
 
