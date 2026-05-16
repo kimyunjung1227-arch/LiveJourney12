@@ -349,13 +349,21 @@ const CrowdedPlaceScreen = () => {
         });
     }, [allHotPosts, userPos]);
 
-    /** 전국/지역/동네 필터 — GPS 좌표가 없거나 좌표 미상인 장소는 전국에서만 보임 */
+    /**
+     * 전국/지역/동네 필터 — GPS 좌표가 없거나 좌표 미상인 장소는 전국에서만 보임.
+     * scope 내에서 1, 2, 3 ... 으로 재랭킹해서 "동네 1위 / 지역 1위 / 전국 1위"가
+     * 사용자 위치 기반으로 다르게 보이도록 한다.
+     */
     const scopedPlaceRankings = useMemo(() => {
-        if (regionScope === 'national') return placeRankings;
-        if (!userPos) return placeRankings; // GPS 미확보 시 전국으로 폴백 (헤더에서 안내)
+        const reRank = (list) => list.map((p, i) => ({ ...p, scopedRank: i + 1 }));
+        if (regionScope === 'national') return reRank(placeRankings);
+        if (!userPos) return reRank(placeRankings); // GPS 미확보 시 전국으로 폴백
         const maxKm = REGION_SCOPE_KM[regionScope];
-        if (!Number.isFinite(maxKm) || maxKm <= 0) return placeRankings;
-        return placeRankings.filter((p) => Number.isFinite(p?.distKm) && p.distKm <= maxKm);
+        if (!Number.isFinite(maxKm) || maxKm <= 0) return reRank(placeRankings);
+        const filtered = placeRankings.filter((p) => Number.isFinite(p?.distKm) && p.distKm <= maxKm);
+        // 이미 점수 내림차순으로 정렬되어 있으나 안전하게 한 번 더 정렬한 뒤 재랭킹
+        const sorted = [...filtered].sort((a, b) => (b?.score || 0) - (a?.score || 0));
+        return reRank(sorted);
     }, [placeRankings, regionScope, userPos]);
 
     const scopeBlocked = (regionScope === 'region' || regionScope === 'neighborhood') && !userPos;
@@ -622,35 +630,53 @@ const CrowdedPlaceScreen = () => {
                                                         ))}
                                                     </div>
                                                 ) : null}
-                                                {place.rank <= 20 ? (
-                                                    <div
-                                                        className="pointer-events-none absolute left-2.5 top-2.5 select-none"
-                                                        aria-label={`랭킹 ${place.rank}위`}
-                                                        style={{
-                                                            padding: '6px 10px',
-                                                            borderRadius: 9999,
-                                                            background: 'rgba(15, 23, 42, 0.62)',
-                                                            backdropFilter: 'blur(10px)',
-                                                            WebkitBackdropFilter: 'blur(10px)',
-                                                            border: '1px solid rgba(255,255,255,0.32)',
-                                                            boxShadow: '0 10px 28px rgba(15, 23, 42, 0.28)',
-                                                        }}
-                                                    >
-                                                        <span
+                                                {(() => {
+                                                    const displayRank = Number.isFinite(place?.scopedRank) ? place.scopedRank : place.rank;
+                                                    if (!displayRank || displayRank > 20) return null;
+                                                    const scopeLabel = REGION_SCOPE_LABEL[regionScope] || '';
+                                                    return (
+                                                        <div
+                                                            className="pointer-events-none absolute left-2.5 top-2.5 select-none"
+                                                            aria-label={`${scopeLabel} ${displayRank}위`}
                                                             style={{
-                                                                display: 'inline-block',
-                                                                fontSize: 13,
-                                                                fontWeight: 950,
-                                                                letterSpacing: -0.2,
-                                                                color: '#ffffff',
-                                                                textShadow: '0 2px 12px rgba(0,0,0,0.45)',
-                                                                lineHeight: 1,
+                                                                padding: '6px 10px',
+                                                                borderRadius: 9999,
+                                                                background: 'rgba(15, 23, 42, 0.62)',
+                                                                backdropFilter: 'blur(10px)',
+                                                                WebkitBackdropFilter: 'blur(10px)',
+                                                                border: '1px solid rgba(255,255,255,0.32)',
+                                                                boxShadow: '0 10px 28px rgba(15, 23, 42, 0.28)',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: 6,
                                                             }}
                                                         >
-                                                            {place.rank}위
-                                                        </span>
-                                                    </div>
-                                                ) : null}
+                                                            <span
+                                                                style={{
+                                                                    fontSize: 11,
+                                                                    fontWeight: 800,
+                                                                    letterSpacing: -0.2,
+                                                                    color: 'rgba(255,255,255,0.85)',
+                                                                    lineHeight: 1,
+                                                                }}
+                                                            >
+                                                                {scopeLabel}
+                                                            </span>
+                                                            <span
+                                                                style={{
+                                                                    fontSize: 13,
+                                                                    fontWeight: 950,
+                                                                    letterSpacing: -0.2,
+                                                                    color: '#ffffff',
+                                                                    textShadow: '0 2px 12px rgba(0,0,0,0.45)',
+                                                                    lineHeight: 1,
+                                                                }}
+                                                            >
+                                                                {displayRank}위
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                             <div className="px-2.5 pb-2 pt-1.5">
                                                 <div className="flex items-start justify-between gap-2">
@@ -663,10 +689,10 @@ const CrowdedPlaceScreen = () => {
                                                                 {aiBlurb}
                                                             </p>
                                                         ) : null}
-                                                        {(place.rank <= 20 && hotTagChips.length > 0) || hasWeatherPill || uploadLabel ? (
+                                                        {((place.scopedRank ?? place.rank) <= 20 && hotTagChips.length > 0) || hasWeatherPill || uploadLabel ? (
                                                             <div className="mt-1.5 flex w-full min-w-0 flex-row flex-wrap items-center justify-between gap-2">
                                                                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-                                                                    {place.rank <= 20 &&
+                                                                    {(place.scopedRank ?? place.rank) <= 20 &&
                                                                         hotTagChips.map((tag) => (
                                                                             <span
                                                                                 key={`${place.key}-${tag}`}
