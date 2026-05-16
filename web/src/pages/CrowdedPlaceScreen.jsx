@@ -31,6 +31,22 @@ const PRIMARY_HEX = '#26C6DA';
 /** 실시간 핫플 탭(/crowded-place) 랭킹 목록 최대 개수. 장소별 피드(/hotplace/...)는 변경하지 않음 */
 const CROWDED_PLACE_FEED_RANK_LIMIT = 30;
 
+/** 지역 필터 — GPS 기준 반경(km). 동네는 같은 생활권, 지역은 같은 광역시·시 수준 */
+const REGION_SCOPE_KM = {
+    neighborhood: 3,
+    region: 20,
+};
+const REGION_SCOPE_LABEL = {
+    national: '전국',
+    region: '지역',
+    neighborhood: '동네',
+};
+const REGION_SCOPE_OPTIONS = [
+    { id: 'national', label: '전국', hint: '전국 모든 핫플' },
+    { id: 'region', label: '지역', hint: '내 위치 반경 20km' },
+    { id: 'neighborhood', label: '동네', hint: '내 위치 반경 3km' },
+];
+
 const getPostTimeMs = (post) => {
     const raw = post?.timestamp || post?.createdAt || post?.time;
     const t = raw ? new Date(raw).getTime() : NaN;
@@ -78,6 +94,9 @@ const CrowdedPlaceScreen = () => {
     const [userPos, setUserPos] = useState(null);
     const [, setNowTick] = useState(0);
     const [placeDescMap, setPlaceDescMap] = useState({});
+    const [regionScope, setRegionScope] = useState('national');
+    const [scopeMenuOpen, setScopeMenuOpen] = useState(false);
+    const scopeMenuWrapRef = useRef(null);
 
     useEffect(() => {
         const id = setInterval(() => setCrowdedSocialIdx((i) => (i + 1) % 3), 2800);
@@ -88,6 +107,20 @@ const CrowdedPlaceScreen = () => {
         const id = setInterval(() => setNowTick((x) => x + 1), 30000);
         return () => clearInterval(id);
     }, []);
+
+    useEffect(() => {
+        if (!scopeMenuOpen) return undefined;
+        const onDown = (e) => {
+            if (!scopeMenuWrapRef.current) return;
+            if (!scopeMenuWrapRef.current.contains(e.target)) setScopeMenuOpen(false);
+        };
+        document.addEventListener('mousedown', onDown);
+        document.addEventListener('touchstart', onDown);
+        return () => {
+            document.removeEventListener('mousedown', onDown);
+            document.removeEventListener('touchstart', onDown);
+        };
+    }, [scopeMenuOpen]);
 
     useEffect(() => {
         if (!navigator?.geolocation) return undefined;
@@ -313,6 +346,17 @@ const CrowdedPlaceScreen = () => {
         });
     }, [allHotPosts, userPos]);
 
+    /** 전국/지역/동네 필터 — GPS 좌표가 없거나 좌표 미상인 장소는 전국에서만 보임 */
+    const scopedPlaceRankings = useMemo(() => {
+        if (regionScope === 'national') return placeRankings;
+        if (!userPos) return placeRankings; // GPS 미확보 시 전국으로 폴백 (헤더에서 안내)
+        const maxKm = REGION_SCOPE_KM[regionScope];
+        if (!Number.isFinite(maxKm) || maxKm <= 0) return placeRankings;
+        return placeRankings.filter((p) => Number.isFinite(p?.distKm) && p.distKm <= maxKm);
+    }, [placeRankings, regionScope, userPos]);
+
+    const scopeBlocked = (regionScope === 'region' || regionScope === 'neighborhood') && !userPos;
+
     // 메인 화면과 동일한 Edge Function 기반 장소 설명을 더보기에서도 사용
     useEffect(() => {
         let cancelled = false;
@@ -375,7 +419,7 @@ const CrowdedPlaceScreen = () => {
     return (
         <div className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col">
             <PageSeo {...PAGE_SEO.crowdedPlace} />
-            <header className="sticky top-0 z-20 flex shrink-0 items-center gap-2 border-b border-border-light bg-background-light px-3 py-3 dark:border-border-dark dark:bg-background-dark">
+            <header className="sticky top-0 z-30 flex shrink-0 items-center gap-2 border-b border-border-light bg-background-light px-3 py-3 dark:border-border-dark dark:bg-background-dark">
                 <button
                     type="button"
                     onClick={() => navigate(-1)}
@@ -384,22 +428,88 @@ const CrowdedPlaceScreen = () => {
                 >
                     <span className="material-symbols-outlined text-2xl">arrow_back</span>
                 </button>
-                <h1 className="min-w-0 flex-1 pr-2 text-center text-[17px] font-bold leading-snug text-text-primary-light dark:text-text-primary-dark">
+                <h1 className="min-w-0 flex-1 pr-1 text-center text-[17px] font-bold leading-snug text-text-primary-light dark:text-text-primary-dark">
                     실시간 급상승 핫플
                 </h1>
-                <div className="size-10 shrink-0" aria-hidden />
+                <div ref={scopeMenuWrapRef} className="relative shrink-0">
+                    <button
+                        type="button"
+                        onClick={() => setScopeMenuOpen((o) => !o)}
+                        aria-haspopup="listbox"
+                        aria-expanded={scopeMenuOpen}
+                        className="flex h-10 items-center gap-1 rounded-full border border-zinc-200 bg-white px-3 text-[13px] font-bold text-zinc-800 shadow-sm hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                        style={{ borderColor: regionScope === 'national' ? 'rgba(228,231,236,1)' : 'rgba(38,198,218,0.55)' }}
+                    >
+                        <span className="material-symbols-outlined text-[18px]" style={{ color: PRIMARY_HEX }}>
+                            place
+                        </span>
+                        <span>{REGION_SCOPE_LABEL[regionScope]}</span>
+                        <span className="material-symbols-outlined text-[18px] text-zinc-500">
+                            {scopeMenuOpen ? 'expand_less' : 'expand_more'}
+                        </span>
+                    </button>
+                    {scopeMenuOpen ? (
+                        <div
+                            role="listbox"
+                            className="absolute right-0 top-full z-40 mt-2 w-44 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+                        >
+                            {REGION_SCOPE_OPTIONS.map((opt) => {
+                                const isActive = opt.id === regionScope;
+                                const willNeedGps = (opt.id === 'region' || opt.id === 'neighborhood') && !userPos;
+                                return (
+                                    <button
+                                        key={opt.id}
+                                        type="button"
+                                        role="option"
+                                        aria-selected={isActive}
+                                        onClick={() => {
+                                            setRegionScope(opt.id);
+                                            setScopeMenuOpen(false);
+                                        }}
+                                        className={`flex w-full items-start gap-2 px-3 py-2 text-left text-[13px] font-semibold transition ${
+                                            isActive
+                                                ? 'bg-cyan-50 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-200'
+                                                : 'text-zinc-800 hover:bg-zinc-50 dark:text-zinc-100 dark:hover:bg-zinc-800'
+                                        }`}
+                                    >
+                                        <span className="material-symbols-outlined mt-[2px] text-[18px]" style={{ color: isActive ? PRIMARY_HEX : '#94a3b8' }}>
+                                            {opt.id === 'national' ? 'public' : opt.id === 'region' ? 'travel_explore' : 'my_location'}
+                                        </span>
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block leading-tight">{opt.label}</span>
+                                            <span className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                                                {willNeedGps ? `${opt.hint} · 위치 권한 필요` : opt.hint}
+                                            </span>
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    ) : null}
+                </div>
             </header>
 
             <div ref={contentRef} className="screen-content flex-1 overflow-y-auto bg-background-light dark:bg-background-dark">
                 <div className="min-h-full px-3 pb-16 pt-1.5 sm:px-4">
+                    {scopeBlocked ? (
+                        <div className="mb-2 mt-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-200">
+                            위치 권한이 없어 "전국" 결과로 표시 중이에요. 지역·동네 필터를 쓰려면 브라우저 위치 권한을 허용해 주세요.
+                        </div>
+                    ) : null}
                     <div className="pb-5">
-                        {placeRankings.length === 0 ? (
+                        {scopedPlaceRankings.length === 0 ? (
                             <div className="py-10 text-center text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                                아직 실시간 핫플 게시물이 없어요.
+                                {placeRankings.length === 0
+                                    ? '아직 실시간 핫플 게시물이 없어요.'
+                                    : regionScope === 'neighborhood'
+                                        ? '내 동네(3km 이내)에는 아직 핫플이 없어요. "지역" 또는 "전국"으로 바꿔 보세요.'
+                                        : regionScope === 'region'
+                                            ? '내 지역(20km 이내)에는 아직 핫플이 없어요. "전국"으로 바꿔 보세요.'
+                                            : '아직 실시간 핫플 게시물이 없어요.'}
                             </div>
                         ) : (
                             <div className="flex flex-col gap-2">
-                                {placeRankings.map((place, placeIndex) => {
+                                {scopedPlaceRankings.map((place, placeIndex) => {
                                     const post = place.representative;
                                     if (!post?.id) return null;
                                     const rawCover = post.image || post.images?.[0] || post.thumbnail || '';
@@ -449,24 +559,26 @@ const CrowdedPlaceScreen = () => {
                                         tier: cardProps?.hotReasonLabel || '',
                                     });
 
+                                    const goToHotplaceDetail = () => {
+                                        const pk = String(place.key || '').trim();
+                                        if (!pk) {
+                                            navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } });
+                                            return;
+                                        }
+                                        navigate(`/hotplace/${encodeURIComponent(pk)}`, {
+                                            state: {
+                                                placeKey: pk,
+                                                allPosts: allHotPosts,
+                                            },
+                                        });
+                                    };
+
                                     return (
                                         <button
                                             key={place.key}
                                             type="button"
-                                            onClick={() => {
-                                                const pk = String(place.key || '').trim();
-                                                if (!pk) {
-                                                    navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } });
-                                                    return;
-                                                }
-                                                navigate(`/hotplace/${encodeURIComponent(pk)}`, {
-                                                    state: {
-                                                        placeKey: pk,
-                                                        allPosts: allHotPosts,
-                                                    },
-                                                });
-                                            }}
-                                            className="group w-full overflow-hidden rounded-sm border border-zinc-100 bg-white text-left shadow-sm transition hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
+                                            onClick={goToHotplaceDetail}
+                                            className="group relative w-full overflow-hidden rounded-sm border border-zinc-100 bg-white text-left shadow-sm transition hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
                                         >
                                             <div className="relative h-[min(56vw,220px)] w-full shrink-0 overflow-hidden bg-zinc-100 dark:bg-zinc-800 sm:h-[240px]">
                                                 {img ? (
@@ -605,23 +717,31 @@ const CrowdedPlaceScreen = () => {
                                                             </p>
                                                         ) : null}
                                                     </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            navigate(`/post/${post.id}`, { state: { post, allPosts: crowdedData } });
-                                                        }}
-                                                        aria-label="대표 게시물 보기"
-                                                        className="mt-0 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
-                                                        style={{ border: `1px solid rgba(38,198,218,0.28)` }}
-                                                    >
-                                                        <span className="material-symbols-outlined text-[18px]" style={{ color: PRIMARY_HEX }}>
-                                                            chevron_right
-                                                        </span>
-                                                    </button>
                                                 </div>
                                             </div>
+                                            <span
+                                                role="button"
+                                                tabIndex={0}
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    goToHotplaceDetail();
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' || e.key === ' ') {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        goToHotplaceDetail();
+                                                    }
+                                                }}
+                                                aria-label="실시간 핫플 상세보기"
+                                                className="absolute right-3 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-white text-zinc-900 shadow-md transition hover:scale-105 hover:shadow-lg active:scale-95 dark:bg-zinc-900 dark:text-zinc-100"
+                                                style={{ border: `1px solid rgba(38,198,218,0.38)` }}
+                                            >
+                                                <span className="material-symbols-outlined text-[20px]" style={{ color: PRIMARY_HEX }}>
+                                                    chevron_right
+                                                </span>
+                                            </span>
                                         </button>
                                     );
                                 })}
