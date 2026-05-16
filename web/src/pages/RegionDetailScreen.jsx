@@ -4,6 +4,7 @@ import BottomNavigation from '../components/BottomNavigation';
 import { getWeatherByRegion } from '../api/weather';
 import { filterRecentPosts, filterActivePosts48 } from '../utils/timeUtils';
 import { getLandmarksByRegion } from '../utils/regionLandmarks';
+import { fetchAiLandmarksForRegion, getCachedAiLandmarks } from '../api/regionLandmarksAi';
 import { logger } from '../utils/logger';
 import { getCombinedPosts } from '../utils/mockData';
 import { getDisplayImageUrl } from '../api/upload';
@@ -52,7 +53,73 @@ const RegionDetailScreen = () => {
   });
 
   const [selectedLandmarks, setSelectedLandmarks] = useState([]); // 선택된 명소 ID 목록
-  const [showLandmarkModal, setShowLandmarkModal] = useState(false); // 명소 선택 모달 표시 여부
+  const [showLandmarkModal, setShowLandmarkModal] = useState(false); // 명소 선택 모달 표시 여부 (레거시)
+  const [landmarksExpanded, setLandmarksExpanded] = useState(false); // 대표명소 펼치기/접기
+  const [aiLandmarks, setAiLandmarks] = useState(() => getCachedAiLandmarks(canonicalRegionName));
+  const [aiLoading, setAiLoading] = useState(false);
+
+  // 지역이 바뀌면 캐시된 AI 명소도 다시 읽고, 펼침/선택 상태 초기화
+  useEffect(() => {
+    setAiLandmarks(getCachedAiLandmarks(canonicalRegionName));
+    setLandmarksExpanded(false);
+    setSelectedLandmarks([]);
+  }, [canonicalRegionName]);
+
+  // 정적 + AI 명소 통합 리스트 (필터 매칭·UI 양쪽에서 사용)
+  const combinedLandmarks = useMemo(() => {
+    const staticList = getLandmarksByRegion(region.name) || [];
+    const aiList = Array.isArray(aiLandmarks) ? aiLandmarks : [];
+    // 같은 이름은 중복 제외 (정적 우선)
+    const seen = new Set(staticList.map((l) => l.name.replace(/\s+/g, '').toLowerCase()));
+    const merged = [...staticList];
+    aiList.forEach((l) => {
+      const key = String(l.name || '').replace(/\s+/g, '').toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      merged.push(l);
+    });
+    return merged;
+  }, [region.name, aiLandmarks]);
+
+  const handleFetchAiLandmarks = useCallback(async () => {
+    if (aiLoading) return;
+    setAiLoading(true);
+    try {
+      const staticList = getLandmarksByRegion(region.name) || [];
+      const excludeNames = [
+        ...staticList.map((l) => l.name),
+        ...(Array.isArray(aiLandmarks) ? aiLandmarks.map((l) => l.name) : []),
+      ];
+      const next = await fetchAiLandmarksForRegion(region.name, {
+        excludeNames,
+        forceRefresh: true,
+        count: 12,
+      });
+      if (Array.isArray(next) && next.length > 0) {
+        setAiLandmarks((prev) => {
+          const seen = new Set(
+            [...staticList, ...(Array.isArray(prev) ? prev : [])].map((l) =>
+              String(l.name || '').replace(/\s+/g, '').toLowerCase()
+            )
+          );
+          const dedup = next.filter((l) => {
+            const k = String(l.name || '').replace(/\s+/g, '').toLowerCase();
+            if (!k || seen.has(k)) return false;
+            seen.add(k);
+            return true;
+          });
+          return [...(Array.isArray(prev) ? prev : []), ...dedup];
+        });
+      } else {
+        alert('AI 추천 결과가 없습니다. 잠시 후 다시 시도해 주세요.');
+      }
+    } catch (e) {
+      logger.warn('AI 명소 호출 실패:', e?.message || e);
+      alert('AI 추천에 실패했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [region.name, aiLandmarks, aiLoading]);
   const bodyRef = useRef(null);
 
   // 시간을 숫자로 변환하는 함수 (정렬용)
@@ -101,10 +168,9 @@ const RegionDetailScreen = () => {
       regionPosts = narrowed;
     }
 
-    // 선택된 명소로 필터링 (현재 지역의 명소만 사용)
+    // 선택된 명소로 필터링 (정적 + AI 통합 명소 사용)
     if (selectedLandmarks.length > 0) {
-      const currentRegionLandmarks = getLandmarksByRegion(region.name);
-      const selectedLandmarkObjects = currentRegionLandmarks.filter(l =>
+      const selectedLandmarkObjects = combinedLandmarks.filter((l) =>
         selectedLandmarks.includes(l.id)
       );
 
@@ -176,7 +242,7 @@ const RegionDetailScreen = () => {
     logger.log('📊 지역 게시물 로드:', {
       total: dedupedPosts.length
     });
-  }, [canonicalRegionName, region.name, timeToMinutes, selectedLandmarks, focusLocation, user?.id]);
+  }, [canonicalRegionName, region.name, timeToMinutes, selectedLandmarks, combinedLandmarks, focusLocation, user?.id]);
 
   // 필터에 따른 게시물 필터링 및 표시
   useEffect(() => {
@@ -373,60 +439,99 @@ const RegionDetailScreen = () => {
         >
           <main>
 
-            {/* 대표명소 — 인라인 칩 (모달 없이 한눈에) */}
-            {(() => {
-              const landmarks = getLandmarksByRegion(region.name);
-              if (!landmarks || landmarks.length === 0) return null;
-              return (
-                <div className="pt-4 pb-1">
-                  <div className="flex items-center justify-between px-4 pb-2">
-                    <h2 className="text-[17px] font-semibold leading-tight tracking-[-0.01em] text-text-headings dark:text-gray-100 inline-flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[18px] text-primary" aria-hidden>place</span>
-                      {region.name} 대표명소
-                    </h2>
+            {/* 대표명소 — 접었다 펼쳤다 (정적 + AI 통합) */}
+            {combinedLandmarks.length > 0 && (
+              <div className="pt-4 pb-1">
+                <button
+                  type="button"
+                  onClick={() => setLandmarksExpanded((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-2 text-left"
+                  aria-expanded={landmarksExpanded}
+                  aria-controls="region-landmarks-panel"
+                >
+                  <span className="inline-flex items-center gap-1.5 text-[17px] font-semibold leading-tight tracking-[-0.01em] text-text-headings dark:text-gray-100">
+                    <span className="material-symbols-outlined text-[18px] text-primary" aria-hidden>place</span>
+                    {region.name} 대표명소
+                    <span className="ml-1 text-[12px] font-semibold text-primary bg-primary-soft px-1.5 py-0.5 rounded-md">
+                      {combinedLandmarks.length}
+                    </span>
                     {selectedLandmarks.length > 0 && (
-                      <button
-                        onClick={() => setSelectedLandmarks([])}
-                        className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-text-secondary-light dark:text-text-secondary-dark bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors whitespace-nowrap"
-                      >
-                        선택 해제 ({selectedLandmarks.length})
-                      </button>
+                      <span className="ml-1 text-[11px] font-medium text-text-secondary-light dark:text-text-secondary-dark">
+                        · {selectedLandmarks.length}개 선택됨
+                      </span>
                     )}
-                  </div>
-                  <div
-                    className="flex gap-2 overflow-x-scroll overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden scroll-smooth"
-                    style={{
-                      WebkitOverflowScrolling: 'touch',
-                      paddingLeft: 'max(16px, env(safe-area-inset-left, 12px))',
-                      paddingRight: 'max(16px, env(safe-area-inset-right, 12px))',
-                    }}
+                  </span>
+                  <span
+                    className="material-symbols-outlined text-text-secondary-light dark:text-text-secondary-dark transition-transform"
+                    style={{ transform: landmarksExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                    aria-hidden
                   >
-                    {landmarks.map((landmark) => {
-                      const isSelected = selectedLandmarks.includes(landmark.id);
-                      return (
+                    expand_more
+                  </span>
+                </button>
+
+                {landmarksExpanded && (
+                  <div id="region-landmarks-panel" className="px-4 pb-2">
+                    <div className="flex flex-wrap gap-2">
+                      {combinedLandmarks.map((landmark) => {
+                        const isSelected = selectedLandmarks.includes(landmark.id);
+                        const isAi = String(landmark.id || '').startsWith('ai-');
+                        return (
+                          <button
+                            key={landmark.id}
+                            onClick={() => {
+                              setSelectedLandmarks((prev) =>
+                                prev.includes(landmark.id)
+                                  ? prev.filter((id) => id !== landmark.id)
+                                  : [...prev, landmark.id]
+                              );
+                            }}
+                            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors whitespace-nowrap ${
+                              isSelected
+                                ? 'bg-primary text-white border-primary shadow-sm'
+                                : 'bg-primary-soft text-primary border-primary/30 hover:bg-primary/15'
+                            }`}
+                          >
+                            {isAi && (
+                              <span
+                                className={`material-symbols-outlined text-[14px] ${isSelected ? 'text-white' : 'text-primary/70'}`}
+                                aria-hidden
+                              >
+                                auto_awesome
+                              </span>
+                            )}
+                            {landmark.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleFetchAiLandmarks}
+                        disabled={aiLoading}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-primary/40 text-primary bg-white dark:bg-card-dark hover:bg-primary/10 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-[16px]" aria-hidden>
+                          {aiLoading ? 'progress_activity' : 'auto_awesome'}
+                        </span>
+                        {aiLoading ? 'AI 추천 불러오는 중…' : 'AI로 더 찾아보기'}
+                      </button>
+                      {selectedLandmarks.length > 0 && (
                         <button
-                          key={landmark.id}
-                          onClick={() => {
-                            setSelectedLandmarks((prev) =>
-                              prev.includes(landmark.id)
-                                ? prev.filter((id) => id !== landmark.id)
-                                : [...prev, landmark.id]
-                            );
-                          }}
-                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors whitespace-nowrap flex-shrink-0 ${
-                            isSelected
-                              ? 'bg-primary text-white border-primary shadow-sm'
-                              : 'bg-primary-soft text-primary border-primary/30 hover:bg-primary/15'
-                          }`}
+                          type="button"
+                          onClick={() => setSelectedLandmarks([])}
+                          className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-text-secondary-light dark:text-text-secondary-dark bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors whitespace-nowrap"
                         >
-                          {landmark.name}
+                          선택 해제
                         </button>
-                      );
-                    })}
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })()}
+                )}
+              </div>
+            )}
 
             {/* 현장 실시간 정보 */}
             <div>
