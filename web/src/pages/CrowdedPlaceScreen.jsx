@@ -42,10 +42,13 @@ const REGION_SCOPE_LABEL = {
     neighborhood: '동네',
 };
 const REGION_SCOPE_OPTIONS = [
-    { id: 'national', label: '전국', hint: '전국 모든 핫플' },
-    { id: 'region', label: '지역', hint: '내 위치 반경 20km' },
-    { id: 'neighborhood', label: '동네', hint: '내 위치 반경 3km' },
+    { id: 'national', label: '전국', hint: '전국 모든 핫플', icon: 'public' },
+    { id: 'region', label: '지역', hint: '내 위치 반경 20km', icon: 'travel_explore' },
+    { id: 'neighborhood', label: '동네', hint: '내 위치 반경 3km', icon: 'my_location' },
 ];
+
+const getScopeIcon = (id) =>
+    REGION_SCOPE_OPTIONS.find((o) => o.id === id)?.icon || 'place';
 
 const getPostTimeMs = (post) => {
     const raw = post?.timestamp || post?.createdAt || post?.time;
@@ -437,11 +440,14 @@ const CrowdedPlaceScreen = () => {
                         onClick={() => setScopeMenuOpen((o) => !o)}
                         aria-haspopup="listbox"
                         aria-expanded={scopeMenuOpen}
-                        className="flex h-10 items-center gap-1 rounded-full border border-zinc-200 bg-white px-3 text-[13px] font-bold text-zinc-800 shadow-sm hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-                        style={{ borderColor: regionScope === 'national' ? 'rgba(228,231,236,1)' : 'rgba(38,198,218,0.55)' }}
+                        className="flex h-10 items-center gap-1 border bg-white px-3 text-[13px] font-bold text-zinc-800 shadow-sm hover:border-zinc-300 dark:bg-zinc-900 dark:text-zinc-100"
+                        style={{
+                            borderColor: regionScope === 'national' ? 'rgba(228,231,236,1)' : 'rgba(38,198,218,0.55)',
+                            borderRadius: 0,
+                        }}
                     >
                         <span className="material-symbols-outlined text-[18px]" style={{ color: PRIMARY_HEX }}>
-                            place
+                            {getScopeIcon(regionScope)}
                         </span>
                         <span>{REGION_SCOPE_LABEL[regionScope]}</span>
                         <span className="material-symbols-outlined text-[18px] text-zinc-500">
@@ -451,7 +457,8 @@ const CrowdedPlaceScreen = () => {
                     {scopeMenuOpen ? (
                         <div
                             role="listbox"
-                            className="absolute right-0 top-full z-40 mt-2 w-44 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+                            className="absolute right-0 top-full z-40 mt-2 w-44 overflow-hidden border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+                            style={{ borderRadius: 0 }}
                         >
                             {REGION_SCOPE_OPTIONS.map((opt) => {
                                 const isActive = opt.id === regionScope;
@@ -473,7 +480,7 @@ const CrowdedPlaceScreen = () => {
                                         }`}
                                     >
                                         <span className="material-symbols-outlined mt-[2px] text-[18px]" style={{ color: isActive ? PRIMARY_HEX : '#94a3b8' }}>
-                                            {opt.id === 'national' ? 'public' : opt.id === 'region' ? 'travel_explore' : 'my_location'}
+                                            {opt.icon}
                                         </span>
                                         <span className="min-w-0 flex-1">
                                             <span className="block leading-tight">{opt.label}</span>
@@ -719,29 +726,6 @@ const CrowdedPlaceScreen = () => {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <span
-                                                role="button"
-                                                tabIndex={0}
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    goToHotplaceDetail();
-                                                }}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' || e.key === ' ') {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        goToHotplaceDetail();
-                                                    }
-                                                }}
-                                                aria-label="실시간 핫플 상세보기"
-                                                className="absolute right-3 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-white text-zinc-900 shadow-md transition hover:scale-105 hover:shadow-lg active:scale-95 dark:bg-zinc-900 dark:text-zinc-100"
-                                                style={{ border: `1px solid rgba(38,198,218,0.38)` }}
-                                            >
-                                                <span className="material-symbols-outlined text-[20px]" style={{ color: PRIMARY_HEX }}>
-                                                    chevron_right
-                                                </span>
-                                            </span>
                                         </button>
                                     );
                                 })}
