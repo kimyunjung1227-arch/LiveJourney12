@@ -3,7 +3,7 @@ import { logger } from '../utils/logger';
 import { fetchCommentsForPostSupabase } from './socialSupabase';
 import { fetchProfileByIdSupabase } from './profilesSupabase';
 import { parseRepresentativeBadgeFromProfileRow } from '../utils/representativeBadge';
-import { bumpLiveSyncPctSupabase } from './liveSyncSupabase';
+import { bumpLiveSyncPctSupabase, computeCreatePostExifDelta } from './liveSyncSupabase';
 
 // blob: URL은 새로고침 시 사라지므로 Supabase에는 영구 URL만 저장
 const onlyPersistentUrls = (arr) => {
@@ -109,9 +109,10 @@ export const createPostSupabase = async (post) => {
       throw error;
     }
 
-    // 라이브 싱크: 새 게시물 업로드 → 작성자 점수 상승
+    // 라이브 싱크: 새 게시물 업로드 → EXIF/현장감 신호 강도에 따라 차등 가산
     if (isValidUuid(userId)) {
-      void bumpLiveSyncPctSupabase(userId, +5);
+      const exifDelta = computeCreatePostExifDelta(post);
+      void bumpLiveSyncPctSupabase(userId, exifDelta);
     }
 
     return { success: true, post: data };

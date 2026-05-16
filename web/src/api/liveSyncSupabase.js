@@ -114,3 +114,61 @@ export async function bumpLiveSyncPctSupabase(userId, delta) {
   bumpQueue.set(uid, next.catch(() => {}));
   return next;
 }
+
+// 체온점수(당근)식 누적기 — fractional 부분을 보관해 천천히 1%씩 반영
+const tempAccum = new Map(); // uid -> remainder
+
+/**
+ * 당근 매너온도 느낌의 점진적 가산:
+ * - baseDelta는 의도된 강도(예: 0.6=좋아요, 1.2=댓글)
+ * - 현재 점수가 100에 가까울수록 상승 폭이 둔해지고, 0에 가까울수록 하락 폭이 둔해짐
+ * - 정수 미만의 변동은 메모리에 누적해 다음 호출과 합산 → 작은 활동이 모여 1%씩 움직임
+ */
+export async function bumpLiveSyncTempStyle(userId, baseDelta) {
+  const uid = userId != null ? String(userId).trim() : '';
+  const b = Number(baseDelta);
+  if (!uid || !Number.isFinite(b) || b === 0) return { success: false };
+
+  const current = await fetchLiveSyncPctSupabase(uid, { bypassCache: false });
+  // 기준치(35)에서 멀어질수록 변동폭이 작아지도록 감속 계수
+  const factor = b > 0
+    ? Math.max(0.05, (100 - current) / 65)
+    : Math.max(0.05, current / 65);
+  const fractional = b * factor;
+  const prevAcc = tempAccum.get(uid) || 0;
+  const totalAcc = prevAcc + fractional;
+  const intDelta = totalAcc >= 0 ? Math.floor(totalAcc) : Math.ceil(totalAcc);
+  tempAccum.set(uid, totalAcc - intDelta);
+  if (intDelta === 0) {
+    // 이번엔 정수 변동이 없음 — 다음 호출에 합산
+    return { success: true, pct: current, deferred: true };
+  }
+  return bumpLiveSyncPctSupabase(uid, intDelta);
+}
+
+/**
+ * 새 게시물의 EXIF/촬영 신호에 따라 가산점을 결정한다.
+ * - 앱 내 카메라: 가장 강한 현장감 → +12
+ * - EXIF 촬영시각 + GPS: +10
+ * - EXIF 촬영시각만: +6
+ * - EXIF GPS만: +5
+ * - EXIF는 있지만 핵심 신호 없음(기종 등): +3
+ * - EXIF 자체가 없음: +1
+ */
+export function computeCreatePostExifDelta(post) {
+  if (!post) return 1;
+  if (post.isInAppCamera === true || post.is_in_app_camera === true) return 12;
+  const ex = post.exifData || post.exif_data;
+  if (ex && typeof ex === 'object') {
+    const hasPhotoDate = !!(ex.photoDate || ex.dateTimeOriginalRaw);
+    const g = ex.gpsCoordinates;
+    const hasGps = !!(
+      g && (g.lat != null || g.latitude != null) && (g.lng != null || g.longitude != null)
+    );
+    if (hasPhotoDate && hasGps) return 10;
+    if (hasPhotoDate) return 6;
+    if (hasGps) return 5;
+    return 3;
+  }
+  return 1;
+}
