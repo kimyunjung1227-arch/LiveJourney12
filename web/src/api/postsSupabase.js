@@ -3,6 +3,7 @@ import { logger } from '../utils/logger';
 import { fetchCommentsForPostSupabase } from './socialSupabase';
 import { fetchProfileByIdSupabase } from './profilesSupabase';
 import { parseRepresentativeBadgeFromProfileRow } from '../utils/representativeBadge';
+import { bumpLiveSyncPctSupabase } from './liveSyncSupabase';
 
 // blob: URL은 새로고침 시 사라지므로 Supabase에는 영구 URL만 저장
 const onlyPersistentUrls = (arr) => {
@@ -108,6 +109,11 @@ export const createPostSupabase = async (post) => {
       throw error;
     }
 
+    // 라이브 싱크: 새 게시물 업로드 → 작성자 점수 상승
+    if (isValidUuid(userId)) {
+      void bumpLiveSyncPctSupabase(userId, +5);
+    }
+
     return { success: true, post: data };
   } catch (error) {
     const code = error?.code;
@@ -191,14 +197,16 @@ export const deletePostSupabase = async (postId) => {
   try {
     // 1) 먼저 게시물에서 미디어 URL을 가져와 Storage 경로로 변환
     let storagePaths = [];
+    let authorId = null;
     try {
       const { data: row, error: fetchErr } = await supabase
         .from('posts')
-        .select('images,videos')
+        .select('user_id,images,videos')
         .eq('id', trimmed)
         .single();
       if (!fetchErr && row) {
         storagePaths = collectStoragePathsFromPost(row);
+        authorId = row.user_id || null;
       }
     } catch (_) {}
 
@@ -234,6 +242,12 @@ export const deletePostSupabase = async (postId) => {
     const deleted = Array.isArray(data) && data.length > 0;
     if (deleted) logger.log('✅ Supabase 게시물 DB 삭제 완료:', trimmed);
     else logger.warn('deletePostSupabase: 삭제된 행 없음 (이미 없거나 RLS 권한 없음)', trimmed);
+
+    // 라이브 싱크: 본인 게시물 삭제 → 점수 하락 (RLS상 본인 행만 갱신 가능)
+    if (deleted && authorId && isValidUuid(authorId)) {
+      void bumpLiveSyncPctSupabase(authorId, -3);
+    }
+
     return { success: deleted, error: deleted ? null : '삭제된 행 없음' };
   } catch (e) {
     logger.warn('Supabase deletePost 예외:', e?.message);

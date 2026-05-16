@@ -1,6 +1,7 @@
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
 import { getSessionOnce } from '../utils/supabaseAuthCache';
+import { bumpLiveSyncPctSupabase } from './liveSyncSupabase';
 
 const isValidUuid = (v) =>
   typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
@@ -54,6 +55,9 @@ export const togglePostLikeSupabase = async (userId, postId, opts = {}) => {
       const row = Array.isArray(rows) ? rows[0] : rows;
       const isLiked = row?.is_liked != null ? !!row.is_liked : desired;
       const likesCount = row?.likes_count != null ? Math.max(0, Number(row.likes_count) || 0) : null;
+
+      // 라이브 싱크: 좋아요를 누른 본인 점수를 ±1 (RLS상 본인 행만 갱신)
+      void bumpLiveSyncPctSupabase(uid, isLiked ? +1 : -1);
 
       // 화면 간 동기화: 다른 피드/상세가 같은 postId를 들고 있으면 업데이트
       try {
@@ -175,6 +179,9 @@ export const addCommentSupabase = async ({ postId, userId, username, avatarUrl, 
 
     // ✅ 알림은 DB 트리거가 생성한다.
 
+    // 라이브 싱크: 댓글을 단 본인 점수 +2 (현장 참여 가산)
+    void bumpLiveSyncPctSupabase(uid, +2);
+
     return { success: true, row: data };
   } catch (e) {
     logger.warn('addCommentSupabase 실패:', e?.message);
@@ -221,6 +228,9 @@ export const toggleCommentLikeSupabase = async ({ commentId, userId, likedBefore
       } catch {
         likesCount = null;
       }
+
+      // 라이브 싱크: 댓글 좋아요/취소도 본인 점수에 소량 반영 (±1)
+      void bumpLiveSyncPctSupabase(uid, likedBefore ? -1 : +1);
 
       return { success: true, isLiked: !likedBefore, likesCount };
     } catch (e) {
