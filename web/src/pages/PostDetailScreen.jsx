@@ -15,6 +15,7 @@ import { getTimeAgo } from '../utils/dateUtils';
 import { deleteCommentFromPost, updateCommentInPost, getPostAccuracyCount, hasUserMarkedAccurate, toggleAccuracyFeedback } from '../utils/socialInteractions';
 import { getBadgeDisplayName, getEarnedBadgesForUser } from '../utils/badgeSystem';
 import { parseRepresentativeBadgeFromProfileRow, resolveRepresentativeBadge, deserializeRepresentativeBadge } from '../utils/representativeBadge';
+import { resolveBadgeTone, resolveBadgeSymbol, hexToRgbTuple } from '../utils/badgeIcons';
 import { fetchLiveSyncPctSupabase } from '../api/liveSyncSupabase';
 import { fetchProfileByIdSupabase } from '../api/profilesSupabase';
 import { follow, unfollow, isFollowing } from '../utils/followSystem';
@@ -1557,43 +1558,69 @@ const PostDetailScreen = () => {
                       {String(userName || '여행자').charAt(0)}
                     </div>
                   )}
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                    <div className="flex min-w-0 items-center gap-2 flex-wrap">
+                    <div className="flex min-w-0 flex-col gap-1">
                       <p className="min-w-0 truncate text-sm font-bold text-[#181410] dark:text-white">
                         {userName}
                       </p>
-                      {authorRepresentativeBadge?.name ? (
-                        <span
-                          className="inline-flex max-w-[min(100%,14rem)] shrink-0 items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 dark:border-gray-600 dark:bg-gray-800"
-                          title={getBadgeDisplayName(authorRepresentativeBadge) || authorRepresentativeBadge.name}
-                        >
-                          <span className="text-sm leading-none" aria-hidden>
-                            {authorRepresentativeBadge.icon || '🏆'}
-                          </span>
-                          <span className="truncate text-[11px] font-semibold text-gray-800 dark:text-gray-200">
-                            {getBadgeDisplayName(authorRepresentativeBadge) || authorRepresentativeBadge.name}
-                          </span>
-                        </span>
-                      ) : null}
+                      {/* 라이브싱크 + 대표 뱃지: 한 줄 정렬 (라이브저니 톤) */}
+                      <div className="flex min-w-0 items-center gap-1.5 flex-wrap">
+                        {authorLiveSync != null && (() => {
+                          const pct = typeof authorLiveSync === 'number' ? authorLiveSync : 35;
+                          const tone =
+                            pct >= 90 ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-600/40' :
+                            pct >= 70 ? 'bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-900/30 dark:text-cyan-200 dark:border-cyan-600/40' :
+                            pct >= 40 ? 'bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-900/30 dark:text-sky-200 dark:border-sky-600/40' :
+                            'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600';
+                          return (
+                            <span
+                              className={`inline-flex w-fit items-center gap-0.5 rounded-full border px-2 py-0.5 text-[11px] font-bold ${tone}`}
+                              title={`라이브 싱크 ${pct}%`}
+                            >
+                              <span className="material-symbols-outlined text-[12px]" aria-hidden>bolt</span>
+                              <span>{pct}%</span>
+                            </span>
+                          );
+                        })()}
+                        {authorRepresentativeBadge?.name ? (() => {
+                          const badgeTone = resolveBadgeTone(authorRepresentativeBadge);
+                          const badgeGradient = `linear-gradient(135deg, ${badgeTone.from}, ${badgeTone.to})`;
+                          const badgeFromRgb = hexToRgbTuple(badgeTone.from);
+                          const badgeSymbol = resolveBadgeSymbol(authorRepresentativeBadge);
+                          const badgeLabel = getBadgeDisplayName(authorRepresentativeBadge) || authorRepresentativeBadge.name;
+                          return (
+                            <span
+                              className="inline-flex max-w-[min(100%,14rem)] shrink-0 items-center gap-1 rounded-full px-2 py-0.5"
+                              style={{
+                                background: `rgba(${badgeFromRgb}, 0.12)`,
+                                border: `1px solid rgba(${badgeFromRgb}, 0.32)`,
+                                color: badgeTone.to,
+                              }}
+                              title={badgeLabel}
+                            >
+                              <span
+                                className="material-symbols-outlined select-none"
+                                aria-label={badgeLabel}
+                                style={{
+                                  fontSize: 13,
+                                  lineHeight: 1,
+                                  background: badgeGradient,
+                                  WebkitBackgroundClip: 'text',
+                                  WebkitTextFillColor: 'transparent',
+                                  backgroundClip: 'text',
+                                  color: 'transparent',
+                                  fontVariationSettings: "'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 20",
+                                }}
+                              >
+                                {badgeSymbol}
+                              </span>
+                              <span className="truncate text-[11px] font-bold" style={{ color: badgeTone.to }}>
+                                {badgeLabel}
+                              </span>
+                            </span>
+                          );
+                        })() : null}
+                      </div>
                     </div>
-                    {authorLiveSync != null && (() => {
-                      const pct = typeof authorLiveSync === 'number' ? authorLiveSync : 35;
-                      const tone =
-                        pct >= 90 ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-600/40' :
-                        pct >= 70 ? 'bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-900/30 dark:text-cyan-200 dark:border-cyan-600/40' :
-                        pct >= 40 ? 'bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-900/30 dark:text-sky-200 dark:border-sky-600/40' :
-                        'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600';
-                      return (
-                        <span
-                          className={`mt-1 inline-flex w-fit items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold ${tone}`}
-                          title="라이브 싱크: 현장 동기화율"
-                        >
-                          <span className="material-symbols-outlined text-[12px]" aria-hidden>bolt</span>
-                          <span>라이브 싱크 {pct}%</span>
-                        </span>
-                      );
-                    })()}
-                  </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {postUserId && user?.id && String(postUserId) !== String(user.id) && (
