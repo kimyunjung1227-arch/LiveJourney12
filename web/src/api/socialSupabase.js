@@ -1,7 +1,7 @@
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
 import { getSessionOnce } from '../utils/supabaseAuthCache';
-import { bumpLiveSyncTempStyle } from './liveSyncSupabase';
+import { bumpLiveSyncTempStyle, bumpLiveSyncPctSupabase } from './liveSyncSupabase';
 
 const isValidUuid = (v) =>
   typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
@@ -149,10 +149,21 @@ export const rpcAcceptHelpAnswer = async (postId, commentId) => {
     return { data: null, error: { message: 'invalid uuid' } };
   }
   let res = await supabase.rpc('accept_help_answer', { p_post: pid, p_comment: cid });
-  if (!res.error) return res;
-  const msg = String(res.error.message || '');
-  if (/Could not find the function|does not exist|42883|argument|parameter|p_post/i.test(msg)) {
-    res = await supabase.rpc('accept_help_answer', { post: pid, comment: cid });
+  if (res.error) {
+    const msg = String(res.error.message || '');
+    if (/Could not find the function|does not exist|42883|argument|parameter|p_post/i.test(msg)) {
+      res = await supabase.rpc('accept_help_answer', { post: pid, comment: cid });
+    }
+  }
+  // 라이브 싱크: 채택을 한 본인(질문자)도 Q&A 참여 가산 +1 (답변자 +5는 서버 트리거 처리)
+  if (!res.error) {
+    try {
+      const { data: ses } = await getSessionOnce();
+      const sid = ses?.session?.user?.id ? String(ses.session.user.id) : null;
+      if (sid) void bumpLiveSyncPctSupabase(sid, +1);
+    } catch {
+      /* ignore */
+    }
   }
   return res;
 };
@@ -265,6 +276,8 @@ export const deleteCommentSupabase = async ({ commentId, userId }) => {
   try {
     const { error } = await supabase.from('post_comments').delete().eq('id', cid).eq('user_id', uid);
     if (error) throw error;
+    // 라이브 싱크: 본인 댓글 삭제 → 즉시 -1 (DB 트리거가 게시물 작성자에게 가하는 -1은 별도)
+    void bumpLiveSyncPctSupabase(uid, -1);
     return { success: true };
   } catch (e) {
     logger.warn('deleteCommentSupabase 실패:', e?.message);
