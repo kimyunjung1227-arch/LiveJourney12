@@ -1558,68 +1558,66 @@ const PostDetailScreen = () => {
                       {String(userName || '여행자').charAt(0)}
                     </div>
                   )}
-                    <div className="flex min-w-0 flex-col gap-1">
-                      <p className="min-w-0 truncate text-sm font-bold text-[#181410] dark:text-white">
+                    {/* 이름 · 라이브싱크 · 대표 뱃지를 한 줄 정렬 */}
+                    <div className="flex min-w-0 flex-1 items-center gap-2 flex-wrap">
+                      <p className="min-w-0 max-w-full truncate text-sm font-bold text-[#181410] dark:text-white">
                         {userName}
                       </p>
-                      {/* 라이브싱크 + 대표 뱃지: 한 줄 정렬 (라이브저니 톤) */}
-                      <div className="flex min-w-0 items-center gap-1.5 flex-wrap">
-                        {authorLiveSync != null && (() => {
-                          const pct = typeof authorLiveSync === 'number' ? authorLiveSync : 35;
-                          const tone =
-                            pct >= 90 ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-600/40' :
-                            pct >= 70 ? 'bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-900/30 dark:text-cyan-200 dark:border-cyan-600/40' :
-                            pct >= 40 ? 'bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-900/30 dark:text-sky-200 dark:border-sky-600/40' :
-                            'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600';
-                          return (
+                      {authorLiveSync != null && (() => {
+                        const pct = typeof authorLiveSync === 'number' ? authorLiveSync : 35;
+                        const tone =
+                          pct >= 90 ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-600/40' :
+                          pct >= 70 ? 'bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-900/30 dark:text-cyan-200 dark:border-cyan-600/40' :
+                          pct >= 40 ? 'bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-900/30 dark:text-sky-200 dark:border-sky-600/40' :
+                          'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600';
+                        return (
+                          <span
+                            className={`inline-flex w-fit shrink-0 items-center gap-0.5 rounded-full border px-2 py-0.5 text-[11px] font-bold ${tone}`}
+                            title={`라이브 싱크 ${pct}%`}
+                          >
+                            <span className="material-symbols-outlined text-[12px]" aria-hidden>bolt</span>
+                            <span>{pct}%</span>
+                          </span>
+                        );
+                      })()}
+                      {authorRepresentativeBadge?.name ? (() => {
+                        const badgeTone = resolveBadgeTone(authorRepresentativeBadge);
+                        const badgeGradient = `linear-gradient(135deg, ${badgeTone.from}, ${badgeTone.to})`;
+                        const badgeFromRgb = hexToRgbTuple(badgeTone.from);
+                        const badgeSymbol = resolveBadgeSymbol(authorRepresentativeBadge);
+                        const badgeLabel = getBadgeDisplayName(authorRepresentativeBadge) || authorRepresentativeBadge.name;
+                        return (
+                          <span
+                            className="inline-flex max-w-[min(100%,14rem)] shrink-0 items-center gap-1 rounded-full px-2 py-0.5"
+                            style={{
+                              background: `rgba(${badgeFromRgb}, 0.12)`,
+                              border: `1px solid rgba(${badgeFromRgb}, 0.32)`,
+                              color: badgeTone.to,
+                            }}
+                            title={badgeLabel}
+                          >
                             <span
-                              className={`inline-flex w-fit items-center gap-0.5 rounded-full border px-2 py-0.5 text-[11px] font-bold ${tone}`}
-                              title={`라이브 싱크 ${pct}%`}
-                            >
-                              <span className="material-symbols-outlined text-[12px]" aria-hidden>bolt</span>
-                              <span>{pct}%</span>
-                            </span>
-                          );
-                        })()}
-                        {authorRepresentativeBadge?.name ? (() => {
-                          const badgeTone = resolveBadgeTone(authorRepresentativeBadge);
-                          const badgeGradient = `linear-gradient(135deg, ${badgeTone.from}, ${badgeTone.to})`;
-                          const badgeFromRgb = hexToRgbTuple(badgeTone.from);
-                          const badgeSymbol = resolveBadgeSymbol(authorRepresentativeBadge);
-                          const badgeLabel = getBadgeDisplayName(authorRepresentativeBadge) || authorRepresentativeBadge.name;
-                          return (
-                            <span
-                              className="inline-flex max-w-[min(100%,14rem)] shrink-0 items-center gap-1 rounded-full px-2 py-0.5"
+                              className="material-symbols-outlined select-none"
+                              aria-label={badgeLabel}
                               style={{
-                                background: `rgba(${badgeFromRgb}, 0.12)`,
-                                border: `1px solid rgba(${badgeFromRgb}, 0.32)`,
-                                color: badgeTone.to,
+                                fontSize: 13,
+                                lineHeight: 1,
+                                background: badgeGradient,
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                backgroundClip: 'text',
+                                color: 'transparent',
+                                fontVariationSettings: "'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 20",
                               }}
-                              title={badgeLabel}
                             >
-                              <span
-                                className="material-symbols-outlined select-none"
-                                aria-label={badgeLabel}
-                                style={{
-                                  fontSize: 13,
-                                  lineHeight: 1,
-                                  background: badgeGradient,
-                                  WebkitBackgroundClip: 'text',
-                                  WebkitTextFillColor: 'transparent',
-                                  backgroundClip: 'text',
-                                  color: 'transparent',
-                                  fontVariationSettings: "'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 20",
-                                }}
-                              >
-                                {badgeSymbol}
-                              </span>
-                              <span className="truncate text-[11px] font-bold" style={{ color: badgeTone.to }}>
-                                {badgeLabel}
-                              </span>
+                              {badgeSymbol}
                             </span>
-                          );
-                        })() : null}
-                      </div>
+                            <span className="truncate text-[11px] font-bold" style={{ color: badgeTone.to }}>
+                              {badgeLabel}
+                            </span>
+                          </span>
+                        );
+                      })() : null}
                     </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
@@ -1659,16 +1657,14 @@ const PostDetailScreen = () => {
                 </div>
               </div>
 
-              {/* 위치 + 작성자 메뉴(수정·삭제) */}
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">위치정보</p>
-                  <p className="mt-0.5 truncate text-base font-bold text-zinc-900 dark:text-zinc-50">
-                    {verifiedLocation || detailedLocationText || locationText}
-                  </p>
-                </div>
+              {/* 위치 + 작성자 메뉴(수정·삭제) — 본문 라벨 중앙 정렬 */}
+              <div className="relative flex flex-col items-center gap-0.5 text-center">
+                <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">위치정보</p>
+                <p className="max-w-full truncate text-base font-bold text-zinc-900 dark:text-zinc-50">
+                  {verifiedLocation || detailedLocationText || locationText}
+                </p>
                 {isPostAuthor ? (
-                  <div className="relative shrink-0 pt-0.5" ref={authorPostMenuRef}>
+                  <div className="absolute right-0 top-0" ref={authorPostMenuRef}>
                     <button
                       type="button"
                       onClick={(e) => {
@@ -1730,11 +1726,11 @@ const PostDetailScreen = () => {
                 ) : null}
               </div>
               {addressText ? (
-                <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{addressText}</p>
+                <p className="mt-2 text-center text-xs text-gray-400 dark:text-gray-500">{addressText}</p>
               ) : null}
 
-              {/* 기온 · 촬영시각 · 카테고리 한 블록 */}
-              <div className="mt-3">
+              {/* 기온 · 촬영시각 · 카테고리 한 블록 — 중앙 정렬 */}
+              <div className="mt-3 text-center">
                 <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">기온 · 사진정보 · 카테고리</p>
                 <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
                   {weatherInfo.loading ? (
@@ -1780,7 +1776,7 @@ const PostDetailScreen = () => {
                 </p>
               </div>
 
-              <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+              <div className="mt-4 border-t border-gray-100 pt-4 text-center dark:border-gray-800">
                   <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">사용자 입력내용</p>
                   {(post?.note || post?.content) ? (
                     <p className="mt-2 whitespace-pre-wrap text-[15px] leading-[1.65] text-zinc-900 dark:text-zinc-100">
@@ -1791,7 +1787,7 @@ const PostDetailScreen = () => {
                   )}
                 </div>
 
-              <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+              <div className="mt-4 border-t border-gray-100 pt-4 text-center dark:border-gray-800">
                   <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">해시태그</p>
                   {(() => {
                     const getText = (t) =>
@@ -1808,7 +1804,7 @@ const PostDetailScreen = () => {
                       merged.push(raw);
                     });
                     return merged.length > 0 ? (
-                      <div className="mt-2 flex flex-wrap gap-2">
+                      <div className="mt-2 flex flex-wrap justify-center gap-2">
                         {merged.map((tagText, index) => {
                           const korean = tagTranslations[tagText.toLowerCase()] || tagText;
                           return (
