@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { IconArrowLeft, IconBookmark, IconBookmarkFilled, IconShare3 } from '@tabler/icons-react';
 import { LJ } from '../components/lj/tokens';
-import CategoryFilter from '../components/lj/CategoryFilter';
-import PlaceStatusBox from '../components/lj/PlaceStatusBox';
 import BestCutHero from '../components/lj/BestCutHero';
 import PlacePhotoGrid from '../components/lj/PlacePhotoGrid';
 import PlaceCTA from '../components/lj/PlaceCTA';
@@ -11,17 +9,17 @@ import { usePlaceDetail } from '../hooks/usePlaceDetail';
 
 /**
  * 장소 페이지 (/place/:placeId).
- * 스펙: 헤더 → 상태박스 → BestCutHero → 카테고리 필터 → 사진 그리드 → CTA
+ * 단순화: 헤더 → BestCutHero → 사진 그리드(베스트컷 제외) → CTA
+ * (상태박스 / 카테고리 필터 제거)
  */
 function PlaceDetailScreen() {
   const { placeId } = useParams();
   const navigate = useNavigate();
   const { place, bestCut, posts, loading } = usePlaceDetail(placeId);
   const [bookmarked, setBookmarked] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('all');
   const [following, setFollowing] = useState(false);
 
-  // 그리드는 베스트 컷 제외
+  // 그리드는 베스트 컷 제외 (BestCutHero에 이미 큰 사진으로 노출)
   const gridPosts = bestCut ? posts.filter((p) => p.id !== bestCut.id) : posts;
 
   const handleShare = async () => {
@@ -80,24 +78,18 @@ function PlaceDetailScreen() {
           >
             <IconArrowLeft size={22} stroke={1.8} />
           </button>
-          <div style={{ minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: 16,
-                fontWeight: 600,
-                color: LJ.textPrimary,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {place?.name || '장소'}
-            </div>
-            {place?.region && (
-              <div style={{ fontSize: 10, color: LJ.textSecondary, marginTop: 1 }}>
-                {place.region}
-              </div>
-            )}
+          <div
+            style={{
+              fontSize: 16,
+              fontWeight: 600,
+              color: LJ.textPrimary,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              minWidth: 0,
+            }}
+          >
+            {place?.name || '장소'}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -136,12 +128,6 @@ function PlaceDetailScreen() {
         </div>
       </header>
 
-      {/* 상태 박스 */}
-      <PlaceStatusBox
-        recentCount={place?.recentCount ?? 0}
-        hot={(place?.recentCount ?? 0) >= 5}
-      />
-
       {/* 베스트 컷 히어로 (있을 때만) */}
       {bestCut && (
         <BestCutHero
@@ -153,11 +139,6 @@ function PlaceDetailScreen() {
           helpedCount={bestCut.like_count + bestCut.save_count}
         />
       )}
-
-      {/* 카테고리 필터 */}
-      <div style={{ background: '#fff', marginTop: bestCut ? 8 : 0 }}>
-        <CategoryFilter selected={selectedCategory} onChange={setSelectedCategory} />
-      </div>
 
       {/* 사진 그리드 */}
       {loading && posts.length === 0 ? (
@@ -172,11 +153,7 @@ function PlaceDetailScreen() {
           사진을 불러오는 중...
         </div>
       ) : (
-        <PlacePhotoGrid
-          posts={gridPosts}
-          selectedCategory={selectedCategory}
-          onPhotoClick={(id) => navigate(`/post/${id}`)}
-        />
+        <PlacePhotoGrid posts={gridPosts} onPhotoClick={(id) => navigate(`/post/${id}`)} />
       )}
 
       {/* CTA */}

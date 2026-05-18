@@ -6,14 +6,10 @@ import { LJ, formatExifTime } from './tokens';
  * 장소 페이지 사진 그리드 (2열 정사각형).
  * - 좌상단 EXIF 시간 뱃지
  * - 클릭 → 게시물 상세
+ * - 카테고리 필터 의존 제거: 전달된 posts 그대로 모두 노출
  */
-export function PlacePhotoGrid({ posts = [], selectedCategory = 'all', onPhotoClick }) {
-  const filtered =
-    selectedCategory === 'all'
-      ? posts
-      : posts.filter((p) => p.category === selectedCategory);
-
-  if (filtered.length === 0) {
+export function PlacePhotoGrid({ posts = [], onPhotoClick }) {
+  if (!posts || posts.length === 0) {
     return (
       <div
         style={{
@@ -25,7 +21,7 @@ export function PlacePhotoGrid({ posts = [], selectedCategory = 'all', onPhotoCl
           lineHeight: 1.6,
         }}
       >
-        이 카테고리에 사진이 없어요.
+        아직 다른 사진이 없어요.
       </div>
     );
   }
@@ -37,10 +33,10 @@ export function PlacePhotoGrid({ posts = [], selectedCategory = 'all', onPhotoCl
           fontSize: 11,
           color: LJ.textSecondary,
           fontWeight: 600,
-          padding: '12px 0 8px',
+          padding: '14px 0 8px',
         }}
       >
-        최근 6시간 사진
+        이 장소의 다른 사진
       </div>
       <div
         style={{
@@ -49,7 +45,7 @@ export function PlacePhotoGrid({ posts = [], selectedCategory = 'all', onPhotoCl
           gap: 6,
         }}
       >
-        {filtered.map((p) => (
+        {posts.map((p) => (
           <button
             key={p.id}
             type="button"

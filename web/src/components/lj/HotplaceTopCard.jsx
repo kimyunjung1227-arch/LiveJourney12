@@ -2,20 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { IconFlame, IconTrendingUp } from '@tabler/icons-react';
 import { LJ } from './tokens';
 import { fetchPlaceDescription } from '../../api/placeDescription';
+import { cleanForTwoLines } from './textHelpers';
 
 const HEIGHT_BY_SIZE = { large: 220, medium: 180, small: 160 };
-
-/**
- * 멀티 문단 Gemini 응답을 2줄 클램프에 어울리게 정제.
- * - 줄바꿈을 공백으로 평탄화
- * - 너무 길면 약 140자에서 컷
- */
-function cleanForTwoLines(text) {
-  if (!text) return '';
-  const flat = String(text).replace(/\s+/g, ' ').trim();
-  if (flat.length <= 140) return flat;
-  return flat.slice(0, 138).trimEnd() + '…';
-}
 
 /**
  * 핫플 1~3위 강조 카드 (작성자 오버레이 없음 / 우하단 미리보기 썸네일).
@@ -47,7 +36,7 @@ export function HotplaceTopCard({
       regionHint: place.region || '',
     })
       .then((text) => {
-        if (!cancelled && text) setDesc(cleanForTwoLines(text));
+        if (!cancelled && text) setDesc(cleanForTwoLines(text, 140));
       })
       .catch(() => {});
     return () => {
