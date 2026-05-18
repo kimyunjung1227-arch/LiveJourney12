@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconSearch, IconArrowLeft, IconFlame } from '@tabler/icons-react';
+import { IconSearch, IconArrowLeft, IconFlame } from '@tabler/icons-react'; // IconFlame은 빈 상태에서만 사용
 import BottomNavigation from '../components/BottomNavigation';
 import { LJ } from '../components/lj/tokens';
 import HotplaceTopCard from '../components/lj/HotplaceTopCard';
@@ -92,24 +92,6 @@ function HotplaceScreen() {
           <IconSearch size={20} stroke={1.7} />
         </button>
       </header>
-
-      {/* 라이브 인디케이터 박스 */}
-      <div
-        style={{
-          margin: '4px 18px 14px',
-          padding: '12px 14px',
-          background: LJ.keyBgLight,
-          borderRadius: 10,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}
-      >
-        <IconFlame size={16} stroke={2} color={LJ.key} />
-        <span style={{ fontSize: 12, fontWeight: 600, color: LJ.keyTextDark }}>
-          최근 6시간 활동 · 각 장소의 베스트 컷
-        </span>
-      </div>
 
       {/* 1~3위 강조 카드 */}
       {loading && ranking.length === 0 ? (

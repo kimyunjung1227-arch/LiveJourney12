@@ -29,25 +29,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
           # 빌드/배포 단계에서 별도의 git 인증이 필요 없어 자격증명 영속화를 끈다.
-          # (작년부터 종종 보이던 "/usr/bin/git failed with exit code 128" 경고 차단)
+          # ("/usr/bin/git failed with exit code 128" 경고 차단)
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           # 루트에 npm workspaces가 잡혀 있어(web/는 호이스팅 대상) 루트 lockfile을 사용.
           cache-dependency-path: package-lock.json
 
-      - name: Install dependencies (workspaces root)
-        run: npm ci --workspaces --include-workspace-root --ignore-scripts
+      - name: Install dependencies (root — npm 7+가 workspaces 자동 설치)
+        run: npm ci
 
-      - name: Build
+      - name: Build (web workspace)
+        working-directory: ./web
         env:
           # 서브경로 필수: /LiveJourney12/
           VITE_BASE_URL: /${{ github.event.repository.name }}/
@@ -58,7 +59,7 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_ADMIN_EMAILS: ${{ secrets.VITE_ADMIN_EMAILS }}
-        run: npm run build --workspace=web
+        run: npm run build
 
       # 깊은 링크(직접 URL) 시 GitHub Pages가 404를 주므로 SPA 엔트리와 동일하게 맞춤
       - name: SPA 404 fallback (GitHub Pages)
