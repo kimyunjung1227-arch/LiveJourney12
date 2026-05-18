@@ -1,6 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconArrowLeft, IconFlame, IconChevronDown } from '@tabler/icons-react';
+import {
+  IconArrowLeft,
+  IconFlame,
+  IconChevronDown,
+  IconWorld,
+  IconMap,
+  IconHome,
+} from '@tabler/icons-react';
 import BottomNavigation from '../components/BottomNavigation';
 import { LJ } from '../components/lj/tokens';
 import HotplaceTopCard from '../components/lj/HotplaceTopCard';
@@ -23,16 +30,31 @@ const RANK_ICONS = ['flame', 'trending', null];
  * - 하단 "전체 보기" 버튼
  */
 const SCOPE_OPTIONS = [
-  { id: 'national', label: '전국' },
-  { id: 'region', label: '지역' },
-  { id: 'local', label: '동네' },
+  { id: 'national', label: '전국', icon: IconWorld },
+  { id: 'region', label: '지역', icon: IconMap },
+  { id: 'local', label: '동네', icon: IconHome },
 ];
 
 function HotplaceScreen() {
   const navigate = useNavigate();
   const [limit, setLimit] = useState(INITIAL);
   const [scope, setScope] = useState('national');
+  const [scopeOpen, setScopeOpen] = useState(false);
+  const scopeRef = useRef(null);
   const { ranking, loading } = useHotplaceRanking({ limit });
+
+  // 외부 클릭으로 드롭다운 닫기
+  useEffect(() => {
+    if (!scopeOpen) return;
+    const handler = (e) => {
+      if (scopeRef.current && !scopeRef.current.contains(e.target)) setScopeOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [scopeOpen]);
+
+  const currentScope = SCOPE_OPTIONS.find((o) => o.id === scope) || SCOPE_OPTIONS[0];
+  const CurrentIcon = currentScope.icon;
 
   const top3 = ranking.slice(0, 3);
   const rest = ranking.slice(3);
@@ -109,43 +131,105 @@ function HotplaceScreen() {
             실시간 핫플
           </h1>
 
-          {/* 우: 범위 필터 (전국 / 지역 / 동네) */}
-          <div
-            style={{
-              marginLeft: 'auto',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 2,
-              background: LJ.bgSurface,
-              borderRadius: 999,
-              padding: 3,
-            }}
-          >
-            {SCOPE_OPTIONS.map((opt) => {
-              const active = scope === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setScope(opt.id)}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: 999,
-                    border: 'none',
-                    background: active ? '#fff' : 'transparent',
-                    color: active ? LJ.key : LJ.textSecondary,
-                    fontFamily: LJ.fontStack,
-                    fontSize: 11.5,
-                    fontWeight: active ? 700 : 500,
-                    cursor: 'pointer',
-                    boxShadow: active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                    lineHeight: 1,
-                  }}
-                >
-                  {opt.label}
-                </button>
-              );
-            })}
+          {/* 우: 범위 필터 드롭다운 — 기본 "전국", 누르면 아래로 펼쳐짐 */}
+          <div ref={scopeRef} style={{ marginLeft: 'auto', position: 'relative' }}>
+            <button
+              type="button"
+              onClick={() => setScopeOpen((v) => !v)}
+              aria-haspopup="listbox"
+              aria-expanded={scopeOpen}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '6px 10px',
+                background: LJ.bgSurface,
+                border: 'none',
+                borderRadius: 999,
+                color: LJ.textPrimary,
+                fontFamily: LJ.fontStack,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                lineHeight: 1,
+              }}
+            >
+              <CurrentIcon size={13} stroke={1.8} color={LJ.textSecondary} />
+              <span>{currentScope.label}</span>
+              <IconChevronDown
+                size={13}
+                stroke={2}
+                color={LJ.textSecondary}
+                style={{
+                  transition: 'transform 150ms ease-out',
+                  transform: scopeOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                }}
+              />
+            </button>
+            {scopeOpen && (
+              <ul
+                role="listbox"
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  minWidth: 120,
+                  margin: 0,
+                  padding: 6,
+                  listStyle: 'none',
+                  background: '#fff',
+                  border: `1px solid ${LJ.borderLight}`,
+                  borderRadius: 10,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
+                  zIndex: 40,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                }}
+              >
+                {SCOPE_OPTIONS.map((opt) => {
+                  const Opt = opt.icon;
+                  const active = scope === opt.id;
+                  return (
+                    <li key={opt.id} role="option" aria-selected={active}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setScope(opt.id);
+                          setScopeOpen(false);
+                        }}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '8px 10px',
+                          background: active ? LJ.keyBgLight : 'transparent',
+                          border: 'none',
+                          borderRadius: 8,
+                          color: active ? LJ.keyTextDark : LJ.textPrimary,
+                          fontFamily: LJ.fontStack,
+                          fontSize: 12.5,
+                          fontWeight: active ? 700 : 500,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          lineHeight: 1.2,
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!active) e.currentTarget.style.background = LJ.bgSurface;
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!active) e.currentTarget.style.background = 'transparent';
+                        }}
+                      >
+                        <Opt size={14} stroke={1.8} color={active ? LJ.key : LJ.textSecondary} />
+                        {opt.label}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         </div>
       </header>
