@@ -39,14 +39,14 @@ function MainScreen() {
   return (
     <div
       style={{
-        background: LJ.bgSurface,
+        background: '#fff',
         minHeight: '100vh',
         fontFamily: LJ.fontStack,
         color: LJ.textPrimary,
         paddingBottom: 80,
       }}
     >
-      {/* 헤더 */}
+      {/* 헤더 (로고-카테고리 구분선 없음) */}
       <header
         style={{
           height: 56,
@@ -55,7 +55,6 @@ function MainScreen() {
           justifyContent: 'space-between',
           padding: '0 18px',
           background: '#fff',
-          borderBottom: `1px solid ${LJ.borderLight}`,
           position: 'sticky',
           top: 0,
           zIndex: 30,
@@ -83,7 +82,7 @@ function MainScreen() {
       </header>
 
       {/* 카테고리 필터 */}
-      <div style={{ background: '#fff', borderBottom: `1px solid ${LJ.borderLight}` }}>
+      <div style={{ background: '#fff' }}>
         <CategoryFilter selected={selectedCategory} onChange={setSelectedCategory} />
       </div>
 
@@ -102,7 +101,7 @@ function MainScreen() {
                 onToggleLike={toggleLike}
                 onToggleSave={toggleSave}
               />
-              <div style={{ height: 8, background: LJ.bgSurface }} />
+              <div style={{ height: 1, background: LJ.borderLight, margin: '0 18px' }} />
             </React.Fragment>
           ))}
 

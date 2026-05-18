@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { enrichWithAuthors } from './useHomeFeed';
 
 const POST_COLUMNS = `
   id,
@@ -16,8 +17,7 @@ const POST_COLUMNS = `
   like_count,
   comment_count,
   save_count,
-  created_at,
-  author:profiles!lj_posts_author_id_fkey ( id, nickname, avatar_url, helped_count )
+  created_at
 `;
 
 const COMMENT_COLUMNS = `
@@ -27,8 +27,7 @@ const COMMENT_COLUMNS = `
   author_id,
   body,
   like_count,
-  created_at,
-  author:profiles!lj_comments_author_id_fkey ( id, nickname, avatar_url )
+  created_at
 `;
 
 function buildCommentTree(rows) {
@@ -71,8 +70,11 @@ export function usePostDetail(postId) {
       if (postError) throw postError;
       if (commentError) throw commentError;
 
-      setPost(postRow || null);
-      setComments(buildCommentTree(commentRows || []));
+      const [enrichedPost] = await enrichWithAuthors(postRow ? [postRow] : []);
+      const enrichedComments = await enrichWithAuthors(commentRows || []);
+
+      setPost(enrichedPost || null);
+      setComments(buildCommentTree(enrichedComments));
     } catch (e) {
       setError(e);
       setPost(null);

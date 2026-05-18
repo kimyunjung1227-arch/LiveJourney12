@@ -3,6 +3,8 @@ import { supabase } from '../utils/supabaseClient';
 
 const PAGE_SIZE = 20;
 
+// profiles와의 embed는 FK 이름·존재 여부에 따라 404가 날 수 있어서
+// posts와 profiles를 두 단계로 나눠 가져온다.
 const SELECT_COLUMNS = `
   id,
   author_id,
@@ -18,14 +20,11 @@ const SELECT_COLUMNS = `
   like_count,
   comment_count,
   save_count,
-  created_at,
-  author:profiles!lj_posts_author_id_fkey ( id, nickname, avatar_url, helped_count )
+  created_at
 `;
 
 /**
  * 홈 피드 — 실제 Supabase 데이터만, 무한 스크롤 페이지네이션.
- * - 48시간 룰: expires_at > now() 인 게시물만 노출
- * - cursor: created_at (desc) 로 다음 페이지 fetch
  */
 export function useHomeFeed(selectedCategory = 'all') {
   const [posts, setPosts] = useState([]);
@@ -66,10 +65,12 @@ export function useHomeFeed(selectedCategory = 'all') {
         if (feedError) throw feedError;
 
         const next = rows || [];
+        const enriched = await enrichWithAuthors(next);
+
         if (next.length > 0) cursorRef.current = next[next.length - 1].created_at;
         if (next.length < PAGE_SIZE) setHasMore(false);
 
-        setPosts((prev) => (reset ? next : [...prev, ...next]));
+        setPosts((prev) => (reset ? enriched : [...prev, ...enriched]));
       } catch (e) {
         setError(e);
         if (reset) setPosts([]);
@@ -81,7 +82,6 @@ export function useHomeFeed(selectedCategory = 'all') {
     [selectedCategory, hasMore]
   );
 
-  // 카테고리 변경 시 reset
   useEffect(() => {
     fetchPage({ reset: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -102,4 +102,36 @@ export function useHomeFeed(selectedCategory = 'all') {
     refresh: () => fetchPage({ reset: true }),
     loadMore,
   };
+}
+
+/**
+ * 작성자 정보를 별도 쿼리로 붙인다.
+ * profiles 테이블·컬럼이 없으면 조용히 비워둔다.
+ */
+export async function enrichWithAuthors(rows) {
+  if (!rows || rows.length === 0) return rows || [];
+  const authorIds = Array.from(new Set(rows.map((r) => r.author_id).filter(Boolean)));
+  if (authorIds.length === 0) return rows;
+
+  let map = new Map();
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, nickname, avatar_url')
+      .in('id', authorIds);
+    if (!error && Array.isArray(data)) {
+      data.forEach((p) => map.set(p.id, p));
+    }
+  } catch (_) {
+    // profiles 테이블 누락 등 — 작성자 정보 없이 진행
+  }
+
+  return rows.map((r) => ({
+    ...r,
+    author: map.get(r.author_id) || {
+      id: r.author_id,
+      nickname: '익명',
+      avatar_url: null,
+    },
+  }));
 }

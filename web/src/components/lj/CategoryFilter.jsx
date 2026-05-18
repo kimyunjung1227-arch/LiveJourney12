@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { IconPlus } from '@tabler/icons-react';
-import { LJ, LJ_CATEGORIES } from './tokens';
 import {
+  IconPlus,
+  IconChevronLeft,
   IconFlower,
   IconCloud,
   IconCalendarEvent,
@@ -9,6 +9,7 @@ import {
   IconMoon,
   IconBuildingStore,
 } from '@tabler/icons-react';
+import { LJ, LJ_CATEGORIES } from './tokens';
 
 const ICONS = {
   IconFlower,
@@ -23,124 +24,57 @@ const VISIBLE = 3;
 
 /**
  * 카테고리 필터.
- * - 가로 스크롤 가능
- * - 기본은 "전체" + 첫 3개 카테고리 + "+N" 버튼
- * - "+N" 버튼 클릭 시 나머지 카테고리가 팝오버로 노출 (선택하면 칩 행에 합류)
+ * - 가로 스크롤
+ * - 기본은 "전체" + 첫 3개 + "+N" 칩
+ * - "+N" 클릭 시 같은 행에 나머지 칩을 가로로 펼친다 (드롭다운 없음).
+ *   펼친 뒤에는 < 화살표로 다시 접을 수 있다.
  */
 export function CategoryFilter({ selected = 'all', onChange = () => {} }) {
-  const [open, setOpen] = useState(false);
-  const popoverRef = useRef(null);
+  const [expanded, setExpanded] = useState(false);
+  const scrollRef = useRef(null);
 
-  // 화면에 항상 보이는 칩: 기본 첫 3개 + 사용자가 선택한 게 그 밖에 있으면 그 칩도 추가
-  const baseVisible = LJ_CATEGORIES.slice(0, VISIBLE).map((c) => c.id);
-  const selectedExtra =
-    selected !== 'all' && !baseVisible.includes(selected) ? [selected] : [];
-  const visibleIds = [...baseVisible, ...selectedExtra];
-  const visible = LJ_CATEGORIES.filter((c) => visibleIds.includes(c.id));
-  const hidden = LJ_CATEGORIES.filter((c) => !visibleIds.includes(c.id));
-
+  // 선택된 카테고리가 숨겨진 그룹에 있으면 칩이 보이도록 자동 펼침
   useEffect(() => {
-    if (!open) return;
-    const handler = (e) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
+    if (selected === 'all') return;
+    const baseIds = LJ_CATEGORIES.slice(0, VISIBLE).map((c) => c.id);
+    if (!baseIds.includes(selected)) setExpanded(true);
+  }, [selected]);
+
+  const visibleList = expanded ? LJ_CATEGORIES : LJ_CATEGORIES.slice(0, VISIBLE);
+  const hiddenCount = LJ_CATEGORIES.length - VISIBLE;
 
   return (
-    <div style={{ position: 'relative' }}>
-      <div
-        className="lj-no-scrollbar"
-        style={{
-          display: 'flex',
-          gap: 8,
-          overflowX: 'auto',
-          padding: '12px 18px',
-          scrollbarWidth: 'none',
-          WebkitOverflowScrolling: 'touch',
-        }}
-      >
-        <Chip label="전체" active={selected === 'all'} onClick={() => onChange('all')} />
-        {visible.map((c) => {
-          const Icon = ICONS[c.iconName];
-          return (
-            <Chip
-              key={c.id}
-              icon={Icon ? <Icon size={14} stroke={1.8} /> : null}
-              label={c.label}
-              active={selected === c.id}
-              onClick={() => onChange(c.id)}
-            />
-          );
-        })}
-        {hidden.length > 0 && (
-          <PlusChip
-            count={hidden.length}
-            active={open}
-            onClick={() => setOpen((v) => !v)}
+    <div
+      ref={scrollRef}
+      className="lj-no-scrollbar"
+      style={{
+        display: 'flex',
+        gap: 8,
+        overflowX: 'auto',
+        padding: '12px 18px',
+        scrollbarWidth: 'none',
+        WebkitOverflowScrolling: 'touch',
+      }}
+    >
+      <Chip label="전체" active={selected === 'all'} onClick={() => onChange('all')} />
+      {visibleList.map((c) => {
+        const Icon = ICONS[c.iconName];
+        return (
+          <Chip
+            key={c.id}
+            icon={Icon ? <Icon size={14} stroke={1.8} /> : null}
+            label={c.label}
+            active={selected === c.id}
+            onClick={() => onChange(c.id)}
           />
-        )}
-      </div>
-
-      {open && hidden.length > 0 && (
-        <div
-          ref={popoverRef}
-          role="menu"
-          style={{
-            position: 'absolute',
-            top: 'calc(100% - 6px)',
-            right: 14,
-            background: '#fff',
-            border: `1px solid ${LJ.borderLight}`,
-            borderRadius: 12,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
-            padding: 6,
-            zIndex: 25,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2,
-            minWidth: 160,
-          }}
-        >
-          {hidden.map((c) => {
-            const Icon = ICONS[c.iconName];
-            return (
-              <button
-                key={c.id}
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onChange(c.id);
-                  setOpen(false);
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '9px 12px',
-                  background: 'transparent',
-                  border: 'none',
-                  borderRadius: 8,
-                  color: LJ.textPrimary,
-                  fontFamily: LJ.fontStack,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = LJ.bgSurface)}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-              >
-                {Icon ? <Icon size={15} stroke={1.8} /> : null}
-                {c.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
+        );
+      })}
+      {hiddenCount > 0 &&
+        (expanded ? (
+          <CollapseChip onClick={() => setExpanded(false)} />
+        ) : (
+          <PlusChip count={hiddenCount} onClick={() => setExpanded(true)} />
+        ))}
     </div>
   );
 }
@@ -174,13 +108,12 @@ function Chip({ icon, label, active, onClick }) {
   );
 }
 
-function PlusChip({ count, active, onClick }) {
+function PlusChip({ count, onClick }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label="카테고리 더보기"
-      aria-expanded={active}
       style={{
         flexShrink: 0,
         display: 'inline-flex',
@@ -189,7 +122,7 @@ function PlusChip({ count, active, onClick }) {
         padding: '7px 10px',
         borderRadius: 999,
         border: `1px solid ${LJ.borderLight}`,
-        background: active ? LJ.bgSurface : '#fff',
+        background: '#fff',
         color: LJ.textSecondary,
         fontFamily: LJ.fontStack,
         fontSize: 12,
@@ -201,6 +134,32 @@ function PlusChip({ count, active, onClick }) {
     >
       <IconPlus size={13} stroke={2} />
       {count}
+    </button>
+  );
+}
+
+function CollapseChip({ onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="카테고리 접기"
+      style={{
+        flexShrink: 0,
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '7px 10px',
+        borderRadius: 999,
+        border: `1px solid ${LJ.borderLight}`,
+        background: LJ.bgSurface,
+        color: LJ.textSecondary,
+        fontFamily: LJ.fontStack,
+        fontSize: 12,
+        fontWeight: 600,
+        cursor: 'pointer',
+      }}
+    >
+      <IconChevronLeft size={14} stroke={2} />
     </button>
   );
 }
