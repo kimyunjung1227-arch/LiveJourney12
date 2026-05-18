@@ -141,20 +141,19 @@ function HotplaceScreen() {
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 5,
-                padding: '6px 10px',
-                background: LJ.bgSurface,
+                gap: 4,
+                padding: '6px 4px',
+                background: 'transparent',
                 border: 'none',
-                borderRadius: 999,
                 color: LJ.textPrimary,
                 fontFamily: LJ.fontStack,
-                fontSize: 12,
+                fontSize: 12.5,
                 fontWeight: 600,
                 cursor: 'pointer',
                 lineHeight: 1,
               }}
             >
-              <CurrentIcon size={13} stroke={1.8} color={LJ.textSecondary} />
+              <CurrentIcon size={14} stroke={1.7} color={LJ.textSecondary} />
               <span>{currentScope.label}</span>
               <IconChevronDown
                 size={13}
