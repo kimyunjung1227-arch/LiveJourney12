@@ -5,9 +5,9 @@ import {
   IconMapPin,
   IconHeart,
   IconHeartFilled,
-  IconMessage,
-  IconBookmark,
-  IconBookmarkFilled,
+  IconMessageCircle,
+  IconBookmarks,
+  IconBookmarksFilled,
 } from '@tabler/icons-react';
 import { LJ, categoryLabel, formatExifTime, formatRemaining } from './tokens';
 import MoreMenuDropdown from './MoreMenuDropdown';
@@ -217,7 +217,7 @@ export function PostCard({
       {/* 본문 (4줄 클램프) */}
       {post.body && <ClampedBody text={post.body} />}
 
-      {/* 반응 줄 (구분선 없음) */}
+      {/* 반응 줄 — 좋아요/댓글은 좌측, 저장+점세개는 우측 */}
       <div
         style={{
           display: 'flex',
@@ -245,16 +245,18 @@ export function PostCard({
           />
           <ReactionButton
             active={false}
-            iconOff={<MessageRightTail size={19} />}
-            iconOn={<MessageRightTail size={19} />}
+            iconOff={<IconMessageCircle size={19} stroke={1.8} />}
+            iconOn={<IconMessageCircle size={19} stroke={1.8} />}
             count={commentCount}
             onClick={goPostDetail}
             ariaLabel="댓글"
           />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <ReactionButton
             active={saved}
-            iconOff={<IconBookmark size={19} stroke={1.8} />}
-            iconOn={<IconBookmarkFilled size={19} />}
+            iconOff={<IconBookmarks size={19} stroke={1.8} />}
+            iconOn={<IconBookmarksFilled size={19} />}
             count={saveCount}
             onClick={(e) => {
               e.stopPropagation();
@@ -262,25 +264,14 @@ export function PostCard({
             }}
             ariaLabel="저장"
           />
+          <MoreMenuDropdown postId={post.id} onShare={handleShare} onReport={handleReport} />
         </div>
-        <MoreMenuDropdown postId={post.id} onShare={handleShare} onReport={handleReport} />
       </div>
 
       {showReport && (
         <ReportModal postId={post.id} onClose={() => setShowReport(false)} />
       )}
     </article>
-  );
-}
-
-/**
- * 댓글 아이콘 — 기본 IconMessage(꼬리 좌하단)를 좌우 반전해서 꼬리를 우측으로.
- */
-function MessageRightTail({ size = 19 }) {
-  return (
-    <span style={{ display: 'inline-flex', transform: 'scaleX(-1)' }}>
-      <IconMessage size={size} stroke={1.8} />
-    </span>
   );
 }
 
