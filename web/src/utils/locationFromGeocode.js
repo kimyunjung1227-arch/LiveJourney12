@@ -117,37 +117,174 @@ export async function resolveDisplayLocationFromKakaoCoordResult(firstResult, ln
 }
 
 /**
- * 좌표 → 사람이 읽는 장소명을 한 번에 만든다.
- * 1) 카카오 REST category.json으로 근처 POI(공원·관광지 등) 우선
- * 2) 없으면 coord2address.json으로 행정구역 (시·군·구 + 동) 폴백
- * 3) 둘 다 실패하면 빈 문자열 반환 (호출자가 좌표 표시로 폴백)
+ * 카카오 JS SDK가 services 라이브러리와 함께 준비될 때까지 대기.
+ * index.html에 sdk.js?...&libraries=services 가 이미 주입돼 있어 보통은 즉시 resolve.
+ */
+function waitForKakaoServices(timeoutMs = 6000) {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined') return reject(new Error('no-window'));
+    const isReady = () =>
+      !!(window.kakao && window.kakao.maps && window.kakao.maps.services);
+
+    const tryLoad = () => {
+      if (isReady()) return resolve(window.kakao);
+      if (window.kakao?.maps?.load) {
+        try {
+          window.kakao.maps.load(() => {
+            isReady() ? resolve(window.kakao) : reject(new Error('services-missing'));
+          });
+          return true;
+        } catch (_) {
+          /* fall through */
+        }
+      }
+      return false;
+    };
+
+    if (tryLoad()) return;
+
+    const start = Date.now();
+    const id = setInterval(() => {
+      if (isReady()) {
+        clearInterval(id);
+        return resolve(window.kakao);
+      }
+      if (tryLoad()) {
+        clearInterval(id);
+        return;
+      }
+      if (Date.now() - start > timeoutMs) {
+        clearInterval(id);
+        reject(new Error('sdk-timeout'));
+      }
+    }, 200);
+  });
+}
+
+/**
+ * JS SDK 기반 POI 검색 (REST 키 불필요 — JS SDK 키만으로 동작).
+ * 거리 정렬, 카테고리 단계별 시도.
+ */
+async function findNearestPlaceNameViaSdk(lat, lng) {
+  let kakao;
+  try {
+    kakao = await waitForKakaoServices();
+  } catch (_) {
+    return '';
+  }
+
+  const CATEGORIES = ['AT4', 'PK6', 'CT1', 'SW8', 'CE7', 'FD6'];
+  const RADII = [350, 900, 2000, 4500];
+
+  const places = new kakao.maps.services.Places();
+  const LatLng = kakao.maps.LatLng;
+  const Status = kakao.maps.services.Status;
+  const SortBy = kakao.maps.services.SortBy;
+
+  for (const radius of RADII) {
+    const batches = await Promise.all(
+      CATEGORIES.map(
+        (code) =>
+          new Promise((resolve) => {
+            try {
+              places.categorySearch(
+                code,
+                (data, status) => {
+                  if (status === Status.OK && Array.isArray(data) && data.length > 0) {
+                    resolve(data);
+                  } else {
+                    resolve([]);
+                  }
+                },
+                { location: new LatLng(lat, lng), radius, sort: SortBy.DISTANCE }
+              );
+            } catch (_) {
+              resolve([]);
+            }
+          })
+      )
+    );
+    const scored = batches
+      .flat()
+      .map((doc) => ({
+        name: String(doc?.place_name || '').trim(),
+        dist: parseInt(String(doc?.distance ?? '999999'), 10) || 999999,
+      }))
+      .filter((x) => x.name);
+    if (scored.length > 0) {
+      scored.sort((a, b) => a.dist - b.dist);
+      return scored[0].name;
+    }
+  }
+  return '';
+}
+
+/** JS SDK Geocoder로 행정주소 (시/군/구 + 동 또는 건물명). */
+async function findAddressViaSdk(lat, lng) {
+  let kakao;
+  try {
+    kakao = await waitForKakaoServices();
+  } catch (_) {
+    return '';
+  }
+  const Status = kakao.maps.services.Status;
+  const geocoder = new kakao.maps.services.Geocoder();
+  return await new Promise((resolve) => {
+    try {
+      geocoder.coord2Address(lng, lat, (data, status) => {
+        if (status !== Status.OK || !Array.isArray(data) || data.length === 0) {
+          return resolve('');
+        }
+        try {
+          resolve(resolveDisplayLocationFromKakaoCoordResult(data[0], lng, lat) || '');
+        } catch (_) {
+          resolve('');
+        }
+      });
+    } catch (_) {
+      resolve('');
+    }
+  });
+}
+
+/**
+ * 좌표 → 사람이 읽는 장소명.
+ * 1) 카카오 JS SDK Places.categorySearch (POI: 석촌호수·여의도한강공원 등)
+ * 2) JS SDK Geocoder.coord2Address (건물명 또는 시·군·구 + 동)
+ * 3) (백업) REST API — 키 있으면. 없으면 스킵.
  *
- * @param {number} lat
- * @param {number} lng
  * @returns {Promise<string>}
  */
 export async function reverseGeocodeToPlace(lat, lng) {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return '';
 
-  // 1) POI 우선 — fetchNearbyPlaceName(lng, lat) 시그니처에 주의
+  // 1) JS SDK POI
   try {
-    const poi = await fetchNearbyPlaceName(lng, lat);
+    const poi = await findNearestPlaceNameViaSdk(lat, lng);
     if (poi) return poi;
   } catch (_) {
     /* ignore */
   }
 
-  // 2) 행정주소 폴백
-  const key =
+  // 2) JS SDK 행정주소
+  try {
+    const addr = await findAddressViaSdk(lat, lng);
+    if (addr) return addr;
+  } catch (_) {
+    /* ignore */
+  }
+
+  // 3) (백업) REST API — 키 있을 때만
+  const restKey =
     typeof import.meta !== 'undefined' && import.meta.env?.VITE_KAKAO_REST_API_KEY
       ? String(import.meta.env.VITE_KAKAO_REST_API_KEY).trim()
       : '';
-  if (!key) return '';
+  if (!restKey) return '';
   try {
     const url =
       `https://dapi.kakao.com/v2/local/geo/coord2address.json?` +
       new URLSearchParams({ x: String(lng), y: String(lat) }).toString();
-    const res = await fetch(url, { headers: { Authorization: `KakaoAK ${key}` } });
+    const res = await fetch(url, { headers: { Authorization: `KakaoAK ${restKey}` } });
     if (!res.ok) return '';
     const data = await res.json();
     const first = Array.isArray(data?.documents) ? data.documents[0] : null;
