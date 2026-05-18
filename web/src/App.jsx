@@ -134,13 +134,17 @@ function App() {
               }
             >
               <Routes>
-                {/* 1. 스플래시 → 2. 온보딩 → 3. 로그인(StartScreen) */}
-                <Route path="/" element={<WelcomeScreen />} />
+                {/* HomeScreen이 진입점 (스펙: / → HomeScreen) */}
+                <Route path="/" element={<MainScreen />} />
+                <Route path="/welcome" element={<WelcomeScreen />} />
                 <Route path="/onboarding" element={<OnboardingScreen />} />
                 <Route path="/start" element={<StartScreen />} />
                 <Route path="/auth/callback" element={<AuthCallbackScreen />} />
                 {/* 로그인 없이도 접근 가능한 페이지 */}
                 <Route path="/main" element={<MainScreen />} />
+                {/* place/photo는 다음 단계 — 임시로 홈으로 리다이렉트 */}
+                <Route path="/place/:placeId" element={<Navigate to="/" replace />} />
+                <Route path="/photo/:id" element={<Navigate to="/" replace />} />
                 <Route path="/magazine" element={<MagazineListScreen />} />
                 <Route path="/magazines" element={<MagazineCollectionScreen />} />
                 <Route
