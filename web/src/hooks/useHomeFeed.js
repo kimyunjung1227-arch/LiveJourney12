@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { LJ_MOCK_POSTS, LJ_MOCK_LIVE_COUNT } from '../data/ljMockFeed';
+
+const PAGE_SIZE = 20;
 
 const SELECT_COLUMNS = `
   id,
@@ -22,69 +23,83 @@ const SELECT_COLUMNS = `
 `;
 
 /**
- * 홈 피드 데이터를 가져온다.
- * - 카테고리 'all'은 전체, 그 외는 lj_category 값으로 필터링.
- * - 48시간 룰: expires_at > now() 인 게시물만 노출.
- * - Supabase가 비어있으면 mock 폴백으로 UI가 항상 보이도록 함.
+ * 홈 피드 — 실제 Supabase 데이터만, 무한 스크롤 페이지네이션.
+ * - 48시간 룰: expires_at > now() 인 게시물만 노출
+ * - cursor: created_at (desc) 로 다음 페이지 fetch
  */
 export function useHomeFeed(selectedCategory = 'all') {
   const [posts, setPosts] = useState([]);
-  const [liveCount, setLiveCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState(null);
+  const cursorRef = useRef(null);
 
-  const fetchFeed = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      let query = supabase
-        .from('lj_posts')
-        .select(SELECT_COLUMNS)
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false })
-        .limit(40);
-
-      if (selectedCategory && selectedCategory !== 'all') {
-        query = query.eq('category', selectedCategory);
-      }
-
-      const [{ data: rows, error: feedError }, { data: countRow, error: countError }] =
-        await Promise.all([
-          query,
-          supabase.from('lj_live_count').select('live_count').maybeSingle(),
-        ]);
-
-      if (feedError) throw feedError;
-      if (countError) throw countError;
-
-      if (!rows || rows.length === 0) {
-        const filtered =
-          selectedCategory === 'all'
-            ? LJ_MOCK_POSTS
-            : LJ_MOCK_POSTS.filter((p) => p.category === selectedCategory);
-        setPosts(filtered);
-        setLiveCount(LJ_MOCK_LIVE_COUNT);
+  const fetchPage = useCallback(
+    async ({ reset = false } = {}) => {
+      if (reset) {
+        setLoading(true);
+        cursorRef.current = null;
+        setHasMore(true);
       } else {
-        setPosts(rows);
-        setLiveCount(countRow?.live_count ?? rows.length);
+        if (!hasMore) return;
+        setLoadingMore(true);
       }
-    } catch (e) {
-      const filtered =
-        selectedCategory === 'all'
-          ? LJ_MOCK_POSTS
-          : LJ_MOCK_POSTS.filter((p) => p.category === selectedCategory);
-      setPosts(filtered);
-      setLiveCount(LJ_MOCK_LIVE_COUNT);
-      setError(e);
-    } finally {
-      setLoading(false);
-    }
+      setError(null);
+
+      try {
+        let query = supabase
+          .from('lj_posts')
+          .select(SELECT_COLUMNS)
+          .gt('expires_at', new Date().toISOString())
+          .order('created_at', { ascending: false })
+          .limit(PAGE_SIZE);
+
+        if (selectedCategory && selectedCategory !== 'all') {
+          query = query.eq('category', selectedCategory);
+        }
+        if (cursorRef.current) {
+          query = query.lt('created_at', cursorRef.current);
+        }
+
+        const { data: rows, error: feedError } = await query;
+        if (feedError) throw feedError;
+
+        const next = rows || [];
+        if (next.length > 0) cursorRef.current = next[next.length - 1].created_at;
+        if (next.length < PAGE_SIZE) setHasMore(false);
+
+        setPosts((prev) => (reset ? next : [...prev, ...next]));
+      } catch (e) {
+        setError(e);
+        if (reset) setPosts([]);
+      } finally {
+        if (reset) setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [selectedCategory, hasMore]
+  );
+
+  // 카테고리 변경 시 reset
+  useEffect(() => {
+    fetchPage({ reset: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory]);
 
-  useEffect(() => {
-    fetchFeed();
-  }, [fetchFeed]);
+  const loadMore = useCallback(() => {
+    if (!loadingMore && hasMore && !loading) {
+      fetchPage({ reset: false });
+    }
+  }, [fetchPage, hasMore, loading, loadingMore]);
 
-  return { posts, liveCount, loading, error, refresh: fetchFeed };
+  return {
+    posts,
+    loading,
+    loadingMore,
+    hasMore,
+    error,
+    refresh: () => fetchPage({ reset: true }),
+    loadMore,
+  };
 }

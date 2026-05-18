@@ -38,9 +38,12 @@ export function CommentItem({
         style={{
           width: avatarSize,
           height: avatarSize,
+          minWidth: avatarSize,
+          minHeight: avatarSize,
+          flexShrink: 0,
+          aspectRatio: '1 / 1',
           borderRadius: '50%',
           background: LJ.key,
-          flexShrink: 0,
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -51,7 +54,11 @@ export function CommentItem({
         }}
       >
         {author.avatar_url ? (
-          <img src={author.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img
+            src={author.avatar_url}
+            alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
         ) : (
           initial
         )}

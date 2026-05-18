@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconSearch, IconBell } from '@tabler/icons-react';
+import { IconSearch, IconBell, IconCamera } from '@tabler/icons-react';
 import BottomNavigation from '../components/BottomNavigation';
 import { LJ } from '../components/lj/tokens';
 import CategoryFilter from '../components/lj/CategoryFilter';
@@ -9,14 +9,32 @@ import { useHomeFeed } from '../hooks/useHomeFeed';
 import { useReactions } from '../hooks/useReactions';
 
 /**
- * HomeScreen (라우트: /main, / 도 동일하게 매핑).
- * 스펙: 헤더 → 라이브 인디케이터 → 카테고리 필터 → PostCard 피드.
+ * HomeScreen (라우트: /, /main).
+ * - 헤더 + 카테고리 필터 + 무한 스크롤 피드.
+ * - 라이브 카운트 박스는 사용자 요청으로 제거.
  */
 function MainScreen() {
   const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const { posts, liveCount, loading } = useHomeFeed(selectedCategory);
+  const { posts, loading, loadingMore, hasMore, loadMore } = useHomeFeed(selectedCategory);
   const { state, toggleLike, toggleSave } = useReactions(posts);
+
+  // 무한 스크롤 sentinel
+  const sentinelRef = useRef(null);
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+    const el = sentinelRef.current;
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) loadMore();
+        });
+      },
+      { rootMargin: '400px 0px' }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [loadMore]);
 
   return (
     <div
@@ -64,31 +82,6 @@ function MainScreen() {
         </div>
       </header>
 
-      {/* 라이브 인디케이터 */}
-      <div
-        style={{
-          background: LJ.keyBgLight,
-          padding: '14px 18px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}
-      >
-        <span
-          style={{
-            width: 7,
-            height: 7,
-            borderRadius: '50%',
-            background: LJ.key,
-            boxShadow: '0 0 0 4px rgba(77, 184, 232, 0.2)',
-            display: 'inline-block',
-          }}
-        />
-        <span style={{ color: LJ.keyTextDark, fontSize: 13, fontWeight: 600 }}>
-          지금 {liveCount}장 라이브
-        </span>
-      </div>
-
       {/* 카테고리 필터 */}
       <div style={{ background: '#fff', borderBottom: `1px solid ${LJ.borderLight}` }}>
         <CategoryFilter selected={selectedCategory} onChange={setSelectedCategory} />
@@ -98,7 +91,7 @@ function MainScreen() {
       {loading && posts.length === 0 ? (
         <FeedSkeleton />
       ) : posts.length === 0 ? (
-        <EmptyFeed />
+        <EmptyFeed onUpload={() => navigate('/upload')} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           {posts.map((post) => (
@@ -112,6 +105,34 @@ function MainScreen() {
               <div style={{ height: 8, background: LJ.bgSurface }} />
             </React.Fragment>
           ))}
+
+          {/* 무한 스크롤 sentinel */}
+          <div ref={sentinelRef} style={{ height: 1 }} />
+
+          {loadingMore && (
+            <div
+              style={{
+                padding: '20px 0',
+                textAlign: 'center',
+                color: LJ.textSecondary,
+                fontSize: 12,
+              }}
+            >
+              불러오는 중...
+            </div>
+          )}
+          {!hasMore && (
+            <div
+              style={{
+                padding: '24px 0 16px',
+                textAlign: 'center',
+                color: LJ.textTertiary,
+                fontSize: 11,
+              }}
+            >
+              여기까지 라이브 사진을 모두 봤어요
+            </div>
+          )}
         </div>
       )}
 
@@ -186,20 +207,67 @@ function FeedSkeleton() {
   );
 }
 
-function EmptyFeed() {
+function EmptyFeed({ onUpload }) {
   return (
     <div
       style={{
-        padding: '64px 24px',
+        padding: '72px 24px',
         textAlign: 'center',
         color: LJ.textSecondary,
-        fontSize: 14,
-        lineHeight: 1.6,
+        fontFamily: LJ.fontStack,
       }}
     >
-      지금 이 카테고리에 라이브 사진이 없어요.
-      <br />
-      당신의 한 장이 누군가에게 닿을 거예요.
+      <div
+        style={{
+          width: 72,
+          height: 72,
+          borderRadius: '50%',
+          background: LJ.keyBgLight,
+          margin: '0 auto 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: LJ.key,
+        }}
+      >
+        <IconCamera size={28} stroke={1.8} />
+      </div>
+      <p
+        style={{
+          margin: 0,
+          color: LJ.textPrimary,
+          fontSize: 16,
+          fontWeight: 700,
+          lineHeight: 1.4,
+        }}
+      >
+        첫 한 장이
+        <br />
+        라이브저니의 시작
+      </p>
+      <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.6 }}>
+        지금 있는 곳을 사진으로 남기면
+        <br />
+        같은 곳을 궁금해하는 누군가에게 닿아요
+      </p>
+      <button
+        type="button"
+        onClick={onUpload}
+        style={{
+          marginTop: 18,
+          padding: '12px 20px',
+          background: LJ.key,
+          color: '#fff',
+          border: 'none',
+          borderRadius: 12,
+          fontFamily: LJ.fontStack,
+          fontSize: 14,
+          fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >
+        사진 한 장 올리기
+      </button>
     </div>
   );
 }

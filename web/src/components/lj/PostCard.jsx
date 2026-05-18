@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   IconShieldCheck,
@@ -12,11 +12,13 @@ import {
 import { LJ, categoryLabel, formatExifTime, formatRemaining } from './tokens';
 import MoreMenuDropdown from './MoreMenuDropdown';
 
+const BODY_PREVIEW_LINES = 4;
+
 /**
- * 홈 피드 일반 게시물 카드.
- * - 사진 위 EXIF 뱃지 + 카테고리 뱃지
- * - 작성자 + 지금 현장 뱃지
- * - 본문 + 반응 줄 (좋아요/댓글/저장 + 점 세개)
+ * 홈 피드 게시물 카드.
+ * - 사진 280px (스펙)
+ * - 본문은 4줄까지 노출, 넘치면 끝에 "…" 더보기 토글
+ * - 아바타는 원형 고정 (flexShrink:0 + aspectRatio:1)
  */
 export function PostCard({
   post,
@@ -121,32 +123,7 @@ export function PostCard({
 
       {/* 작성자 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
-        <button
-          type="button"
-          onClick={goAuthor}
-          aria-label={`${author.nickname || '작성자'} 프로필`}
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: '50%',
-            background: LJ.key,
-            border: 'none',
-            cursor: 'pointer',
-            color: '#fff',
-            fontWeight: 700,
-            fontSize: 12,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden',
-          }}
-        >
-          {author.avatar_url ? (
-            <img src={author.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          ) : (
-            (author.nickname || '?').slice(0, 1)
-          )}
-        </button>
+        <Avatar nickname={author.nickname} avatarUrl={author.avatar_url} size={30} onClick={goAuthor} />
         <button
           type="button"
           onClick={goAuthor}
@@ -197,20 +174,8 @@ export function PostCard({
         <span>{formatRemaining(post.expires_at)}</span>
       </div>
 
-      {/* 본문 */}
-      {post.body && (
-        <p
-          style={{
-            marginTop: 10,
-            marginBottom: 0,
-            fontSize: 14,
-            lineHeight: 1.6,
-            color: LJ.textPrimary,
-          }}
-        >
-          {post.body}
-        </p>
-      )}
+      {/* 본문 (4줄 클램프 + 더보기) */}
+      {post.body && <ClampedBody text={post.body} />}
 
       {/* 반응 줄 */}
       <div
@@ -261,6 +226,113 @@ export function PostCard({
   );
 }
 
+/**
+ * 4줄까지만 표시. 넘치면 텍스트 끝에 "…" 그리고 줄바꿈 후 "더보기" 버튼.
+ * 펼친 뒤에는 "접기"로 토글.
+ */
+function ClampedBody({ text }) {
+  const [expanded, setExpanded] = useState(false);
+  const [isOverflow, setIsOverflow] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    // line-clamp이 적용된 상태에서 scrollHeight > clientHeight면 잘림
+    setIsOverflow(ref.current.scrollHeight - 1 > ref.current.clientHeight);
+  }, [text]);
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      <p
+        ref={ref}
+        style={{
+          margin: 0,
+          fontSize: 14,
+          lineHeight: 1.6,
+          color: LJ.textPrimary,
+          display: expanded ? 'block' : '-webkit-box',
+          WebkitLineClamp: expanded ? 'unset' : BODY_PREVIEW_LINES,
+          WebkitBoxOrient: 'vertical',
+          overflow: expanded ? 'visible' : 'hidden',
+          wordBreak: 'break-word',
+        }}
+      >
+        {text}
+      </p>
+      {isOverflow && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded((v) => !v);
+          }}
+          aria-label={expanded ? '본문 접기' : '본문 더보기'}
+          style={{
+            marginTop: 4,
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            color: LJ.textSecondary,
+            fontFamily: LJ.fontStack,
+            fontSize: 13,
+            fontWeight: 600,
+            letterSpacing: 1,
+          }}
+        >
+          {expanded ? '접기' : '…  더보기'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Avatar({ nickname, avatarUrl, size = 30, onClick }) {
+  const initial = (nickname || '?').slice(0, 1);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`${nickname || '작성자'} 프로필`}
+      style={{
+        width: size,
+        height: size,
+        minWidth: size,
+        minHeight: size,
+        flexShrink: 0,
+        aspectRatio: '1 / 1',
+        borderRadius: '50%',
+        background: LJ.key,
+        border: 'none',
+        cursor: 'pointer',
+        color: '#fff',
+        fontWeight: 700,
+        fontSize: size * 0.42,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+        padding: 0,
+      }}
+    >
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt=""
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            display: 'block',
+          }}
+        />
+      ) : (
+        initial
+      )}
+    </button>
+  );
+}
+
 function ReactionButton({ active, iconOff, iconOn, count, onClick, ariaLabel }) {
   return (
     <button
@@ -300,6 +372,7 @@ function OnSiteBadge() {
         fontSize: 11,
         fontWeight: 600,
         color: LJ.keyTextDark,
+        flexShrink: 0,
       }}
     >
       <span

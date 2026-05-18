@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { LJ_MOCK_POSTS, LJ_MOCK_COMMENTS } from '../data/ljMockFeed';
 
 const POST_COLUMNS = `
   id,
@@ -32,9 +31,6 @@ const COMMENT_COLUMNS = `
   author:profiles!lj_comments_author_id_fkey ( id, nickname, avatar_url )
 `;
 
-/**
- * 댓글 flat 리스트를 부모 → 자식 트리(1단계 깊이)로 묶는다.
- */
 function buildCommentTree(rows) {
   const byId = new Map();
   const roots = [];
@@ -75,20 +71,12 @@ export function usePostDetail(postId) {
       if (postError) throw postError;
       if (commentError) throw commentError;
 
-      if (!postRow) {
-        // Supabase에 없으면 mock 폴백
-        const mock = LJ_MOCK_POSTS.find((p) => String(p.id) === String(postId)) || LJ_MOCK_POSTS[0];
-        setPost(mock);
-        setComments(buildCommentTree(LJ_MOCK_COMMENTS));
-      } else {
-        setPost(postRow);
-        setComments(buildCommentTree(commentRows || []));
-      }
+      setPost(postRow || null);
+      setComments(buildCommentTree(commentRows || []));
     } catch (e) {
-      const mock = LJ_MOCK_POSTS.find((p) => String(p.id) === String(postId)) || LJ_MOCK_POSTS[0];
-      setPost(mock);
-      setComments(buildCommentTree(LJ_MOCK_COMMENTS));
       setError(e);
+      setPost(null);
+      setComments([]);
     } finally {
       setLoading(false);
     }
@@ -100,7 +88,6 @@ export function usePostDetail(postId) {
 
   const addCommentLocal = useCallback((newComment) => {
     setComments((prev) => {
-      // parent_id가 있고 부모가 답글이면 평탄화(서버 트리거와 동일)
       let parent = newComment.parent_id;
       if (parent) {
         const findRoot = (list) => {

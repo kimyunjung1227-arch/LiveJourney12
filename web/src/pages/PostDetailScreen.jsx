@@ -206,6 +206,10 @@ function PostDetailScreen() {
             style={{
               width: 32,
               height: 32,
+              minWidth: 32,
+              minHeight: 32,
+              flexShrink: 0,
+              aspectRatio: '1 / 1',
               borderRadius: '50%',
               background: LJ.key,
               border: 'none',
@@ -217,14 +221,19 @@ function PostDetailScreen() {
               alignItems: 'center',
               justifyContent: 'center',
               overflow: 'hidden',
-              flexShrink: 0,
+              padding: 0,
             }}
           >
             {author.avatar_url ? (
               <img
                 src={author.avatar_url}
                 alt=""
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: 'block',
+                }}
               />
             ) : (
               (author.nickname || '?').slice(0, 1)
