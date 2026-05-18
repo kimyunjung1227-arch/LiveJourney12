@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconSearch, IconArrowLeft, IconFlame } from '@tabler/icons-react'; // IconFlame은 빈 상태에서만 사용
+import { IconArrowLeft, IconFlame } from '@tabler/icons-react'; // IconFlame은 빈 상태에서만 사용
 import BottomNavigation from '../components/BottomNavigation';
 import { LJ } from '../components/lj/tokens';
 import HotplaceTopCard from '../components/lj/HotplaceTopCard';
@@ -72,25 +72,6 @@ function HotplaceScreen() {
             실시간 핫플
           </h1>
         </div>
-        <button
-          type="button"
-          onClick={() => navigate('/search')}
-          aria-label="검색"
-          style={{
-            width: 32,
-            height: 32,
-            padding: 0,
-            background: 'transparent',
-            border: 'none',
-            color: LJ.textSecondary,
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <IconSearch size={20} stroke={1.7} />
-        </button>
       </header>
 
       {/* 1~3위 강조 카드 */}
