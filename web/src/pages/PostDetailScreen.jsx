@@ -184,50 +184,36 @@ function PostDetailScreen() {
               })
             }
           />
-          {/* 좌상단 EXIF 뱃지 (갤러리 위에 오버레이) */}
-          <div
-            style={{
-              position: 'absolute',
-              top: 10,
-              left: 10,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '5px 10px',
-              background: 'rgba(0,0,0,0.7)',
-              borderRadius: 6,
-              backdropFilter: 'blur(8px)',
-              pointerEvents: 'none',
-            }}
-          >
-            <IconShieldCheck size={13} stroke={2} color={LJ.key} />
-            <span style={{ color: '#fff', fontSize: 11, fontWeight: 600 }}>
-              {formatExifTime(post.exif_taken_at)}
-            </span>
-          </div>
-          {/* 우상단 카테고리 뱃지 */}
-          {(post.category_raw || post.category) && (
-            <div
-              style={{
-                position: 'absolute',
-                top: 10,
-                right: 10,
-                padding: '4px 9px',
-                background: '#fff',
-                borderRadius: 6,
-                fontSize: 11,
-                fontWeight: 600,
-                color: LJ.textPrimary,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-                pointerEvents: 'none',
-              }}
-            >
-              {post.category_raw || categoryLabel(post.category)}
-            </div>
-          )}
         </div>
 
-        {/* 작성자 + 도움 N명 + 팔로우 */}
+        {/* 위치명 (헤드라인 — 제목처럼) */}
+        {post.place_name && (
+          <button
+            type="button"
+            onClick={goPlace}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              margin: '14px 0 8px',
+              cursor: post.place_id ? 'pointer' : 'default',
+              fontFamily: LJ.fontStack,
+              fontSize: 18,
+              fontWeight: 700,
+              color: LJ.textPrimary,
+              letterSpacing: -0.3,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              textAlign: 'left',
+            }}
+          >
+            <IconMapPin size={17} stroke={2} color={LJ.key} />
+            {post.place_name}
+          </button>
+        )}
+
+        {/* 작성자 + 팔로우 */}
         <div
           style={{
             display: 'flex',
@@ -295,43 +281,13 @@ function PostDetailScreen() {
                 {author.nickname || '작성자'}
               </button>
               {post.is_on_site && <OnSiteBadge />}
-            </div>
-            <div style={{ fontSize: 11, color: LJ.textSecondary, marginTop: 2 }}>
-              도움 {author.helped_count ?? post.helped_count ?? 0}명
+              <span style={{ fontSize: 11, color: LJ.textTertiary }}>·</span>
+              <span style={{ fontSize: 11, color: LJ.textSecondary }}>
+                {formatRemaining(post.expires_at)}
+              </span>
             </div>
           </div>
           <FollowButton following={following} onClick={() => setFollowing((v) => !v)} />
-        </div>
-
-        {/* 위치 + 남은 시간 */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            marginTop: 12,
-            fontSize: 12,
-            color: LJ.textSecondary,
-          }}
-        >
-          <IconMapPin size={13} stroke={1.8} />
-          <button
-            type="button"
-            onClick={goPlace}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              padding: 0,
-              cursor: post.place_id ? 'pointer' : 'default',
-              fontFamily: LJ.fontStack,
-              fontSize: 12,
-              color: LJ.textSecondary,
-            }}
-          >
-            {post.place_name}
-          </button>
-          <span>·</span>
-          <span>{formatRemaining(post.expires_at)}</span>
         </div>
 
         {/* 본문 */}
