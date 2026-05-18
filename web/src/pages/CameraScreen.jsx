@@ -6,49 +6,190 @@ import {
   IconBoltOff,
   IconRotate2,
   IconShieldCheck,
+  IconShield,
   IconMapPin,
   IconCamera,
   IconAlertTriangle,
+  IconCameraOff,
   IconPlayerStopFilled,
+  IconPhoto,
+  IconClock,
 } from '@tabler/icons-react';
 import { LJ } from '../components/lj/tokens';
 import { useCamera } from '../hooks/useCamera';
 import { useGeolocation } from '../hooks/useGeolocation';
+import { EXIFRejectModal, EXIFConfirmModal } from '../components/lj/ExifModals';
+import { validateGalleryFile } from '../lib/exif/validateGalleryFile';
+import { setUploadMedia } from '../stores/uploadStore';
 
-const KEY = LJ.key; // 키컬러
 const DARK = '#0A0A0A';
 const OVERLAY = 'rgba(0,0,0,0.45)';
 const OVERLAY_STRONG = 'rgba(0,0,0,0.6)';
 const RED = 'rgb(220, 38, 38)';
 const KEY_BG_15 = 'rgba(77,184,232,0.15)';
-const KEY_BG_50 = 'rgba(77,184,232,0.5)';
+const KEY_BG_30 = 'rgba(77,184,232,0.3)';
 const WHITE_85 = 'rgba(255,255,255,0.85)';
+const WHITE_70 = 'rgba(255,255,255,0.7)';
 const WHITE_60 = 'rgba(255,255,255,0.6)';
-const CONTROL_BG = 'rgba(255,255,255,0.15)';
 
-/** 캡처 데이터 핸드오프 키 — UploadScreen에서 이 키로 읽어 처리한다. */
-export const PENDING_CAPTURE_KEY = 'lj:pendingCapture';
+const MAX_RECORD_SECONDS = 30;
 
-/**
- * 카메라 화면 (/camera).
- * 권한 상태에 따라 PermissionRequest / CameraView / PermissionDenied 분기.
- * 캡처 결과는 sessionStorage(PENDING_CAPTURE_KEY)에 저장 후 /upload로 이동.
- */
 function CameraScreen() {
   const navigate = useNavigate();
   const cam = useCamera();
   const geo = useGeolocation();
 
+  // 갤러리 모달 상태
+  const [galleryModal, setGalleryModal] = useState({
+    type: null, // 'reject' | 'confirm' | null
+    reason: null,
+    minutesAgo: 0,
+    file: null,
+    takenAt: null,
+    location: null,
+  });
+  const fileInputRef = useRef(null);
+
+  const close = () => navigate(-1);
+
+  const openGallery = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handoffAndGo = ({ file, source, mode, takenAt, lat, lng, placeName }) => {
+    const url = URL.createObjectURL(file);
+    setUploadMedia({
+      file,
+      url,
+      source,
+      mode,
+      mimeType: file.type,
+      size: file.size,
+      takenAt: (takenAt || new Date()).toISOString(),
+      lat: lat ?? null,
+      lng: lng ?? null,
+      accuracy: geo.accuracy ?? null,
+      placeName: placeName ?? geo.placeName ?? null,
+      facingMode: cam.facingMode,
+    });
+    navigate('/upload');
+  };
+
+  const handleGalleryFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // 같은 파일 재선택 가능하도록
+    if (!file) return;
+
+    const result = await validateGalleryFile(file);
+    if (!result.valid) {
+      setGalleryModal({
+        type: 'reject',
+        reason: result.reason,
+        minutesAgo: result.minutesAgo || 0,
+        file: null,
+        takenAt: null,
+        location: null,
+      });
+      return;
+    }
+    setGalleryModal({
+      type: 'confirm',
+      reason: null,
+      minutesAgo: result.minutesAgo,
+      file,
+      takenAt: result.takenAt,
+      location: result.location || null,
+    });
+  };
+
+  const handleConfirmGallery = () => {
+    const { file, takenAt, location } = galleryModal;
+    setGalleryModal({ type: null, reason: null, minutesAgo: 0, file: null, takenAt: null, location: null });
+    if (!file) return;
+    handoffAndGo({
+      file,
+      source: 'gallery',
+      mode: file.type?.startsWith('video') ? 'video' : 'photo',
+      takenAt,
+      lat: location?.lat ?? geo.coords?.lat ?? null,
+      lng: location?.lng ?? geo.coords?.lng ?? null,
+    });
+  };
+
   if (cam.permission === 'idle' || cam.permission === 'requesting') {
-    return <PermissionRequest onRequest={cam.requestPermission} loading={cam.permission === 'requesting'} onClose={() => navigate(-1)} />;
+    return (
+      <PermissionRequest
+        onRequest={cam.requestPermission}
+        loading={cam.permission === 'requesting'}
+        onClose={close}
+      />
+    );
   }
-  if (cam.permission === 'denied') {
-    return <PermissionDenied onClose={() => navigate(-1)} />;
-  }
-  if (cam.permission === 'unsupported') {
-    return <PermissionDenied unsupported onClose={() => navigate(-1)} />;
-  }
-  return <CameraView cam={cam} geo={geo} onClose={() => navigate(-1)} navigate={navigate} />;
+  if (cam.permission === 'denied') return <PermissionDenied onClose={close} />;
+  if (cam.permission === 'unsupported') return <PermissionDenied unsupported onClose={close} />;
+
+  return (
+    <>
+      <CameraView
+        cam={cam}
+        geo={geo}
+        onClose={close}
+        onOpenGallery={openGallery}
+        onCapturedPhoto={(blob) =>
+          handoffAndGo({
+            file: blob,
+            source: 'camera',
+            mode: 'photo',
+            takenAt: new Date(),
+            lat: geo.coords?.lat ?? null,
+            lng: geo.coords?.lng ?? null,
+          })
+        }
+        onCapturedVideo={(blob) =>
+          handoffAndGo({
+            file: blob,
+            source: 'camera',
+            mode: 'video',
+            takenAt: new Date(),
+            lat: geo.coords?.lat ?? null,
+            lng: geo.coords?.lng ?? null,
+          })
+        }
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture={undefined}
+        style={{ display: 'none' }}
+        onChange={handleGalleryFile}
+      />
+      <EXIFRejectModal
+        open={galleryModal.type === 'reject'}
+        reason={galleryModal.reason}
+        minutesAgo={galleryModal.minutesAgo}
+        onRetake={() => setGalleryModal({ type: null })}
+        onPickOther={() => {
+          setGalleryModal({ type: null });
+          setTimeout(openGallery, 50);
+        }}
+        onClose={() => setGalleryModal({ type: null })}
+      />
+      <EXIFConfirmModal
+        open={galleryModal.type === 'confirm'}
+        file={galleryModal.file}
+        takenAt={galleryModal.takenAt}
+        location={galleryModal.location}
+        placeName={geo.placeName}
+        onContinue={handleConfirmGallery}
+        onPickOther={() => {
+          setGalleryModal({ type: null });
+          setTimeout(openGallery, 50);
+        }}
+        onClose={() => setGalleryModal({ type: null })}
+      />
+    </>
+  );
 }
 
 /* -------------------- 권한 요청 -------------------- */
@@ -62,7 +203,7 @@ function PermissionRequest({ onRequest, loading, onClose }) {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '0 24px',
+          padding: '0 24px 24px',
           textAlign: 'center',
           fontFamily: LJ.fontStack,
           color: '#fff',
@@ -70,34 +211,69 @@ function PermissionRequest({ onRequest, loading, onClose }) {
       >
         <div
           style={{
-            width: 72,
-            height: 72,
+            width: 84,
+            height: 84,
             borderRadius: '50%',
             background: KEY_BG_15,
+            border: `1.5px solid ${KEY_BG_30}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: 16,
+            marginBottom: 18,
           }}
         >
-          <IconCamera size={30} stroke={1.8} color={KEY} />
+          <IconCamera size={38} stroke={1.8} color={LJ.key} />
         </div>
-        <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, lineHeight: 1.4 }}>
-          카메라 권한이 필요해요
-        </h2>
-        <p style={{ marginTop: 8, fontSize: 13, color: WHITE_85, lineHeight: 1.6 }}>
-          라이브저니는 지금 거기 있는 사람만 찍을 수 있어요.
+        <h2 style={{ margin: 0, fontSize: 19, fontWeight: 700, lineHeight: 1.4 }}>
+          지금 거기 있는 사람만
           <br />
-          갤러리 사진은 받지 않아요.
+          찍을 수 있어요
+        </h2>
+        <p
+          style={{
+            marginTop: 12,
+            fontSize: 13,
+            color: WHITE_70,
+            lineHeight: 1.6,
+            maxWidth: 320,
+          }}
+        >
+          라이브저니는 카메라가 자동으로 기록한 시간을 그대로 보여줘요. 조작할 수도,
+          갤러리에서 옛 사진을 가져올 수도 없어요.
         </p>
+
+        {/* 3가지 안내 리스트 */}
+        <ul
+          style={{
+            margin: '20px 0 0',
+            padding: 0,
+            listStyle: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+            width: '100%',
+            maxWidth: 320,
+          }}
+        >
+          <PromiseRow icon={<IconShield size={13} stroke={1.8} color={LJ.key} />} label="촬영 시각 자동 인증" />
+          <PromiseRow icon={<IconMapPin size={13} stroke={1.8} color={LJ.key} />} label="위치 자동 인증" />
+          <PromiseRow icon={<IconClock size={13} stroke={1.8} color={LJ.key} />} label="48시간 동안만 라이브" />
+        </ul>
+      </div>
+
+      <div
+        style={{
+          padding: '14px 18px calc(18px + env(safe-area-inset-bottom))',
+        }}
+      >
         <button
           type="button"
           onClick={onRequest}
           disabled={loading}
           style={{
-            marginTop: 22,
-            padding: '14px 22px',
-            background: loading ? CONTROL_BG : KEY,
+            width: '100%',
+            padding: 14,
+            background: loading ? 'rgba(255,255,255,0.15)' : LJ.key,
             color: '#fff',
             border: 'none',
             borderRadius: 12,
@@ -105,13 +281,48 @@ function PermissionRequest({ onRequest, loading, onClose }) {
             fontSize: 14,
             fontWeight: 700,
             cursor: loading ? 'wait' : 'pointer',
-            minWidth: 200,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
           }}
         >
+          <IconCamera size={18} stroke={2} />
           {loading ? '권한 요청 중...' : '카메라 시작하기'}
         </button>
       </div>
     </DarkFrame>
+  );
+}
+
+function PromiseRow({ icon, label }) {
+  return (
+    <li
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '8px 12px',
+        background: 'rgba(255,255,255,0.04)',
+        borderRadius: 8,
+      }}
+    >
+      <span
+        style={{
+          width: 24,
+          height: 24,
+          minWidth: 24,
+          borderRadius: '50%',
+          background: KEY_BG_15,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {icon}
+      </span>
+      <span style={{ fontSize: 12.5, color: WHITE_85 }}>{label}</span>
+    </li>
   );
 }
 
@@ -126,7 +337,7 @@ function PermissionDenied({ unsupported = false, onClose }) {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '0 24px',
+          padding: '0 24px 24px',
           textAlign: 'center',
           fontFamily: LJ.fontStack,
           color: '#fff',
@@ -134,56 +345,56 @@ function PermissionDenied({ unsupported = false, onClose }) {
       >
         <div
           style={{
-            width: 72,
-            height: 72,
+            width: 76,
+            height: 76,
             borderRadius: '50%',
-            background: 'rgba(220,38,38,0.18)',
+            background: 'rgba(255,255,255,0.06)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             marginBottom: 16,
           }}
         >
-          <IconAlertTriangle size={30} stroke={1.8} color={RED} />
+          {unsupported ? (
+            <IconAlertTriangle size={34} stroke={1.6} color={WHITE_85} />
+          ) : (
+            <IconCameraOff size={34} stroke={1.6} color={WHITE_85} />
+          )}
         </div>
         <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, lineHeight: 1.4 }}>
-          {unsupported ? '이 브라우저는 카메라를 지원하지 않아요' : '카메라 접근이 막혀 있어요'}
+          {unsupported ? '이 브라우저는 카메라를 지원하지 않아요' : '카메라 권한이 필요해요'}
         </h2>
-        <p style={{ marginTop: 8, fontSize: 13, color: WHITE_85, lineHeight: 1.6 }}>
-          {unsupported ? (
-            <>최신 브라우저(Chrome, Safari, Edge 등)에서 다시 열어주세요.</>
-          ) : (
-            <>
-              브라우저 설정 → 사이트 권한 → 카메라 허용으로 바꾼 뒤
-              <br />
-              다시 시도해주세요.
-            </>
-          )}
+        <p style={{ margin: '10px 0 0', fontSize: 13, color: WHITE_85, lineHeight: 1.6, maxWidth: 320 }}>
+          {unsupported
+            ? '최신 브라우저(Chrome, Safari, Edge)에서 다시 열어주세요.'
+            : '라이브저니는 카메라로 직접 촬영한 사진만 받아요'}
         </p>
+      </div>
+      <div style={{ padding: '14px 18px calc(18px + env(safe-area-inset-bottom))' }}>
         <button
           type="button"
           onClick={() => window.location.reload()}
           style={{
-            marginTop: 22,
-            padding: '12px 18px',
-            background: CONTROL_BG,
+            width: '100%',
+            padding: 14,
+            background: LJ.key,
             color: '#fff',
             border: 'none',
             borderRadius: 12,
             fontFamily: LJ.fontStack,
-            fontSize: 13,
-            fontWeight: 600,
+            fontSize: 14,
+            fontWeight: 700,
             cursor: 'pointer',
           }}
         >
-          다시 시도
+          {unsupported ? '다시 시도' : '설정에서 허용하기'}
         </button>
       </div>
     </DarkFrame>
   );
 }
 
-/* -------------------- 다크 프레임 (상단 X 닫기) -------------------- */
+/* -------------------- 다크 프레임 -------------------- */
 function DarkFrame({ children, onClose }) {
   return (
     <div
@@ -203,8 +414,8 @@ function DarkFrame({ children, onClose }) {
           onClick={onClose}
           aria-label="닫기"
           style={{
-            width: 36,
-            height: 36,
+            width: 34,
+            height: 34,
             borderRadius: '50%',
             background: OVERLAY_STRONG,
             border: 'none',
@@ -216,7 +427,7 @@ function DarkFrame({ children, onClose }) {
             backdropFilter: 'blur(8px)',
           }}
         >
-          <IconX size={20} stroke={2} />
+          <IconX size={18} stroke={2} />
         </button>
       </div>
       {children}
@@ -225,7 +436,7 @@ function DarkFrame({ children, onClose }) {
 }
 
 /* -------------------- 카메라 뷰 -------------------- */
-function CameraView({ cam, geo, onClose, navigate }) {
+function CameraView({ cam, geo, onClose, onOpenGallery, onCapturedPhoto, onCapturedVideo }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [recordSeconds, setRecordSeconds] = useState(0);
@@ -235,41 +446,28 @@ function CameraView({ cam, geo, onClose, navigate }) {
     if (cam.isRecording) {
       setRecordSeconds(0);
       recordIntervalRef.current = setInterval(() => {
-        setRecordSeconds((s) => s + 1);
+        setRecordSeconds((s) => {
+          const next = s + 1;
+          if (next >= MAX_RECORD_SECONDS) {
+            // 최대치 도달 시 자동 정지
+            (async () => {
+              try {
+                const blob = await cam.stopRecording();
+                onCapturedVideo(blob);
+              } catch (_) {}
+            })();
+          }
+          return next;
+        });
       }, 1000);
-    } else {
-      if (recordIntervalRef.current) {
-        clearInterval(recordIntervalRef.current);
-        recordIntervalRef.current = null;
-      }
+    } else if (recordIntervalRef.current) {
+      clearInterval(recordIntervalRef.current);
+      recordIntervalRef.current = null;
     }
     return () => {
       if (recordIntervalRef.current) clearInterval(recordIntervalRef.current);
     };
-  }, [cam.isRecording]);
-
-  const handoffAndNavigate = (blob, mode) => {
-    const url = URL.createObjectURL(blob);
-    const payload = {
-      url,
-      mode,
-      mimeType: blob.type,
-      size: blob.size,
-      capturedAt: new Date().toISOString(),
-      facingMode: cam.facingMode,
-      lat: geo.coords?.lat ?? null,
-      lng: geo.coords?.lng ?? null,
-      accuracy: geo.accuracy ?? null,
-      placeName: geo.placeName ?? null,
-    };
-    try {
-      sessionStorage.setItem(
-        'lj:pendingCapture',
-        JSON.stringify(payload)
-      );
-    } catch (_) {}
-    navigate('/upload', { state: { fromCamera: true, capture: payload } });
-  };
+  }, [cam.isRecording]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleShutter = async () => {
     if (busy) return;
@@ -278,13 +476,13 @@ function CameraView({ cam, geo, onClose, navigate }) {
     try {
       if (cam.mode === 'photo') {
         const blob = await cam.capturePhoto();
-        handoffAndNavigate(blob, 'photo');
-      } else if (cam.mode === 'video') {
+        onCapturedPhoto(blob);
+      } else {
         if (!cam.isRecording) {
           cam.startRecording();
         } else {
           const blob = await cam.stopRecording();
-          handoffAndNavigate(blob, 'video');
+          onCapturedVideo(blob);
         }
       }
     } catch (e) {
@@ -293,6 +491,8 @@ function CameraView({ cam, geo, onClose, navigate }) {
       setBusy(false);
     }
   };
+
+  const showGalleryAndSwitch = !cam.isRecording;
 
   return (
     <div
@@ -307,7 +507,6 @@ function CameraView({ cam, geo, onClose, navigate }) {
         color: '#fff',
       }}
     >
-      {/* 비디오 (전면 카메라면 미러 표시) */}
       <video
         ref={cam.videoRef}
         autoPlay
@@ -324,10 +523,10 @@ function CameraView({ cam, geo, onClose, navigate }) {
         }}
       />
 
-      {/* 뷰파인더 4모서리 가이드 + 녹화 시 빨간 보더 */}
+      {/* 뷰파인더 가이드 */}
       <ViewfinderGuide recording={cam.isRecording} />
 
-      {/* 상단: [X 닫기] [EXIF 또는 녹화 시간] [플래시] */}
+      {/* 상단 */}
       <div
         style={{
           position: 'absolute',
@@ -340,12 +539,15 @@ function CameraView({ cam, geo, onClose, navigate }) {
           zIndex: 5,
         }}
       >
-        <CircleButton onClick={onClose} aria-label="닫기">
-          <IconX size={20} stroke={2} />
+        <CircleButton onClick={onClose} aria-label="닫기" size={34}>
+          <IconX size={18} stroke={2} />
         </CircleButton>
 
         {cam.isRecording ? (
-          <Pill background={RED}>
+          <Pill
+            background="rgba(220,38,38,0.9)"
+            style={{ fontVariantNumeric: 'tabular-nums' }}
+          >
             <span
               style={{
                 width: 8,
@@ -355,25 +557,25 @@ function CameraView({ cam, geo, onClose, navigate }) {
                 animation: 'lj-pulse-dot 1s ease-in-out infinite',
               }}
             />
-            REC {formatSeconds(recordSeconds)}
+            {formatSeconds(recordSeconds)}
           </Pill>
         ) : (
           <Pill background={OVERLAY}>
-            <IconShieldCheck size={14} stroke={2} color={KEY} />
+            <IconShieldCheck size={13} stroke={2} color={LJ.key} />
             EXIF 자동 인증
           </Pill>
         )}
 
-        <CircleButton onClick={cam.toggleFlash} aria-label="플래시">
+        <CircleButton onClick={cam.toggleFlash} aria-label="플래시" size={34}>
           {cam.flashOn ? (
-            <IconBolt size={20} stroke={2} color={KEY} />
+            <IconBolt size={18} stroke={2} color={LJ.key} />
           ) : (
-            <IconBoltOff size={20} stroke={2} />
+            <IconBoltOff size={18} stroke={2} />
           )}
         </CircleButton>
       </div>
 
-      {/* 하단 컨트롤 영역 */}
+      {/* 하단 영역 */}
       <div
         style={{
           position: 'absolute',
@@ -389,17 +591,13 @@ function CameraView({ cam, geo, onClose, navigate }) {
           zIndex: 5,
         }}
       >
-        {/* GPS 상태바 */}
-        <GPSStatusBar geo={geo} />
+        {/* GPS 박스 */}
+        <GPSBox geo={geo} />
 
-        {/* 모드 토글 (사진/영상) */}
-        <ModeToggle
-          mode={cam.mode}
-          onChange={cam.setMode}
-          disabled={cam.isRecording}
-        />
+        {/* 모드 토글 */}
+        <ModeToggle mode={cam.mode} onChange={cam.setMode} disabled={cam.isRecording} />
 
-        {/* 컨트롤: [전환] [셔터] [.] */}
+        {/* 컨트롤 행 */}
         <div
           style={{
             display: 'flex',
@@ -408,14 +606,13 @@ function CameraView({ cam, geo, onClose, navigate }) {
             paddingTop: 4,
           }}
         >
-          <CircleButton
-            onClick={cam.switchCamera}
-            aria-label="카메라 전환"
-            disabled={cam.isRecording}
-            style={cam.isRecording ? { opacity: 0.4 } : null}
-          >
-            <IconRotate2 size={20} stroke={2} />
-          </CircleButton>
+          <div style={{ width: 44, height: 44, opacity: showGalleryAndSwitch ? 1 : 0 }}>
+            {showGalleryAndSwitch && (
+              <SquareButton onClick={onOpenGallery} aria-label="갤러리">
+                <IconPhoto size={20} stroke={1.8} />
+              </SquareButton>
+            )}
+          </div>
 
           <ShutterButton
             mode={cam.mode}
@@ -424,7 +621,13 @@ function CameraView({ cam, geo, onClose, navigate }) {
             onClick={handleShutter}
           />
 
-          <div style={{ width: 36, height: 36 }} />
+          <div style={{ width: 44, height: 44, opacity: showGalleryAndSwitch ? 1 : 0 }}>
+            {showGalleryAndSwitch && (
+              <SquareButton onClick={cam.switchCamera} aria-label="카메라 전환">
+                <IconRotate2 size={20} stroke={1.8} />
+              </SquareButton>
+            )}
+          </div>
         </div>
 
         {error && (
@@ -444,7 +647,6 @@ function CameraView({ cam, geo, onClose, navigate }) {
         )}
       </div>
 
-      {/* 펄스 dot 키프레임 (간단 inline) */}
       <style>{`
         @keyframes lj-pulse-dot {
           0%, 100% { opacity: 1; }
@@ -456,7 +658,7 @@ function CameraView({ cam, geo, onClose, navigate }) {
 }
 
 /* -------------------- 보조 컴포넌트 -------------------- */
-function CircleButton({ children, onClick, disabled, style, ...rest }) {
+function CircleButton({ children, onClick, disabled, size = 36, style, ...rest }) {
   return (
     <button
       type="button"
@@ -464,8 +666,8 @@ function CircleButton({ children, onClick, disabled, style, ...rest }) {
       disabled={disabled}
       {...rest}
       style={{
-        width: 36,
-        height: 36,
+        width: size,
+        height: size,
         borderRadius: '50%',
         background: OVERLAY,
         border: 'none',
@@ -483,7 +685,32 @@ function CircleButton({ children, onClick, disabled, style, ...rest }) {
   );
 }
 
-function Pill({ children, background = OVERLAY }) {
+function SquareButton({ children, onClick, ...rest }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      {...rest}
+      style={{
+        width: 44,
+        height: 44,
+        borderRadius: 10,
+        background: OVERLAY,
+        border: 'none',
+        color: '#fff',
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backdropFilter: 'blur(8px)',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Pill({ children, background = OVERLAY, style }) {
   return (
     <div
       style={{
@@ -498,6 +725,7 @@ function Pill({ children, background = OVERLAY }) {
         fontWeight: 700,
         letterSpacing: 0.3,
         backdropFilter: 'blur(8px)',
+        ...style,
       }}
     >
       {children}
@@ -506,15 +734,13 @@ function Pill({ children, background = OVERLAY }) {
 }
 
 function ViewfinderGuide({ recording }) {
-  const len = 28;
-  const w = 3;
-  const color = recording ? RED : KEY_BG_50;
-  const inset = 24;
+  const len = 18;
+  const w = 2;
   const corners = [
-    { top: inset, left: inset, borders: { borderTop: `${w}px solid ${color}`, borderLeft: `${w}px solid ${color}` } },
-    { top: inset, right: inset, borders: { borderTop: `${w}px solid ${color}`, borderRight: `${w}px solid ${color}` } },
-    { bottom: inset, left: inset, borders: { borderBottom: `${w}px solid ${color}`, borderLeft: `${w}px solid ${color}` } },
-    { bottom: inset, right: inset, borders: { borderBottom: `${w}px solid ${color}`, borderRight: `${w}px solid ${color}` } },
+    { top: 80, left: 24, borders: { borderTop: `${w}px solid rgba(255,255,255,0.6)`, borderLeft: `${w}px solid rgba(255,255,255,0.6)` } },
+    { top: 80, right: 24, borders: { borderTop: `${w}px solid rgba(255,255,255,0.6)`, borderRight: `${w}px solid rgba(255,255,255,0.6)` } },
+    { bottom: 220, left: 24, borders: { borderBottom: `${w}px solid rgba(255,255,255,0.6)`, borderLeft: `${w}px solid rgba(255,255,255,0.6)` } },
+    { bottom: 220, right: 24, borders: { borderBottom: `${w}px solid rgba(255,255,255,0.6)`, borderRight: `${w}px solid rgba(255,255,255,0.6)` } },
   ];
   return (
     <>
@@ -530,23 +756,17 @@ function ViewfinderGuide({ recording }) {
             left: c.left,
             right: c.right,
             ...c.borders,
-            borderTopLeftRadius: c.top && c.left ? 4 : 0,
-            borderTopRightRadius: c.top && c.right ? 4 : 0,
-            borderBottomLeftRadius: c.bottom && c.left ? 4 : 0,
-            borderBottomRightRadius: c.bottom && c.right ? 4 : 0,
             zIndex: 3,
             pointerEvents: 'none',
-            transition: 'border-color 200ms ease-out',
           }}
         />
       ))}
-      {/* 녹화 중 화면 가장자리 약한 빨간 잔광 */}
       {recording && (
         <div
           style={{
             position: 'absolute',
             inset: 0,
-            boxShadow: 'inset 0 0 0 2px rgba(220,38,38,0.7)',
+            boxShadow: 'inset 0 0 0 3px rgba(220,38,38,0.4)',
             pointerEvents: 'none',
             zIndex: 2,
           }}
@@ -556,40 +776,59 @@ function ViewfinderGuide({ recording }) {
   );
 }
 
-function GPSStatusBar({ geo }) {
-  let label = '위치 확인 중...';
-  let color = WHITE_60;
-  let icon = <IconMapPin size={13} stroke={2} color={WHITE_60} />;
+function GPSBox({ geo }) {
+  let primary = '위치 확인 중...';
+  let badge = 'GPS';
   if (geo.status === 'denied' || geo.status === 'unsupported') {
-    label = '위치 권한이 없어요';
-    color = WHITE_85;
+    primary = '위치 권한이 없어요';
+    badge = '없음';
   } else if (geo.placeName) {
-    label = geo.placeName;
-    color = '#fff';
-    icon = <IconMapPin size={13} stroke={2} color={KEY} />;
+    primary = geo.placeName;
+    badge = 'GPS 확인';
   } else if (geo.coords) {
-    label = `${geo.coords.lat.toFixed(4)}, ${geo.coords.lng.toFixed(4)}`;
-    color = '#fff';
-    icon = <IconMapPin size={13} stroke={2} color={KEY} />;
+    primary = `${geo.coords.lat.toFixed(4)}, ${geo.coords.lng.toFixed(4)}`;
+    badge = 'GPS 확인';
   }
   return (
     <div
       style={{
-        display: 'inline-flex',
-        alignSelf: 'center',
+        display: 'flex',
         alignItems: 'center',
-        gap: 5,
-        padding: '5px 10px',
-        background: OVERLAY,
-        borderRadius: 999,
-        color,
-        fontSize: 11.5,
-        fontWeight: 600,
+        gap: 10,
+        padding: '8px 12px',
+        background: 'rgba(0,0,0,0.5)',
+        borderRadius: 10,
         backdropFilter: 'blur(8px)',
       }}
     >
-      {icon}
-      {label}
+      <IconMapPin size={14} stroke={2} color={LJ.key} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 9.5, color: WHITE_60, letterSpacing: 0.4 }}>위치 자동 인증</div>
+        <div
+          style={{
+            fontSize: 12.5,
+            fontWeight: 700,
+            color: '#fff',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {primary}
+        </div>
+      </div>
+      <span
+        style={{
+          padding: '3px 8px',
+          background: 'rgba(77,184,232,0.18)',
+          color: LJ.key,
+          borderRadius: 999,
+          fontSize: 10,
+          fontWeight: 700,
+        }}
+      >
+        {badge}
+      </span>
     </div>
   );
 }
@@ -640,10 +879,6 @@ function ModeToggle({ mode, onChange, disabled }) {
 }
 
 function ShutterButton({ mode, isRecording, busy, onClick }) {
-  const size = 72;
-  const inner = isRecording ? 28 : mode === 'video' ? 56 : 60;
-  const innerRadius = isRecording ? 6 : '50%';
-  const innerColor = isRecording ? RED : mode === 'video' ? RED : '#fff';
   return (
     <button
       type="button"
@@ -651,12 +886,12 @@ function ShutterButton({ mode, isRecording, busy, onClick }) {
       disabled={busy}
       aria-label={mode === 'photo' ? '사진 촬영' : isRecording ? '녹화 정지' : '녹화 시작'}
       style={{
-        width: size,
-        height: size,
+        width: 76,
+        height: 76,
         borderRadius: '50%',
         background: 'transparent',
-        border: `3px solid #fff`,
-        boxShadow: `0 0 0 3px ${KEY}`,
+        border: `2px solid #fff`,
+        boxShadow: 'inset 0 0 0 5px rgba(255,255,255,0.15)',
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -665,15 +900,15 @@ function ShutterButton({ mode, isRecording, busy, onClick }) {
       }}
     >
       {isRecording ? (
-        <IconPlayerStopFilled size={20} color={RED} />
+        <IconPlayerStopFilled size={28} color={RED} />
       ) : (
         <span
           style={{
             display: 'inline-block',
-            width: inner,
-            height: inner,
-            borderRadius: innerRadius,
-            background: innerColor,
+            width: mode === 'video' ? 50 : 60,
+            height: mode === 'video' ? 50 : 60,
+            borderRadius: '50%',
+            background: mode === 'video' ? RED : '#fff',
             transition: 'all 150ms ease-out',
           }}
         />

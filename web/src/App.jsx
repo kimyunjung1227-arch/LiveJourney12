@@ -54,6 +54,8 @@ const FullscreenPhotoScreen = lazyWithRecover(() => import('./pages/FullscreenPh
 const HotplaceScreen = lazyWithRecover(() => import('./pages/HotplaceScreen'))
 const PlaceDetailScreen = lazyWithRecover(() => import('./pages/PlaceDetailScreen'))
 const CameraScreen = lazyWithRecover(() => import('./pages/CameraScreen'))
+const UploadInfoScreen = lazyWithRecover(() => import('./pages/UploadInfoScreen'))
+const UploadCompleteScreen = lazyWithRecover(() => import('./pages/UploadCompleteScreen'))
 const RegionDetailScreen = lazyWithRecover(() => import('./pages/RegionDetailScreen'))
 const UploadScreen = lazyWithRecover(() => import('./pages/UploadScreen'))
 const MapScreen = lazyWithRecover(() => import('./pages/MapScreen'))
@@ -175,7 +177,9 @@ function App() {
                 <Route path="/post/:id/edit" element={<UploadScreen />} />
                 <Route path="/post/:id" element={<PostDetailScreen />} />
                 <Route path="/region/:regionName" element={<RegionDetailScreen />} />
-                <Route path="/upload" element={<UploadScreen />} />
+                <Route path="/upload" element={<UploadInfoScreen />} />
+                <Route path="/upload/complete/:postId" element={<UploadCompleteScreen />} />
+                <Route path="/upload/legacy" element={<UploadScreen />} />
                 <Route path="/upload/guide" element={<UploadGuideScreen />} />
                 <Route path="/map" element={<MapScreen />} />
                 <Route path="/map/ask-situation" element={<MapAskSituationScreen />} />

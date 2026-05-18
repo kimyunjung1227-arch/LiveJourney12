@@ -1,0 +1,128 @@
+import { useCallback, useState } from 'react';
+import { supabase } from '../utils/supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
+
+const BUCKET = 'post-images';
+const LJ_CATEGORY_LABEL = {
+  nature: '개화·자연',
+  weather: '날씨·체감',
+  event: '이벤트·축제',
+  crowd: '혼잡도·대기',
+  sunset: '노을·야경',
+  business: '영업·운영',
+};
+
+/** Blob/File에서 storage 경로 확장자 추론 */
+function extOf(file) {
+  if (!file) return 'jpg';
+  if (file.type?.startsWith('video/')) {
+    if (file.type.includes('mp4')) return 'mp4';
+    if (file.type.includes('webm')) return 'webm';
+    return 'webm';
+  }
+  if (file.type === 'image/png') return 'png';
+  if (file.type === 'image/webp') return 'webp';
+  return 'jpg';
+}
+
+/**
+ * 업로드 훅.
+ * @returns {{
+ *   isUploading: boolean,
+ *   error: Error | null,
+ *   upload: (args: {
+ *     file: Blob,
+ *     category: string | null,        // lj_category id
+ *     body: string,
+ *     takenAt: string | Date | null,
+ *     lat: number | null,
+ *     lng: number | null,
+ *     placeName: string | null,
+ *     source: 'camera' | 'gallery',
+ *     mode: 'photo' | 'video',
+ *   }) => Promise<string>             // returns postId
+ * }}
+ */
+export function useUpload() {
+  const { user } = useAuth();
+  const [isUploading, setIsUploading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const upload = useCallback(
+    async ({ file, category, body, takenAt, lat, lng, placeName, source, mode }) => {
+      if (!user) throw new Error('로그인이 필요해요');
+      if (!file) throw new Error('파일이 없어요');
+
+      setIsUploading(true);
+      setError(null);
+      try {
+        // 1) Storage 업로드
+        const ext = extOf(file);
+        const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
+        const path = `${user.id}/${filename}`;
+        const contentType = file.type || (mode === 'video' ? 'video/webm' : 'image/jpeg');
+
+        const { error: uploadError } = await supabase.storage
+          .from(BUCKET)
+          .upload(path, file, { contentType, upsert: false });
+        if (uploadError) throw uploadError;
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from(BUCKET).getPublicUrl(path);
+
+        // 2) posts insert
+        const capturedIso =
+          takenAt instanceof Date
+            ? takenAt.toISOString()
+            : typeof takenAt === 'string' && takenAt
+              ? new Date(takenAt).toISOString()
+              : new Date().toISOString();
+
+        const categoryName = category ? LJ_CATEGORY_LABEL[category] || category : null;
+        const exifData = {
+          taken_at: capturedIso,
+          lat: lat ?? null,
+          lng: lng ?? null,
+          source, // 'camera' | 'gallery'
+          mode,   // 'photo' | 'video'
+          uploaded_via: 'lj-camera-flow-v2',
+        };
+
+        const row = {
+          user_id: user.id,
+          content: body || '',
+          images: mode === 'photo' ? [publicUrl] : [],
+          videos: mode === 'video' ? [publicUrl] : [],
+          location: placeName || null,
+          place_name: placeName || null,
+          category: category || null,
+          category_name: categoryName,
+          captured_at: capturedIso,
+          is_in_app_camera: source === 'camera',
+          exif_data: exifData,
+          author_username:
+            user.user_metadata?.nickname || user.email?.split('@')[0] || '나',
+          author_avatar_url: user.user_metadata?.avatar_url || null,
+        };
+
+        const { data: inserted, error: insertError } = await supabase
+          .from('posts')
+          .insert(row)
+          .select('id')
+          .single();
+        if (insertError) throw insertError;
+
+        return inserted.id;
+      } catch (e) {
+        setError(e);
+        throw e;
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [user]
+  );
+
+  return { isUploading, error, upload };
+}
