@@ -70,17 +70,62 @@ export function useReactions(initialPosts = []) {
 
       try {
         if (wasLiked) {
-          const { error } = await supabase
+          // 삭제: select 옵션으로 실제 지워진 row 받아 검증
+          const { data, error } = await supabase
             .from('post_likes')
             .delete()
             .eq('user_id', user.id)
-            .eq('post_id', postId);
+            .eq('post_id', postId)
+            .select('post_id');
           if (error) throw error;
+          // 실제로 지운 게 없으면(이미 없는 좋아요였음) 낙관 -1 보정 → +1 되돌림
+          if (!data || data.length === 0) {
+            setState((prev) => {
+              const cur = prev[postId];
+              if (!cur) return prev;
+              return {
+                ...prev,
+                [postId]: { ...cur, liked: false, likeCount: cur.likeCount + 1 },
+              };
+            });
+          }
         } else {
           const { error } = await supabase
             .from('post_likes')
             .insert({ user_id: user.id, post_id: postId });
-          if (error && error.code !== '23505') throw error;
+          if (error) {
+            if (error.code === '23505') {
+              // 이미 좋아요 누른 상태였음 → 낙관 +1 보정 -1 (DB는 변화 없음)
+              setState((prev) => {
+                const cur = prev[postId];
+                if (!cur) return prev;
+                return {
+                  ...prev,
+                  [postId]: {
+                    ...cur,
+                    liked: true,
+                    likeCount: Math.max(0, cur.likeCount - 1),
+                  },
+                };
+              });
+            } else {
+              throw error;
+            }
+          }
+        }
+
+        // 정합성 보강: 트리거가 갱신한 posts.likes_count를 정확히 가져와 동기화
+        const { data: fresh } = await supabase
+          .from('posts')
+          .select('likes_count')
+          .eq('id', postId)
+          .maybeSingle();
+        if (fresh && typeof fresh.likes_count === 'number') {
+          setState((prev) => {
+            const cur = prev[postId];
+            if (!cur) return prev;
+            return { ...prev, [postId]: { ...cur, likeCount: fresh.likes_count } };
+          });
         }
       } catch (_) {
         // 롤백

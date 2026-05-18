@@ -51,17 +51,12 @@ export function useHomeFeed(selectedCategory = 'all') {
       setError(null);
 
       try {
+        // posts.category가 자유 텍스트/혼합 언어라 서버 필터 대신 클라이언트에서 매핑/필터
         let query = supabase
           .from('posts')
           .select(SELECT_COLUMNS)
           .order('created_at', { ascending: false })
           .limit(PAGE_SIZE);
-
-        // 카테고리 필터: posts.category가 자유 텍스트라 lj 라벨/id 양쪽 매칭
-        if (selectedCategory && selectedCategory !== 'all') {
-          const labelOrId = `%${selectedCategory}%`;
-          query = query.or(`category.ilike.${labelOrId},category_name.ilike.${labelOrId}`);
-        }
         if (cursorRef.current) {
           query = query.lt('created_at', cursorRef.current);
         }
@@ -73,11 +68,17 @@ export function useHomeFeed(selectedCategory = 'all') {
         if (raw.length > 0) cursorRef.current = raw[raw.length - 1].created_at;
         if (raw.length < PAGE_SIZE) setHasMore(false);
 
-        const next = raw
+        const normalized = raw
           .map(normalizePostRow)
           .filter((p) => !!p.photo_url); // 사진이 정보 — 사진 없으면 노출 X
 
-        const enriched = await enrichWithAuthorPostCount(next);
+        // 카테고리 필터링 (클라 사이드, normalized.category는 lj_category id로 매핑됨)
+        const filtered =
+          selectedCategory === 'all'
+            ? normalized
+            : normalized.filter((p) => p.category === selectedCategory);
+
+        const enriched = await enrichWithAuthorPostCount(filtered);
 
         setPosts((prev) => (reset ? enriched : [...prev, ...enriched]));
       } catch (e) {

@@ -1,12 +1,12 @@
 // posts 테이블 row → HomeScreen/PostCard가 기대하는 모델로 매핑.
 
 const KEYWORD_TO_LJ = [
-  { kw: ['개화', '꽃', '자연', '단풍', '식물'], id: 'nature' },
-  { kw: ['날씨', '체감', '비', '눈', '바람'], id: 'weather' },
-  { kw: ['이벤트', '축제', '공연', '전시'], id: 'event' },
-  { kw: ['혼잡', '대기', '줄', '인파'], id: 'crowd' },
-  { kw: ['노을', '야경', '일몰', '밤'], id: 'sunset' },
-  { kw: ['영업', '운영', '매장', '오픈'], id: 'business' },
+  { kw: ['개화', '꽃', '자연', '단풍', '식물', '추천장소', 'bloom', 'flower', 'nature', 'recommend'], id: 'nature' },
+  { kw: ['날씨', '체감', '비', '눈', '바람', '맑음', '흐림', 'weather', 'rain', 'snow', 'sunny', 'cloudy'], id: 'weather' },
+  { kw: ['이벤트', '축제', '공연', '전시', 'event', 'festival', 'show', 'exhibition'], id: 'event' },
+  { kw: ['혼잡', '대기', '줄', '인파', 'crowd', 'queue', 'wait', 'busy'], id: 'crowd' },
+  { kw: ['노을', '야경', '일몰', '밤', 'sunset', 'night', 'dusk', 'nightview'], id: 'sunset' },
+  { kw: ['영업', '운영', '매장', '오픈', '식당', '카페', 'business', 'shop', 'store', 'open', 'restaurant', 'cafe'], id: 'business' },
 ];
 
 const LJ_LABELS = {

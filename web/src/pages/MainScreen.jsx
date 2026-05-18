@@ -71,10 +71,29 @@ function MainScreen() {
         >
           Live Journey
         </h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <IconButton aria-label="검색" onClick={() => navigate('/search')}>
-            <IconSearch size={20} stroke={1.7} />
-          </IconButton>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => navigate('/search')}
+            aria-label="검색"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '4px 2px 6px',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: `1.5px solid ${LJ.borderLight}`,
+              color: LJ.textSecondary,
+              fontFamily: LJ.fontStack,
+              fontSize: 12.5,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <span>어디로 떠나볼까요?</span>
+            <IconSearch size={18} stroke={1.7} />
+          </button>
           <IconButton aria-label="알림" onClick={() => navigate('/notifications')}>
             <IconBell size={20} stroke={1.7} />
           </IconButton>
