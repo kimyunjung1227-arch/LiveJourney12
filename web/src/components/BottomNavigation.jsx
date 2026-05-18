@@ -184,7 +184,7 @@ const BottomNavigation = React.memo(() => {
         <span className="text-sm font-bold leading-tight text-center">실시간 핫플</span>
       </button>
       <button
-        onClick={() => navigate('/upload')}
+        onClick={() => navigate('/camera')}
         className="flex flex-col items-center gap-1 relative"
         style={{
           background: '#26C6DA',

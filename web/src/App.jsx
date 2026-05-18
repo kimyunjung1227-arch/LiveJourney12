@@ -53,6 +53,7 @@ const PostDetailScreen = lazyWithRecover(() => import('./pages/PostDetailScreen'
 const FullscreenPhotoScreen = lazyWithRecover(() => import('./pages/FullscreenPhotoScreen'))
 const HotplaceScreen = lazyWithRecover(() => import('./pages/HotplaceScreen'))
 const PlaceDetailScreen = lazyWithRecover(() => import('./pages/PlaceDetailScreen'))
+const CameraScreen = lazyWithRecover(() => import('./pages/CameraScreen'))
 const RegionDetailScreen = lazyWithRecover(() => import('./pages/RegionDetailScreen'))
 const UploadScreen = lazyWithRecover(() => import('./pages/UploadScreen'))
 const MapScreen = lazyWithRecover(() => import('./pages/MapScreen'))
@@ -148,6 +149,7 @@ function App() {
                 <Route path="/hotplace" element={<HotplaceScreen />} />
                 <Route path="/place/:placeId" element={<PlaceDetailScreen />} />
                 <Route path="/photo/:id" element={<FullscreenPhotoScreen />} />
+                <Route path="/camera" element={<CameraScreen />} />
                 <Route path="/magazine" element={<MagazineListScreen />} />
                 <Route path="/magazines" element={<MagazineCollectionScreen />} />
                 <Route
