@@ -22,9 +22,16 @@ const RANK_ICONS = ['flame', 'trending', null];
  * - 4~20위 리스트 (HotplaceListItem)
  * - 하단 "전체 보기" 버튼
  */
+const SCOPE_OPTIONS = [
+  { id: 'national', label: '전국' },
+  { id: 'region', label: '지역' },
+  { id: 'local', label: '동네' },
+];
+
 function HotplaceScreen() {
   const navigate = useNavigate();
   const [limit, setLimit] = useState(INITIAL);
+  const [scope, setScope] = useState('national');
   const { ranking, loading } = useHotplaceRanking({ limit });
 
   const top3 = ranking.slice(0, 3);
@@ -43,40 +50,103 @@ function HotplaceScreen() {
         paddingBottom: 80,
       }}
     >
-      {/* 헤더 */}
+      {/* 헤더: [back] | (중앙 제목) | [전국/지역/동네] */}
       <header
         style={{
-          height: 56,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 14px',
-          background: '#fff',
           position: 'sticky',
           top: 0,
           zIndex: 30,
+          background: '#fff',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div
+          style={{
+            position: 'relative',
+            height: 56,
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 12px',
+          }}
+        >
+          {/* 좌: 뒤로가기 (vertical center 보장) */}
           <button
             type="button"
             onClick={() => navigate(-1)}
             aria-label="뒤로"
             style={{
+              width: 32,
+              height: 32,
+              padding: 0,
               background: 'transparent',
               border: 'none',
-              padding: 6,
               borderRadius: 8,
               cursor: 'pointer',
               color: LJ.textSecondary,
               display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
             <IconArrowLeft size={20} stroke={1.8} />
           </button>
-          <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: LJ.textPrimary }}>
+
+          {/* 중앙 제목 (absolute로 한가운데 고정) */}
+          <h1
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              margin: 0,
+              fontSize: 16,
+              fontWeight: 700,
+              color: LJ.textPrimary,
+              lineHeight: 1,
+              letterSpacing: -0.2,
+              pointerEvents: 'none',
+            }}
+          >
             실시간 핫플
           </h1>
+
+          {/* 우: 범위 필터 (전국 / 지역 / 동네) */}
+          <div
+            style={{
+              marginLeft: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+              background: LJ.bgSurface,
+              borderRadius: 999,
+              padding: 3,
+            }}
+          >
+            {SCOPE_OPTIONS.map((opt) => {
+              const active = scope === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setScope(opt.id)}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 999,
+                    border: 'none',
+                    background: active ? '#fff' : 'transparent',
+                    color: active ? LJ.key : LJ.textSecondary,
+                    fontFamily: LJ.fontStack,
+                    fontSize: 11.5,
+                    fontWeight: active ? 700 : 500,
+                    cursor: 'pointer',
+                    boxShadow: active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                    lineHeight: 1,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </header>
 

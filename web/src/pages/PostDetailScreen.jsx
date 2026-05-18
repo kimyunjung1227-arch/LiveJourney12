@@ -144,47 +144,72 @@ function PostDetailScreen() {
         flexDirection: 'column',
       }}
     >
-      {/* 헤더 */}
+      {/* 헤더: [back] (중앙 제목) [dots] */}
       <header
         style={{
-          height: 56,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 14px',
-          background: '#fff',
-          borderBottom: `1px solid ${LJ.borderLight}`,
           position: 'sticky',
           top: 0,
           zIndex: 30,
+          background: '#fff',
+          borderBottom: `1px solid ${LJ.borderLight}`,
         }}
       >
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          aria-label="뒤로"
+        <div
           style={{
-            background: 'transparent',
-            border: 'none',
-            padding: 6,
-            borderRadius: 8,
-            cursor: 'pointer',
-            color: LJ.textPrimary,
-            display: 'inline-flex',
+            position: 'relative',
+            height: 56,
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 12px',
           }}
         >
-          <IconArrowLeft size={22} stroke={1.8} />
-        </button>
-        <span style={{ fontSize: 15, fontWeight: 600, color: LJ.textPrimary }}>게시물</span>
-        <MoreMenuDropdown
-          postId={post.id}
-          size={20}
-          isAuthor={isAuthor}
-          onShare={handleShare}
-          onReport={() => setShowReport(true)}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-        />
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            aria-label="뒤로"
+            style={{
+              width: 32,
+              height: 32,
+              padding: 0,
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 8,
+              cursor: 'pointer',
+              color: LJ.textPrimary,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <IconArrowLeft size={22} stroke={1.8} />
+          </button>
+          <span
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              fontSize: 15,
+              fontWeight: 600,
+              color: LJ.textPrimary,
+              lineHeight: 1,
+              pointerEvents: 'none',
+            }}
+          >
+            게시물
+          </span>
+          <div style={{ marginLeft: 'auto' }}>
+            <MoreMenuDropdown
+              postId={post.id}
+              size={20}
+              isAuthor={isAuthor}
+              onShare={handleShare}
+              onReport={() => setShowReport(true)}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+            />
+          </div>
+        </div>
       </header>
 
       {/* 게시물 영역 */}

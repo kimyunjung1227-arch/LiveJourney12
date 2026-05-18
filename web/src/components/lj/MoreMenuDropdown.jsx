@@ -46,13 +46,17 @@ export function MoreMenuDropdown({
         }}
         aria-label="더보기"
         style={{
+          width: 32,
+          height: 32,
+          padding: 0,
           background: 'transparent',
           border: 'none',
-          padding: 6,
-          borderRadius: 6,
+          borderRadius: 8,
           color: LJ.textSecondary,
           cursor: 'pointer',
           display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
         <IconDots size={size} stroke={1.8} />
