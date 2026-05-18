@@ -91,7 +91,7 @@ const TermsOfServiceScreen = lazyWithRecover(() => import('./pages/TermsOfServic
 const UploadGuideScreen = lazyWithRecover(() => import('./pages/UploadGuideScreen'))
 const NotificationsScreen = lazyWithRecover(() => import('./pages/NotificationsScreen'))
 const RealtimeFeedScreen = lazyWithRecover(() => import('./pages/RealtimeFeedScreen'))
-const CrowdedPlaceScreen = lazyWithRecover(() => import('./pages/CrowdedPlaceScreen'))
+// CrowdedPlaceScreen은 새 HotplaceScreen으로 대체. 기존 컴포넌트는 보존만 한다.
 const HotplaceLiveFeedScreen = lazyWithRecover(() => import('./pages/HotplaceLiveFeedScreen'))
 const RecommendedPlaceFeedScreen = lazyWithRecover(() => import('./pages/RecommendedPlaceFeedScreen'))
 const ChatScreen = lazyWithRecover(() => import('./pages/ChatScreen'))
@@ -162,7 +162,7 @@ function App() {
                 />
                 <Route path="/magazine/:id" element={<MagazineDetailScreen />} />
                 <Route path="/realtime-feed" element={<RealtimeFeedScreen />} />
-                <Route path="/crowded-place" element={<CrowdedPlaceScreen />} />
+                <Route path="/crowded-place" element={<HotplaceScreen />} />
                 <Route path="/hotplace/:placeKey" element={<HotplaceLiveFeedScreen />} />
                 <Route path="/recommended-place-feed" element={<RecommendedPlaceFeedScreen />} />
                 <Route path="/chat" element={<ChatScreen />} />
