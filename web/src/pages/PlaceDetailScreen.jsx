@@ -47,84 +47,109 @@ function PlaceDetailScreen() {
         paddingBottom: 24,
       }}
     >
-      {/* 헤더 */}
+      {/* 헤더: [back] (중앙 장소명) [북마크][공유] */}
       <header
         style={{
-          height: 56,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 12px',
-          background: '#fff',
           position: 'sticky',
           top: 0,
           zIndex: 30,
+          background: '#fff',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, flex: 1 }}>
+        <div
+          style={{
+            position: 'relative',
+            height: 56,
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 12px',
+          }}
+        >
           <button
             type="button"
             onClick={() => navigate(-1)}
             aria-label="뒤로"
             style={{
+              width: 32,
+              height: 32,
+              padding: 0,
               background: 'transparent',
               border: 'none',
-              padding: 6,
               borderRadius: 8,
               cursor: 'pointer',
               color: LJ.textPrimary,
               display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
             <IconArrowLeft size={22} stroke={1.8} />
           </button>
+
+          {/* 중앙 장소명 (좌우 버튼 영역만큼 padding 두고 ellipsis 처리) */}
           <div
             style={{
+              position: 'absolute',
+              left: 80,
+              right: 80,
+              top: '50%',
+              transform: 'translateY(-50%)',
               fontSize: 16,
               fontWeight: 600,
               color: LJ.textPrimary,
+              lineHeight: 1,
+              textAlign: 'center',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              minWidth: 0,
+              pointerEvents: 'none',
             }}
           >
             {place?.name || '장소'}
           </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <button
-            type="button"
-            onClick={() => setBookmarked((v) => !v)}
-            aria-label="북마크"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              padding: 6,
-              borderRadius: 8,
-              cursor: 'pointer',
-              color: bookmarked ? LJ.key : LJ.textSecondary,
-              display: 'inline-flex',
-            }}
-          >
-            {bookmarked ? <IconBookmarkFilled size={20} /> : <IconBookmark size={20} stroke={1.8} />}
-          </button>
-          <button
-            type="button"
-            onClick={handleShare}
-            aria-label="공유"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              padding: 6,
-              borderRadius: 8,
-              cursor: 'pointer',
-              color: LJ.textSecondary,
-              display: 'inline-flex',
-            }}
-          >
-            <IconShare3 size={20} stroke={1.8} />
-          </button>
+
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button
+              type="button"
+              onClick={() => setBookmarked((v) => !v)}
+              aria-label="북마크"
+              style={{
+                width: 32,
+                height: 32,
+                padding: 0,
+                background: 'transparent',
+                border: 'none',
+                borderRadius: 8,
+                cursor: 'pointer',
+                color: bookmarked ? LJ.key : LJ.textSecondary,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {bookmarked ? <IconBookmarkFilled size={20} /> : <IconBookmark size={20} stroke={1.8} />}
+            </button>
+            <button
+              type="button"
+              onClick={handleShare}
+              aria-label="공유"
+              style={{
+                width: 32,
+                height: 32,
+                padding: 0,
+                background: 'transparent',
+                border: 'none',
+                borderRadius: 8,
+                cursor: 'pointer',
+                color: LJ.textSecondary,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <IconShare3 size={20} stroke={1.8} />
+            </button>
+          </div>
         </div>
       </header>
 

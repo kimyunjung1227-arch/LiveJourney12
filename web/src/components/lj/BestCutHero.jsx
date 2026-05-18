@@ -175,17 +175,10 @@ export function BestCutHero({
         )}
       </div>
 
-      {/* 4) 본문 + 반응 */}
-      <div
-        style={{
-          marginTop: 10,
-          padding: 12,
-          background: LJ.bgSurface,
-          borderRadius: 10,
-        }}
-      >
+      {/* 4) 본문 + 반응 (배경 박스 없이 흰 바탕 그대로) */}
+      <div style={{ marginTop: 10 }}>
         {post.body && (
-          <p style={{ margin: 0, fontSize: 12, color: LJ.textPrimary, lineHeight: 1.6 }}>
+          <p style={{ margin: 0, fontSize: 13, color: LJ.textPrimary, lineHeight: 1.6 }}>
             {post.body}
           </p>
         )}
