@@ -6,10 +6,19 @@ import { fetchPlaceDescription } from '../../api/placeDescription';
 const HEIGHT_BY_SIZE = { large: 220, medium: 180, small: 160 };
 
 /**
- * 핫플 1~3위 강조 카드 (단순화 버전).
- * - 테두리 없음, 라운드 8px
- * - 베스트 컷 뱃지 / 사진 EXIF / 통계 성장률 표시 모두 제거
- * - 좌상단 검정 순위 뱃지(HOT/UP 아이콘 키컬러)와 하단 작성자 오버레이만 유지
+ * 멀티 문단 Gemini 응답을 2줄 클램프에 어울리게 정제.
+ * - 줄바꿈을 공백으로 평탄화
+ * - 너무 길면 약 140자에서 컷
+ */
+function cleanForTwoLines(text) {
+  if (!text) return '';
+  const flat = String(text).replace(/\s+/g, ' ').trim();
+  if (flat.length <= 140) return flat;
+  return flat.slice(0, 138).trimEnd() + '…';
+}
+
+/**
+ * 핫플 1~3위 강조 카드 (작성자 오버레이 없음 / 우하단 미리보기 썸네일).
  */
 export function HotplaceTopCard({
   rank,
@@ -17,15 +26,18 @@ export function HotplaceTopCard({
   rankIconName,
   place,
   bestCutPost,
+  recentPosts = [],
   size = 'medium',
   onClick,
 }) {
   const photoHeight = HEIGHT_BY_SIZE[size] || HEIGHT_BY_SIZE.medium;
   const RankIcon =
     rankIconName === 'trending' ? IconTrendingUp : rankIconName === 'flame' ? IconFlame : null;
-  const author = bestCutPost?.author || {};
 
-  // Gemini 기반 장소 설명 (캐시·실패 백오프 내장)
+  // 우하단 미리보기 — 최대 2장
+  const previewPhotos = recentPosts.slice(0, 2);
+
+  // Gemini 기반 장소 설명
   const [desc, setDesc] = useState('');
   useEffect(() => {
     let cancelled = false;
@@ -35,7 +47,7 @@ export function HotplaceTopCard({
       regionHint: place.region || '',
     })
       .then((text) => {
-        if (!cancelled && text) setDesc(text);
+        if (!cancelled && text) setDesc(cleanForTwoLines(text));
       })
       .catch(() => {});
     return () => {
@@ -102,52 +114,40 @@ export function HotplaceTopCard({
           {rankLabel || `${rank}위`}
         </div>
 
-        {/* 하단 그라데이션 + 작성자 */}
-        <div
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            padding: '24px 12px 10px',
-            background:
-              'linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0) 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
+        {/* 우하단 미리보기 썸네일 */}
+        {previewPhotos.length > 0 && (
           <div
             style={{
-              width: 26,
-              height: 26,
-              minWidth: 26,
-              borderRadius: '50%',
-              background: LJ.key,
-              border: '1.5px solid #fff',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              fontSize: 11,
-              fontWeight: 700,
-              overflow: 'hidden',
+              position: 'absolute',
+              right: 8,
+              bottom: 8,
+              display: 'flex',
+              gap: 4,
             }}
           >
-            {author.avatar_url ? (
-              <img
-                src={author.avatar_url}
-                alt=""
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-            ) : (
-              (author.nickname || '?').slice(0, 1)
-            )}
+            {previewPhotos.map((p) => (
+              <div
+                key={p.id}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 6,
+                  overflow: 'hidden',
+                  background: LJ.bgSurface,
+                  border: '1.5px solid rgba(255,255,255,0.9)',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+                }}
+              >
+                <img
+                  src={p.photo_url}
+                  alt=""
+                  loading="lazy"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              </div>
+            ))}
           </div>
-          <span style={{ color: '#fff', fontSize: 12, fontWeight: 600 }}>
-            {author.nickname || '익명'}
-          </span>
-        </div>
+        )}
       </div>
 
       {/* 본문 영역 — 장소명 + 2줄 설명 */}

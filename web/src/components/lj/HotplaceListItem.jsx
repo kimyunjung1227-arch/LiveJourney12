@@ -2,6 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { LJ } from './tokens';
 import { fetchPlaceDescription } from '../../api/placeDescription';
 
+/** 멀티 문단 Gemini 응답 → 2줄 클램프에 어울리도록 평탄화 + 짧게 컷 */
+function cleanForTwoLines(text) {
+  if (!text) return '';
+  const flat = String(text).replace(/\s+/g, ' ').trim();
+  if (flat.length <= 110) return flat;
+  return flat.slice(0, 108).trimEnd() + '…';
+}
+
 /**
  * 핫플 4~20위 리스트 아이템.
  * - 순위 + 장소명 + (Gemini 2줄 설명)
@@ -26,7 +34,7 @@ export function HotplaceListItem({
       regionHint: place.region || '',
     })
       .then((text) => {
-        if (!cancelled && text) setDesc(text);
+        if (!cancelled && text) setDesc(cleanForTwoLines(text));
       })
       .catch(() => {});
     return () => {

@@ -96,8 +96,7 @@ function HotplaceScreen() {
                 rankIconName={RANK_ICONS[i]}
                 place={item}
                 bestCutPost={item.bestCutPost}
-                postsCount={item.postsCount}
-                growthRate={item.growthRate}
+                recentPosts={item.recentPosts}
                 size={SIZES[i]}
                 onClick={goPlace(item.place_id)}
               />
