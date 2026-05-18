@@ -66,23 +66,32 @@ function pickAllImages(images) {
  * 누락 필드는 합리적 기본값(0, false, '익명' 등).
  */
 /**
- * place_id: places 테이블이 없으므로 place_name(또는 location)을 정규화 + URL 인코딩.
- * 같은 장소를 가리키는 게시물끼리 같은 placeId를 갖도록 trim + lower.
+ * place_id: places 테이블이 없으므로 place_name(또는 location)을 정규화한 키.
+ * - trim + toLowerCase 만 적용. URL 인코딩은 하지 않는다.
+ *   React Router가 navigate 시 자동 인코딩, useParams에서 자동 디코딩하므로
+ *   여기서 한 번 더 인코딩하면 useParams의 결과와 비교 시 어긋난다.
  */
 export function makePlaceId(name) {
   if (!name) return null;
   const trimmed = String(name).trim().toLowerCase();
-  if (!trimmed) return null;
-  return encodeURIComponent(trimmed);
+  return trimmed || null;
 }
 
+/**
+ * URL에서 받은 placeId를 표시용 이름으로 변환. 보통 useParams가 이미 디코드 해
+ * 주지만, 과거에 인코딩된 placeId를 가진 외부 링크 호환을 위해 % 문자가 보이면
+ * 한 번 더 디코드 시도.
+ */
 export function decodePlaceId(placeId) {
   if (!placeId) return '';
-  try {
-    return decodeURIComponent(placeId);
-  } catch (_) {
-    return placeId;
+  if (/%[0-9A-Fa-f]{2}/.test(placeId)) {
+    try {
+      return decodeURIComponent(placeId);
+    } catch (_) {
+      /* ignore */
+    }
   }
+  return placeId;
 }
 
 export function normalizePostRow(row) {

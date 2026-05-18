@@ -31,7 +31,10 @@ export function usePlaceDetail(placeId) {
     if (!placeId) return;
     setLoading(true);
     setError(null);
+    // useParams는 이미 디코드된 문자열을 주지만, 외부 링크가 인코딩된 채 들어올 수
+    // 있어 한 번 더 디코드 시도 후 normalize 해서 비교 키를 일관되게 만든다.
     const placeNameFallback = decodePlaceId(placeId).trim();
+    const normalizedTarget = makePlaceId(placeNameFallback);
 
     try {
       const { data, error: queryError } = await supabase
@@ -44,7 +47,7 @@ export function usePlaceDetail(placeId) {
 
       const normalized = (data || [])
         .map(normalizePostRow)
-        .filter((p) => !!p.photo_url && makePlaceId(p.place_name) === placeId);
+        .filter((p) => !!p.photo_url && makePlaceId(p.place_name) === normalizedTarget);
 
       let best = null;
       let bestScore = -Infinity;
