@@ -1,5 +1,6 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { IconCamera } from '@tabler/icons-react';
 
 const BottomNavigation = React.memo(() => {
   const navigate = useNavigate();
@@ -197,7 +198,7 @@ const BottomNavigation = React.memo(() => {
           marginTop: '-4px'
         }}
       >
-        <span className="material-symbols-outlined" style={{ color: 'white', fontSize: '28px' }}>add</span>
+        <IconCamera size={26} stroke={2} color="#fff" />
       </button>
       <button
         onClick={() => navigate('/map')}
