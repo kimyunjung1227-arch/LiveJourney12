@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { IconFlame, IconTrendingUp } from '@tabler/icons-react';
 import { LJ } from './tokens';
+import { fetchPlaceDescription } from '../../api/placeDescription';
 
 const HEIGHT_BY_SIZE = { large: 220, medium: 180, small: 160 };
 
@@ -16,8 +17,6 @@ export function HotplaceTopCard({
   rankIconName,
   place,
   bestCutPost,
-  postsCount,
-  viewingCount,
   size = 'medium',
   onClick,
 }) {
@@ -25,6 +24,24 @@ export function HotplaceTopCard({
   const RankIcon =
     rankIconName === 'trending' ? IconTrendingUp : rankIconName === 'flame' ? IconFlame : null;
   const author = bestCutPost?.author || {};
+
+  // Gemini 기반 장소 설명 (캐시·실패 백오프 내장)
+  const [desc, setDesc] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    if (!place?.place_name) return;
+    fetchPlaceDescription({
+      placeKey: place.place_name,
+      regionHint: place.region || '',
+    })
+      .then((text) => {
+        if (!cancelled && text) setDesc(text);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [place?.place_name, place?.region]);
 
   return (
     <button
@@ -133,31 +150,28 @@ export function HotplaceTopCard({
         </div>
       </div>
 
-      {/* 본문 영역 */}
+      {/* 본문 영역 — 장소명 + 2줄 설명 */}
       <div style={{ padding: '10px 4px 12px' }}>
         <div style={{ fontSize: size === 'large' ? 16 : 14, fontWeight: 700, color: LJ.textPrimary }}>
           {place?.place_name || '이름 없음'}
         </div>
-        {place?.region && (
-          <div style={{ fontSize: 11, color: LJ.textSecondary, marginTop: 2 }}>
-            {place.region}
-          </div>
+        {desc && (
+          <p
+            style={{
+              margin: '6px 0 0',
+              fontSize: 12,
+              lineHeight: 1.5,
+              color: LJ.textSecondary,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              wordBreak: 'break-word',
+            }}
+          >
+            {desc}
+          </p>
         )}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            marginTop: 6,
-            fontSize: 11,
-            color: LJ.textSecondary,
-          }}
-        >
-          <span>{postsCount}장</span>
-          {typeof viewingCount === 'number' && viewingCount > 0 && (
-            <span>지금 {viewingCount}명 보는 중</span>
-          )}
-        </div>
       </div>
     </button>
   );

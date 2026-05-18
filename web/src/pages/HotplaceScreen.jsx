@@ -1,11 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconArrowLeft, IconFlame } from '@tabler/icons-react'; // IconFlame은 빈 상태에서만 사용
+import { IconArrowLeft, IconFlame, IconChevronDown } from '@tabler/icons-react';
 import BottomNavigation from '../components/BottomNavigation';
 import { LJ } from '../components/lj/tokens';
 import HotplaceTopCard from '../components/lj/HotplaceTopCard';
 import HotplaceListItem from '../components/lj/HotplaceListItem';
 import { useHotplaceRanking } from '../hooks/useHotplaceRanking';
+
+const INITIAL = 20;
+const STEP = 5;
+const MAX = 50;
 
 const SIZES = ['large', 'medium', 'small'];
 const RANK_LABELS = ['HOT 1위', 'UP 2위', '3위'];
@@ -20,10 +24,12 @@ const RANK_ICONS = ['flame', 'trending', null];
  */
 function HotplaceScreen() {
   const navigate = useNavigate();
-  const { ranking, loading } = useHotplaceRanking({ limit: 20 });
+  const [limit, setLimit] = useState(INITIAL);
+  const { ranking, loading } = useHotplaceRanking({ limit });
 
   const top3 = ranking.slice(0, 3);
   const rest = ranking.slice(3);
+  const canLoadMore = ranking.length >= limit && limit < MAX;
 
   const goPlace = (place_id) => () => navigate(`/place/${place_id}`);
 
@@ -137,26 +143,30 @@ function HotplaceScreen() {
             </>
           )}
 
-          {/* 전체 보기 (현재는 시각 placeholder, 같은 화면을 그대로 보여줌) */}
-          <button
-            type="button"
-            onClick={() => navigate(0)}
-            style={{
-              display: 'block',
-              margin: '20px auto 12px',
-              padding: '10px 18px',
-              background: '#fff',
-              border: `1px solid ${LJ.borderLight}`,
-              borderRadius: 999,
-              color: LJ.textSecondary,
-              fontFamily: LJ.fontStack,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            전체 20위까지 모두 보기
-          </button>
+          {canLoadMore && (
+            <div style={{ display: 'flex', justifyContent: 'center', margin: '20px 0 12px' }}>
+              <button
+                type="button"
+                onClick={() => setLimit((n) => Math.min(MAX, n + STEP))}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '10px 18px',
+                  background: '#fff',
+                  border: `1px solid ${LJ.borderLight}`,
+                  borderRadius: 999,
+                  color: LJ.textSecondary,
+                  fontFamily: LJ.fontStack,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                더보기 <IconChevronDown size={14} stroke={2} />
+              </button>
+            </div>
+          )}
         </>
       )}
 

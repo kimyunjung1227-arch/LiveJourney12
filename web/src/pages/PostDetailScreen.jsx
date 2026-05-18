@@ -13,6 +13,7 @@ import {
 import { LJ, categoryLabel, formatExifTime, formatRemaining } from '../components/lj/tokens';
 import MoreMenuDropdown from '../components/lj/MoreMenuDropdown';
 import ReportModal from '../components/lj/ReportModal';
+import PostPhotoGallery from '../components/lj/PostPhotoGallery';
 import CommentList from '../components/lj/CommentList';
 import CommentInput from '../components/lj/CommentInput';
 import { usePostDetail } from '../hooks/usePostDetail';
@@ -162,29 +163,28 @@ function PostDetailScreen() {
 
       {/* 게시물 영역 */}
       <article style={{ padding: '16px 18px 14px' }}>
-        {/* 사진 320px */}
-        <button
-          type="button"
-          onClick={goPhoto}
-          aria-label="사진 크게 보기"
-          style={{
-            position: 'relative',
-            width: '100%',
-            height: 320,
-            borderRadius: 12,
-            overflow: 'hidden',
-            padding: 0,
-            border: 'none',
-            background: LJ.bgSurface,
-            cursor: 'pointer',
-            display: 'block',
-          }}
-        >
-          <img
-            src={post.photo_url}
-            alt={post.place_name}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        {/* 사진 갤러리 (개수별 적응형 레이아웃) */}
+        <div style={{ position: 'relative' }}>
+          <PostPhotoGallery
+            photos={post.photos && post.photos.length > 0 ? post.photos : [post.photo_url].filter(Boolean)}
+            onPhotoClick={(i) =>
+              navigate(`/photo/${post.id}`, {
+                state: {
+                  photos: post.photos && post.photos.length > 0 ? post.photos : [post.photo_url].filter(Boolean),
+                  startIndex: i,
+                },
+              })
+            }
+            onShowAll={() =>
+              navigate(`/photo/${post.id}`, {
+                state: {
+                  photos: post.photos && post.photos.length > 0 ? post.photos : [post.photo_url].filter(Boolean),
+                  startIndex: 5,
+                },
+              })
+            }
           />
+          {/* 좌상단 EXIF 뱃지 (갤러리 위에 오버레이) */}
           <div
             style={{
               position: 'absolute',
@@ -197,6 +197,7 @@ function PostDetailScreen() {
               background: 'rgba(0,0,0,0.7)',
               borderRadius: 6,
               backdropFilter: 'blur(8px)',
+              pointerEvents: 'none',
             }}
           >
             <IconShieldCheck size={13} stroke={2} color={LJ.key} />
@@ -204,23 +205,27 @@ function PostDetailScreen() {
               {formatExifTime(post.exif_taken_at)}
             </span>
           </div>
-          <div
-            style={{
-              position: 'absolute',
-              top: 10,
-              right: 10,
-              padding: '4px 9px',
-              background: '#fff',
-              borderRadius: 6,
-              fontSize: 11,
-              fontWeight: 600,
-              color: LJ.textPrimary,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-            }}
-          >
-            {categoryLabel(post.category)}
-          </div>
-        </button>
+          {/* 우상단 카테고리 뱃지 */}
+          {(post.category_raw || post.category) && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 10,
+                right: 10,
+                padding: '4px 9px',
+                background: '#fff',
+                borderRadius: 6,
+                fontSize: 11,
+                fontWeight: 600,
+                color: LJ.textPrimary,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                pointerEvents: 'none',
+              }}
+            >
+              {post.category_raw || categoryLabel(post.category)}
+            </div>
+          )}
+        </div>
 
         {/* 작성자 + 도움 N명 + 팔로우 */}
         <div
@@ -336,7 +341,7 @@ function PostDetailScreen() {
           </p>
         )}
 
-        {/* 반응 줄 (점 세개는 헤더로 이동) */}
+        {/* 반응 줄 — 좋아요/저장은 홈에서, 여기는 댓글 카운트만 노출 */}
         <div
           style={{
             display: 'flex',
@@ -348,33 +353,17 @@ function PostDetailScreen() {
           }}
         >
           <DetailReactionBtn
-            active={liked}
-            iconOff={<IconHeart size={20} stroke={1.8} />}
-            iconOn={<IconHeartFilled size={20} />}
-            count={likeCount}
-            onClick={() => toggleLike(post.id)}
-            ariaLabel="좋아요"
-          />
-          <DetailReactionBtn
             active={false}
             iconOff={<IconMessageCircle2 size={20} stroke={1.8} />}
             iconOn={<IconMessageCircle2 size={20} stroke={1.8} />}
             count={commentCount}
             ariaLabel="댓글"
           />
-          <DetailReactionBtn
-            active={saved}
-            iconOff={<IconBookmark size={20} stroke={1.8} />}
-            iconOn={<IconBookmarkFilled size={20} />}
-            count={saveCount}
-            onClick={() => toggleSave(post.id)}
-            ariaLabel="저장"
-          />
         </div>
       </article>
 
-      {/* 댓글 영역 (회색 배경) */}
-      <section style={{ background: LJ.bgSurface, flex: 1 }}>
+      {/* 댓글 영역 (흰 배경) */}
+      <section style={{ background: '#fff', flex: 1 }}>
         <div
           style={{
             padding: '14px 18px 6px',

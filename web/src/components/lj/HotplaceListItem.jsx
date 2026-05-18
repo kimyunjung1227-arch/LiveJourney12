@@ -1,21 +1,38 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { LJ } from './tokens';
+import { fetchPlaceDescription } from '../../api/placeDescription';
 
 /**
- * 핫플 4~20위 리스트 아이템 (단순화 버전).
- * - 첫 썸네일 키컬러 테두리·"베스트" 뱃지 제거
- * - 모든 썸네일 EXIF 시간 뱃지 제거
- * - 통계 줄에서 성장률 ↑% 제거
+ * 핫플 4~20위 리스트 아이템.
+ * - 순위 + 장소명 + (Gemini 2줄 설명)
+ * - 들여쓴 사진 3장 (테두리·뱃지 없음)
+ * - 지역/장수 표시 제거
  */
 export function HotplaceListItem({
   rank,
   place,
-  postsCount,
   bestCutPost,
   recentPosts = [],
   onClick,
 }) {
   const photos = [bestCutPost, ...recentPosts].filter(Boolean).slice(0, 3);
+
+  const [desc, setDesc] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    if (!place?.place_name) return;
+    fetchPlaceDescription({
+      placeKey: place.place_name,
+      regionHint: place.region || '',
+    })
+      .then((text) => {
+        if (!cancelled && text) setDesc(text);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [place?.place_name, place?.region]);
 
   return (
     <button
@@ -31,7 +48,7 @@ export function HotplaceListItem({
         fontFamily: LJ.fontStack,
       }}
     >
-      {/* 상단: 순위 + 장소명 + 통계 */}
+      {/* 상단: 순위 + 장소명 + 설명 */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <span
           style={{
@@ -48,14 +65,27 @@ export function HotplaceListItem({
           <div style={{ fontSize: 13, fontWeight: 600, color: LJ.textPrimary }}>
             {place?.place_name || '이름 없음'}
           </div>
-          <div style={{ fontSize: 10, color: LJ.textSecondary, marginTop: 2 }}>
-            {place?.region ? `${place.region} · ` : ''}
-            {postsCount}장
-          </div>
+          {desc && (
+            <p
+              style={{
+                margin: '4px 0 0',
+                fontSize: 11,
+                lineHeight: 1.5,
+                color: LJ.textSecondary,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                wordBreak: 'break-word',
+              }}
+            >
+              {desc}
+            </p>
+          )}
         </div>
       </div>
 
-      {/* 들여쓰기 사진 3장 — 테두리·뱃지 없이 단순 썸네일 */}
+      {/* 들여쓰기 사진 3장 */}
       {photos.length > 0 && (
         <div
           style={{
