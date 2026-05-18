@@ -41,16 +41,24 @@ export function displayCategoryLabel(raw) {
   return raw || '';
 }
 
-function pickFirstImage(images) {
-  if (!images) return null;
-  if (Array.isArray(images) && images.length > 0) {
-    const first = images[0];
-    if (typeof first === 'string') return first;
-    if (first && typeof first === 'object') {
-      return first.url || first.src || first.public_url || first.publicUrl || null;
-    }
+function extractUrl(item) {
+  if (!item) return null;
+  if (typeof item === 'string') return item;
+  if (typeof item === 'object') {
+    return item.url || item.src || item.public_url || item.publicUrl || null;
   }
   return null;
+}
+
+/** images jsonb (string/array/객체 혼재 허용) → URL 문자열 배열 */
+function pickAllImages(images) {
+  if (!images) return [];
+  if (Array.isArray(images)) {
+    return images.map(extractUrl).filter(Boolean);
+  }
+  // 단일 객체나 문자열이 그대로 들어온 경우 대응
+  const single = extractUrl(images);
+  return single ? [single] : [];
 }
 
 /**
@@ -59,7 +67,7 @@ function pickFirstImage(images) {
  */
 export function normalizePostRow(row) {
   if (!row) return row;
-  const photoUrl = pickFirstImage(row.images);
+  const photos = pickAllImages(row.images);
   const exifTakenAt = row.captured_at || row.created_at;
   const expiresAt = exifTakenAt
     ? new Date(new Date(exifTakenAt).getTime() + 48 * 60 * 60 * 1000).toISOString()
@@ -69,7 +77,8 @@ export function normalizePostRow(row) {
   return {
     id: row.id,
     author_id: row.user_id,
-    photo_url: photoUrl,
+    photo_url: photos[0] || null,
+    photos, // 모든 이미지 (carousel에서 사용)
     category: ljCategory || row.category || row.category_name || null,
     category_raw: row.category_name || row.category || '',
     place_id: null,

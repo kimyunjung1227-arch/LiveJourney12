@@ -11,6 +11,7 @@ import {
 } from '@tabler/icons-react';
 import { LJ, categoryLabel, formatExifTime, formatRemaining } from './tokens';
 import MoreMenuDropdown from './MoreMenuDropdown';
+import PhotoCarousel from './PhotoCarousel';
 
 const BODY_PREVIEW_LINES = 4;
 
@@ -59,29 +60,13 @@ export function PostCard({
         color: LJ.textPrimary,
       }}
     >
-      {/* 사진 (더 크게) */}
-      <button
-        type="button"
-        onClick={goPhoto}
-        aria-label="사진 크게 보기"
-        style={{
-          position: 'relative',
-          width: '100%',
-          height: photoHeight,
-          borderRadius: 14,
-          overflow: 'hidden',
-          padding: 0,
-          border: 'none',
-          background: LJ.bgSurface,
-          cursor: 'pointer',
-          display: 'block',
-        }}
-      >
-        <img
-          src={post.photo_url}
+      {/* 사진 (더 크게 + 멀티 캐러셀) */}
+      <div style={{ position: 'relative' }}>
+        <PhotoCarousel
+          photos={post.photos && post.photos.length > 0 ? post.photos : [post.photo_url].filter(Boolean)}
+          height={photoHeight}
           alt={post.place_name}
-          loading="lazy"
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          onPhotoClick={goPhoto}
         />
         {/* 좌상단 EXIF 뱃지 */}
         <div
@@ -96,6 +81,7 @@ export function PostCard({
             background: 'rgba(0,0,0,0.7)',
             borderRadius: 6,
             backdropFilter: 'blur(8px)',
+            pointerEvents: 'none',
           }}
         >
           <IconShieldCheck size={13} stroke={2} color={LJ.key} />
@@ -117,12 +103,13 @@ export function PostCard({
               fontWeight: 600,
               color: LJ.textPrimary,
               boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              pointerEvents: 'none',
             }}
           >
             {post.category_raw || categoryLabel(post.category)}
           </div>
         )}
-      </button>
+      </div>
 
       {/* 위치명 (타이틀 — 카드의 헤드라인) */}
       {post.place_name && (
@@ -256,10 +243,27 @@ function ClampedBody({ text }) {
   const [isOverflow, setIsOverflow] = useState(false);
   const ref = useRef(null);
 
+  // overflow 감지: 초기 렌더 + 폭 변화(폰트 로드/리사이즈) 모두 대응
   useEffect(() => {
-    if (!ref.current) return;
-    setIsOverflow(ref.current.scrollHeight - 1 > ref.current.clientHeight);
-  }, [text]);
+    const el = ref.current;
+    if (!el) return;
+    const check = () => {
+      if (expanded) return; // 펼친 상태에선 의미 없음
+      setIsOverflow(el.scrollHeight - 1 > el.clientHeight);
+    };
+    check();
+    // 폰트 로드 후 한 번 더
+    const t = setTimeout(check, 50);
+    let ro;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(check);
+      ro.observe(el);
+    }
+    return () => {
+      clearTimeout(t);
+      ro?.disconnect();
+    };
+  }, [text, expanded]);
 
   return (
     <div style={{ marginTop: 10 }}>
