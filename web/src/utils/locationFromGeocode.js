@@ -34,7 +34,7 @@ const NEARBY_CATEGORY_CODES = ['PK6', 'AT4', 'CT1', 'CE7', 'FD6', 'SW8'];
 /** 좁은 공원·넓은 생태공원 모두 커버하도록 단계 확대 */
 const NEARBY_SEARCH_RADII_METERS = [350, 900, 2000, 4500];
 
-async function fetchNearbyPlaceName(lng, lat) {
+export async function fetchNearbyPlaceName(lng, lat) {
   const key =
     typeof import.meta !== 'undefined' && import.meta.env?.VITE_KAKAO_REST_API_KEY
       ? String(import.meta.env.VITE_KAKAO_REST_API_KEY).trim()
@@ -114,4 +114,46 @@ export async function resolveDisplayLocationFromKakaoCoordResult(firstResult, ln
   }
   const joined = parts.slice(i).join(' ');
   return stripAdministrativeSuffix(joined) || adminLine || full;
+}
+
+/**
+ * 좌표 → 사람이 읽는 장소명을 한 번에 만든다.
+ * 1) 카카오 REST category.json으로 근처 POI(공원·관광지 등) 우선
+ * 2) 없으면 coord2address.json으로 행정구역 (시·군·구 + 동) 폴백
+ * 3) 둘 다 실패하면 빈 문자열 반환 (호출자가 좌표 표시로 폴백)
+ *
+ * @param {number} lat
+ * @param {number} lng
+ * @returns {Promise<string>}
+ */
+export async function reverseGeocodeToPlace(lat, lng) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return '';
+
+  // 1) POI 우선 — fetchNearbyPlaceName(lng, lat) 시그니처에 주의
+  try {
+    const poi = await fetchNearbyPlaceName(lng, lat);
+    if (poi) return poi;
+  } catch (_) {
+    /* ignore */
+  }
+
+  // 2) 행정주소 폴백
+  const key =
+    typeof import.meta !== 'undefined' && import.meta.env?.VITE_KAKAO_REST_API_KEY
+      ? String(import.meta.env.VITE_KAKAO_REST_API_KEY).trim()
+      : '';
+  if (!key) return '';
+  try {
+    const url =
+      `https://dapi.kakao.com/v2/local/geo/coord2address.json?` +
+      new URLSearchParams({ x: String(lng), y: String(lat) }).toString();
+    const res = await fetch(url, { headers: { Authorization: `KakaoAK ${key}` } });
+    if (!res.ok) return '';
+    const data = await res.json();
+    const first = Array.isArray(data?.documents) ? data.documents[0] : null;
+    if (!first) return '';
+    return resolveDisplayLocationFromKakaoCoordResult(first, lng, lat);
+  } catch (_) {
+    return '';
+  }
 }

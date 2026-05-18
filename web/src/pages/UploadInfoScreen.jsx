@@ -20,6 +20,7 @@ import {
 } from '../stores/uploadStore';
 import { formatTimeAgo, formatTimeOfDay } from '../lib/exif/formatTimeAgo';
 import { useUpload } from '../hooks/useUpload';
+import { reverseGeocodeToPlace } from '../utils/locationFromGeocode';
 
 const CATEGORIES = [
   { id: 'nature', label: '개화·자연', Icon: IconFlower },
@@ -39,6 +40,22 @@ function UploadInfoScreen() {
 
   const [category, setCategory] = useState(null);
   const [body, setBody] = useState('');
+  // placeName이 캡처 시점에 없었으면 (geocoding 미완료) 여기서 좌표로 직접 한 번 시도
+  const [resolvedPlace, setResolvedPlace] = useState(media?.placeName || '');
+  useEffect(() => {
+    if (resolvedPlace) return;
+    if (!media?.lat || !media?.lng) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const name = await reverseGeocodeToPlace(media.lat, media.lng);
+        if (!cancelled && name) setResolvedPlace(name);
+      } catch (_) {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [media?.lat, media?.lng, resolvedPlace]);
 
   // 미디어가 없는 상태로 직접 진입하면 카메라로 유도
   useEffect(() => {
@@ -72,7 +89,7 @@ function UploadInfoScreen() {
         takenAt: media.takenAt,
         lat: media.lat,
         lng: media.lng,
-        placeName: media.placeName,
+        placeName: resolvedPlace || media.placeName || null,
         source: media.source,
         mode: media.mode,
       });
@@ -207,8 +224,8 @@ function UploadInfoScreen() {
                 <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 10.5 }}>· {takenLabel}</span>
               )}
             </div>
-            {/* GPS */}
-            {(media.placeName || (media.lat && media.lng)) && (
+            {/* GPS — resolvedPlace(카카오 reverse geocode) 우선, 없으면 좌표 */}
+            {(resolvedPlace || media.placeName || (media.lat && media.lng)) && (
               <div
                 style={{
                   position: 'absolute',
@@ -235,7 +252,9 @@ function UploadInfoScreen() {
                     textOverflow: 'ellipsis',
                   }}
                 >
-                  {media.placeName || `${media.lat.toFixed(4)}, ${media.lng.toFixed(4)}`}
+                  {resolvedPlace ||
+                    media.placeName ||
+                    `${media.lat.toFixed(4)}, ${media.lng.toFixed(4)}`}
                 </span>
               </div>
             )}
