@@ -20,6 +20,7 @@ begin
 end$$;
 
 -- 1. 게시물
+-- expires_at은 trigger로 채운다 (timestamptz + interval은 generated column에서 immutable이 아니라 거부됨).
 create table if not exists public.lj_posts (
   id uuid primary key default gen_random_uuid(),
   author_id uuid not null references auth.users(id) on delete cascade,
@@ -29,7 +30,7 @@ create table if not exists public.lj_posts (
   place_name text not null,
   body text not null default '',
   exif_taken_at timestamptz not null,
-  expires_at timestamptz generated always as (exif_taken_at + interval '48 hours') stored,
+  expires_at timestamptz not null,
   is_on_site boolean not null default true,
   helped_count integer not null default 0,
   like_count integer not null default 0,
@@ -38,12 +39,26 @@ create table if not exists public.lj_posts (
   created_at timestamptz not null default now()
 );
 
-create index if not exists lj_posts_live_idx
-  on public.lj_posts (created_at desc)
-  where expires_at > now();
-
+-- now()는 immutable이 아니라 partial index 술어로 쓸 수 없으므로 일반 인덱스로 둔다.
+create index if not exists lj_posts_created_idx on public.lj_posts (created_at desc);
+create index if not exists lj_posts_expires_idx on public.lj_posts (expires_at);
 create index if not exists lj_posts_category_idx on public.lj_posts (category);
 create index if not exists lj_posts_author_idx on public.lj_posts (author_id);
+
+create or replace function public.lj_posts_set_expires_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.expires_at := new.exif_taken_at + interval '48 hours';
+  return new;
+end;
+$$;
+
+drop trigger if exists lj_posts_expires_trg on public.lj_posts;
+create trigger lj_posts_expires_trg
+  before insert or update of exif_taken_at on public.lj_posts
+  for each row execute function public.lj_posts_set_expires_at();
 
 -- 2. 댓글 (트리: parent_id 1단계 깊이만 허용)
 create table if not exists public.lj_comments (
@@ -58,7 +73,7 @@ create table if not exists public.lj_comments (
 
 create index if not exists lj_comments_post_idx on public.lj_comments (post_id, created_at);
 
--- 답글의 답글 금지 (1단계 깊이만)
+-- 답글의 답글 금지: 같은 최상위 부모로 평탄화
 create or replace function public.lj_comments_enforce_depth()
 returns trigger
 language plpgsql
@@ -73,7 +88,6 @@ begin
   from public.lj_comments
   where id = new.parent_id;
   if parent_parent is not null then
-    -- 답글의 답글: 같은 최상위 부모로 평탄화
     new.parent_id := parent_parent;
   end if;
   return new;
@@ -116,7 +130,6 @@ create table if not exists public.lj_reactions (
 
 create index if not exists lj_reactions_post_idx on public.lj_reactions (post_id, kind);
 
--- 반응 수 카운터
 create or replace function public.lj_reactions_bump_counter()
 returns trigger
 language plpgsql
@@ -148,7 +161,7 @@ create trigger lj_reactions_count_trg
   after insert or delete on public.lj_reactions
   for each row execute function public.lj_reactions_bump_counter();
 
--- 4. 라이브 카운트 뷰 (HomeScreen 헤더 "지금 N장 라이브")
+-- 4. 라이브 카운트 뷰
 create or replace view public.lj_live_count as
   select count(*)::integer as live_count
   from public.lj_posts
@@ -159,54 +172,32 @@ alter table public.lj_posts enable row level security;
 alter table public.lj_comments enable row level security;
 alter table public.lj_reactions enable row level security;
 
--- 게시물: 누구나 읽기, 본인만 쓰기/수정/삭제
 drop policy if exists lj_posts_read on public.lj_posts;
-create policy lj_posts_read on public.lj_posts
-  for select using (true);
-
+create policy lj_posts_read on public.lj_posts for select using (true);
 drop policy if exists lj_posts_insert on public.lj_posts;
-create policy lj_posts_insert on public.lj_posts
-  for insert with check (auth.uid() = author_id);
-
+create policy lj_posts_insert on public.lj_posts for insert with check (auth.uid() = author_id);
 drop policy if exists lj_posts_update on public.lj_posts;
-create policy lj_posts_update on public.lj_posts
-  for update using (auth.uid() = author_id) with check (auth.uid() = author_id);
-
+create policy lj_posts_update on public.lj_posts for update using (auth.uid() = author_id) with check (auth.uid() = author_id);
 drop policy if exists lj_posts_delete on public.lj_posts;
-create policy lj_posts_delete on public.lj_posts
-  for delete using (auth.uid() = author_id);
+create policy lj_posts_delete on public.lj_posts for delete using (auth.uid() = author_id);
 
--- 댓글: 누구나 읽기, 로그인한 사람만 쓰기, 본인만 수정/삭제
 drop policy if exists lj_comments_read on public.lj_comments;
-create policy lj_comments_read on public.lj_comments
-  for select using (true);
-
+create policy lj_comments_read on public.lj_comments for select using (true);
 drop policy if exists lj_comments_insert on public.lj_comments;
-create policy lj_comments_insert on public.lj_comments
-  for insert with check (auth.uid() = author_id);
-
+create policy lj_comments_insert on public.lj_comments for insert with check (auth.uid() = author_id);
 drop policy if exists lj_comments_update on public.lj_comments;
-create policy lj_comments_update on public.lj_comments
-  for update using (auth.uid() = author_id) with check (auth.uid() = author_id);
-
+create policy lj_comments_update on public.lj_comments for update using (auth.uid() = author_id) with check (auth.uid() = author_id);
 drop policy if exists lj_comments_delete on public.lj_comments;
-create policy lj_comments_delete on public.lj_comments
-  for delete using (auth.uid() = author_id);
+create policy lj_comments_delete on public.lj_comments for delete using (auth.uid() = author_id);
 
--- 반응: 누구나 읽기, 본인만 토글
 drop policy if exists lj_reactions_read on public.lj_reactions;
-create policy lj_reactions_read on public.lj_reactions
-  for select using (true);
-
+create policy lj_reactions_read on public.lj_reactions for select using (true);
 drop policy if exists lj_reactions_insert on public.lj_reactions;
-create policy lj_reactions_insert on public.lj_reactions
-  for insert with check (auth.uid() = user_id);
-
+create policy lj_reactions_insert on public.lj_reactions for insert with check (auth.uid() = user_id);
 drop policy if exists lj_reactions_delete on public.lj_reactions;
-create policy lj_reactions_delete on public.lj_reactions
-  for delete using (auth.uid() = user_id);
+create policy lj_reactions_delete on public.lj_reactions for delete using (auth.uid() = user_id);
 
--- 6. 작성자 도움 카운트 합산용 RPC (프로필 helped_count 표시)
+-- 6. RPC
 create or replace function public.lj_author_helped_count(p_author uuid)
 returns integer
 language sql
