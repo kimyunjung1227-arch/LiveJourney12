@@ -36,14 +36,13 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          # 루트에 npm workspaces가 잡혀 있어(web/는 호이스팅 대상) 루트 lockfile을 사용.
+          cache-dependency-path: package-lock.json
 
-      - name: Install dependencies
-        working-directory: ./web
-        run: npm ci
+      - name: Install dependencies (workspaces root)
+        run: npm ci --workspaces --include-workspace-root --ignore-scripts
 
       - name: Build
-        working-directory: ./web
         env:
           # 서브경로 필수: /LiveJourney12/
           VITE_BASE_URL: /${{ github.event.repository.name }}/
@@ -54,12 +53,11 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_ADMIN_EMAILS: ${{ secrets.VITE_ADMIN_EMAILS }}
-        run: npm run build
+        run: npm run build --workspace=web
 
       # 깊은 링크(직접 URL) 시 GitHub Pages가 404를 주므로 SPA 엔트리와 동일하게 맞춤
       - name: SPA 404 fallback (GitHub Pages)
-        working-directory: ./web
-        run: cp dist/index.html dist/404.html
+        run: cp web/dist/index.html web/dist/404.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
