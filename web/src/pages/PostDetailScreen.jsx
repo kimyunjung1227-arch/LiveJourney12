@@ -39,6 +39,29 @@ function PostDetailScreen() {
   const [following, setFollowing] = useState(false);
   const [showReport, setShowReport] = useState(false);
 
+  const isAuthor = !!(user && post && post.author_id && user.id === post.author_id);
+
+  const handleEdit = () => {
+    if (!post) return;
+    navigate(`/post/${post.id}/edit`);
+  };
+
+  const handleDelete = async () => {
+    if (!post || !user) return;
+    if (!window.confirm('이 게시물을 삭제할까요? 되돌릴 수 없어요.')) return;
+    try {
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', post.id)
+        .eq('user_id', user.id);
+      if (error) throw error;
+      navigate('/', { replace: true });
+    } catch (e) {
+      alert('삭제 중 문제가 발생했어요. 다시 시도해주세요.');
+    }
+  };
+
   const handleShare = async () => {
     if (!post) return;
     const url = `${window.location.origin}/post/${post.id}`;
@@ -156,8 +179,11 @@ function PostDetailScreen() {
         <MoreMenuDropdown
           postId={post.id}
           size={20}
+          isAuthor={isAuthor}
           onShare={handleShare}
           onReport={() => setShowReport(true)}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
         />
       </header>
 

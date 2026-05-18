@@ -1,12 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { IconDots, IconShare3, IconFlag } from '@tabler/icons-react';
+import { IconDots, IconShare3, IconFlag, IconEdit, IconTrash } from '@tabler/icons-react';
 import { LJ } from './tokens';
 
 /**
- * 점 세개 메뉴: 공유 / 신고.
- * - 외부 클릭 닫힘, 상위로 이벤트 전파 차단
+ * 점 세개 메뉴.
+ * - 작성자: 수정 / 삭제 / 공유
+ * - 비작성자: 공유 / 신고
  */
-export function MoreMenuDropdown({ postId, onShare, onReport, size = 18 }) {
+export function MoreMenuDropdown({
+  postId,
+  isAuthor = false,
+  onShare,
+  onReport,
+  onEdit,
+  onDelete,
+  size = 18,
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -23,6 +32,8 @@ export function MoreMenuDropdown({ postId, onShare, onReport, size = 18 }) {
     setOpen(false);
     if (action === 'share' && onShare) return onShare(postId);
     if (action === 'report' && onReport) return onReport(postId);
+    if (action === 'edit' && onEdit) return onEdit(postId);
+    if (action === 'delete' && onDelete) return onDelete(postId);
   };
 
   return (
@@ -63,17 +74,40 @@ export function MoreMenuDropdown({ postId, onShare, onReport, size = 18 }) {
             zIndex: 20,
           }}
         >
-          <MenuItem
-            icon={<IconShare3 size={15} stroke={1.8} />}
-            label="공유"
-            onClick={() => handle('share')}
-          />
-          <MenuItem
-            icon={<IconFlag size={15} stroke={1.8} />}
-            label="신고"
-            onClick={() => handle('report')}
-            danger
-          />
+          {isAuthor ? (
+            <>
+              <MenuItem
+                icon={<IconEdit size={15} stroke={1.8} />}
+                label="수정"
+                onClick={() => handle('edit')}
+              />
+              <MenuItem
+                icon={<IconTrash size={15} stroke={1.8} />}
+                label="삭제"
+                onClick={() => handle('delete')}
+                danger
+              />
+              <MenuItem
+                icon={<IconShare3 size={15} stroke={1.8} />}
+                label="공유"
+                onClick={() => handle('share')}
+              />
+            </>
+          ) : (
+            <>
+              <MenuItem
+                icon={<IconShare3 size={15} stroke={1.8} />}
+                label="공유"
+                onClick={() => handle('share')}
+              />
+              <MenuItem
+                icon={<IconFlag size={15} stroke={1.8} />}
+                label="신고"
+                onClick={() => handle('report')}
+                danger
+              />
+            </>
+          )}
         </div>
       )}
     </div>
