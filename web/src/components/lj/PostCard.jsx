@@ -37,6 +37,14 @@ export function PostCard({
   const saveCount = reactionState?.saveCount ?? post.save_count ?? 0;
   const commentCount = post.comment_count ?? 0;
 
+  // 좋아요 클릭마다 펄스 재생 (key 증분으로 애니메이션 재시작)
+  const [likePulseKey, setLikePulseKey] = useState(0);
+  const handleLike = (e) => {
+    e.stopPropagation();
+    setLikePulseKey((k) => k + 1);
+    onToggleLike?.(post.id);
+  };
+
   const goPhoto = () => navigate(`/photo/${post.id}`);
   const goAuthor = (e) => {
     e.stopPropagation();
@@ -192,13 +200,18 @@ export function PostCard({
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <ReactionButton
             active={liked}
-            iconOff={<IconHeart size={19} stroke={1.8} />}
-            iconOn={<IconHeartFilled size={19} />}
+            iconOff={
+              <span key={`off-${likePulseKey}`} className={likePulseKey > 0 ? 'lj-heart-pulse' : ''}>
+                <IconHeart size={19} stroke={1.8} />
+              </span>
+            }
+            iconOn={
+              <span key={`on-${likePulseKey}`} className={likePulseKey > 0 ? 'lj-heart-pulse' : ''}>
+                <IconHeartFilled size={19} />
+              </span>
+            }
             count={likeCount}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleLike?.(post.id);
-            }}
+            onClick={handleLike}
             ariaLabel="좋아요"
           />
           <ReactionButton

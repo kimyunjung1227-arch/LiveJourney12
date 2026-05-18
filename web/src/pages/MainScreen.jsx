@@ -46,7 +46,7 @@ function MainScreen() {
         paddingBottom: 80,
       }}
     >
-      {/* 헤더: 로고 + 알림 */}
+      {/* 헤더: 로고 + 검색/알림 아이콘 */}
       <header
         style={{
           height: 56,
@@ -71,38 +71,15 @@ function MainScreen() {
         >
           Live Journey
         </h1>
-        <IconButton aria-label="알림" onClick={() => navigate('/notifications')}>
-          <IconBell size={21} stroke={1.8} />
-        </IconButton>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <IconButton aria-label="검색" onClick={() => navigate('/search')}>
+            <IconSearch size={20} stroke={1.7} />
+          </IconButton>
+          <IconButton aria-label="알림" onClick={() => navigate('/notifications')}>
+            <IconBell size={20} stroke={1.7} />
+          </IconButton>
+        </div>
       </header>
-
-      {/* 가벼운 검색바: "어디로 떠나볼까요?" — 클릭 시 /search */}
-      <div style={{ padding: '4px 18px 10px', background: '#fff' }}>
-        <button
-          type="button"
-          onClick={() => navigate('/search')}
-          style={{
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '10px 14px',
-            background: LJ.bgSurface,
-            border: 'none',
-            borderRadius: 999,
-            color: LJ.textTertiary,
-            fontFamily: LJ.fontStack,
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-            textAlign: 'left',
-          }}
-          aria-label="검색"
-        >
-          <IconSearch size={16} stroke={1.8} color={LJ.textSecondary} />
-          <span>어디로 떠나볼까요?</span>
-        </button>
-      </div>
 
       {/* 카테고리 필터 */}
       <div style={{ background: '#fff' }}>
@@ -174,7 +151,7 @@ function IconButton({ children, onClick, ...rest }) {
         border: 'none',
         padding: 6,
         borderRadius: 8,
-        color: LJ.textPrimary,
+        color: LJ.textSecondary,
         cursor: 'pointer',
         display: 'inline-flex',
       }}

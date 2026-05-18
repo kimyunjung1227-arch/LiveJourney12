@@ -54,6 +54,30 @@ body {
   background: #ffffff;
 }
 
+/* Live Journey v2 — 공통 유틸 */
+.lj-no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.lj-no-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* 좋아요 버튼 펄스 (클릭 시 한 번 재생) */
+@keyframes lj-heart-pulse {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.45); }
+  60%  { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+.lj-heart-pulse {
+  display: inline-flex;
+  animation: lj-heart-pulse 360ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: center;
+}
+
 /* 앱 컨테이너 - 가운데 정렬, 모바일 크기 제한 */
 .app-container {
   width: 100%;

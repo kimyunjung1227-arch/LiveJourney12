@@ -1,15 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { LJ } from './tokens';
+import { useHorizontalDragScroll } from '../../hooks/useHorizontalDragScroll';
 
 /**
  * 가로 스크롤-스냅 기반 사진 캐러셀.
- * - 사진이 1장이면 인디케이터 숨김
- * - 가로 스와이프(터치)/드래그/스크롤로 페이지 전환
- * - 사진 중앙 하단에 점 인디케이터, 현재 인덱스 키컬러
+ * - 1장이면 인디케이터 숨김
+ * - 터치 스와이프 + 마우스 드래그 모두 지원
+ * - 사진 중앙 하단 점 인디케이터: 현재=흰색, 비활성=반투명 회색
  */
 export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '' }) {
   const ref = useRef(null);
   const [index, setIndex] = useState(0);
+
+  // 마우스 드래그 — 드래그 끝에 가장 가까운 페이지로 스냅
+  const { handleDragStart, hasMovedRef } = useHorizontalDragScroll((slider) => {
+    if (!slider) return;
+    const w = slider.clientWidth;
+    if (w === 0) return;
+    const target = Math.round(slider.scrollLeft / w);
+    slider.scrollTo({ left: target * w, behavior: 'smooth' });
+  });
 
   useEffect(() => {
     const el = ref.current;
@@ -33,6 +43,16 @@ export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '
 
   if (!photos || photos.length === 0) return null;
 
+  // 드래그 직후의 클릭은 풀스크린 진입과 충돌하므로 가드
+  const guardedPhotoClick = (e) => {
+    if (hasMovedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    onPhotoClick?.(e);
+  };
+
   return (
     <div
       style={{
@@ -47,6 +67,7 @@ export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '
       <div
         ref={ref}
         className="lj-no-scrollbar"
+        onMouseDown={handleDragStart}
         style={{
           width: '100%',
           height: '100%',
@@ -56,13 +77,14 @@ export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '
           scrollBehavior: 'smooth',
           scrollbarWidth: 'none',
           WebkitOverflowScrolling: 'touch',
+          cursor: photos.length > 1 ? 'grab' : 'pointer',
         }}
       >
         {photos.map((url, i) => (
           <button
             key={`${url}-${i}`}
             type="button"
-            onClick={onPhotoClick}
+            onClick={guardedPhotoClick}
             aria-label={`사진 ${i + 1} 크게 보기`}
             style={{
               flex: '0 0 100%',
@@ -72,7 +94,7 @@ export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '
               border: 'none',
               padding: 0,
               background: 'transparent',
-              cursor: onPhotoClick ? 'pointer' : 'default',
+              cursor: 'pointer',
               display: 'block',
             }}
           >
@@ -80,7 +102,16 @@ export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '
               src={url}
               alt={alt}
               loading="lazy"
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              draggable="false"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: 'block',
+                userSelect: 'none',
+                WebkitUserDrag: 'none',
+                pointerEvents: 'none',
+              }}
             />
           </button>
         ))}
@@ -105,14 +136,12 @@ export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '
             <span
               key={i}
               style={{
-                width: i === index ? 8 : 6,
-                height: i === index ? 8 : 6,
+                width: 6,
+                height: 6,
                 borderRadius: '50%',
-                background: i === index ? LJ.key : 'rgba(255,255,255,0.7)',
-                boxShadow:
-                  i === index
-                    ? '0 0 0 2px rgba(255,255,255,0.6)'
-                    : '0 0 0 1px rgba(0,0,0,0.15)',
+                background:
+                  i === index ? '#fff' : 'rgba(255,255,255,0.45)',
+                boxShadow: '0 0 0 1px rgba(0,0,0,0.15)',
                 transition: 'all 120ms ease-out',
               }}
             />
