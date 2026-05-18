@@ -136,7 +136,6 @@ function PlaceDetailScreen() {
           onAuthorClick={() => navigate(`/user/${bestCut.author?.id || bestCut.author_id}`)}
           onFollowClick={() => setFollowing((v) => !v)}
           following={following}
-          helpedCount={bestCut.like_count + bestCut.save_count}
         />
       )}
 

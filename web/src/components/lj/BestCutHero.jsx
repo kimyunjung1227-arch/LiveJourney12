@@ -10,11 +10,12 @@ import {
 import { LJ, formatExifTime } from './tokens';
 
 /**
- * 장소 페이지 베스트 컷 히어로 (4부분).
- * 1) 헤더: 왕관 + 베스트 컷 + 부제
- * 2) 사진 340px + 좌상단 EXIF + 우상단 그라데이션 뱃지 + 하단 작성자 오버레이
- * 3) 본문 + 반응 박스 (#F5F7FA)
- * 4) 영예 트러스트 카드 (키컬러 테두리)
+ * 장소 페이지 베스트 컷 히어로.
+ * 1) 헤더 — 왕관 + 베스트 컷 + 부제
+ * 2) 사진 340px — 좌상단 EXIF, 우상단 그라데이션 베스트컷 뱃지 (작성자 오버레이 없음)
+ * 3) 작성자 행 — 사진 아래에 아바타 + 이름 (도움 N명 표시 제거)
+ * 4) 본문 + 반응 박스
+ * 5) 영예 트러스트 카드 + 팔로우
  */
 export function BestCutHero({
   post,
@@ -22,7 +23,6 @@ export function BestCutHero({
   onAuthorClick,
   onFollowClick,
   following = false,
-  helpedCount,
 }) {
   if (!post) return null;
   const author = post.author || {};
@@ -36,7 +36,7 @@ export function BestCutHero({
         <span style={{ fontSize: 11, color: LJ.textSecondary }}>이 장소를 대표하는 한 장</span>
       </div>
 
-      {/* 2) 메인 사진 */}
+      {/* 2) 메인 사진 — 작성자 오버레이 없음 */}
       <button
         type="button"
         onClick={onPostClick}
@@ -59,7 +59,6 @@ export function BestCutHero({
           alt={post.place_name}
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
-        {/* EXIF */}
         <div
           style={{
             position: 'absolute',
@@ -79,7 +78,6 @@ export function BestCutHero({
             {formatExifTime(post.exif_taken_at)}
           </span>
         </div>
-        {/* 베스트 컷 뱃지 */}
         <div
           style={{
             position: 'absolute',
@@ -99,81 +97,85 @@ export function BestCutHero({
           <IconCrown size={12} stroke={2} />
           베스트 컷
         </div>
-        {/* 하단 작성자 오버레이 */}
-        <div
-          onClick={(e) => {
-            e.stopPropagation();
-            onAuthorClick?.();
-          }}
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            padding: '28px 14px 12px',
-            background: 'linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0) 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            cursor: 'pointer',
-          }}
-        >
-          <div
-            style={{
-              width: 38,
-              height: 38,
-              minWidth: 38,
-              borderRadius: '50%',
-              background: LJ.key,
-              border: '2px solid #fff',
-              overflow: 'hidden',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              fontWeight: 700,
-              fontSize: 14,
-            }}
-          >
-            {author.avatar_url ? (
-              <img src={author.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              (author.nickname || '?').slice(0, 1)
-            )}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>
-              {author.nickname || '익명'}
-            </div>
-            {typeof helpedCount === 'number' && helpedCount > 0 && (
-              <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 10, marginTop: 1 }}>
-                도움 {helpedCount}명
-              </div>
-            )}
-          </div>
-          {post.is_on_site && (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '4px 9px',
-                background: 'rgba(77,184,232,0.25)',
-                border: '1px solid rgba(255,255,255,0.5)',
-                borderRadius: 6,
-                color: '#fff',
-                fontSize: 10,
-                fontWeight: 600,
-              }}
-            >
-              <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#fff' }} />
-              지금 현장
-            </span>
-          )}
-        </div>
       </button>
 
-      {/* 3) 본문 + 반응 */}
+      {/* 3) 작성자 행 — 사진 아래에 정렬 (오버레이 X, "도움 N명" 제거) */}
+      <div
+        style={{
+          marginTop: 10,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+        }}
+      >
+        <button
+          type="button"
+          onClick={onAuthorClick}
+          aria-label={`${author.nickname || '작성자'} 프로필`}
+          style={{
+            width: 30,
+            height: 30,
+            minWidth: 30,
+            minHeight: 30,
+            flexShrink: 0,
+            aspectRatio: '1 / 1',
+            borderRadius: '50%',
+            background: LJ.key,
+            border: 'none',
+            cursor: 'pointer',
+            color: '#fff',
+            fontWeight: 700,
+            fontSize: 12,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+            padding: 0,
+          }}
+        >
+          {author.avatar_url ? (
+            <img src={author.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          ) : (
+            (author.nickname || '?').slice(0, 1)
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={onAuthorClick}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            fontFamily: LJ.fontStack,
+            fontSize: 14,
+            fontWeight: 600,
+            color: LJ.textPrimary,
+          }}
+        >
+          {author.nickname || '익명'}
+        </button>
+        {post.is_on_site && (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '3px 8px',
+              background: LJ.keyBgLight,
+              borderRadius: 6,
+              fontSize: 11,
+              fontWeight: 600,
+              color: LJ.keyTextDark,
+            }}
+          >
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: LJ.key }} />
+            지금 현장
+          </span>
+        )}
+      </div>
+
+      {/* 4) 본문 + 반응 */}
       <div
         style={{
           marginTop: 10,
@@ -214,7 +216,7 @@ export function BestCutHero({
         </div>
       </div>
 
-      {/* 4) 영예 트러스트 카드 */}
+      {/* 5) 영예 트러스트 카드 */}
       <div
         style={{
           marginTop: 12,
@@ -233,7 +235,7 @@ export function BestCutHero({
             {author.nickname || '익명'}님이 만든 영예
           </div>
           <div style={{ fontSize: 10, color: LJ.textSecondary, marginTop: 2, lineHeight: 1.5 }}>
-            이 베스트 컷으로 {Math.max(1, post.like_count + post.save_count)}명이 {post.place_name}을 결정했어요
+            이 베스트 컷이 {post.place_name}을 대표해요
           </div>
         </div>
         <button
