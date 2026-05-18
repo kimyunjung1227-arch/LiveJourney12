@@ -77,7 +77,9 @@ export function useHomeFeed(selectedCategory = 'all') {
           .map(normalizePostRow)
           .filter((p) => !!p.photo_url); // 사진이 정보 — 사진 없으면 노출 X
 
-        setPosts((prev) => (reset ? next : [...prev, ...next]));
+        const enriched = await enrichWithAuthorPostCount(next);
+
+        setPosts((prev) => (reset ? enriched : [...prev, ...enriched]));
       } catch (e) {
         setError(e);
         if (reset) setPosts([]);
@@ -113,3 +115,32 @@ export function useHomeFeed(selectedCategory = 'all') {
 
 // 외부에서도 쓸 수 있도록 재노출
 export { mapCategoryToLj };
+
+/**
+ * 작성자별 게시물 수를 병렬 head 조회로 채워 author.post_count에 붙인다.
+ * 동일 author가 여러 게시물에 있으면 한 번만 카운트.
+ */
+async function enrichWithAuthorPostCount(rows) {
+  if (!rows || rows.length === 0) return rows || [];
+  const authorIds = Array.from(new Set(rows.map((r) => r.author_id).filter(Boolean)));
+  if (authorIds.length === 0) return rows;
+
+  const counts = await Promise.all(
+    authorIds.map(async (id) => {
+      try {
+        const { count } = await supabase
+          .from('posts')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', id);
+        return [id, count ?? 0];
+      } catch (_) {
+        return [id, 0];
+      }
+    })
+  );
+  const map = new Map(counts);
+  return rows.map((r) => ({
+    ...r,
+    author: { ...r.author, post_count: map.get(r.author_id) ?? 0 },
+  }));
+}

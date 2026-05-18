@@ -5,7 +5,7 @@ import {
   IconMapPin,
   IconHeart,
   IconHeartFilled,
-  IconMessageCircle2,
+  IconMessage,
   IconBookmark,
   IconBookmarkFilled,
 } from '@tabler/icons-react';
@@ -16,14 +16,15 @@ const BODY_PREVIEW_LINES = 4;
 
 /**
  * 홈 피드 게시물 카드.
- * - 사진 280px (스펙)
- * - 본문은 4줄까지 노출, 넘치면 끝에 "…" 더보기 토글
- * - 아바타는 원형 고정 (flexShrink:0 + aspectRatio:1)
+ * 구조: 사진(크게) → 위치명(타이틀) → 아바타+이름(글수)+남은시간 → 본문(4줄) → 반응
+ * - 사진과 반응 사이 구분선 없음
+ * - 위치명은 헤드라인처럼 굵게/크게
+ * - 댓글 아이콘은 꼬리가 우측으로 가도록 좌우 반전
  */
 export function PostCard({
   post,
   reactionState,
-  photoHeight = 280,
+  photoHeight = 340,
   onToggleLike,
   onToggleSave,
 }) {
@@ -53,12 +54,12 @@ export function PostCard({
     <article
       style={{
         background: LJ.bgCard,
-        padding: '16px 18px 14px',
+        padding: '14px 18px 12px',
         fontFamily: LJ.fontStack,
         color: LJ.textPrimary,
       }}
     >
-      {/* 사진 */}
+      {/* 사진 (더 크게) */}
       <button
         type="button"
         onClick={goPhoto}
@@ -67,7 +68,7 @@ export function PostCard({
           position: 'relative',
           width: '100%',
           height: photoHeight,
-          borderRadius: 12,
+          borderRadius: 14,
           overflow: 'hidden',
           padding: 0,
           border: 'none',
@@ -103,58 +104,28 @@ export function PostCard({
           </span>
         </div>
         {/* 우상단 카테고리 뱃지 */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 10,
-            right: 10,
-            padding: '4px 9px',
-            background: '#fff',
-            borderRadius: 6,
-            fontSize: 11,
-            fontWeight: 600,
-            color: LJ.textPrimary,
-            boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-          }}
-        >
-          {post.category_raw || categoryLabel(post.category)}
-        </div>
+        {(post.category_raw || post.category) && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 10,
+              right: 10,
+              padding: '4px 9px',
+              background: '#fff',
+              borderRadius: 6,
+              fontSize: 11,
+              fontWeight: 600,
+              color: LJ.textPrimary,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+            }}
+          >
+            {post.category_raw || categoryLabel(post.category)}
+          </div>
+        )}
       </button>
 
-      {/* 작성자 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
-        <Avatar nickname={author.nickname} avatarUrl={author.avatar_url} size={30} onClick={goAuthor} />
-        <button
-          type="button"
-          onClick={goAuthor}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            fontFamily: LJ.fontStack,
-            fontSize: 14,
-            fontWeight: 600,
-            color: LJ.textPrimary,
-          }}
-        >
-          {author.nickname || '작성자'}
-        </button>
-        {post.is_on_site && <OnSiteBadge />}
-      </div>
-
-      {/* 위치 + 남은 시간 */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 4,
-          marginTop: 8,
-          fontSize: 12,
-          color: LJ.textSecondary,
-        }}
-      >
-        <IconMapPin size={13} stroke={1.8} />
+      {/* 위치명 (타이틀 — 카드의 헤드라인) */}
+      {post.place_name && (
         <button
           type="button"
           onClick={goPlace}
@@ -162,37 +133,80 @@ export function PostCard({
             background: 'transparent',
             border: 'none',
             padding: 0,
+            margin: '14px 0 6px',
             cursor: post.place_id ? 'pointer' : 'default',
             fontFamily: LJ.fontStack,
+            fontSize: 17,
+            fontWeight: 700,
+            color: LJ.textPrimary,
+            letterSpacing: -0.3,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            textAlign: 'left',
+          }}
+        >
+          <IconMapPin size={16} stroke={2} color={LJ.key} />
+          {post.place_name}
+        </button>
+      )}
+
+      {/* 작성자 행: 아바타 | 이름(N) · 남은시간 | 지금 현장 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Avatar nickname={author.nickname} avatarUrl={author.avatar_url} size={28} onClick={goAuthor} />
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            flex: 1,
+            minWidth: 0,
             fontSize: 12,
             color: LJ.textSecondary,
           }}
         >
-          {post.place_name}
-        </button>
-        <span>·</span>
-        <span>{formatRemaining(post.expires_at)}</span>
+          <button
+            type="button"
+            onClick={goAuthor}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              fontFamily: LJ.fontStack,
+              fontSize: 13,
+              fontWeight: 600,
+              color: LJ.textPrimary,
+            }}
+          >
+            {author.nickname || '작성자'}
+          </button>
+          {typeof author.post_count === 'number' && author.post_count > 0 && (
+            <span style={{ fontSize: 12, color: LJ.textTertiary }}>({author.post_count})</span>
+          )}
+          <span style={{ color: LJ.textTertiary }}>·</span>
+          <span>{formatRemaining(post.expires_at)}</span>
+        </div>
+        {post.is_on_site && <OnSiteBadge />}
       </div>
 
-      {/* 본문 (4줄 클램프 + 더보기) */}
+      {/* 본문 (4줄 클램프) */}
       {post.body && <ClampedBody text={post.body} />}
 
-      {/* 반응 줄 */}
+      {/* 반응 줄 (구분선 없음) */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginTop: 14,
-          paddingTop: 12,
-          borderTop: `1px solid ${LJ.borderLight}`,
+          marginTop: 12,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <ReactionButton
             active={liked}
-            iconOff={<IconHeart size={18} stroke={1.8} />}
-            iconOn={<IconHeartFilled size={18} />}
+            iconOff={<IconHeart size={19} stroke={1.8} />}
+            iconOn={<IconHeartFilled size={19} />}
             count={likeCount}
             onClick={(e) => {
               e.stopPropagation();
@@ -202,16 +216,16 @@ export function PostCard({
           />
           <ReactionButton
             active={false}
-            iconOff={<IconMessageCircle2 size={18} stroke={1.8} />}
-            iconOn={<IconMessageCircle2 size={18} stroke={1.8} />}
+            iconOff={<MessageRightTail size={19} />}
+            iconOn={<MessageRightTail size={19} />}
             count={commentCount}
             onClick={goPostDetail}
             ariaLabel="댓글"
           />
           <ReactionButton
             active={saved}
-            iconOff={<IconBookmark size={18} stroke={1.8} />}
-            iconOn={<IconBookmarkFilled size={18} />}
+            iconOff={<IconBookmark size={19} stroke={1.8} />}
+            iconOn={<IconBookmarkFilled size={19} />}
             count={saveCount}
             onClick={(e) => {
               e.stopPropagation();
@@ -227,9 +241,16 @@ export function PostCard({
 }
 
 /**
- * 4줄까지만 표시. 넘치면 텍스트 끝에 "…" 그리고 줄바꿈 후 "더보기" 버튼.
- * 펼친 뒤에는 "접기"로 토글.
+ * 댓글 아이콘 — 기본 IconMessage(꼬리 좌하단)를 좌우 반전해서 꼬리를 우측으로.
  */
+function MessageRightTail({ size = 19 }) {
+  return (
+    <span style={{ display: 'inline-flex', transform: 'scaleX(-1)' }}>
+      <IconMessage size={size} stroke={1.8} />
+    </span>
+  );
+}
+
 function ClampedBody({ text }) {
   const [expanded, setExpanded] = useState(false);
   const [isOverflow, setIsOverflow] = useState(false);
@@ -237,7 +258,6 @@ function ClampedBody({ text }) {
 
   useEffect(() => {
     if (!ref.current) return;
-    // line-clamp이 적용된 상태에서 scrollHeight > clientHeight면 잘림
     setIsOverflow(ref.current.scrollHeight - 1 > ref.current.clientHeight);
   }, [text]);
 
@@ -287,7 +307,7 @@ function ClampedBody({ text }) {
   );
 }
 
-function Avatar({ nickname, avatarUrl, size = 30, onClick }) {
+function Avatar({ nickname, avatarUrl, size = 28, onClick }) {
   const initial = (nickname || '?').slice(0, 1);
   return (
     <button
@@ -319,12 +339,7 @@ function Avatar({ nickname, avatarUrl, size = 30, onClick }) {
         <img
           src={avatarUrl}
           alt=""
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            display: 'block',
-          }}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
         />
       ) : (
         initial
