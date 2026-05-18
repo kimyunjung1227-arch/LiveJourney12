@@ -117,7 +117,7 @@ export function PostCard({
             boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
           }}
         >
-          {categoryLabel(post.category)}
+          {post.category_raw || categoryLabel(post.category)}
         </div>
       </button>
 

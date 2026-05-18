@@ -1,30 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { normalizePostRow, mapCategoryToLj } from './ljPostsMapping';
 
 const PAGE_SIZE = 20;
 
-// profiles와의 embed는 FK 이름·존재 여부에 따라 404가 날 수 있어서
-// posts와 profiles를 두 단계로 나눠 가져온다.
 const SELECT_COLUMNS = `
   id,
-  author_id,
-  photo_url,
-  category,
-  place_id,
+  user_id,
+  content,
+  images,
+  location,
+  detailed_location,
   place_name,
-  body,
-  exif_taken_at,
-  expires_at,
-  is_on_site,
-  helped_count,
-  like_count,
-  comment_count,
-  save_count,
-  created_at
+  region,
+  category,
+  category_name,
+  likes_count,
+  comments_count,
+  captured_at,
+  created_at,
+  author_username,
+  author_avatar_url,
+  is_in_app_camera
 `;
 
 /**
- * 홈 피드 — 실제 Supabase 데이터만, 무한 스크롤 페이지네이션.
+ * 홈 피드 — 실제 Supabase posts 테이블에서 가져온다.
+ * - 사진 없는(content만 있는) 게시물은 노출하지 않음 (Live Journey는 사진이 정보)
+ * - PostCard가 기대하는 형태로 normalizePostRow 매핑
+ * - 페이지네이션: created_at desc 커서
  */
 export function useHomeFeed(selectedCategory = 'all') {
   const [posts, setPosts] = useState([]);
@@ -48,14 +52,15 @@ export function useHomeFeed(selectedCategory = 'all') {
 
       try {
         let query = supabase
-          .from('lj_posts')
+          .from('posts')
           .select(SELECT_COLUMNS)
-          .gt('expires_at', new Date().toISOString())
           .order('created_at', { ascending: false })
           .limit(PAGE_SIZE);
 
+        // 카테고리 필터: posts.category가 자유 텍스트라 lj 라벨/id 양쪽 매칭
         if (selectedCategory && selectedCategory !== 'all') {
-          query = query.eq('category', selectedCategory);
+          const labelOrId = `%${selectedCategory}%`;
+          query = query.or(`category.ilike.${labelOrId},category_name.ilike.${labelOrId}`);
         }
         if (cursorRef.current) {
           query = query.lt('created_at', cursorRef.current);
@@ -64,13 +69,15 @@ export function useHomeFeed(selectedCategory = 'all') {
         const { data: rows, error: feedError } = await query;
         if (feedError) throw feedError;
 
-        const next = rows || [];
-        const enriched = await enrichWithAuthors(next);
+        const raw = rows || [];
+        if (raw.length > 0) cursorRef.current = raw[raw.length - 1].created_at;
+        if (raw.length < PAGE_SIZE) setHasMore(false);
 
-        if (next.length > 0) cursorRef.current = next[next.length - 1].created_at;
-        if (next.length < PAGE_SIZE) setHasMore(false);
+        const next = raw
+          .map(normalizePostRow)
+          .filter((p) => !!p.photo_url); // 사진이 정보 — 사진 없으면 노출 X
 
-        setPosts((prev) => (reset ? enriched : [...prev, ...enriched]));
+        setPosts((prev) => (reset ? next : [...prev, ...next]));
       } catch (e) {
         setError(e);
         if (reset) setPosts([]);
@@ -104,34 +111,5 @@ export function useHomeFeed(selectedCategory = 'all') {
   };
 }
 
-/**
- * 작성자 정보를 별도 쿼리로 붙인다.
- * profiles 테이블·컬럼이 없으면 조용히 비워둔다.
- */
-export async function enrichWithAuthors(rows) {
-  if (!rows || rows.length === 0) return rows || [];
-  const authorIds = Array.from(new Set(rows.map((r) => r.author_id).filter(Boolean)));
-  if (authorIds.length === 0) return rows;
-
-  let map = new Map();
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, nickname, avatar_url')
-      .in('id', authorIds);
-    if (!error && Array.isArray(data)) {
-      data.forEach((p) => map.set(p.id, p));
-    }
-  } catch (_) {
-    // profiles 테이블 누락 등 — 작성자 정보 없이 진행
-  }
-
-  return rows.map((r) => ({
-    ...r,
-    author: map.get(r.author_id) || {
-      id: r.author_id,
-      nickname: '익명',
-      avatar_url: null,
-    },
-  }));
-}
+// 외부에서도 쓸 수 있도록 재노출
+export { mapCategoryToLj };

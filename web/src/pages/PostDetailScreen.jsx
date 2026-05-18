@@ -71,11 +71,13 @@ function PostDetailScreen() {
 
     if (!user) return; // 비로그인은 낙관적 표시만
     try {
-      await supabase.from('lj_comments').insert({
+      await supabase.from('post_comments').insert({
         post_id: post.id,
-        parent_id,
-        author_id: user.id,
-        body,
+        parent_comment_id: parent_id,
+        user_id: user.id,
+        username: optimistic.author.nickname,
+        avatar_url: optimistic.author.avatar_url,
+        content: body,
       });
     } catch (_) {
       // 실패해도 UI 유지 (개발 편의)

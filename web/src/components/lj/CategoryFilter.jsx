@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   IconPlus,
   IconChevronLeft,
@@ -10,6 +10,7 @@ import {
   IconBuildingStore,
 } from '@tabler/icons-react';
 import { LJ, LJ_CATEGORIES } from './tokens';
+import { useHorizontalDragScroll } from '../../hooks/useHorizontalDragScroll';
 
 const ICONS = {
   IconFlower,
@@ -24,29 +25,36 @@ const VISIBLE = 3;
 
 /**
  * 카테고리 필터.
- * - 가로 스크롤
- * - 기본은 "전체" + 첫 3개 + "+N" 칩
- * - "+N" 클릭 시 같은 행에 나머지 칩을 가로로 펼친다 (드롭다운 없음).
- *   펼친 뒤에는 < 화살표로 다시 접을 수 있다.
+ * - 가로 스크롤 + 마우스 드래그
+ * - "전체" + 첫 3개 + "+N" 칩, "+N" 클릭 시 같은 행에 가로로 펼친다
  */
 export function CategoryFilter({ selected = 'all', onChange = () => {} }) {
   const [expanded, setExpanded] = useState(false);
-  const scrollRef = useRef(null);
+  const { handleDragStart, hasMovedRef } = useHorizontalDragScroll();
 
-  // 선택된 카테고리가 숨겨진 그룹에 있으면 칩이 보이도록 자동 펼침
   useEffect(() => {
     if (selected === 'all') return;
     const baseIds = LJ_CATEGORIES.slice(0, VISIBLE).map((c) => c.id);
     if (!baseIds.includes(selected)) setExpanded(true);
   }, [selected]);
 
+  // 드래그 직후 칩 클릭이 잘못 발화하지 않도록 가드
+  const guardedClick = (handler) => (e) => {
+    if (hasMovedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    handler();
+  };
+
   const visibleList = expanded ? LJ_CATEGORIES : LJ_CATEGORIES.slice(0, VISIBLE);
   const hiddenCount = LJ_CATEGORIES.length - VISIBLE;
 
   return (
     <div
-      ref={scrollRef}
       className="lj-no-scrollbar"
+      onMouseDown={handleDragStart}
       style={{
         display: 'flex',
         gap: 8,
@@ -54,9 +62,10 @@ export function CategoryFilter({ selected = 'all', onChange = () => {} }) {
         padding: '12px 18px',
         scrollbarWidth: 'none',
         WebkitOverflowScrolling: 'touch',
+        cursor: 'grab',
       }}
     >
-      <Chip label="전체" active={selected === 'all'} onClick={() => onChange('all')} />
+      <Chip label="전체" active={selected === 'all'} onClick={guardedClick(() => onChange('all'))} />
       {visibleList.map((c) => {
         const Icon = ICONS[c.iconName];
         return (
@@ -65,15 +74,15 @@ export function CategoryFilter({ selected = 'all', onChange = () => {} }) {
             icon={Icon ? <Icon size={14} stroke={1.8} /> : null}
             label={c.label}
             active={selected === c.id}
-            onClick={() => onChange(c.id)}
+            onClick={guardedClick(() => onChange(c.id))}
           />
         );
       })}
       {hiddenCount > 0 &&
         (expanded ? (
-          <CollapseChip onClick={() => setExpanded(false)} />
+          <CollapseChip onClick={guardedClick(() => setExpanded(false))} />
         ) : (
-          <PlusChip count={hiddenCount} onClick={() => setExpanded(true)} />
+          <PlusChip count={hiddenCount} onClick={guardedClick(() => setExpanded(true))} />
         ))}
     </div>
   );

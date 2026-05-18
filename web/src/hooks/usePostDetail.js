@@ -1,34 +1,55 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { enrichWithAuthors } from './useHomeFeed';
+import { normalizePostRow } from './ljPostsMapping';
 
 const POST_COLUMNS = `
   id,
-  author_id,
-  photo_url,
-  category,
-  place_id,
+  user_id,
+  content,
+  images,
+  location,
+  detailed_location,
   place_name,
-  body,
-  exif_taken_at,
-  expires_at,
-  is_on_site,
-  helped_count,
-  like_count,
-  comment_count,
-  save_count,
-  created_at
+  region,
+  category,
+  category_name,
+  likes_count,
+  comments_count,
+  captured_at,
+  created_at,
+  author_username,
+  author_avatar_url,
+  is_in_app_camera
 `;
 
 const COMMENT_COLUMNS = `
   id,
   post_id,
-  parent_id,
-  author_id,
-  body,
-  like_count,
+  user_id,
+  username,
+  avatar_url,
+  content,
+  parent_comment_id,
+  likes_count,
   created_at
 `;
+
+function normalizeComment(row) {
+  return {
+    id: row.id,
+    post_id: row.post_id,
+    parent_id: row.parent_comment_id || null,
+    author_id: row.user_id,
+    body: row.content || '',
+    like_count: row.likes_count ?? 0,
+    created_at: row.created_at,
+    author: {
+      id: row.user_id,
+      nickname: row.username || '익명',
+      avatar_url: row.avatar_url || null,
+    },
+  };
+}
 
 function buildCommentTree(rows) {
   const byId = new Map();
@@ -59,9 +80,9 @@ export function usePostDetail(postId) {
     try {
       const [{ data: postRow, error: postError }, { data: commentRows, error: commentError }] =
         await Promise.all([
-          supabase.from('lj_posts').select(POST_COLUMNS).eq('id', postId).maybeSingle(),
+          supabase.from('posts').select(POST_COLUMNS).eq('id', postId).maybeSingle(),
           supabase
-            .from('lj_comments')
+            .from('post_comments')
             .select(COMMENT_COLUMNS)
             .eq('post_id', postId)
             .order('created_at', { ascending: true }),
@@ -70,11 +91,9 @@ export function usePostDetail(postId) {
       if (postError) throw postError;
       if (commentError) throw commentError;
 
-      const [enrichedPost] = await enrichWithAuthors(postRow ? [postRow] : []);
-      const enrichedComments = await enrichWithAuthors(commentRows || []);
-
-      setPost(enrichedPost || null);
-      setComments(buildCommentTree(enrichedComments));
+      setPost(postRow ? normalizePostRow(postRow) : null);
+      const normalizedComments = (commentRows || []).map(normalizeComment);
+      setComments(buildCommentTree(normalizedComments));
     } catch (e) {
       setError(e);
       setPost(null);
