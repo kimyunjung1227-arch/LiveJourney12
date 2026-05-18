@@ -9,11 +9,16 @@ const SELECT_COLUMNS = `
 `;
 
 const RECENT_HOURS = 6;
+const FETCH_LIMIT = 200;
 
 /**
- * 한 장소의 모든 게시물 + 베스트 컷을 가져온다.
- * placeId는 makePlaceId(name)로 만들어진 url-encoded 정규화 키.
- * place_name으로 ilike 매칭 (대소문자 무시).
+ * 한 장소의 모든 게시물 + 베스트 컷.
+ * placeId는 makePlaceId(name)로 만들어진 url-encoded(소문자/trim) 키.
+ *
+ * 매칭 전략: place_name이 자유 텍스트라 PostgREST의 .or(.ilike.value) 같은 좁은
+ * 필터는 표기 차이/공백/대소문자/와일드카드 부재로 종종 빈 결과가 된다.
+ * 그래서 place_name not null인 최근 게시물을 한 번에 가져온 뒤
+ * 클라이언트에서 makePlaceId(p.place_name) === placeId 로 정확히 필터한다.
  */
 export function usePlaceDetail(placeId) {
   const [posts, setPosts] = useState([]);
@@ -26,16 +31,15 @@ export function usePlaceDetail(placeId) {
     if (!placeId) return;
     setLoading(true);
     setError(null);
-    const placeName = decodePlaceId(placeId).trim();
+    const placeNameFallback = decodePlaceId(placeId).trim();
 
     try {
-      // place_name 또는 location 어느 쪽이든 매칭
       const { data, error: queryError } = await supabase
         .from('posts')
         .select(SELECT_COLUMNS)
-        .or(`place_name.ilike.${placeName},location.ilike.${placeName}`)
+        .not('place_name', 'is', null)
         .order('created_at', { ascending: false })
-        .limit(200);
+        .limit(FETCH_LIMIT);
       if (queryError) throw queryError;
 
       const normalized = (data || [])
@@ -51,6 +55,8 @@ export function usePlaceDetail(placeId) {
           bestScore = s;
         }
       }
+      // 점수 모두 0이어서 best가 안 잡힌 경우엔 가장 최신 게시물을 베스트로 폴백
+      if (!best && normalized.length > 0) best = normalized[0];
 
       const recentCutoff = Date.now() - RECENT_HOURS * 60 * 60 * 1000;
       const recentCount = normalized.filter(
@@ -66,14 +72,14 @@ export function usePlaceDetail(placeId) {
               postsCount: normalized.length,
               recentCount,
             }
-          : { id: placeId, name: placeName, region: '', postsCount: 0, recentCount: 0 };
+          : { id: placeId, name: placeNameFallback, region: '', postsCount: 0, recentCount: 0 };
 
       setPlace(placeMeta);
       setBestCut(best);
       setPosts(normalized);
     } catch (e) {
       setError(e);
-      setPlace({ id: placeId, name: placeName, region: '', postsCount: 0, recentCount: 0 });
+      setPlace({ id: placeId, name: placeNameFallback, region: '', postsCount: 0, recentCount: 0 });
       setBestCut(null);
       setPosts([]);
     } finally {
