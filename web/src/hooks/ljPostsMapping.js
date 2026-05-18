@@ -65,6 +65,26 @@ function pickAllImages(images) {
  * posts row → HomeScreen/PostCard 모델.
  * 누락 필드는 합리적 기본값(0, false, '익명' 등).
  */
+/**
+ * place_id: places 테이블이 없으므로 place_name(또는 location)을 정규화 + URL 인코딩.
+ * 같은 장소를 가리키는 게시물끼리 같은 placeId를 갖도록 trim + lower.
+ */
+export function makePlaceId(name) {
+  if (!name) return null;
+  const trimmed = String(name).trim().toLowerCase();
+  if (!trimmed) return null;
+  return encodeURIComponent(trimmed);
+}
+
+export function decodePlaceId(placeId) {
+  if (!placeId) return '';
+  try {
+    return decodeURIComponent(placeId);
+  } catch (_) {
+    return placeId;
+  }
+}
+
 export function normalizePostRow(row) {
   if (!row) return row;
   const photos = pickAllImages(row.images);
@@ -73,16 +93,18 @@ export function normalizePostRow(row) {
     ? new Date(new Date(exifTakenAt).getTime() + 48 * 60 * 60 * 1000).toISOString()
     : null;
   const ljCategory = mapCategoryToLj(row.category_name || row.category);
+  const placeName = row.place_name || row.location || row.region || '';
 
   return {
     id: row.id,
     author_id: row.user_id,
     photo_url: photos[0] || null,
-    photos, // 모든 이미지 (carousel에서 사용)
+    photos,
     category: ljCategory || row.category || row.category_name || null,
     category_raw: row.category_name || row.category || '',
-    place_id: null,
-    place_name: row.place_name || row.location || row.region || '',
+    place_id: makePlaceId(placeName),
+    place_name: placeName,
+    region: row.region || '',
     body: row.content || '',
     exif_taken_at: exifTakenAt,
     expires_at: expiresAt,
@@ -99,4 +121,12 @@ export function normalizePostRow(row) {
       helped_count: 0,
     },
   };
+}
+
+/**
+ * 게시물의 베스트컷 점수: likes + saves*1.5 + (going은 미지원이라 제외)
+ */
+export function bestCutScore(post) {
+  if (!post) return 0;
+  return (post.like_count ?? 0) + (post.save_count ?? 0) * 1.5;
 }
