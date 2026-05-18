@@ -68,7 +68,13 @@ function PostDetailScreen() {
 
   const goAuthor = () => navigate(`/user/${author.id || post.author_id}`);
   const goPlace = () => post.place_id && navigate(`/place/${post.place_id}`);
-  const goPhoto = () => navigate(`/photo/${post.id}`);
+  const goPhoto = () => {
+    const photos =
+      post.photos && post.photos.length > 0
+        ? post.photos
+        : [post.photo_url].filter(Boolean);
+    navigate(`/photo/${post.id}`, { state: { photos, startIndex: 0 } });
+  };
 
   const handleSubmitComment = async ({ body, parent_id }) => {
     const optimistic = {

@@ -43,14 +43,15 @@ export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '
 
   if (!photos || photos.length === 0) return null;
 
-  // 드래그 직후의 클릭은 풀스크린 진입과 충돌하므로 가드
-  const guardedPhotoClick = (e) => {
+  // 드래그 직후의 클릭은 풀스크린 진입과 충돌하므로 가드.
+  // 클릭된 사진 인덱스도 같이 전달.
+  const makeGuardedClick = (i) => (e) => {
     if (hasMovedRef.current) {
       e.preventDefault();
       e.stopPropagation();
       return;
     }
-    onPhotoClick?.(e);
+    onPhotoClick?.(i, e);
   };
 
   return (
@@ -84,7 +85,7 @@ export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '
           <button
             key={`${url}-${i}`}
             type="button"
-            onClick={guardedPhotoClick}
+            onClick={makeGuardedClick(i)}
             aria-label={`사진 ${i + 1} 크게 보기`}
             style={{
               flex: '0 0 100%',

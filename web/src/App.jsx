@@ -50,6 +50,7 @@ const SearchScreen = lazyWithRecover(() => import('./pages/SearchScreen'))
 const HashtagScreen = lazyWithRecover(() => import('./pages/HashtagScreen'))
 const DetailScreen = lazyWithRecover(() => import('./pages/DetailScreen'))
 const PostDetailScreen = lazyWithRecover(() => import('./pages/PostDetailScreen'))
+const FullscreenPhotoScreen = lazyWithRecover(() => import('./pages/FullscreenPhotoScreen'))
 const RegionDetailScreen = lazyWithRecover(() => import('./pages/RegionDetailScreen'))
 const UploadScreen = lazyWithRecover(() => import('./pages/UploadScreen'))
 const MapScreen = lazyWithRecover(() => import('./pages/MapScreen'))
@@ -142,9 +143,9 @@ function App() {
                 <Route path="/auth/callback" element={<AuthCallbackScreen />} />
                 {/* 로그인 없이도 접근 가능한 페이지 */}
                 <Route path="/main" element={<MainScreen />} />
-                {/* place/photo는 다음 단계 — 임시로 홈으로 리다이렉트 */}
+                {/* place는 다음 단계 — 임시로 홈으로 리다이렉트 */}
                 <Route path="/place/:placeId" element={<Navigate to="/" replace />} />
-                <Route path="/photo/:id" element={<Navigate to="/" replace />} />
+                <Route path="/photo/:id" element={<FullscreenPhotoScreen />} />
                 <Route path="/magazine" element={<MagazineListScreen />} />
                 <Route path="/magazines" element={<MagazineCollectionScreen />} />
                 <Route

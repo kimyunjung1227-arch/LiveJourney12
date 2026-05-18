@@ -69,7 +69,12 @@ export function PostCard({
   };
   const handleReport = () => setShowReport(true);
 
-  const goPhoto = () => navigate(`/photo/${post.id}`);
+  const photosList =
+    post.photos && post.photos.length > 0
+      ? post.photos
+      : [post.photo_url].filter(Boolean);
+  const goPhoto = (startIndex = 0) =>
+    navigate(`/photo/${post.id}`, { state: { photos: photosList, startIndex } });
   const goAuthor = (e) => {
     e.stopPropagation();
     navigate(`/user/${author.id || post.author_id}`);
@@ -95,10 +100,10 @@ export function PostCard({
       {/* 사진 (더 크게 + 멀티 캐러셀) */}
       <div style={{ position: 'relative' }}>
         <PhotoCarousel
-          photos={post.photos && post.photos.length > 0 ? post.photos : [post.photo_url].filter(Boolean)}
+          photos={photosList}
           height={photoHeight}
           alt={post.place_name}
-          onPhotoClick={goPhoto}
+          onPhotoClick={(i) => goPhoto(i)}
         />
         {/* 좌상단 EXIF 뱃지 */}
         <div
