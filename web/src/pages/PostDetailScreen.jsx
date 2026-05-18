@@ -12,6 +12,7 @@ import {
 } from '@tabler/icons-react';
 import { LJ, categoryLabel, formatExifTime, formatRemaining } from '../components/lj/tokens';
 import MoreMenuDropdown from '../components/lj/MoreMenuDropdown';
+import ReportModal from '../components/lj/ReportModal';
 import CommentList from '../components/lj/CommentList';
 import CommentInput from '../components/lj/CommentInput';
 import { usePostDetail } from '../hooks/usePostDetail';
@@ -35,6 +36,24 @@ function PostDetailScreen() {
 
   const [replyingTo, setReplyingTo] = useState(null);
   const [following, setFollowing] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+
+  const handleShare = async () => {
+    if (!post) return;
+    const url = `${window.location.origin}/post/${post.id}`;
+    const title = post.place_name || 'Live Journey';
+    const text = post.body ? `${title} — ${post.body.slice(0, 80)}` : title;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text, url });
+        return;
+      }
+    } catch (_) {}
+    try {
+      await navigator.clipboard.writeText(url);
+      alert('링크를 복사했어요');
+    } catch (_) {}
+  };
 
   if (loading && !post) return <LoadingState />;
   if (!post) return <NotFoundState onBack={() => navigate(-1)} />;
@@ -127,7 +146,12 @@ function PostDetailScreen() {
           <IconArrowLeft size={22} stroke={1.8} />
         </button>
         <span style={{ fontSize: 15, fontWeight: 600, color: LJ.textPrimary }}>게시물</span>
-        <MoreMenuDropdown postId={post.id} size={20} />
+        <MoreMenuDropdown
+          postId={post.id}
+          size={20}
+          onShare={handleShare}
+          onReport={() => setShowReport(true)}
+        />
       </header>
 
       {/* 게시물 영역 */}
@@ -368,6 +392,10 @@ function PostDetailScreen() {
         onCancelReply={() => setReplyingTo(null)}
         onSubmit={handleSubmitComment}
       />
+
+      {showReport && (
+        <ReportModal postId={post.id} onClose={() => setShowReport(false)} />
+      )}
     </div>
   );
 }

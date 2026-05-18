@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { IconDots, IconShare3, IconLink, IconFlag } from '@tabler/icons-react';
+import { IconDots, IconShare3, IconFlag } from '@tabler/icons-react';
 import { LJ } from './tokens';
 
 /**
- * 점 세개 메뉴: 공유 / 링크 복사 / 신고.
- * - 카드 우측 + 게시물 상세 헤더 양쪽에서 재사용.
+ * 점 세개 메뉴: 공유 / 신고.
+ * - 외부 클릭 닫힘, 상위로 이벤트 전파 차단
  */
-export function MoreMenuDropdown({ postId, onShare, onCopyLink, onReport, size = 18 }) {
+export function MoreMenuDropdown({ postId, onShare, onReport, size = 18 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -19,19 +19,9 @@ export function MoreMenuDropdown({ postId, onShare, onCopyLink, onReport, size =
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const handle = async (action) => {
+  const handle = (action) => {
     setOpen(false);
     if (action === 'share' && onShare) return onShare(postId);
-    if (action === 'copy') {
-      const url = `${window.location.origin}/post/${postId}`;
-      try {
-        await navigator.clipboard.writeText(url);
-      } catch (_) {
-        // ignore
-      }
-      if (onCopyLink) onCopyLink(postId, url);
-      return;
-    }
     if (action === 'report' && onReport) return onReport(postId);
   };
 
@@ -64,7 +54,7 @@ export function MoreMenuDropdown({ postId, onShare, onCopyLink, onReport, size =
             top: '100%',
             right: 0,
             marginTop: 6,
-            minWidth: 160,
+            minWidth: 140,
             background: '#fff',
             border: `1px solid ${LJ.borderLight}`,
             borderRadius: 10,
@@ -73,8 +63,11 @@ export function MoreMenuDropdown({ postId, onShare, onCopyLink, onReport, size =
             zIndex: 20,
           }}
         >
-          <MenuItem icon={<IconShare3 size={15} stroke={1.8} />} label="공유" onClick={() => handle('share')} />
-          <MenuItem icon={<IconLink size={15} stroke={1.8} />} label="링크 복사" onClick={() => handle('copy')} />
+          <MenuItem
+            icon={<IconShare3 size={15} stroke={1.8} />}
+            label="공유"
+            onClick={() => handle('share')}
+          />
           <MenuItem
             icon={<IconFlag size={15} stroke={1.8} />}
             label="신고"

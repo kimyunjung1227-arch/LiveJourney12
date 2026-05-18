@@ -12,6 +12,7 @@ import {
 import { LJ, categoryLabel, formatExifTime, formatRemaining } from './tokens';
 import MoreMenuDropdown from './MoreMenuDropdown';
 import PhotoCarousel from './PhotoCarousel';
+import ReportModal from './ReportModal';
 
 const BODY_PREVIEW_LINES = 4;
 
@@ -44,6 +45,29 @@ export function PostCard({
     setLikePulseKey((k) => k + 1);
     onToggleLike?.(post.id);
   };
+
+  // 공유 / 신고
+  const [showReport, setShowReport] = useState(false);
+  const handleShare = async () => {
+    const url = `${window.location.origin}/post/${post.id}`;
+    const title = post.place_name || 'Live Journey';
+    const text = post.body ? `${title} — ${post.body.slice(0, 80)}` : title;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text, url });
+        return;
+      }
+    } catch (_) {
+      // 사용자가 취소했거나 share 실패 — 클립보드 fallback으로 넘어감
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      alert('링크를 복사했어요');
+    } catch (_) {
+      // 끝까지 실패하면 조용히 패스
+    }
+  };
+  const handleReport = () => setShowReport(true);
 
   const goPhoto = () => navigate(`/photo/${post.id}`);
   const goAuthor = (e) => {
@@ -234,8 +258,12 @@ export function PostCard({
             ariaLabel="저장"
           />
         </div>
-        <MoreMenuDropdown postId={post.id} />
+        <MoreMenuDropdown postId={post.id} onShare={handleShare} onReport={handleReport} />
       </div>
+
+      {showReport && (
+        <ReportModal postId={post.id} onClose={() => setShowReport(false)} />
+      )}
     </article>
   );
 }

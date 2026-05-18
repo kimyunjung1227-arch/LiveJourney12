@@ -71,16 +71,18 @@ function MainScreen() {
         >
           Live Journey
         </h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* 검색버튼은 알림보다 약간 왼쪽으로, 두 버튼 모두 32px 같은 높이로 vertical-center */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <button
             type="button"
             onClick={() => navigate('/search')}
             aria-label="검색"
             style={{
+              height: 32,
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
-              padding: '4px 2px 6px',
+              padding: '0 2px',
               background: 'transparent',
               border: 'none',
               borderBottom: `1.5px solid ${LJ.borderLight}`,
@@ -88,15 +90,33 @@ function MainScreen() {
               fontFamily: LJ.fontStack,
               fontSize: 12.5,
               fontWeight: 500,
+              lineHeight: 1,
               cursor: 'pointer',
             }}
           >
             <span>어디로 떠나볼까요?</span>
             <IconSearch size={18} stroke={1.7} />
           </button>
-          <IconButton aria-label="알림" onClick={() => navigate('/notifications')}>
+          <button
+            type="button"
+            onClick={() => navigate('/notifications')}
+            aria-label="알림"
+            style={{
+              height: 32,
+              width: 32,
+              padding: 0,
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 8,
+              color: LJ.textSecondary,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
             <IconBell size={20} stroke={1.7} />
-          </IconButton>
+          </button>
         </div>
       </header>
 
