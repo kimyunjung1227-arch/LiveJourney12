@@ -595,9 +595,15 @@ function UploadInfoScreen() {
               borderRadius: 8,
               color: LJ.error,
               fontSize: 12,
+              lineHeight: 1.5,
             }}
           >
-            업로드 중 문제가 생겼어요. 잠시 후 다시 시도해주세요.
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>
+              업로드 중 문제가 생겼어요
+            </div>
+            <div style={{ fontSize: 11, opacity: 0.9, wordBreak: 'break-word' }}>
+              {String(error?.message || error || 'unknown error')}
+            </div>
           </div>
         </section>
       )}

@@ -56,7 +56,7 @@ function CameraScreen() {
     fileInputRef.current?.click();
   };
 
-  const handoffAndGo = async ({
+  const handoffAndGo = ({
     file,
     source,
     mode,
@@ -66,21 +66,13 @@ function CameraScreen() {
     placeName,
     exif,
   }) => {
-    // 셔터/갤러리 확정 시점에 한 번 더 정밀 위치 받기 (캐시 또는 fresh)
-    // EXIF에 GPS가 있으면 그것을 최우선, 그 외에는 정밀 위치 사용
-    let finalLat = lat;
-    let finalLng = lng;
-    let finalAccuracy = geo.accuracy ?? null;
-    if (lat == null || lng == null) {
-      try {
-        const precise = await geo.getPreciseLocation(8000);
-        if (precise && Number.isFinite(precise.lat) && Number.isFinite(precise.lng)) {
-          finalLat = precise.lat;
-          finalLng = precise.lng;
-          finalAccuracy = precise.accuracy ?? finalAccuracy;
-        }
-      } catch (_) {}
-    }
+    // 셔터 시점에 GPS fetch를 기다리지 않음 (블로킹 방지).
+    // EXIF/현재 watch 좌표를 즉시 사용하고, UploadInfoScreen 진입 후 정밀 좌표는
+    // 백그라운드(useGeolocation watchPosition)가 알아서 갱신.
+    const finalLat = lat ?? geo.coords?.lat ?? null;
+    const finalLng = lng ?? geo.coords?.lng ?? null;
+    const finalAccuracy = geo.accuracy ?? null;
+
     const url = URL.createObjectURL(file);
     setUploadMedia({
       file,
@@ -90,8 +82,8 @@ function CameraScreen() {
       mimeType: file.type,
       size: file.size,
       takenAt: (takenAt || new Date()).toISOString(),
-      lat: finalLat ?? null,
-      lng: finalLng ?? null,
+      lat: finalLat,
+      lng: finalLng,
       accuracy: finalAccuracy,
       placeName: placeName ?? geo.placeName ?? null,
       facingMode: cam.facingMode,
