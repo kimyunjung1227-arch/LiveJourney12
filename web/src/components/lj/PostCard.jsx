@@ -18,7 +18,7 @@ const BODY_PREVIEW_LINES = 4;
 
 /**
  * 홈 피드 게시물 카드.
- * 구조: 사진(크게) → 위치명(타이틀) → 아바타+이름(글수)+남은시간 → 본문(4줄) → 반응
+ * 구조: 사진(크게) → 아바타+이름(글수)+남은시간 → 위치명(타이틀) → 본문(4줄) → 반응
  * - 사진과 반응 사이 구분선 없음
  * - 위치명은 헤드라인처럼 굵게/크게
  * - 댓글 아이콘은 꼬리가 우측으로 가도록 좌우 반전
@@ -148,35 +148,8 @@ export function PostCard({
         )}
       </div>
 
-      {/* 위치명 (타이틀 — 카드의 헤드라인) */}
-      {post.place_name && (
-        <button
-          type="button"
-          onClick={goPlace}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            padding: 0,
-            margin: '14px 0 6px',
-            cursor: post.place_id ? 'pointer' : 'default',
-            fontFamily: LJ.fontStack,
-            fontSize: 17,
-            fontWeight: 700,
-            color: LJ.textPrimary,
-            letterSpacing: -0.3,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            textAlign: 'left',
-          }}
-        >
-          <IconMapPin size={16} stroke={2} color={LJ.key} />
-          {post.place_name}
-        </button>
-      )}
-
-      {/* 작성자 행: 아바타 | 이름(N) · 남은시간 | 지금 현장 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      {/* 작성자 행: 아바타 | 이름(N) · 남은시간 | 지금 현장 — 카드 상단으로 이동 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 8px' }}>
         <Avatar nickname={author.nickname} avatarUrl={author.avatar_url} size={28} onClick={goAuthor} />
         <div
           style={{
@@ -213,6 +186,33 @@ export function PostCard({
         </div>
         {post.is_on_site && <OnSiteBadge />}
       </div>
+
+      {/* 위치명 (작성자 아래로 이동) */}
+      {post.place_name && (
+        <button
+          type="button"
+          onClick={goPlace}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            margin: '0 0 6px',
+            cursor: post.place_id ? 'pointer' : 'default',
+            fontFamily: LJ.fontStack,
+            fontSize: 17,
+            fontWeight: 700,
+            color: LJ.textPrimary,
+            letterSpacing: -0.3,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            textAlign: 'left',
+          }}
+        >
+          <IconMapPin size={16} stroke={2} color={LJ.key} />
+          {post.place_name}
+        </button>
+      )}
 
       {/* 본문 (4줄 클램프) */}
       {post.body && <ClampedBody text={post.body} />}
