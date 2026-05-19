@@ -5,6 +5,7 @@ import { normalizePostRow, bestCutScore, decodePlaceId, makePlaceId } from './lj
 const SELECT_COLUMNS = `
   id, user_id, content, images, location, detailed_location, place_name, region,
   category, category_name, likes_count, comments_count, captured_at, created_at,
+  exif_data,
   author_username, author_avatar_url, is_in_app_camera
 `;
 

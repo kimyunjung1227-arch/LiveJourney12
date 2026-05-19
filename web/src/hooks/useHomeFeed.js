@@ -19,6 +19,7 @@ const SELECT_COLUMNS = `
   comments_count,
   captured_at,
   created_at,
+  exif_data,
   author_username,
   author_avatar_url,
   is_in_app_camera

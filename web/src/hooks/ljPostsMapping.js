@@ -94,10 +94,32 @@ export function decodePlaceId(placeId) {
   return placeId;
 }
 
+/**
+ * EXIF 카메라 촬영 시간을 가능한 소스에서 우선 추출.
+ * 1) exif_data.tags.DateTimeOriginal — exifr가 갤러리 사진에서 추출한 원본 촬영 시간
+ * 2) exif_data.tags.CreateDate / ModifyDate
+ * 3) exif_data.photoDate / taken_at — 업로드 훅이 정규화해 둔 값
+ * 4) captured_at 컬럼
+ * 5) created_at 컬럼 (최후 폴백)
+ */
+function pickExifTakenAt(row) {
+  if (!row) return null;
+  const exif = row.exif_data && typeof row.exif_data === 'object' ? row.exif_data : null;
+  if (exif) {
+    const tags = exif.tags && typeof exif.tags === 'object' ? exif.tags : null;
+    const fromTags =
+      tags?.DateTimeOriginal || tags?.CreateDate || tags?.ModifyDate || null;
+    if (fromTags) return fromTags;
+    const flat = exif.photoDate || exif.taken_at || null;
+    if (flat) return flat;
+  }
+  return row.captured_at || row.created_at || null;
+}
+
 export function normalizePostRow(row) {
   if (!row) return row;
   const photos = pickAllImages(row.images);
-  const exifTakenAt = row.captured_at || row.created_at;
+  const exifTakenAt = pickExifTakenAt(row);
   const expiresAt = exifTakenAt
     ? new Date(new Date(exifTakenAt).getTime() + 48 * 60 * 60 * 1000).toISOString()
     : null;
