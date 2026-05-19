@@ -1,760 +1,851 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, RefreshCw, LocateFixed, X } from 'lucide-react';
-import { fetchPostsSupabase } from '../api/postsSupabase';
+import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion';
+import {
+  IconArrowLeft,
+  IconSearch,
+  IconCurrentLocation,
+  IconChevronUp,
+  IconPhoto,
+  IconShieldCheck,
+  IconHeart,
+  IconMessageCircle,
+  IconBookmark,
+  IconArrowRight,
+  IconFlower,
+  IconCloud,
+  IconCalendarEvent,
+  IconUsers,
+  IconMoon,
+  IconBuildingStore,
+} from '@tabler/icons-react';
+import { supabase } from '../utils/supabaseClient';
 import { getDisplayImageUrl } from '../api/upload';
-import { getUploadedPostsSafe } from '../utils/localStorageManager';
-import { getCombinedPosts } from '../utils/mockData';
-import { getCoordinatesByLocation } from '../utils/locationCoordinates';
-import { searchPlaceWithKakaoFirst } from '../utils/kakaoPlacesGeocode';
 import { logger } from '../utils/logger';
-import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
-import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
-import { distanceKmBetween } from '../utils/geoDistance';
 
-const DEFAULT_CENTER = { lat: 37.5665, lng: 126.9780 };
+// ────────────────────────────────────────────────
+// 디자인 토큰 (스펙 §3)
+// ────────────────────────────────────────────────
+const KEY = '#4DB8E8';
+const KEY_LIGHT = '#E8F4FB';
+const KEY_DARK = '#1A6EA8';
+const DEFAULT_CENTER = { lat: 37.5665, lng: 126.978 }; // 서울 시청 (GPS 폴백)
 
-/** Live Journey 메인 컬러 (tailwind `primary`와 동일) */
-const PRIMARY_HEX = '#26C6DA';
-const PRIMARY_DARK = '#0891b2';
+// 카테고리 (스펙 §8-2)
+const CATEGORIES = [
+  { id: 'all', label: '전체', Icon: null },
+  { id: 'nature', label: '개화·자연', Icon: IconFlower },
+  { id: 'weather', label: '날씨·체감', Icon: IconCloud },
+  { id: 'event', label: '이벤트·축제', Icon: IconCalendarEvent },
+  { id: 'crowd', label: '혼잡도·대기', Icon: IconUsers },
+  { id: 'sunset', label: '노을·야경', Icon: IconMoon },
+  { id: 'business', label: '영업·운영', Icon: IconBuildingStore },
+];
 
-const GEO_CACHE_KEY = '__lj_map_geo_cache_v3';
+const CATEGORY_META = {
+  nature: { Icon: IconFlower, label: '개화·자연' },
+  weather: { Icon: IconCloud, label: '날씨·체감' },
+  event: { Icon: IconCalendarEvent, label: '이벤트·축제' },
+  crowd: { Icon: IconUsers, label: '혼잡도·대기' },
+  sunset: { Icon: IconMoon, label: '노을·야경' },
+  business: { Icon: IconBuildingStore, label: '영업·운영' },
+};
 
-const escapeHtmlAttr = (value) => {
-  if (value == null) return '';
-  return String(value)
+// ────────────────────────────────────────────────
+// 유틸 (스펙 §12)
+// ────────────────────────────────────────────────
+function timeAgo(iso) {
+  if (!iso) return '';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return '방금';
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return '방금';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}분 전`;
+  const hour = Math.floor(min / 60);
+  if (hour < 24) return `${hour}시간 전`;
+  return `${Math.floor(hour / 24)}일 전`;
+}
+
+function formatHoursLeft(iso) {
+  if (!iso) return '';
+  const expires = new Date(iso).getTime() + 48 * 60 * 60 * 1000;
+  const ms = expires - Date.now();
+  if (ms <= 0) return '만료됨';
+  const hour = Math.floor(ms / 3600000);
+  if (hour < 1) return `${Math.max(1, Math.floor(ms / 60000))}분 남음`;
+  return `${hour}시간 남음`;
+}
+
+const esc = (v) =>
+  String(v ?? '')
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-};
 
-// NOTE: Non-ASCII UI strings are written as \u escapes to avoid encoding corruption in patches.
-const t = {
-  errMissingKey:
-    'VITE_KAKAO_MAP_API_KEY\uac00 \ube44\uc5b4\uc788\uc2b5\ub2c8\ub2e4. web/.env\uc5d0 \uc124\uc815\ud574 \uc8fc\uc138\uc694.',
-  errSdkLoad: 'Kakao Maps SDK \uc2a4\ud06c\ub9bd\ud2b8 \ub85c\ub4dc\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4.',
-  errSdkInit: 'Kakao Maps SDK\uac00 \ucd08\uae30\ud654\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.',
-  warnMapInit: '\uc9c0\ub3c4 \ucd08\uae30\ud654 \uc2e4\ud328',
-  warnOverlays: '\uc624\ubc84\ub808\uc774 \uac31\uc2e0 \uc2e4\ud328',
-  warnUserOverlay: '\ub0b4 \uc704\uce58 \ud45c\uc2dc \uc2e4\ud328',
-  warnSearch: '\uac80\uc0c9 \uc2e4\ud328',
-  warnGeoUnsupported: '\uc774 \ube0c\ub77c\uc6b0\uc800\ub294 \uc704\uce58 \uc815\ubcf4\ub97c \uc9c0\uc6d0\ud558\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.',
-  warnGeoFailed: '\ud604\uc7ac \uc704\uce58\ub97c \uac00\uc838\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.',
-  warnRefreshPosts: '\uac8c\uc2dc\ubb3c \uc0c8\ub85c\uace0\uce68 \uc2e4\ud328',
-  loadingSdk: '\uc9c0\ub3c4\ub97c \uc900\ube44\ud558\ub294 \uc911\uc785\ub2c8\ub2e4...',
-  mapLoadFailedTitle: '\uc9c0\ub3c4\ub97c \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694',
-  mapLoadFailedHint:
-    'web/.env\uc758 VITE_KAKAO_MAP_API_KEY\uc640 \uce74\uce74\uc624 \ub514\ubc1c\ub85c\ud37c\uc2a4 \ub3c4\uba54\uc778(\ub85c\uceec/\ubc30\ud3ec URL) \uc124\uc815\uc744 \ud655\uc778\ud574 \uc8fc\uc138\uc694.',
-  back: '\ub4a4\ub85c\uac00\uae30',
-  searchPlaceholder: '\uc9c0\uc5ed \uac80\uc0c9',
-  refresh: '\uc0c8\ub85c\uace0\uce68',
-  situationCta: '\uc9c0\uae08 \uc0c1\ud669 \uc54c\uc544\ubcf4\uae30',
-  chipBloom: '\uac1c\ud654\uc815\ubcf4',
-  chipPlaces: '\uac00\ubcfc\ub9cc\ud55c\uacf3',
-  myLocation: '\ub0b4 \uc704\uce58',
-  sheetToggle: '\ubc14\ud2f7\uc2dc\ud2b8 \ud655\uc7a5/\ucd95\uc18c',
-  nearbyTitle: '\uc8fc\ubcc0 \uc0ac\uc9c4',
-  showPhotosAgain: '\uc0ac\uc9c4 \ub2e4\uc2dc \ubcf4\uae30',
-  close: '\ub2eb\uae30',
-  postsSummary: (inView, total) =>
-    `\ubcf4\uc774\ub294 \uc9c0\uc5ed ${inView.toLocaleString()} \xb7 \uc120\ud0dd\ud544\ud130 ${total.toLocaleString()}`,
-  emptyLoading: '\uac8c\uc2dc\ubb3c\uc744 \ubd88\ub7ec\uc624\ub294 \uc911...',
-  emptyNone: '\ud45c\uc2dc\ud560 \uc0ac\uc9c4\uc774 \uc5c6\uc2b5\ub2c8\ub2e4',
-  emptyHint:
-    '\ud544\ud130\ub97c \ubc14\uafb8\uac70\ub098 \uc9c0\ub3c4\ub97c \uc62e\uaca8 \ubcf4\uc138\uc694. \uac1c\ud654/\uba85\uc18c\ub294 \uae0d\uc81c/\ub0b4\uc6a9\uc5d0 \uad00\ub828 \ud0a4\uc6cc\ub4dc\uac00 \uc788\uc73c\uba74 \uac80\uc0c9\ub429\ub2c8\ub2e4.',
-};
-
-const readGeoCache = () => {
-  try {
-    const g = globalThis;
-    if (!g[GEO_CACHE_KEY] || typeof g[GEO_CACHE_KEY] !== 'object') g[GEO_CACHE_KEY] = new Map();
-    return g[GEO_CACHE_KEY];
-  } catch {
-    return new Map();
-  }
-};
-
-const getKakaoAppKey = () => String(import.meta.env.VITE_KAKAO_MAP_API_KEY || '').trim();
+// ────────────────────────────────────────────────
+// Kakao SDK 로더 (clusterer + services 포함)
+// ────────────────────────────────────────────────
+const getKakaoAppKey = () =>
+  String(import.meta.env.VITE_KAKAO_MAP_API_KEY || '').trim();
 
 const loadKakaoSdkOnce = (appKey) =>
   new Promise((resolve, reject) => {
     const key = String(appKey || '').trim();
     if (!key) {
-      reject(new Error(t.errMissingKey));
+      reject(new Error('VITE_KAKAO_MAP_API_KEY가 비어있습니다.'));
       return;
     }
-
     if (window.kakao?.maps) {
       resolve();
       return;
     }
-
     const existing = document.querySelector('script[data-kakao-maps-sdk="1"]');
     if (existing) {
       existing.addEventListener('load', () => resolve(), { once: true });
-      existing.addEventListener('error', () => reject(new Error(t.errSdkLoad)), { once: true });
+      existing.addEventListener(
+        'error',
+        () => reject(new Error('Kakao SDK 로드 실패')),
+        { once: true },
+      );
       return;
     }
-
     const script = document.createElement('script');
     script.type = 'text/javascript';
     script.async = true;
     script.dataset.kakaoMapsSdk = '1';
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&autoload=false&libraries=services`;
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(
+      key,
+    )}&autoload=false&libraries=services,clusterer`;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error(t.errSdkLoad));
+    script.onerror = () => reject(new Error('Kakao SDK 로드 실패'));
     document.head.appendChild(script);
   });
 
 const ensureKakaoMapsReady = async () => {
-  const key = getKakaoAppKey();
-  await loadKakaoSdkOnce(key);
+  await loadKakaoSdkOnce(getKakaoAppKey());
   await new Promise((resolve, reject) => {
-    try {
-      if (!window.kakao?.maps?.load) {
-        reject(new Error(t.errSdkInit));
-        return;
-      }
-      window.kakao.maps.load(() => resolve());
-    } catch (e) {
-      reject(e);
-    }
-  });
-};
-
-const haversineKm = (a, b) => (a && b ? distanceKmBetween(a, b) : Infinity);
-
-function metersToLatLngDeltaMeters(meters, atLat) {
-  const lat = Number(atLat) || 0;
-  const dLat = meters / 111_320;
-  const dLng = meters / (111_320 * Math.max(0.2, Math.cos((lat * Math.PI) / 180)));
-  return { dLat, dLng };
-}
-
-/**
- * 같은 좌표로 겹치는 핀을 주변으로 퍼지게(spiderfy) 배치.
- * - 좌표를 소수점 5자리 단위로 묶어(약 1m 단위) "같은 위치"를 판단
- * - 그룹 내 index에 따라 원형으로 오프셋(미터) 부여
- */
-function buildSpreadCoordsByPostId(posts) {
-  const list = Array.isArray(posts) ? posts : [];
-  const groups = new Map(); // key -> post[]
-  const keyOf = (pos) => {
-    const lat = Number(pos?.lat);
-    const lng = Number(pos?.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return '';
-    return `${lat.toFixed(5)},${lng.toFixed(5)}`;
-  };
-
-  for (const p of list) {
-    const pos = p?.__coords;
-    const k = keyOf(pos);
-    if (!k) continue;
-    const arr = groups.get(k);
-    if (arr) arr.push(p);
-    else groups.set(k, [p]);
-  }
-
-  const out = new Map(); // postId -> {lat,lng}
-  for (const [, arrRaw] of groups) {
-    const arr = (arrRaw || []).slice().sort((a, b) => String(a?.id || '').localeCompare(String(b?.id || '')));
-    if (arr.length <= 1) continue;
-    const base = arr[0]?.__coords;
-    if (!base) continue;
-
-    // 핀 2~6개는 한 바퀴에 배치, 더 많으면 반경을 조금씩 늘리며 분산
-    for (let i = 0; i < arr.length; i += 1) {
-      const p = arr[i];
-      const id = p?.id != null ? String(p.id) : '';
-      if (!id) continue;
-
-      const ring = Math.floor(i / 8); // 0,1,2...
-      const idxInRing = i % 8;
-      const n = Math.min(8, arr.length - ring * 8);
-      const angle = (2 * Math.PI * idxInRing) / Math.max(1, n);
-      const radiusM = 12 + ring * 10; // 12m, 22m, 32m...
-      const { dLat, dLng } = metersToLatLngDeltaMeters(radiusM, base.lat);
-      const lat = base.lat + Math.sin(angle) * dLat;
-      const lng = base.lng + Math.cos(angle) * dLng;
-      out.set(id, { lat, lng });
-    }
-  }
-
-  return out;
-}
-
-const extractCoordsFromPost = (post) => {
-  /** Supabase에 저장된 업로드 시 확정 좌표(모든 기기 동일) */
-  const mp = post?.exifData?.map_pin;
-  if (mp && Number.isFinite(Number(mp.lat)) && Number.isFinite(Number(mp.lng))) {
-    return { lat: Number(mp.lat), lng: Number(mp.lng) };
-  }
-  const c = post?.coordinates;
-  const lat = Number(
-    c?.lat ?? c?.latitude ?? post?.lat ?? post?.latitude ?? post?.exifData?.latitude ?? post?.exifData?.lat,
-  );
-  const lng = Number(
-    c?.lng ?? c?.longitude ?? post?.lng ?? post?.longitude ?? post?.exifData?.longitude ?? post?.exifData?.lng,
-  );
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  return { lat, lng };
-};
-
-const buildGeoQuery = (post) => {
-  const place = String(post?.placeName || '').trim();
-  const detailed = String(post?.detailedLocation || '').trim();
-  const loc = String(post?.location || '').trim();
-  const region = String(post?.region || '').trim();
-  const primary = place || detailed || loc || region;
-  if (!primary) return '';
-  if (region && primary !== region) return `${primary} ${region}`;
-  return primary;
-};
-
-/** 장소명·상세 위치 우선 — 카카오 키워드 검색이 지역 중심점보다 정확 */
-function buildKakaoPriorityQuery(post) {
-  const place = String(post?.placeName || '').trim();
-  const detailed = String(post?.detailedLocation || '').trim();
-  const loc = String(post?.location || '').trim();
-  const region = String(post?.region || '').trim();
-  const primary = place || detailed || loc;
-  if (!primary) return region || '';
-  if (region && !primary.includes(region)) return `${primary} ${region}`.trim();
-  return primary;
-}
-
-const normalizePost = (p) => {
-  if (!p || typeof p !== 'object') return null;
-  const id = p.id != null ? String(p.id) : `${p.timestamp || 'noid'}-${Math.random().toString(16).slice(2)}`;
-  return { ...p, id };
-};
-
-const mergePostsUnique = (lists) => {
-  const map = new Map();
-  for (const arr of lists) {
-    if (!Array.isArray(arr)) continue;
-    for (const raw of arr) {
-      const p = normalizePost(raw);
-      if (!p?.id) continue;
-      if (!map.has(p.id)) map.set(p.id, p);
-    }
-  }
-  return [...map.values()].sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0));
-};
-
-function postTextBlob(post) {
-  const tags = Array.isArray(post.tags) ? post.tags.join(' ') : '';
-  return [
-    post.note,
-    post.content,
-    post.location,
-    post.placeName,
-    post.detailedLocation,
-    post.region,
-    post.category,
-    post.categoryName,
-    tags,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-}
-
-function matchesMapFilter(post, selectedFilters) {
-  if (!Array.isArray(selectedFilters) || selectedFilters.length === 0) return true;
-  const blob = postTextBlob(post);
-  const matchBloom = () =>
-    [
-      '\uac1c\ud654',
-      '\ubc94\uaf43',
-      '\uaf43',
-      '\ubd04',
-      'flower',
-      'bloom',
-      'cherry',
-      'sakura',
-      '\uaf43\ub180\uc774',
-    ].some((k) => blob.includes(k.toLowerCase()));
-  const matchPlaces = () =>
-    [
-      '\uac00\ubcfc\ub9cc',
-      '\uba85\uc18c',
-      '\uad00\uad11',
-      '\uc5ec\ud589',
-      '\ud56b\ud50c',
-      'spot',
-      'landmark',
-      'attraction',
-      '\uad6c\uacbd',
-      '\ucf54\uc2a4',
-      '\uc5ec\ud589\uc9c0',
-      '\ucd94\ucc9c',
-      '\uad00\ub9ac',
-      '\uc5b4\ud2b8',
-    ].some((k) => blob.includes(k.toLowerCase()));
-
-  return selectedFilters.some((f) => {
-    if (f === 'bloom') return matchBloom();
-    if (f === 'places') return matchPlaces();
-    return true;
-  });
-}
-
-function pointInBounds(lat, lng, bounds) {
-  if (!bounds) return true;
-  return (
-    lat >= bounds.sw.lat && lat <= bounds.ne.lat && lng >= bounds.sw.lng && lng <= bounds.ne.lng
-  );
-}
-
-const chipClass = (active) =>
-  active
-    ? 'inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-white px-3.5 py-2 text-sm font-semibold shadow-sm whitespace-nowrap'
-    : 'inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-white px-3.5 py-2 text-sm font-semibold shadow-sm whitespace-nowrap';
-
-const chipStyle = (active) => ({
-  borderColor: active ? 'rgba(38,198,218,0.38)' : 'rgba(226,232,240,1)',
-  color: active ? PRIMARY_DARK : '#334155',
-});
-
-const iconColorForFilter = (key, active) => {
-  if (key === 'bloom') return '#ec4899'; // pink
-  if (key === 'places') return '#6366f1'; // indigo
-  return '#64748b';
-};
-
-const msIcon = (name, opts = {}) => (
-  <span
-    className="material-symbols-outlined text-[18px] leading-none"
-    style={{
-      fontVariationSettings: "'wght' 300",
-      color: opts.color || '#64748b',
-    }}
-    aria-hidden
-  >
-    {name}
-  </span>
-);
-
-const MapScreen = () => {
-  const navigate = useNavigate();
-
-  const mapRef = useRef(null);
-  const kakaoMapRef = useRef(null);
-  const postOverlaysRef = useRef([]);
-  const postOverlayByIdRef = useRef(new Map()); // postId -> { overlay, el }
-  const userOverlayRef = useRef(null);
-  const searchOverlayRef = useRef(null);
-  const searchDebounceRef = useRef(0);
-  const idleListenerRef = useRef(null);
-  const sheetDragRef = useRef(null);
-  const rafSyncRef = useRef(0);
-  const prefetchedThumbsRef = useRef(new Set()); // url -> true
-
-  /** expanded: 큰 시트 | peek: 미리보기 | hidden: 내려감 */
-  const [sheetMode, setSheetMode] = useState('peek');
-  const [sdkStatus, setSdkStatus] = useState({ ok: false, message: '' });
-  const [query, setQuery] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [selectedPostCard, setSelectedPostCard] = useState(null);
-  const [highlightedPostId, setHighlightedPostId] = useState(null);
-  const [searchedPlace, setSearchedPlace] = useState(null); // { lat, lng, label }
-  const [remoteSuggests, setRemoteSuggests] = useState([]); // Kakao keywordSearch results
-  const [remoteSuggestLoading, setRemoteSuggestLoading] = useState(false);
-
-  const [userPos, setUserPos] = useState(null);
-  const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
-  const [mapBounds, setMapBounds] = useState(null);
-  const [viewCenter, setViewCenter] = useState(DEFAULT_CENTER);
-
-  const [posts, setPosts] = useState([]);
-  const [postsWithCoords, setPostsWithCoords] = useState([]);
-  const [loadingPosts, setLoadingPosts] = useState(false);
-  const PIN_MAX_AGE_MS = 48 * 60 * 60 * 1000;
-
-  // 처음 진입 시 필터는 기본으로 "미선택"(전체 표시)
-  const [selectedFilters, setSelectedFilters] = useState([]);
-  const geoCache = useMemo(() => readGeoCache(), []);
-
-  const filterScroll = useHorizontalDragScroll();
-  const photoScroll = useHorizontalDragScroll();
-
-  const resolveCoordsForPost = useCallback(
-    async (post) => {
-      const tryKakaoQuery = async (queryText) => {
-        const q = String(queryText || '').trim();
-        if (!q) return null;
-        const cached = geoCache.get(q);
-        if (cached !== undefined) return cached;
-        await ensureKakaoMapsReady();
-        const found = await searchPlaceWithKakaoFirst(q);
-        const coord =
-          found && Number.isFinite(found.lat) && Number.isFinite(found.lng) ? { lat: found.lat, lng: found.lng } : null;
-        geoCache.set(q, coord);
-        return coord;
-      };
-
-      const qPriority = buildKakaoPriorityQuery(post);
-      // ✅ 사용자 입력 위치/장소명을 우선으로 핀 위치 결정
-      let coord = await tryKakaoQuery(qPriority);
-      if (coord) return coord;
-
-      const direct = extractCoordsFromPost(post);
-      if (direct) return direct;
-
-      const qFallback = buildGeoQuery(post);
-      if (qFallback && qFallback !== qPriority) {
-        coord = await tryKakaoQuery(qFallback);
-        if (coord) return coord;
-      }
-
-      const regionOnly = String(post?.region || '').trim();
-      if (regionOnly) {
-        const regionCoord = getCoordinatesByLocation(regionOnly);
-        if (regionCoord) return regionCoord;
-      }
-      const locOnly = String(post?.location || '').trim();
-      if (locOnly && locOnly !== regionOnly) {
-        const locCoord = getCoordinatesByLocation(locOnly);
-        if (locCoord) return locCoord;
-      }
-      return null;
-    },
-    [geoCache],
-  );
-
-  const refreshPosts = useCallback(async () => {
-    setLoadingPosts(true);
-    try {
-      const local = getUploadedPostsSafe();
-      const remote = await fetchPostsSupabase();
-      const mergedAll = mergePostsUnique([getCombinedPosts(local), remote]);
-      const now = Date.now();
-      const getUploadTimeMs = (p) => {
-        const ts = Number(p?.timestamp);
-        if (Number.isFinite(ts) && ts > 0) return ts;
-        const ca = p?.createdAt;
-        if (typeof ca === 'string' && ca.trim()) {
-          const t = new Date(ca).getTime();
-          return Number.isFinite(t) ? t : null;
-        }
-        return null;
-      };
-      // 업로드 시간 기준 48시간 지난 게시물은 지도 핀에서 제외
-      const merged = mergedAll.filter((p) => {
-        const t = getUploadTimeMs(p);
-        if (t == null) return true; // 시간 정보가 없으면 일단 유지(데이터 소실 방지)
-        return now - t <= PIN_MAX_AGE_MS;
-      });
-
-      const MAX_ENRICH = 200;
-      const slice = merged.slice(0, MAX_ENRICH);
-
-      const enriched = [];
-      for (const p of slice) {
-        // eslint-disable-next-line no-await-in-loop
-        const coords = await resolveCoordsForPost(p);
-        if (coords) enriched.push({ ...p, __coords: coords });
-      }
-
-      setPosts(merged);
-      setPostsWithCoords(enriched);
-    } catch (e) {
-      logger.warn(t.warnRefreshPosts, e?.message || e);
-      setPosts([]);
-      setPostsWithCoords([]);
-    } finally {
-      setLoadingPosts(false);
-    }
-  }, [resolveCoordsForPost]);
-
-  const postsFiltered = useMemo(
-    () => postsWithCoords.filter((p) => matchesMapFilter(p, selectedFilters)),
-    [postsWithCoords, selectedFilters],
-  );
-
-  const recommendedQueries = useMemo(
-    () => [
-      { label: '석촌호수', query: '석촌호수' },
-      { label: '성수', query: '성수' },
-      { label: '홍대', query: '홍대입구' },
-      { label: '강남역', query: '강남역' },
-      { label: '여의도 한강공원', query: '여의도 한강공원' },
-      { label: '해운대', query: '해운대 해수욕장' },
-      { label: '광안리', query: '광안리 해수욕장' },
-      { label: '전주 한옥마을', query: '전주 한옥마을' },
-      { label: '경주 황리단길', query: '황리단길' },
-      { label: '제주', query: '제주도' },
-    ],
-    [],
-  );
-
-  const searchResults = useMemo(() => {
-    const q = String(query || '').trim();
-    if (!q) {
-      return recommendedQueries.map((x) => ({ kind: 'preset', key: `preset:${x.query}`, label: x.label, query: x.query }));
-    }
-    return (remoteSuggests || []).map((r) => ({
-      kind: 'kakao',
-      key: `kakao:${r.id || `${r.x}|${r.y}|${r.place_name}`}`,
-      label: r.place_name || r.address_name || q,
-      address: r.road_address_name || r.address_name || '',
-      lat: Number(r.y),
-      lng: Number(r.x),
-    }));
-  }, [query, remoteSuggests, recommendedQueries]);
-
-  const toggleFilter = useCallback((key) => {
-    setSelectedFilters((prev) => {
-      const arr = Array.isArray(prev) ? prev : [];
-      return arr.includes(key) ? arr.filter((x) => x !== key) : [...arr, key];
-    });
-  }, []);
-
-  const postsInViewport = useMemo(() => {
-    return postsFiltered.filter((p) => pointInBounds(p.__coords.lat, p.__coords.lng, mapBounds));
-  }, [postsFiltered, mapBounds]);
-
-  const sheetPhotoPosts = useMemo(() => {
-    const center = viewCenter;
-    return [...postsInViewport]
-      .map((p) => ({ p, km: haversineKm(center, p.__coords) }))
-      .sort((a, b) => a.km - b.km)
-      .map((x) => x.p);
-  }, [postsInViewport, viewCenter]);
-
-  const sheetStripPosts = useMemo(() => sheetPhotoPosts.slice(0, 10), [sheetPhotoPosts]);
-
-  const openMorePhotos = useCallback(() => {
-    setSheetMode('expanded');
-  }, []);
-
-  const syncViewportFromMap = useCallback(() => {
-    const map = kakaoMapRef.current;
-    if (!map) return;
-    try {
-      const b = map.getBounds();
-      const sw = b.getSouthWest();
-      const ne = b.getNorthEast();
-      setMapBounds({
-        sw: { lat: sw.getLat(), lng: sw.getLng() },
-        ne: { lat: ne.getLat(), lng: ne.getLng() },
-      });
-      const c = map.getCenter();
-      setViewCenter({ lat: c.getLat(), lng: c.getLng() });
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  const scheduleViewportSync = useCallback(() => {
-    if (rafSyncRef.current) cancelAnimationFrame(rafSyncRef.current);
-    rafSyncRef.current = requestAnimationFrame(() => {
-      syncViewportFromMap();
-      rafSyncRef.current = requestAnimationFrame(() => {
-        syncViewportFromMap();
-        rafSyncRef.current = 0;
-      });
-    });
-  }, [syncViewportFromMap]);
-
-  const panToPost = useCallback(
-    (post) => {
-      const map = kakaoMapRef.current;
-      const pos = post?.__coords;
-      if (!map || !pos || !window.kakao?.maps) return;
-      try {
-        map.panTo(new window.kakao.maps.LatLng(pos.lat, pos.lng));
-        setViewCenter({ lat: pos.lat, lng: pos.lng });
-        scheduleViewportSync();
-      } catch {
-        /* ignore */
-      }
-    },
-    [scheduleViewportSync],
-  );
-
-  const panToLatLng = useCallback(
-    (lat, lng) => {
-      const map = kakaoMapRef.current;
-      if (!map || !window.kakao?.maps) return;
-      if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) return;
-      try {
-        map.panTo(new window.kakao.maps.LatLng(Number(lat), Number(lng)));
-        setViewCenter({ lat: Number(lat), lng: Number(lng) });
-        scheduleViewportSync();
-      } catch {
-        /* ignore */
-      }
-    },
-    [scheduleViewportSync],
-  );
-
-  const keywordSuggest = useCallback(async (q) => {
-    const queryText = String(q || '').trim();
-    if (!queryText) {
-      setRemoteSuggests([]);
+    if (!window.kakao?.maps?.load) {
+      reject(new Error('Kakao SDK 초기화 실패'));
       return;
     }
-    try {
-      await ensureKakaoMapsReady();
-      if (!window.kakao?.maps?.services) return;
-      setRemoteSuggestLoading(true);
-      const places = new window.kakao.maps.services.Places();
-      places.keywordSearch(
-        queryText,
-        (data, status) => {
-          try {
-            if (status !== window.kakao.maps.services.Status.OK || !Array.isArray(data)) {
-              setRemoteSuggests([]);
-              return;
-            }
-            setRemoteSuggests(data.slice(0, 20));
-          } finally {
-            setRemoteSuggestLoading(false);
-          }
-        },
-        { size: 15 },
-      );
-    } catch {
-      setRemoteSuggests([]);
-      setRemoteSuggestLoading(false);
+    window.kakao.maps.load(() => resolve());
+  });
+};
+
+// ────────────────────────────────────────────────
+// 핀 HTML 빌더 (CustomOverlay content)
+// ────────────────────────────────────────────────
+function buildPinHTML(bundle, { isSelected, isOtherSelected }) {
+  const thumb = esc(getDisplayImageUrl(bundle.primary_thumbnail || ''));
+  const size = isSelected ? 56 : isOtherSelected ? 32 : 38;
+  const borderW = isSelected ? 3.5 : 2.5;
+  const radius = isSelected ? 12 : 9;
+  const opacity = isOtherSelected && !isSelected ? 0.5 : 1;
+  const outline = isSelected
+    ? `outline:2.5px solid ${KEY};outline-offset:0;`
+    : '';
+  const shadow = isSelected
+    ? '0 6px 20px rgba(77,184,232,0.4)'
+    : '0 3px 9px rgba(0,0,0,0.18)';
+  const arrowColor = isSelected ? KEY : '#ffffff';
+  const arrowW = isSelected ? 8 : 6;
+  const arrowH = isSelected ? 11 : 7;
+  const arrowBottom = isSelected ? -10 : -6;
+
+  const bundleBadge = bundle.is_bundle
+    ? `<div style="position:absolute;top:${isSelected ? -7 : -5}px;right:${
+        isSelected ? -7 : -5
+      }px;background:rgba(0,0,0,${
+        isSelected ? 0.7 : 0.65
+      });padding:${
+        isSelected ? '2px 6px' : '1px 4px'
+      };border-radius:${isSelected ? 6 : 3}px;display:flex;align-items:center;gap:${
+        isSelected ? 4 : 2
+      }px;border:${isSelected ? 2 : 1.5}px solid white;pointer-events:none;">
+        <svg width="${isSelected ? 9 : 7}" height="${
+        isSelected ? 9 : 7
+      }" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/><rect width="14" height="14" x="9" y="3" rx="2"/></svg>
+        <span style="font-size:${
+          isSelected ? 9 : 7
+        }px;color:white;font-weight:700;line-height:1;">${
+        bundle.bundle_count
+      }</span>
+      </div>`
+    : '';
+
+  const imgFallbackBg = thumb
+    ? ''
+    : 'background-image:linear-gradient(135deg,#e0f7fa,#b2ebf2);';
+
+  return `<div style="position:relative;opacity:${opacity};transition:all 0.15s ease;cursor:pointer;">
+    <div style="width:${size}px;height:${size}px;background-image:url('${thumb}');${imgFallbackBg}background-size:cover;background-position:center;border:${borderW}px solid white;border-radius:${radius}px;box-shadow:${shadow};${outline}background-color:#f3f4f6;"></div>
+    <div style="position:absolute;bottom:${arrowBottom}px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:${arrowW}px solid transparent;border-right:${arrowW}px solid transparent;border-top:${arrowH}px solid ${arrowColor};filter:drop-shadow(0 2px 2px rgba(0,0,0,0.12));pointer-events:none;"></div>
+    ${bundleBadge}
+  </div>`;
+}
+
+function buildMyLocationHTML() {
+  return `<div style="width:16px;height:16px;background:${KEY};border-radius:50%;border:3px solid white;box-shadow:0 0 0 6px rgba(77,184,232,0.2), 0 0 0 12px rgba(77,184,232,0.1);"></div>`;
+}
+
+// ────────────────────────────────────────────────
+// 하위 컴포넌트들 (스펙 §8)
+// ────────────────────────────────────────────────
+
+// 8-1. MapHeader
+function MapHeader() {
+  const navigate = useNavigate();
+  return (
+    <div className="absolute top-3.5 left-3.5 right-3.5 z-10 flex items-center gap-2.5">
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
+        className="bg-white w-[42px] h-[42px] rounded-xl flex items-center justify-center flex-shrink-0"
+        style={{ boxShadow: '0 2px 10px rgba(0,0,0,0.12)' }}
+        aria-label="뒤로가기"
+      >
+        <IconArrowLeft size={20} color="#1F1F1F" />
+      </button>
+      <button
+        type="button"
+        onClick={() => navigate('/search?context=map')}
+        className="flex-1 bg-white h-[42px] rounded-xl flex items-center px-3.5 gap-2.5"
+        style={{ boxShadow: '0 2px 10px rgba(0,0,0,0.12)' }}
+      >
+        <IconSearch size={18} color="#6B6B6B" />
+        <span className="text-[13px] text-[#B8B8B8] flex-1 text-left">
+          장소 또는 지역 검색
+        </span>
+      </button>
+    </div>
+  );
+}
+
+// 8-2. MapCategoryFilter
+function MapCategoryFilter({ selected, onChange }) {
+  return (
+    <div className="absolute top-[68px] left-3.5 right-3.5 z-10">
+      <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+        {CATEGORIES.map((cat) => {
+          const isActive = selected === cat.id;
+          const Icon = cat.Icon;
+          return (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => onChange(cat.id)}
+              className={`text-[11px] px-3.5 py-1.5 rounded-2xl whitespace-nowrap flex items-center gap-1 flex-shrink-0 ${
+                isActive ? 'text-white font-semibold' : 'text-[#1F1F1F]'
+              }`}
+              style={{
+                background: isActive ? KEY : '#ffffff',
+                boxShadow: isActive
+                  ? '0 2px 6px rgba(77, 184, 232, 0.3)'
+                  : '0 2px 8px rgba(0, 0, 0, 0.1)',
+              }}
+            >
+              {Icon && (
+                <Icon
+                  size={11}
+                  stroke={1.8}
+                  color={isActive ? '#ffffff' : '#1F1F1F'}
+                />
+              )}
+              {cat.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// 8-3. MyLocationButton
+function MyLocationButton({ sheetOpen, hasSelected, onClick }) {
+  // 시트 열림(선택 없음): bottom-[250px], 그 외: bottom-[80px]
+  const bottomClass =
+    sheetOpen && !hasSelected ? 'bottom-[250px]' : 'bottom-[80px]';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="내 위치"
+      className={`absolute right-[18px] z-10 bg-transparent p-0 transition-all ${bottomClass}`}
+      style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.25))' }}
+    >
+      <IconCurrentLocation size={32} color={KEY} strokeWidth={2} />
+    </button>
+  );
+}
+
+// 8-6. RecentPhotosSheet
+function RecentPhotosSheet({ photos, onClose }) {
+  const y = useMotionValue(0);
+
+  const handleDragEnd = (_, info) => {
+    if (info.offset.y > 60 || info.velocity.y > 500) {
+      onClose();
+    } else {
+      animate(y, 0, { type: 'spring', stiffness: 400, damping: 30 });
     }
+  };
+
+  return (
+    <motion.div
+      drag="y"
+      dragConstraints={{ top: 0, bottom: 200 }}
+      dragElastic={0.2}
+      onDragEnd={handleDragEnd}
+      style={{
+        y,
+        borderTopLeftRadius: 18,
+        borderTopRightRadius: 18,
+        boxShadow: '0 -4px 16px rgba(0,0,0,0.08)',
+        paddingTop: 14,
+        paddingBottom: 18,
+      }}
+      initial={{ y: 200 }}
+      animate={{ y: 0 }}
+      exit={{ y: 200 }}
+      transition={{ type: 'spring', damping: 30 }}
+      className="absolute bottom-0 left-0 right-0 bg-white z-20"
+    >
+      <div className="flex justify-center mb-2.5 cursor-grab active:cursor-grabbing">
+        <div className="w-9 h-1 bg-[#C8C8C8] rounded-full" />
+      </div>
+      <div className="px-[18px] pb-3 flex items-center gap-1.5">
+        <div
+          className="w-1.5 h-1.5 rounded-full"
+          style={{
+            background: KEY,
+            boxShadow: '0 0 0 3px rgba(77,184,232,0.2)',
+          }}
+        />
+        <p
+          className="text-xs font-semibold m-0"
+          style={{ color: KEY_DARK }}
+        >
+          지도에서 막 올라온 사진
+        </p>
+      </div>
+      {photos.length === 0 ? (
+        <div className="px-[18px] py-3 text-center text-[12px] text-[#B8B8B8]">
+          이 영역에 최근 48시간 사진이 없어요
+        </div>
+      ) : (
+        <div className="flex gap-2 px-[18px] overflow-x-auto scrollbar-hide">
+          {photos.map((photo) => (
+            <div key={photo.post_id} className="flex-shrink-0 w-[88px]">
+              <div className="w-[88px] h-[88px] bg-[#F5F7FA] rounded-[9px] relative mb-1.5 overflow-hidden">
+                {photo.thumbnail_url ? (
+                  <img
+                    src={getDisplayImageUrl(photo.thumbnail_url)}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : null}
+                <div className="absolute top-1 left-1 bg-black/70 px-1.5 py-0.5 rounded">
+                  <span className="text-[8px] text-white font-semibold">
+                    {timeAgo(photo.exif_taken_at)}
+                  </span>
+                </div>
+              </div>
+              <p className="text-[9px] text-[#6B6B6B] truncate m-0">
+                {photo.author_name}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+// 8-7. ShowSheetButton
+function ShowSheetButton({ onOpen }) {
+  return (
+    <motion.button
+      type="button"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 20 }}
+      onClick={onOpen}
+      className="absolute bottom-[18px] left-1/2 -translate-x-1/2 bg-white rounded-full py-2.5 px-4 flex items-center gap-1.5 z-20"
+      style={{ boxShadow: '0 4px 14px rgba(0,0,0,0.15)' }}
+    >
+      <IconPhoto size={15} color={KEY} />
+      <span className="text-xs font-semibold text-[#1F1F1F]">
+        사진 다시 보기
+      </span>
+      <IconChevronUp size={14} color="#6B6B6B" />
+    </motion.button>
+  );
+}
+
+function AuthorAvatar({ name, color, onClick }) {
+  const ch = String(name || '?').trim().charAt(0).toUpperCase() || '·';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+      style={{ background: color || KEY }}
+    >
+      {ch}
+    </button>
+  );
+}
+
+function CardArrowTail() {
+  return (
+    <div
+      className="absolute left-1/2 -translate-x-1/2 rotate-45 bg-white"
+      style={{
+        top: -7,
+        width: 14,
+        height: 14,
+        boxShadow: '-3px -3px 5px rgba(0,0,0,0.04)',
+      }}
+      aria-hidden
+    />
+  );
+}
+
+// 8-8. PostPinPreview
+function PostPinPreview({
+  bundle,
+  onViewDetail,
+  onAuthorClick,
+  onLocationClick,
+}) {
+  const cat = CATEGORY_META[bundle.category];
+  const CatIcon = cat?.Icon;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="absolute top-[120px] left-3.5 right-3.5 z-20"
+    >
+      <div className="relative max-w-[414px] mx-auto">
+        <CardArrowTail />
+        <div
+          className="bg-white overflow-hidden"
+          style={{
+            borderRadius: 14,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+          }}
+        >
+          {/* 사진 */}
+          <div className="relative h-[200px] bg-[#F5F7FA]">
+            {bundle.primary_thumbnail && (
+              <img
+                src={getDisplayImageUrl(bundle.primary_thumbnail)}
+                alt=""
+                className="w-full h-full object-cover"
+                loading="eager"
+                decoding="async"
+              />
+            )}
+            <div className="absolute top-2.5 left-2.5 bg-black/70 px-2.5 py-1 rounded-md flex items-center gap-1.5">
+              <IconShieldCheck size={11} color={KEY} />
+              <span className="text-[11px] text-white font-semibold">
+                {timeAgo(bundle.primary_taken_at)}
+              </span>
+            </div>
+            {cat && (
+              <div className="absolute top-2.5 right-2.5 bg-white px-2.5 py-1 rounded-md flex items-center gap-1">
+                {CatIcon && (
+                  <CatIcon size={10} stroke={1.8} color="#1F1F1F" />
+                )}
+                <span className="text-[10px] font-semibold">{cat.label}</span>
+              </div>
+            )}
+          </div>
+
+          {/* 정보 */}
+          <div className="p-3 px-3.5">
+            <div className="flex items-center gap-2 mb-2.5">
+              <AuthorAvatar
+                name={bundle.author_name}
+                color={bundle.author_avatar_color}
+                onClick={onAuthorClick}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={onAuthorClick}
+                    className="text-[13px] font-semibold text-[#1F1F1F]"
+                  >
+                    {bundle.author_name}
+                  </button>
+                  {bundle.is_author_on_site && (
+                    <div
+                      className="flex items-center gap-0.5 px-1.5 py-0.5 rounded"
+                      style={{ background: KEY_LIGHT }}
+                    >
+                      <div
+                        className="w-1 h-1 rounded-full"
+                        style={{ background: KEY }}
+                      />
+                      <span
+                        className="text-[9px] font-semibold"
+                        style={{ color: KEY_DARK }}
+                      >
+                        지금 현장
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={onLocationClick}
+                  className="text-[10px] text-[#6B6B6B] mt-0.5 m-0 block text-left truncate w-full"
+                >
+                  {bundle.place_name || '위치 없음'} ·{' '}
+                  {formatHoursLeft(bundle.primary_taken_at)}
+                </button>
+              </div>
+            </div>
+
+            {bundle.body ? (
+              <p className="text-[12px] line-clamp-2 mb-3 leading-relaxed text-[#1F1F1F]">
+                {bundle.body}
+              </p>
+            ) : null}
+
+            <div className="flex gap-4 pt-2.5 border-t border-[#F5F7FA] text-[11px] text-[#6B6B6B]">
+              <span className="flex items-center gap-1">
+                <IconHeart size={13} /> {bundle.likes_count || 0}
+              </span>
+              <span className="flex items-center gap-1">
+                <IconMessageCircle size={13} /> {bundle.comments_count || 0}
+              </span>
+              <span className="flex items-center gap-1">
+                <IconBookmark size={13} /> {bundle.saves_count || 0}
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onViewDetail}
+            className="w-full text-white py-2.5 text-[13px] font-semibold flex items-center justify-center gap-1.5"
+            style={{ background: KEY }}
+          >
+            게시물 상세 보기
+            <IconArrowRight size={14} />
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// 8-9. BundlePinPreview
+function BundlePinPreview({ bundle, photos, onViewDetail, onAuthorClick }) {
+  const total = bundle.bundle_count;
+  const isPair = total === 2;
+  const visible = isPair ? photos.slice(0, 2) : photos.slice(0, 3);
+  const extra = total > 3 ? total - 3 : 0;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="absolute top-[120px] left-3.5 right-3.5 z-20"
+    >
+      <div className="relative max-w-[414px] mx-auto">
+        <CardArrowTail />
+        <div
+          className="bg-white overflow-hidden"
+          style={{
+            borderRadius: 14,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+          }}
+        >
+          <div className="p-3 px-3.5 pb-0">
+            {/* 작성자 */}
+            <div className="flex items-center gap-2 mb-3">
+              <AuthorAvatar
+                name={bundle.author_name}
+                color={bundle.author_avatar_color}
+                onClick={onAuthorClick}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={onAuthorClick}
+                    className="text-[13px] font-semibold text-[#1F1F1F]"
+                  >
+                    {bundle.author_name}
+                  </button>
+                  {bundle.is_author_on_site && (
+                    <div
+                      className="flex items-center gap-0.5 px-1.5 py-0.5 rounded"
+                      style={{ background: KEY_LIGHT }}
+                    >
+                      <div
+                        className="w-1 h-1 rounded-full"
+                        style={{ background: KEY }}
+                      />
+                      <span
+                        className="text-[9px] font-semibold"
+                        style={{ color: KEY_DARK }}
+                      >
+                        지금 현장
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-[10px] text-[#6B6B6B] mt-0.5 m-0 truncate">
+                  {bundle.place_name || '위치 없음'} · 1시간 동안 {total}장
+                </p>
+              </div>
+            </div>
+
+            {/* 사진 그리드 */}
+            <div className="flex gap-1.5 mb-3">
+              {visible.map((p, idx) => {
+                const isLast = idx === visible.length - 1;
+                const showOverlay = !isPair && isLast && extra > 0;
+                return (
+                  <div
+                    key={p.post_id}
+                    className="flex-1 rounded-lg relative overflow-hidden bg-[#F5F7FA]"
+                    style={{ aspectRatio: isPair ? '16 / 10' : '1 / 1' }}
+                  >
+                    {p.thumbnail_url && (
+                      <img
+                        src={getDisplayImageUrl(p.thumbnail_url)}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    )}
+                    <div className="absolute top-1 left-1 bg-black/70 px-1.5 py-0.5 rounded flex items-center gap-1">
+                      <IconShieldCheck size={9} color={KEY} />
+                      <span className="text-[9px] text-white font-semibold">
+                        {timeAgo(p.exif_taken_at)}
+                      </span>
+                    </div>
+                    {showOverlay && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <span className="text-white text-base font-bold">
+                          +{extra}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {bundle.body ? (
+              <p className="text-[12px] line-clamp-1 mb-3 leading-relaxed text-[#1F1F1F]">
+                {bundle.body}
+              </p>
+            ) : null}
+          </div>
+
+          <button
+            type="button"
+            onClick={onViewDetail}
+            className="w-full text-white py-2.5 text-[13px] font-semibold flex items-center justify-center gap-1.5"
+            style={{ background: KEY }}
+          >
+            {total}장 모두 보기
+            <IconArrowRight size={14} />
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ────────────────────────────────────────────────
+// 훅 (스펙 §9)
+// ────────────────────────────────────────────────
+
+function useGeolocation() {
+  const [coords, setCoords] = useState(null);
+  const [status, setStatus] = useState('idle');
+
+  const requestLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setStatus('unsupported');
+      setCoords(DEFAULT_CENTER);
+      return;
+    }
+    setStatus('requesting');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        });
+        setStatus('granted');
+      },
+      () => {
+        setStatus('denied');
+        setCoords(DEFAULT_CENTER);
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 },
+    );
   }, []);
 
-  // 검색 오버레이가 열려 있고 입력이 바뀌면 전국 키워드 추천 자동 갱신(디바운스)
   useEffect(() => {
-    if (!searchOpen) return undefined;
-    const q = String(query || '').trim();
-    if (!q) {
-      setRemoteSuggests([]);
-      setRemoteSuggestLoading(false);
+    requestLocation();
+  }, [requestLocation]);
+
+  return { coords, status, requestLocation };
+}
+
+function useMapBundles(bounds, category) {
+  const [bundles, setBundles] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const timerRef = useRef(0);
+
+  useEffect(() => {
+    if (!bounds) return undefined;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.rpc('get_map_bundles', {
+          p_sw_lat: bounds.sw.lat,
+          p_sw_lng: bounds.sw.lng,
+          p_ne_lat: bounds.ne.lat,
+          p_ne_lng: bounds.ne.lng,
+          p_category: category === 'all' ? null : category,
+        });
+        if (error) {
+          logger.warn('get_map_bundles 실패', error?.message || error);
+          setBundles([]);
+        } else {
+          setBundles(Array.isArray(data) ? data : []);
+        }
+      } catch (e) {
+        logger.warn('get_map_bundles 예외', e?.message || e);
+        setBundles([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [bounds, category]);
+
+  return { bundles, loading };
+}
+
+function useBundleDetail(bundleId) {
+  const [photos, setPhotos] = useState([]);
+  useEffect(() => {
+    if (!bundleId) {
+      setPhotos([]);
       return undefined;
     }
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => {
-      void keywordSuggest(q);
-    }, 220);
-    return () => {
-      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    };
-  }, [query, searchOpen, keywordSuggest]);
-
-  const selectSearchResult = useCallback(
-    (item) => {
-      if (!item) return;
-      setSearchOpen(false);
-      setSelectedPostCard(null);
-      setSheetMode('peek');
-
-      if (item.kind === 'preset') {
-        // 프리셋은 키워드 검색 후 첫 결과로 이동
-        const q = String(item.query || item.label || '').trim();
-        if (!q) return;
-        void (async () => {
-          try {
-            await ensureKakaoMapsReady();
-            if (!window.kakao?.maps?.services) return;
-            const places = new window.kakao.maps.services.Places();
-            places.keywordSearch(q, (data, status) => {
-              if (status !== window.kakao.maps.services.Status.OK || !Array.isArray(data) || data.length === 0) return;
-              const first = data[0];
-              const lat = Number(first.y);
-              const lng = Number(first.x);
-              if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-              setSearchedPlace({ lat, lng, label: first.place_name || q });
-              setMapCenter({ lat, lng });
-              panToLatLng(lat, lng);
-            });
-          } catch {
-            /* ignore */
-          }
-        })();
-        return;
-      }
-
-      if (item.kind === 'kakao') {
-        const lat = Number(item.lat);
-        const lng = Number(item.lng);
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-        setSearchedPlace({ lat, lng, label: String(item.label || '').trim() });
-        setMapCenter({ lat, lng });
-        panToLatLng(lat, lng);
-        return;
-      }
-    },
-    [panToLatLng],
-  );
-
-  const openPostCard = useCallback(
-    (post) => {
-      if (!post) return;
-      setSelectedPostCard(post);
-      setHighlightedPostId(post?.id != null ? String(post.id) : null);
-      setSheetMode('hidden');
-      panToPost(post);
-    },
-    [panToPost],
-  );
-
-  const goPostDetail = useCallback(
-    (post) => {
-      if (!post?.id) return;
-      setSelectedPostCard(null);
-      setSheetMode('peek');
-      navigate(`/post/${encodeURIComponent(String(post.id))}`, { state: { post } });
-    },
-    [navigate],
-  );
-
-  const onSheetPointerDown = (e) => {
-    sheetDragRef.current = { startY: e.clientY, pointerId: e.pointerId };
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
-  };
-
-  const onSheetPointerUp = (e) => {
-    const start = sheetDragRef.current;
-    sheetDragRef.current = null;
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
-    if (start == null) return;
-    const dy = e.clientY - start.startY;
-
-    if (Math.abs(dy) < 14) {
-      setSheetMode((m) => {
-        if (m === 'hidden') return 'peek';
-        if (m === 'expanded') return 'peek';
-        return 'expanded';
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.rpc('get_bundle_detail', {
+        p_bundle_id: bundleId,
       });
-      return;
-    }
-    if (dy > 36) {
-      setSheetMode((m) => (m === 'expanded' ? 'peek' : 'hidden'));
-    } else if (dy < -36) {
-      setSheetMode((m) => (m === 'hidden' ? 'peek' : 'expanded'));
-    }
-  };
+      if (cancelled) return;
+      if (error) {
+        logger.warn('get_bundle_detail 실패', error?.message || error);
+        setPhotos([]);
+      } else if (Array.isArray(data)) {
+        setPhotos(data);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bundleId]);
+  return { photos };
+}
 
+function useRecentPhotos(bounds) {
+  const [photos, setPhotos] = useState([]);
+  useEffect(() => {
+    if (!bounds) return undefined;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.rpc('get_recent_map_photos', {
+        p_sw_lat: bounds.sw.lat,
+        p_sw_lng: bounds.sw.lng,
+        p_ne_lat: bounds.ne.lat,
+        p_ne_lng: bounds.ne.lng,
+        p_limit: 10,
+      });
+      if (cancelled) return;
+      if (error) {
+        logger.warn('get_recent_map_photos 실패', error?.message || error);
+        setPhotos([]);
+      } else if (Array.isArray(data)) {
+        setPhotos(data);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bounds]);
+  return { photos };
+}
+
+// ────────────────────────────────────────────────
+// MapScreen (스펙 §11)
+// ────────────────────────────────────────────────
+const MapScreen = () => {
+  const navigate = useNavigate();
+  const mapRef = useRef(null);
+  const kakaoMapRef = useRef(null);
+  const overlayMapRef = useRef(new Map()); // bundle_id -> { overlay, wrap }
+  const myLocationOverlayRef = useRef(null);
+  const clustererRef = useRef(null);
+  const idleListenerRef = useRef(null);
+  const clickListenerRef = useRef(null);
+
+  const [sdkReady, setSdkReady] = useState(false);
+  const [sdkError, setSdkError] = useState('');
+  const [bounds, setBounds] = useState(null);
+  const [mapLevel, setMapLevel] = useState(5);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedBundleId, setSelectedBundleId] = useState(null);
+  const [sheetOpen, setSheetOpen] = useState(true);
+
+  const { coords: myLocation, requestLocation } = useGeolocation();
+  const { bundles } = useMapBundles(bounds, selectedCategory);
+  const { photos: recentPhotos } = useRecentPhotos(bounds);
+
+  const selectedBundle = useMemo(
+    () => bundles.find((b) => b.bundle_id === selectedBundleId) || null,
+    [bundles, selectedBundleId],
+  );
+  const { photos: bundlePhotos } = useBundleDetail(
+    selectedBundle?.is_bundle ? selectedBundleId : null,
+  );
+
+  // 1) Kakao SDK 로드
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
+    (async () => {
       try {
         await ensureKakaoMapsReady();
-        if (cancelled) return;
-        setSdkStatus({ ok: true, message: '' });
+        if (!cancelled) setSdkReady(true);
       } catch (e) {
-        if (cancelled) return;
-        setSdkStatus({ ok: false, message: e?.message || String(e) });
+        if (!cancelled) setSdkError(e?.message || '카카오 SDK 로드 실패');
       }
     })();
     return () => {
@@ -762,662 +853,368 @@ const MapScreen = () => {
     };
   }, []);
 
+  // 2) 지도 인스턴스 생성 + idle/click 리스너
   useEffect(() => {
-    void refreshPosts();
-  }, [refreshPosts]);
-
-  useEffect(() => {
-    let cancelled = false;
+    if (!sdkReady) return undefined;
     const el = mapRef.current;
     if (!el) return undefined;
 
-    void (async () => {
-      try {
-        await ensureKakaoMapsReady();
-        if (cancelled) return;
-        const kakao = window.kakao;
-        const center = new kakao.maps.LatLng(mapCenter.lat, mapCenter.lng);
-        const map = new kakao.maps.Map(el, {
-          center,
-          level: 5,
-        });
-        kakaoMapRef.current = map;
+    const kakao = window.kakao;
+    const center = new kakao.maps.LatLng(
+      DEFAULT_CENTER.lat,
+      DEFAULT_CENTER.lng,
+    );
+    const map = new kakao.maps.Map(el, { center, level: 5 });
+    kakaoMapRef.current = map;
+    setMapLevel(map.getLevel());
 
-        const onIdle = () => {
-          syncViewportFromMap();
-        };
-        kakao.maps.event.addListener(map, 'idle', onIdle);
-        idleListenerRef.current = { map, onIdle };
-        onIdle();
-      } catch (e) {
-        logger.warn(t.warnMapInit, e?.message || e);
-      }
-    })();
+    const onIdle = () => {
+      const b = map.getBounds();
+      setBounds({
+        sw: {
+          lat: b.getSouthWest().getLat(),
+          lng: b.getSouthWest().getLng(),
+        },
+        ne: {
+          lat: b.getNorthEast().getLat(),
+          lng: b.getNorthEast().getLng(),
+        },
+      });
+      setMapLevel(map.getLevel());
+    };
+    kakao.maps.event.addListener(map, 'idle', onIdle);
+    idleListenerRef.current = { map, onIdle };
+    onIdle();
+
+    const onClick = () => setSelectedBundleId(null);
+    kakao.maps.event.addListener(map, 'click', onClick);
+    clickListenerRef.current = { map, onClick };
 
     return () => {
-      cancelled = true;
       const il = idleListenerRef.current;
-      if (il?.map && il?.onIdle && window.kakao?.maps?.event) {
+      if (il?.map && window.kakao?.maps?.event) {
         try {
           window.kakao.maps.event.removeListener(il.map, 'idle', il.onIdle);
         } catch {
           /* ignore */
         }
       }
-      idleListenerRef.current = null;
-      kakaoMapRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const map = kakaoMapRef.current;
-    if (!map || !window.kakao?.maps) return;
-    try {
-      const kakao = window.kakao;
-      map.setCenter(new kakao.maps.LatLng(mapCenter.lat, mapCenter.lng));
-    } catch {
-      /* ignore */
-    }
-  }, [mapCenter]);
-
-  useEffect(() => {
-    const map = kakaoMapRef.current;
-    if (!map || !window.kakao?.maps) return;
-
-    try {
-      const kakao = window.kakao;
-      const spread = buildSpreadCoordsByPostId(postsInViewport);
-      const nextIds = new Set(postsInViewport.map((p) => String(p?.id ?? '')).filter(Boolean));
-
-      // 1) viewport에 없는 기존 오버레이는 제거(전체 리셋 금지 → 깜빡임 방지)
-      for (const [id, item] of postOverlayByIdRef.current.entries()) {
-        if (!nextIds.has(id)) {
-          try {
-            item?.overlay?.setMap(null);
-          } catch {
-            /* ignore */
-          }
-          postOverlayByIdRef.current.delete(id);
+      const cl = clickListenerRef.current;
+      if (cl?.map && window.kakao?.maps?.event) {
+        try {
+          window.kakao.maps.event.removeListener(
+            cl.map,
+            'click',
+            cl.onClick,
+          );
+        } catch {
+          /* ignore */
         }
       }
+      idleListenerRef.current = null;
+      clickListenerRef.current = null;
+      kakaoMapRef.current = null;
 
-      // 2) 썸네일은 미리 프리로드(브라우저 캐시에 올려 깜빡임/지연 최소화)
-      try {
-        const list = postsInViewport.slice(0, 40);
-        for (const p of list) {
-          const raw = p?.thumbnail || (Array.isArray(p?.images) ? p.images[0] : '');
-          const url = raw ? getDisplayImageUrl(raw) : '';
-          if (!url || prefetchedThumbsRef.current.has(url)) continue;
-          prefetchedThumbsRef.current.add(url);
-          const img = new Image();
-          img.decoding = 'async';
-          img.src = url;
+      for (const item of overlayMapRef.current.values()) {
+        try {
+          item.overlay.setMap(null);
+        } catch {
+          /* ignore */
         }
+      }
+      overlayMapRef.current.clear();
+      try {
+        clustererRef.current?.clear();
       } catch {
         /* ignore */
       }
-
-      // 3) viewport 오버레이는 "추가/업데이트"만 수행
-      postsInViewport.forEach((p) => {
-        const pos = p?.__coords;
-        if (!pos) return;
-        const id = String(p?.id ?? '');
-        if (!id) return;
-        const spreadPos = spread.get(id) || pos;
-
-        const thumbRaw = p.thumbnail || (Array.isArray(p.images) ? p.images[0] : '');
-        const thumb = escapeHtmlAttr(getDisplayImageUrl(thumbRaw));
-        const isHighlight = highlightedPostId && String(p.id) === String(highlightedPostId);
-        const ring = isHighlight
-          ? `box-shadow:0 2px 10px rgba(0,0,0,.18), 0 0 0 3px ${PRIMARY_HEX};border:1px solid rgba(255,255,255,.98);`
-          : 'box-shadow:0 2px 10px rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.95);';
-
-        const existing = postOverlayByIdRef.current.get(id);
-        if (existing?.overlay && existing?.el) {
-          // highlight 스타일만 갱신 (DOM 재생성 금지)
-          existing.el.setAttribute(
-            'style',
-            `width:52px;height:52px;border-radius:10px;overflow:hidden;cursor:pointer;${ring}background:#f3f4f6;transform:${isHighlight ? 'translateY(-2px)' : 'translateY(0)'};transition:transform .15s ease;`
-          );
-          try {
-            existing.overlay.setPosition(new kakao.maps.LatLng(spreadPos.lat, spreadPos.lng));
-          } catch {
-            /* ignore */
-          }
-          return;
-        }
-
-        const wrap = document.createElement('div');
-        wrap.innerHTML = `
-          <div class="lj-map-post-pin" style="width:52px;height:52px;border-radius:10px;overflow:hidden;cursor:pointer;${ring}background:#f3f4f6;transform:${isHighlight ? 'translateY(-2px)' : 'translateY(0)'};transition:transform .15s ease;">
-            ${
-              thumb
-                ? `<img src="${thumb}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;"/>`
-                : `<div style="width:100%;height:100%;background:linear-gradient(135deg,#e0f7fa,#b2ebf2);"></div>`
-            }
-          </div>`;
-        const el = wrap.firstElementChild;
-        if (!el) return;
-        el.addEventListener('click', () => openPostCard(p));
-
-        const overlay = new kakao.maps.CustomOverlay({
-          position: new kakao.maps.LatLng(spreadPos.lat, spreadPos.lng),
-          content: el,
-          yAnchor: 1,
-          xAnchor: 0.5,
-          zIndex: 3,
-        });
-        overlay.setMap(map);
-        postOverlayByIdRef.current.set(id, { overlay, el });
-      });
-
-      // 디버깅/정리 용: 현재 오버레이 목록도 유지(기존 코드 호환)
-      postOverlaysRef.current = Array.from(postOverlayByIdRef.current.values())
-        .map((x) => x?.overlay)
-        .filter(Boolean);
-    } catch (e) {
-      logger.warn(t.warnOverlays, e?.message || e);
-    }
-  }, [openPostCard, postsInViewport, highlightedPostId]);
-
-  useEffect(() => {
-    const map = kakaoMapRef.current;
-    if (!map || !window.kakao?.maps) return;
-
-    try {
-      if (userOverlayRef.current) {
-        userOverlayRef.current.setMap(null);
-        userOverlayRef.current = null;
-      }
-      if (!userPos) return;
-
-      const kakao = window.kakao;
-      const wrap = document.createElement('div');
-      wrap.innerHTML = `
-        <div class="lj-map-user-wrap" style="position:relative;width:68px;height:68px;pointer-events:none;">
-          <div class="lj-map-user-pulse"></div>
-          <div class="lj-map-user-dot"></div>
-        </div>`;
-      const el = wrap.firstElementChild;
-      if (!el) return;
-
-      const overlay = new kakao.maps.CustomOverlay({
-        position: new kakao.maps.LatLng(userPos.lat, userPos.lng),
-        content: el,
-        yAnchor: 0.5,
-        xAnchor: 0.5,
-        zIndex: 5,
-      });
-      overlay.setMap(map);
-      userOverlayRef.current = overlay;
-    } catch (e) {
-      logger.warn(t.warnUserOverlay, e?.message || e);
-    }
-  }, [userPos]);
-
-  const onSearchSubmit = useCallback(
-    async (e) => {
-      e?.preventDefault?.();
-      const q = String(query || '').trim();
-      if (!q) return;
+      clustererRef.current = null;
       try {
-        await ensureKakaoMapsReady();
-        const found = await searchPlaceWithKakaoFirst(q);
-        if (found && Number.isFinite(found.lat) && Number.isFinite(found.lng)) {
-          setSearchedPlace({ lat: found.lat, lng: found.lng, label: q });
-          setMapCenter({ lat: found.lat, lng: found.lng });
-          panToLatLng(found.lat, found.lng);
-          setSearchOpen(false);
-          return;
-        }
-        const fallback = getCoordinatesByLocation(q);
-        if (fallback) {
-          setSearchedPlace({ lat: fallback.lat, lng: fallback.lng, label: q });
-          setMapCenter(fallback);
-          panToLatLng(fallback.lat, fallback.lng);
-          setSearchOpen(false);
-        }
-      } catch (err) {
-        logger.warn(t.warnSearch, err?.message || err);
+        myLocationOverlayRef.current?.setMap(null);
+      } catch {
+        /* ignore */
       }
-    },
-    [query, panToLatLng],
-  );
+      myLocationOverlayRef.current = null;
+    };
+  }, [sdkReady]);
 
-  // 검색한 장소 전용 핀(오버레이)
+  // 3) 핀 오버레이 갱신
   useEffect(() => {
     const map = kakaoMapRef.current;
     if (!map || !window.kakao?.maps) return;
-    try {
-      if (searchOverlayRef.current) {
-        searchOverlayRef.current.setMap(null);
-        searchOverlayRef.current = null;
-      }
-      if (!searchedPlace || !Number.isFinite(Number(searchedPlace.lat)) || !Number.isFinite(Number(searchedPlace.lng))) return;
+    const kakao = window.kakao;
 
-      const kakao = window.kakao;
+    const useClustering = mapLevel >= 6;
+    const nextIds = new Set(bundles.map((b) => b.bundle_id));
+
+    // viewport 밖 오버레이 제거
+    for (const [bid, item] of overlayMapRef.current.entries()) {
+      if (!nextIds.has(bid)) {
+        try {
+          item.overlay.setMap(null);
+        } catch {
+          /* ignore */
+        }
+        overlayMapRef.current.delete(bid);
+      }
+    }
+
+    // 추가/업데이트
+    bundles.forEach((bundle) => {
+      const id = bundle.bundle_id;
+      const isSelected = id === selectedBundleId;
+      const isOtherSelected = !!selectedBundleId && !isSelected;
+      const innerHtml = buildPinHTML(bundle, { isSelected, isOtherSelected });
+      const display = useClustering ? 'none' : '';
+
+      const existing = overlayMapRef.current.get(id);
+      if (existing) {
+        existing.wrap.innerHTML = innerHtml;
+        existing.wrap.style.display = display;
+        try {
+          existing.overlay.setPosition(
+            new kakao.maps.LatLng(bundle.primary_lat, bundle.primary_lng),
+          );
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+
       const wrap = document.createElement('div');
-      const label = escapeHtmlAttr(String(searchedPlace.label || '').trim());
-      wrap.innerHTML = `
-        <div style="position:relative;transform:translateY(-10px);">
-          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
-            <div style="max-width:220px;padding:6px 10px;border-radius:9999px;background:#ffffff;border:1px solid rgba(38,198,218,0.35);box-shadow:0 8px 20px rgba(15,23,42,0.10);font-size:12px;font-weight:700;color:${PRIMARY_DARK};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-              ${label || '검색 위치'}
-            </div>
-            <div style="width:18px;height:18px;border-radius:9999px;background:${PRIMARY_HEX};box-shadow:0 10px 22px rgba(38,198,218,0.35);border:3px solid #ffffff;"></div>
-          </div>
-        </div>`;
-      const el = wrap.firstElementChild;
-      if (!el) return;
+      wrap.style.display = display;
+      wrap.innerHTML = innerHtml;
+      wrap.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setSelectedBundleId(id);
+        setSheetOpen(false);
+        try {
+          map.panTo(
+            new kakao.maps.LatLng(bundle.primary_lat, bundle.primary_lng),
+          );
+        } catch {
+          /* ignore */
+        }
+      });
+
       const overlay = new kakao.maps.CustomOverlay({
-        position: new kakao.maps.LatLng(searchedPlace.lat, searchedPlace.lng),
-        content: el,
+        position: new kakao.maps.LatLng(
+          bundle.primary_lat,
+          bundle.primary_lng,
+        ),
+        content: wrap,
         yAnchor: 1,
         xAnchor: 0.5,
-        zIndex: 6,
+        zIndex: isSelected ? 5 : 3,
+        clickable: true,
       });
       overlay.setMap(map);
-      searchOverlayRef.current = overlay;
+      overlayMapRef.current.set(id, { overlay, wrap });
+    });
+
+    // 클러스터러 (level >= 6)
+    try {
+      const Clusterer = window.kakao?.maps?.MarkerClusterer;
+      if (Clusterer) {
+        if (!clustererRef.current) {
+          clustererRef.current = new Clusterer({
+            map,
+            averageCenter: true,
+            minLevel: 6,
+            gridSize: 60,
+            disableClickZoom: false,
+            styles: [
+              {
+                width: '40px',
+                height: '40px',
+                background: '#ffffff',
+                border: `2px solid ${KEY}`,
+                borderRadius: '20px',
+                color: '#1F1F1F',
+                textAlign: 'center',
+                fontWeight: '700',
+                fontSize: '12px',
+                lineHeight: '36px',
+                boxShadow: '0 3px 10px rgba(0,0,0,0.13)',
+              },
+              {
+                width: '48px',
+                height: '48px',
+                background: '#ffffff',
+                border: `2px solid ${KEY}`,
+                borderRadius: '24px',
+                color: '#1F1F1F',
+                textAlign: 'center',
+                fontWeight: '700',
+                fontSize: '13px',
+                lineHeight: '44px',
+                boxShadow: '0 3px 10px rgba(0,0,0,0.18)',
+              },
+              {
+                width: '56px',
+                height: '56px',
+                background: KEY,
+                border: '2px solid #ffffff',
+                borderRadius: '28px',
+                color: '#ffffff',
+                textAlign: 'center',
+                fontWeight: '700',
+                fontSize: '14px',
+                lineHeight: '52px',
+                boxShadow: '0 4px 14px rgba(77,184,232,0.45)',
+              },
+            ],
+            calculator: [10, 50],
+          });
+        }
+        clustererRef.current.clear();
+        if (useClustering) {
+          const markers = bundles
+            .map(
+              (b) =>
+                new kakao.maps.Marker({
+                  position: new kakao.maps.LatLng(
+                    b.primary_lat,
+                    b.primary_lng,
+                  ),
+                }),
+            )
+            .filter(Boolean);
+          clustererRef.current.addMarkers(markers);
+        }
+      }
     } catch {
       /* ignore */
     }
-  }, [searchedPlace]);
+  }, [bundles, selectedBundleId, mapLevel]);
 
-  const requestMyLocationAndCenter = useCallback(() => {
-    if (!navigator?.geolocation) {
-      logger.warn(t.warnGeoUnsupported);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-        setUserPos({ lat, lng });
-        setMapCenter({ lat, lng });
-      },
-      (err) => {
-        logger.warn(t.warnGeoFailed, err?.message || err);
-      },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 },
-    );
-  }, []);
-
-  /** 첫 진입 시 서울 기본 중심 대신 사용자 위치로 맞춤 */
+  // 4) 내 위치 마커
   useEffect(() => {
-    requestMyLocationAndCenter();
-  }, [requestMyLocationAndCenter]);
+    const map = kakaoMapRef.current;
+    if (!map || !window.kakao?.maps || !myLocation) return undefined;
+    const kakao = window.kakao;
+    if (myLocationOverlayRef.current) {
+      try {
+        myLocationOverlayRef.current.setMap(null);
+      } catch {
+        /* ignore */
+      }
+    }
+    const wrap = document.createElement('div');
+    wrap.innerHTML = buildMyLocationHTML();
+    const overlay = new kakao.maps.CustomOverlay({
+      position: new kakao.maps.LatLng(myLocation.lat, myLocation.lng),
+      content: wrap,
+      yAnchor: 0.5,
+      xAnchor: 0.5,
+      zIndex: 4,
+    });
+    overlay.setMap(map);
+    myLocationOverlayRef.current = overlay;
+    return () => {
+      try {
+        overlay.setMap(null);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [myLocation]);
 
-  const onMyLocation = useCallback(() => {
-    requestMyLocationAndCenter();
-  }, [requestMyLocationAndCenter]);
-
-  // peek(기본)에서 사진이 바로 보이도록 조금 더 크게
-  const sheetHeightClass = sheetMode === 'expanded' ? 'h-[100dvh]' : 'h-[32vh]';
+  // 내 위치 버튼
+  const handleMyLocation = useCallback(() => {
+    requestLocation();
+    if (myLocation && kakaoMapRef.current && window.kakao?.maps) {
+      try {
+        kakaoMapRef.current.panTo(
+          new window.kakao.maps.LatLng(myLocation.lat, myLocation.lng),
+        );
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [requestLocation, myLocation]);
 
   return (
-    <div className="relative w-full h-[100dvh] bg-gray-100 overflow-hidden font-sans">
+    <div className="relative w-full h-[100dvh] overflow-hidden font-sans bg-[#EDF3F7]">
       <PageSeo {...PAGE_SEO.map} />
       <div ref={mapRef} className="absolute inset-0 z-0" />
 
-      {searchOpen && (
-        <div
-          className="absolute inset-0 z-[70] bg-white/95 backdrop-blur-sm"
-          onMouseDown={() => setSearchOpen(false)}
-          role="dialog"
-          aria-label="검색"
-        >
-          <div className="mx-auto h-full w-full max-w-[414px] px-4 pt-12" onMouseDown={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setSearchOpen(false)}
-                className="rounded-full bg-white p-2.5 shadow-sm transition hover:bg-gray-50"
-                aria-label="닫기"
-              >
-                <ArrowLeft className="h-5 w-5 text-gray-700" />
-              </button>
-              <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                <input
-                  value={query}
-                  onChange={(ev) => setQuery(ev.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') onSearchSubmit(e);
-                  }}
-                  autoFocus
-                  type="text"
-                  placeholder={t.searchPlaceholder}
-                  className="w-full rounded-full bg-white py-3 pl-11 pr-4 text-sm shadow-sm transition focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <div className="text-[12px] font-semibold text-gray-500">
-                {String(query || '').trim() ? '추천 결과' : '지도에 보이는 장소'}
-              </div>
-              <div className="mt-2 max-h-[calc(100dvh-140px)] overflow-y-auto rounded-2xl border border-gray-100 bg-white shadow-sm">
-                {remoteSuggestLoading ? (
-                  <div className="px-4 py-4 text-sm text-gray-500">검색 중…</div>
-                ) : searchResults.length === 0 ? (
-                  <div className="px-4 py-4 text-sm text-gray-500">검색 결과가 없어요</div>
-                ) : (
-                  <div className="divide-y divide-gray-100">
-                    {searchResults.map((it) => (
-                      <button
-                        key={it.key}
-                        type="button"
-                        onClick={() => selectSearchResult(it)}
-                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50"
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-semibold text-gray-900">{it.label}</div>
-                          {it.kind === 'kakao' ? (
-                            <div className="mt-0.5 truncate text-[12px] text-gray-500">{it.address || ''}</div>
-                          ) : (
-                            <div className="mt-0.5 text-[12px] text-gray-500">추천 장소</div>
-                          )}
-                        </div>
-                        <div className="shrink-0 text-[12px] font-semibold" style={{ color: PRIMARY_DARK }}>
-                          이동
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {!sdkStatus.ok && (
+      {/* SDK 에러 안내 */}
+      {!!sdkError && (
         <div className="absolute inset-0 z-[5] flex items-center justify-center bg-white/70 px-6 text-center">
           <div className="max-w-md rounded-2xl border border-gray-100 bg-white p-5 shadow-md">
-            <p className="text-sm font-bold text-gray-900">{t.mapLoadFailedTitle}</p>
-            <p className="mt-2 text-xs leading-relaxed text-gray-600">{sdkStatus.message || t.loadingSdk}</p>
-            <p className="mt-3 text-[11px] leading-relaxed text-gray-500">{t.mapLoadFailedHint}</p>
+            <p className="text-sm font-bold text-gray-900">
+              지도를 불러오지 못했어요
+            </p>
+            <p className="mt-2 text-xs leading-relaxed text-gray-600">
+              {sdkError}
+            </p>
           </div>
         </div>
       )}
 
-      {/* 상단은 뿌연(그라데이션/블러) 효과 없이 투명 처리 */}
-      <div className="absolute top-0 z-10 w-full p-4 pt-12">
-        <div className="mb-3 flex items-center gap-3">
-          <button
-            type="button"
-            className="rounded-full bg-white p-2.5 shadow-sm transition hover:bg-gray-50"
-            onClick={() => navigate(-1)}
-            aria-label={t.back}
-          >
-            <ArrowLeft className="h-5 w-5 text-gray-700" />
-          </button>
+      <MapHeader />
+      <MapCategoryFilter
+        selected={selectedCategory}
+        onChange={setSelectedCategory}
+      />
+      <MyLocationButton
+        sheetOpen={sheetOpen}
+        hasSelected={!!selectedBundleId}
+        onClick={handleMyLocation}
+      />
 
-          <form className="relative flex-1" onSubmit={onSearchSubmit}>
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-            <input
-              value={query}
-              onChange={(ev) => setQuery(ev.target.value)}
-              onFocus={() => setSearchOpen(true)}
-              type="text"
-              placeholder={t.searchPlaceholder}
-              className="w-full rounded-full bg-white py-3 pl-11 pr-4 text-sm shadow-sm transition focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </form>
-
-          <button
-            type="button"
-            className="rounded-full bg-white p-2.5 shadow-sm transition hover:bg-gray-50"
-            onClick={() => void refreshPosts()}
-            aria-label={t.refresh}
-          >
-            <RefreshCw className={`h-5 w-5 text-gray-700 ${loadingPosts ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
-
-        <div
-          onMouseDown={filterScroll.handleDragStart}
-          className="flex cursor-grab gap-2 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch] scrollbar-hide active:cursor-grabbing snap-x snap-mandatory"
-        >
-          <button
-            type="button"
-            onClick={() => navigate('/map/ask-situation')}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-white px-3.5 py-2 text-sm font-semibold shadow-sm whitespace-nowrap"
-            style={{
-              borderColor: PRIMARY_HEX,
-              background: PRIMARY_HEX,
-              color: '#ffffff',
-            }}
-          >
-            {msIcon('help', { color: '#ffffff' })}
-            <span>{t.situationCta}</span>
-          </button>
-          <button
-            type="button"
-            className={chipClass(selectedFilters.includes('bloom'))}
-            style={chipStyle(selectedFilters.includes('bloom'))}
-            onClick={() => toggleFilter('bloom')}
-          >
-            {msIcon('local_florist', { color: iconColorForFilter('bloom', selectedFilters.includes('bloom')) })}
-            <span>{t.chipBloom}</span>
-          </button>
-          <button
-            type="button"
-            className={chipClass(selectedFilters.includes('places'))}
-            style={chipStyle(selectedFilters.includes('places'))}
-            onClick={() => toggleFilter('places')}
-          >
-            {msIcon('place', { color: iconColorForFilter('places', selectedFilters.includes('places')) })}
-            <span>{t.chipPlaces}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 컨트롤 버튼: 하단 시트 바로 우측 위 */}
-      <div
-        className={`absolute right-4 z-20 ${
-          sheetMode === 'hidden'
-            ? 'bottom-24'
-            : sheetMode === 'expanded'
-              ? 'top-[148px]'
-              : 'bottom-[calc(32vh+12px)]'
-        }`}
-      >
-        <button
-          type="button"
-          className="rounded-full bg-white p-3 text-primary shadow-md ring-1 ring-primary/20 transition hover:bg-primary-soft"
-          onClick={onMyLocation}
-          aria-label={t.myLocation}
-        >
-          <LocateFixed className="h-6 w-6" />
-        </button>
-      </div>
-
-      {sheetMode === 'hidden' && (
-        <div className="absolute bottom-3 left-0 right-0 z-[25] flex justify-center px-4">
-          <button
-            type="button"
-            onClick={() => setSheetMode('peek')}
-            className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary/30"
-          >
-            {t.showPhotosAgain}
-          </button>
-        </div>
-      )}
-
-      {/* 핀 클릭 시 간략 정보 카드 */}
-      {selectedPostCard && (
-        <div className="absolute bottom-3 left-0 right-0 z-[30] px-4">
-          <div className="mx-auto flex w-full max-w-[414px] items-center gap-3 rounded-2xl border border-gray-100 bg-white p-3 shadow-lg">
-            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[4px] bg-gray-100 ring-1 ring-gray-200/80">
-              {(() => {
-                const thumb = getDisplayImageUrl(
-                  selectedPostCard.thumbnail || (Array.isArray(selectedPostCard.images) ? selectedPostCard.images[0] : ''),
+      <AnimatePresence>
+        {selectedBundle && !selectedBundle.is_bundle && (
+          <PostPinPreview
+            key={`single-${selectedBundleId}`}
+            bundle={selectedBundle}
+            onViewDetail={() =>
+              navigate(
+                `/post/${encodeURIComponent(selectedBundle.primary_post_id)}`,
+              )
+            }
+            onAuthorClick={() =>
+              navigate(`/user/${encodeURIComponent(selectedBundle.author_id)}`)
+            }
+            onLocationClick={() => {
+              if (selectedBundle.place_name) {
+                navigate(
+                  `/region/${encodeURIComponent(selectedBundle.place_name)}`,
                 );
-                return thumb ? (
-                  <img
-                    src={thumb}
-                    alt=""
-                    className="h-full w-full object-cover"
-                    loading="eager"
-                    decoding="async"
-                    fetchPriority="high"
-                  />
-                ) : null;
-              })()}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-bold text-gray-900">
-                {String(selectedPostCard.placeName || selectedPostCard.location || selectedPostCard.region || '장소').trim()}
-              </div>
-              <div className="mt-1 line-clamp-2 text-xs text-gray-600">
-                {String(selectedPostCard.note || selectedPostCard.content || '').trim()}
-              </div>
-            </div>
-            <div className="flex shrink-0 flex-col items-end gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedPostCard(null)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200"
-                aria-label="닫기"
-              >
-                <X className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => goPostDetail(selectedPostCard)}
-                className="rounded-full bg-primary px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary-dark"
-              >
-                상세보기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              }
+            }}
+          />
+        )}
+        {selectedBundle && selectedBundle.is_bundle && (
+          <BundlePinPreview
+            key={`bundle-${selectedBundleId}`}
+            bundle={selectedBundle}
+            photos={bundlePhotos}
+            onViewDetail={() =>
+              navigate(
+                `/post/${encodeURIComponent(
+                  selectedBundle.primary_post_id,
+                )}?bundle=${encodeURIComponent(selectedBundle.bundle_id)}`,
+              )
+            }
+            onAuthorClick={() =>
+              navigate(`/user/${encodeURIComponent(selectedBundle.author_id)}`)
+            }
+          />
+        )}
 
-      <div
-        className={`absolute bottom-0 left-0 right-0 z-20 flex max-w-[414px] flex-col rounded-t-3xl bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)] transition-transform duration-300 ease-out ${
-          sheetMode === 'hidden' ? 'pointer-events-none translate-y-full' : 'translate-y-0'
-        } ${sheetHeightClass}`}
-      >
-        <button
-          type="button"
-          className="flex w-full shrink-0 cursor-grab touch-none justify-center pt-3 pb-2 active:cursor-grabbing"
-          aria-label={t.sheetToggle}
-          onPointerDown={onSheetPointerDown}
-          onPointerUp={onSheetPointerUp}
-          onPointerCancel={onSheetPointerUp}
-        >
-          <span className="h-1.5 w-12 rounded-full bg-gray-300" />
-        </button>
-
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 pb-3 sm:px-4">
-          <div className="mb-2 flex shrink-0 items-center justify-between gap-2 px-0.5">
-            <h2 className="text-base font-bold text-gray-900">{t.nearbyTitle}</h2>
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-gray-400">{t.postsSummary(sheetStripPosts.length, postsFiltered.length)}</span>
-            </div>
-          </div>
-
-          {sheetMode === 'expanded' ? (
-            <div className="min-h-0 flex-1 overflow-y-auto pb-2">
-              <div className="mb-2 flex items-center justify-between">
-                <div className="text-xs text-gray-500">{t.postsSummary(sheetPhotoPosts.length, postsFiltered.length)}</div>
-                <button
-                  type="button"
-                  onClick={() => setSheetMode('peek')}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700"
-                >
-                  <X className="h-4 w-4" />
-                  <span>{t.close}</span>
-                </button>
-              </div>
-              {sheetPhotoPosts.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center py-10 text-gray-400">
-                  <p className="text-sm font-medium">{loadingPosts ? t.emptyLoading : t.emptyNone}</p>
-                  <p className="mt-2 max-w-sm px-2 text-center text-xs text-gray-400">{t.emptyHint}</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-2">
-                  {sheetPhotoPosts.map((p, idx) => {
-                    const thumb = getDisplayImageUrl(p.thumbnail || (Array.isArray(p.images) ? p.images[0] : ''));
-                    const label = String(p.placeName || p.location || p.region || '').trim();
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => panToPost(p)}
-                        className="flex w-[104px] shrink-0 flex-col gap-1"
-                      >
-                        <div className="aspect-square overflow-hidden bg-gray-100 ring-1 ring-gray-200/80" style={{ borderRadius: 3 }}>
-                          {thumb ? (
-                            <img
-                              src={thumb}
-                              alt=""
-                              className="h-full w-full object-cover"
-                              loading={idx < SCREEN_GRID_EAGER_COUNT ? 'eager' : 'lazy'}
-                              decoding="async"
-                              fetchPriority={idx < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center bg-primary-10 text-primary">·</div>
-                          )}
-                        </div>
-                        <div className="truncate text-[11px] font-medium leading-tight text-gray-500">{label}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="min-h-0 flex-1 overflow-hidden">
-              {sheetStripPosts.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center py-6 text-gray-400">
-                  <p className="text-sm font-medium">{loadingPosts ? t.emptyLoading : t.emptyNone}</p>
-                  <p className="mt-2 max-w-sm px-2 text-center text-xs text-gray-400">{t.emptyHint}</p>
-                </div>
-              ) : (
-                <div
-                  onMouseDown={photoScroll.handleDragStart}
-                  className="flex cursor-grab gap-1.5 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] scrollbar-hide active:cursor-grabbing snap-x"
-                >
-                  {sheetStripPosts.map((p, idx) => {
-                    const thumb = getDisplayImageUrl(p.thumbnail || (Array.isArray(p.images) ? p.images[0] : ''));
-                    const label = String(p.placeName || p.location || p.region || '').trim();
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => panToPost(p)}
-                        className="flex w-[104px] shrink-0 snap-start flex-col gap-1"
-                      >
-                        <div className="h-[104px] w-[104px] overflow-hidden bg-gray-100 ring-1 ring-gray-200/80" style={{ borderRadius: 3 }}>
-                          {thumb ? (
-                            <img
-                              src={thumb}
-                              alt=""
-                              className="h-full w-full object-cover"
-                              loading={idx < SCREEN_GRID_EAGER_COUNT ? 'eager' : 'lazy'}
-                              decoding="async"
-                              fetchPriority={idx < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center bg-primary-10 text-primary">·</div>
-                          )}
-                        </div>
-                        <div className="truncate text-[11px] font-medium text-gray-500">{label}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+        {sheetOpen && !selectedBundleId && (
+          <RecentPhotosSheet
+            key="sheet"
+            photos={recentPhotos}
+            onClose={() => setSheetOpen(false)}
+          />
+        )}
+        {!sheetOpen && !selectedBundleId && (
+          <ShowSheetButton key="show-btn" onOpen={() => setSheetOpen(true)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
