@@ -8,7 +8,11 @@ import { useHorizontalDragScroll } from '../../hooks/useHorizontalDragScroll';
  * - 터치 스와이프 + 마우스 드래그 모두 지원
  * - 사진 중앙 하단 점 인디케이터: 현재=흰색, 비활성=반투명 회색
  */
-export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '' }) {
+/**
+ * @param {{ photos: string[], height?: number, onPhotoClick?: (i:number,e:any)=>void, alt?: string, priority?: boolean }} props
+ *  priority=true면 첫 사진은 eager + fetchPriority=high (LCP 단축, 홈 첫 카드용).
+ */
+export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '', priority = false }) {
   const ref = useRef(null);
   const [index, setIndex] = useState(0);
 
@@ -102,7 +106,9 @@ export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '
             <img
               src={url}
               alt={alt}
-              loading="lazy"
+              loading={priority && i === 0 ? 'eager' : 'lazy'}
+              fetchpriority={priority && i === 0 ? 'high' : 'auto'}
+              decoding="async"
               draggable="false"
               style={{
                 width: '100%',

@@ -78,14 +78,31 @@ export function useHomeFeed(selectedCategory = 'all') {
             ? normalized
             : normalized.filter((p) => p.category === selectedCategory);
 
-        const enriched = await enrichWithAuthorPostCount(filtered);
+        // 1차: 즉시 렌더 (사진 빨리 띄움) — author.post_count는 일단 0
+        setPosts((prev) => (reset ? filtered : [...prev, ...filtered]));
 
-        setPosts((prev) => (reset ? enriched : [...prev, ...enriched]));
+        // 첫 페이지가 채워졌으니 스켈레톤 종료
+        if (reset) setLoading(false);
+
+        // 2차: 작성자별 글 수는 백그라운드로 받아 패치 (블로킹 X)
+        void enrichWithAuthorPostCount(filtered).then((enriched) => {
+          if (!enriched || enriched.length === 0) return;
+          const countById = new Map(
+            enriched.map((p) => [p.id, p.author?.post_count ?? 0]),
+          );
+          setPosts((prev) =>
+            prev.map((p) =>
+              countById.has(p.id)
+                ? { ...p, author: { ...p.author, post_count: countById.get(p.id) } }
+                : p,
+            ),
+          );
+        });
       } catch (e) {
         setError(e);
         if (reset) setPosts([]);
-      } finally {
         if (reset) setLoading(false);
+      } finally {
         setLoadingMore(false);
       }
     },

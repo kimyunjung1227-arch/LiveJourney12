@@ -132,13 +132,14 @@ function MainScreen() {
         <EmptyFeed onUpload={() => navigate('/upload')} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {posts.map((post) => (
+          {posts.map((post, idx) => (
             <React.Fragment key={post.id}>
               <PostCard
                 post={post}
                 reactionState={state[post.id]}
                 onToggleLike={toggleLike}
                 onToggleSave={toggleSave}
+                priority={idx === 0}
               />
               <div style={{ height: 1, background: LJ.borderLight, margin: '0 18px' }} />
             </React.Fragment>

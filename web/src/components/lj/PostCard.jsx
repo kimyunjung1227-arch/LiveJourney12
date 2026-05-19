@@ -29,6 +29,7 @@ export function PostCard({
   photoHeight = 340,
   onToggleLike,
   onToggleSave,
+  priority = false,
 }) {
   const navigate = useNavigate();
   const author = post.author || {};
@@ -103,6 +104,7 @@ export function PostCard({
           photos={photosList}
           height={photoHeight}
           alt={post.place_name}
+          priority={priority}
           onPhotoClick={(i) => goPhoto(i)}
         />
         {/* 좌상단 EXIF 뱃지 */}
