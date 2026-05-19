@@ -21,8 +21,19 @@ import { supabase } from '../utils/supabaseClient';
 import { getDisplayImageUrl } from '../api/upload';
 import { logger } from '../utils/logger';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
+import { searchPlaceWithKakaoFirst } from '../utils/kakaoPlacesGeocode';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
+
+// 지오코드 결과 캐시 (place_name → {lat, lng} | null). 페이지 수명 동안 유지.
+const GEO_CACHE_KEY = '__lj_map_geo_cache_v4';
+function getGeoCache() {
+  const g = globalThis;
+  if (!g[GEO_CACHE_KEY] || typeof g[GEO_CACHE_KEY] !== 'object') {
+    g[GEO_CACHE_KEY] = new Map();
+  }
+  return g[GEO_CACHE_KEY];
+}
 
 // ────────────────────────────────────────────────
 // 디자인 토큰 (스펙 §3)
@@ -655,6 +666,122 @@ function useMapBundles(bounds, category) {
   return { bundles, loading };
 }
 
+/**
+ * Supabase에 있지만 좌표가 없는 최근 48h 게시물을 가져와서
+ * place_name을 카카오 Places로 지오코드 → 핀으로 보여주는 폴백.
+ * 결과는 백그라운드로 posts.exif_data.map_pin에 백필되어 다음부터는 RPC가 직접 반환.
+ */
+function useGeocodedPosts(bounds, category) {
+  const [extraBundles, setExtraBundles] = useState([]);
+
+  useEffect(() => {
+    if (!bounds) return undefined;
+    let cancelled = false;
+    const cache = getGeoCache();
+
+    (async () => {
+      try {
+        // 최근 48h 게시물 50건
+        const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+        let q = supabase
+          .from('posts')
+          .select(
+            'id, user_id, content, place_name, region, category, captured_at, created_at, exif_data, images, author_username, likes_count, comments_count',
+          )
+          .gte('created_at', cutoff)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        if (category && category !== 'all') q = q.eq('category', category);
+        const { data: rows, error } = await q;
+        if (error) {
+          logger.warn('지오코딩 폴백 fetch 실패', error.message || error);
+          return;
+        }
+        if (cancelled || !Array.isArray(rows)) return;
+
+        // 좌표 없는 것만
+        const needCoords = rows.filter((p) => {
+          const e = p?.exif_data || {};
+          const lat =
+            e?.map_pin?.lat ?? e.lat ?? e.gpsLatitude ?? null;
+          return !Number.isFinite(Number(lat));
+        });
+
+        const synth = [];
+        for (const p of needCoords) {
+          if (cancelled) return;
+          const query = String(p.place_name || p.region || '').trim();
+          if (!query) continue;
+
+          let coords = cache.get(query);
+          if (coords === undefined) {
+            coords = await searchPlaceWithKakaoFirst(query);
+            cache.set(query, coords || null);
+          }
+          if (!coords || !Number.isFinite(coords.lat)) continue;
+
+          // 뷰포트 안만
+          if (
+            coords.lat < bounds.sw.lat ||
+            coords.lat > bounds.ne.lat ||
+            coords.lng < bounds.sw.lng ||
+            coords.lng > bounds.ne.lng
+          ) {
+            continue;
+          }
+
+          // 합성 bundle (단일)
+          const thumb = Array.isArray(p.images)
+            ? typeof p.images[0] === 'string'
+              ? p.images[0]
+              : ''
+            : '';
+          synth.push({
+            bundle_id: `geo_${p.id}`,
+            primary_post_id: p.id,
+            primary_thumbnail: thumb,
+            primary_lat: coords.lat,
+            primary_lng: coords.lng,
+            primary_taken_at: p.captured_at || p.created_at,
+            category: p.category,
+            bundle_count: 1,
+            is_bundle: false,
+            author_id: p.user_id,
+            author_name: p.author_username || '익명',
+            author_avatar_color: '#4DB8E8',
+            is_author_on_site: false,
+            place_name: p.place_name || p.region || '',
+            body: p.content || '',
+            likes_count: Number(p.likes_count) || 0,
+            comments_count: Number(p.comments_count) || 0,
+            saves_count: 0,
+          });
+
+          // 백그라운드 백필 (지속화)
+          const prevExif = p.exif_data && typeof p.exif_data === 'object' ? p.exif_data : {};
+          const nextExif = {
+            ...prevExif,
+            lat: coords.lat,
+            lng: coords.lng,
+            map_pin: { lat: coords.lat, lng: coords.lng },
+          };
+          void supabase.from('posts').update({ exif_data: nextExif }).eq('id', p.id);
+        }
+
+        if (!cancelled) setExtraBundles(synth);
+      } catch (e) {
+        if (!cancelled) logger.warn('지오코딩 폴백 예외', e?.message || e);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bounds, category]);
+
+  return { extraBundles };
+}
+
 function useBundleDetail(bundleId) {
   const [photos, setPhotos] = useState([]);
   useEffect(() => {
@@ -703,7 +830,19 @@ const MapScreen = () => {
   const [selectedBundleId, setSelectedBundleId] = useState(null);
 
   const { coords: myLocation, requestLocation } = useGeolocation();
-  const { bundles } = useMapBundles(bounds, selectedCategory);
+  const { bundles: rpcBundles } = useMapBundles(bounds, selectedCategory);
+  const { extraBundles } = useGeocodedPosts(bounds, selectedCategory);
+
+  // RPC가 반환한 묶음 + 지오코딩 폴백 묶음 병합 (중복 제거)
+  const bundles = useMemo(() => {
+    const map = new Map();
+    for (const b of rpcBundles) map.set(String(b.primary_post_id), b);
+    for (const b of extraBundles) {
+      const id = String(b.primary_post_id);
+      if (!map.has(id)) map.set(id, b);
+    }
+    return Array.from(map.values());
+  }, [rpcBundles, extraBundles]);
 
   const selectedBundle = useMemo(
     () => bundles.find((b) => b.bundle_id === selectedBundleId) || null,
