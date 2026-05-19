@@ -1,3 +1,6 @@
+/* Pretendard: 한글/영문 본문 통일 폰트 (CLAUDE.md §2 타이포그래피) */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
+/* Poppins: 로고 전용 */
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800;900&display=swap');
 
 @tailwind base;
@@ -6,12 +9,17 @@
 
 /* 앱 컬러 사용: primary는 강조용(활성 탭, CTA, 링크), 배경은 primary-5(5% 톤) 사용 */
 
-/* 로고 전용 폰트 (Poppins) */
+/* 전 화면 공통 폰트 스택 */
+:root {
+  --lj-font-sans:
+    'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
+    system-ui, 'Apple SD Gothic Neo', 'Segoe UI', Roboto, 'Helvetica Neue',
+    'Noto Sans KR', sans-serif;
+}
 
+/* 로고 전용 폰트 (Poppins) */
 .logo-text {
-  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
-    'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Poppins', var(--lj-font-sans);
   letter-spacing: -0.03em;
 }
 
@@ -24,13 +32,12 @@
 html {
   min-height: 100vh;
   overflow-y: auto;
+  font-family: var(--lj-font-sans);
 }
 
 /* 데스크톱 웹 브라우저용 스타일 */
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--lj-font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* 앱 배경 통일 (theme background-light) */
@@ -40,6 +47,11 @@ body {
   overflow-y: auto;
   padding: 0;
   display: block;
+}
+
+/* 폼 요소는 기본 시스템 폰트로 떨어지지 않게 명시 상속 */
+input, textarea, select, button {
+  font-family: inherit;
 }
 
 #root {

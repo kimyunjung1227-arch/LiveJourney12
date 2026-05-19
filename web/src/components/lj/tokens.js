@@ -20,9 +20,9 @@ export const LJ = {
   gradientBestCutSoft:
     'linear-gradient(135deg, rgba(77,184,232,0.08), rgba(77,184,232,0.18))',
 
-  // 폰트 스택
+  // 폰트 스택 (전 화면 통일 — index.css의 --lj-font-sans와 동일)
   fontStack:
-    'Pretendard, "Apple SD Gothic Neo", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans KR', sans-serif",
 };
 
 export const LJ_CATEGORIES = [
