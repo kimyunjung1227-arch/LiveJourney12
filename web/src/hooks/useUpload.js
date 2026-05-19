@@ -49,7 +49,19 @@ export function useUpload() {
   const [error, setError] = useState(null);
 
   const upload = useCallback(
-    async ({ file, category, body, takenAt, lat, lng, placeName, source, mode }) => {
+    async ({
+      file,
+      category,
+      body,
+      takenAt,
+      lat,
+      lng,
+      placeName,
+      source,
+      mode,
+      accuracy,
+      exif,
+    }) => {
       if (!user) throw new Error('로그인이 필요해요');
       if (!file) throw new Error('파일이 없어요');
 
@@ -83,13 +95,17 @@ export function useUpload() {
         const hasCoords = Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
         const exifData = {
           taken_at: capturedIso,
+          photoDate: capturedIso,
           lat: lat ?? null,
           lng: lng ?? null,
           // 지도 화면 RPC가 읽는 정규화 경로
           map_pin: hasCoords ? { lat: Number(lat), lng: Number(lng) } : null,
+          gps_accuracy_m: Number.isFinite(Number(accuracy)) ? Number(accuracy) : null,
           source, // 'camera' | 'gallery'
           mode,   // 'photo' | 'video'
           uploaded_via: 'lj-camera-flow-v2',
+          // 추출한 EXIF 원본 메타 (gallery: 카메라 기종/시간/GPS 등, camera: 인앱)
+          tags: exif && typeof exif === 'object' ? exif : null,
         };
 
         const row = {

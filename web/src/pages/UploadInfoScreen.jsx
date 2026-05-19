@@ -21,6 +21,7 @@ import {
 import { formatTimeAgo, formatTimeOfDay } from '../lib/exif/formatTimeAgo';
 import { useUpload } from '../hooks/useUpload';
 import { reverseGeocodeToPlace } from '../utils/locationFromGeocode';
+import { searchPlaceWithKakaoFirst, ensureKakaoMapsServicesReady } from '../utils/kakaoPlacesGeocode';
 
 const CATEGORIES = [
   { id: 'nature', label: '개화·자연', Icon: IconFlower },
@@ -42,6 +43,12 @@ function UploadInfoScreen() {
   const [body, setBody] = useState('');
   // placeName이 캡처 시점에 없었으면 (geocoding 미완료) 여기서 좌표로 직접 한 번 시도
   const [resolvedPlace, setResolvedPlace] = useState(media?.placeName || '');
+  // 사용자가 위치를 직접 편집한 경우의 좌표/장소 (있으면 media 값을 덮어씀)
+  const [editedLoc, setEditedLoc] = useState(null); // { lat, lng, placeName } | null
+  const [locOpen, setLocOpen] = useState(false);
+  const [locQuery, setLocQuery] = useState('');
+  const [locResults, setLocResults] = useState([]);
+  const [locLoading, setLocLoading] = useState(false);
   useEffect(() => {
     if (resolvedPlace) return;
     if (!media?.lat || !media?.lng) return;
@@ -82,16 +89,23 @@ function UploadInfoScreen() {
   const handleUpload = async () => {
     if (!canUpload) return;
     try {
+      // 사용자가 위치를 편집했으면 그 값 우선
+      const finalLat = editedLoc?.lat ?? media.lat;
+      const finalLng = editedLoc?.lng ?? media.lng;
+      const finalPlace =
+        editedLoc?.placeName || resolvedPlace || media.placeName || null;
       const postId = await upload({
         file: media.file,
         category,
         body,
         takenAt: media.takenAt,
-        lat: media.lat,
-        lng: media.lng,
-        placeName: resolvedPlace || media.placeName || null,
+        lat: finalLat,
+        lng: finalLng,
+        placeName: finalPlace,
         source: media.source,
         mode: media.mode,
+        accuracy: media.accuracy ?? null,
+        exif: media.exif ?? null,
       });
       resetUploadStore();
       navigate(`/upload/complete/${postId}`, { replace: true });
@@ -99,6 +113,67 @@ function UploadInfoScreen() {
       // error는 훅에서 setError; 화면에 표시
     }
   };
+
+  // 카카오 Places 키워드 검색 (debounced)
+  useEffect(() => {
+    if (!locOpen) return undefined;
+    const q = String(locQuery || '').trim();
+    if (!q) {
+      setLocResults([]);
+      setLocLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
+    setLocLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        await ensureKakaoMapsServicesReady();
+        if (cancelled) return;
+        if (!window.kakao?.maps?.services) {
+          setLocResults([]);
+          return;
+        }
+        const places = new window.kakao.maps.services.Places();
+        places.keywordSearch(
+          q,
+          (data, status) => {
+            if (cancelled) return;
+            if (status !== window.kakao.maps.services.Status.OK || !Array.isArray(data)) {
+              setLocResults([]);
+            } else {
+              setLocResults(data.slice(0, 8));
+            }
+            setLocLoading(false);
+          },
+          { size: 10 },
+        );
+      } catch {
+        if (!cancelled) {
+          setLocResults([]);
+          setLocLoading(false);
+        }
+      }
+    }, 220);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [locOpen, locQuery]);
+
+  const selectLocResult = (r) => {
+    const lat = parseFloat(r.y);
+    const lng = parseFloat(r.x);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const name = r.place_name || r.address_name || locQuery;
+    setEditedLoc({ lat, lng, placeName: name });
+    setResolvedPlace(name);
+    setLocOpen(false);
+    setLocQuery('');
+    setLocResults([]);
+  };
+
+  const displayPlaceName =
+    editedLoc?.placeName || resolvedPlace || media?.placeName || '';
 
   return (
     <div
@@ -252,15 +327,146 @@ function UploadInfoScreen() {
                     textOverflow: 'ellipsis',
                   }}
                 >
-                  {resolvedPlace ||
-                    media.placeName ||
-                    `${media.lat.toFixed(4)}, ${media.lng.toFixed(4)}`}
+                  {displayPlaceName ||
+                    (media.lat && media.lng
+                      ? `${(editedLoc?.lat ?? media.lat).toFixed(4)}, ${(editedLoc?.lng ?? media.lng).toFixed(4)}`
+                      : '')}
                 </span>
               </div>
             )}
           </div>
         </div>
       )}
+
+      {/* 위치 편집 */}
+      <section style={{ padding: '14px 18px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <IconMapPin size={14} stroke={1.8} color={LJ.textSecondary} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: LJ.textPrimary }}>위치</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setLocOpen((v) => !v)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: '4px 6px',
+              color: LJ.key,
+              fontFamily: LJ.fontStack,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            {locOpen ? '닫기' : '위치 수정'}
+          </button>
+        </div>
+        <div
+          style={{
+            background: LJ.bgSurface,
+            borderRadius: 10,
+            padding: '10px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 13,
+              color: displayPlaceName ? LJ.textPrimary : LJ.textTertiary,
+              flex: 1,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {displayPlaceName || '위치 정보가 없어요 — "위치 수정" 누르고 검색해 주세요'}
+          </span>
+          {editedLoc && (
+            <span
+              style={{
+                fontSize: 10,
+                color: LJ.keyTextDark,
+                background: LJ.keyBgLight,
+                padding: '2px 6px',
+                borderRadius: 4,
+                fontWeight: 600,
+              }}
+            >
+              직접 입력
+            </span>
+          )}
+        </div>
+
+        {locOpen && (
+          <div style={{ marginTop: 8 }}>
+            <input
+              type="text"
+              autoFocus
+              value={locQuery}
+              onChange={(e) => setLocQuery(e.target.value)}
+              placeholder="장소 또는 지역 검색 (예: 석촌호수, 성수역, 제주공항)"
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                background: '#fff',
+                border: `1px solid ${LJ.borderLight}`,
+                borderRadius: 10,
+                fontSize: 13,
+                fontFamily: LJ.fontStack,
+                color: LJ.textPrimary,
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+            {locQuery.trim() && (
+              <div
+                style={{
+                  marginTop: 6,
+                  background: '#fff',
+                  border: `1px solid ${LJ.borderLight}`,
+                  borderRadius: 10,
+                  maxHeight: 220,
+                  overflowY: 'auto',
+                }}
+              >
+                {locLoading ? (
+                  <div style={{ padding: 12, fontSize: 12, color: LJ.textTertiary }}>검색 중…</div>
+                ) : locResults.length === 0 ? (
+                  <div style={{ padding: 12, fontSize: 12, color: LJ.textTertiary }}>검색 결과가 없어요</div>
+                ) : (
+                  locResults.map((r) => (
+                    <button
+                      key={r.id || `${r.x}|${r.y}|${r.place_name}`}
+                      type="button"
+                      onClick={() => selectLocResult(r)}
+                      style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: `1px solid ${LJ.borderLight}`,
+                        padding: '10px 12px',
+                        cursor: 'pointer',
+                        fontFamily: LJ.fontStack,
+                      }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 600, color: LJ.textPrimary }}>
+                        {r.place_name}
+                      </div>
+                      <div style={{ fontSize: 11, color: LJ.textSecondary, marginTop: 2 }}>
+                        {r.road_address_name || r.address_name}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
 
       {/* 카테고리 (필수) */}
       <section style={{ padding: '18px 18px 0' }}>

@@ -41,7 +41,7 @@ function loadKakaoSdkOnce(appKey) {
   });
 }
 
-async function ensureKakaoMapsServicesReady() {
+export async function ensureKakaoMapsServicesReady() {
   if (window.kakao?.maps?.services) return;
   const key = getKakaoAppKey();
   await loadKakaoSdkOnce(key);

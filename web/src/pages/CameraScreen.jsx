@@ -56,7 +56,31 @@ function CameraScreen() {
     fileInputRef.current?.click();
   };
 
-  const handoffAndGo = ({ file, source, mode, takenAt, lat, lng, placeName }) => {
+  const handoffAndGo = async ({
+    file,
+    source,
+    mode,
+    takenAt,
+    lat,
+    lng,
+    placeName,
+    exif,
+  }) => {
+    // 셔터/갤러리 확정 시점에 한 번 더 정밀 위치 받기 (캐시 또는 fresh)
+    // EXIF에 GPS가 있으면 그것을 최우선, 그 외에는 정밀 위치 사용
+    let finalLat = lat;
+    let finalLng = lng;
+    let finalAccuracy = geo.accuracy ?? null;
+    if (lat == null || lng == null) {
+      try {
+        const precise = await geo.getPreciseLocation(8000);
+        if (precise && Number.isFinite(precise.lat) && Number.isFinite(precise.lng)) {
+          finalLat = precise.lat;
+          finalLng = precise.lng;
+          finalAccuracy = precise.accuracy ?? finalAccuracy;
+        }
+      } catch (_) {}
+    }
     const url = URL.createObjectURL(file);
     setUploadMedia({
       file,
@@ -66,11 +90,12 @@ function CameraScreen() {
       mimeType: file.type,
       size: file.size,
       takenAt: (takenAt || new Date()).toISOString(),
-      lat: lat ?? null,
-      lng: lng ?? null,
-      accuracy: geo.accuracy ?? null,
+      lat: finalLat ?? null,
+      lng: finalLng ?? null,
+      accuracy: finalAccuracy,
       placeName: placeName ?? geo.placeName ?? null,
       facingMode: cam.facingMode,
+      exif: exif || null,
     });
     navigate('/upload');
   };
@@ -99,20 +124,31 @@ function CameraScreen() {
       file,
       takenAt: result.takenAt,
       location: result.location || null,
+      exif: result.exif || null,
     });
   };
 
   const handleConfirmGallery = () => {
-    const { file, takenAt, location } = galleryModal;
-    setGalleryModal({ type: null, reason: null, minutesAgo: 0, file: null, takenAt: null, location: null });
+    const { file, takenAt, location, exif } = galleryModal;
+    setGalleryModal({
+      type: null,
+      reason: null,
+      minutesAgo: 0,
+      file: null,
+      takenAt: null,
+      location: null,
+      exif: null,
+    });
     if (!file) return;
     handoffAndGo({
       file,
       source: 'gallery',
       mode: file.type?.startsWith('video') ? 'video' : 'photo',
       takenAt,
+      // EXIF에 GPS가 있으면 EXIF 우선, 없으면 현재 위치
       lat: location?.lat ?? geo.coords?.lat ?? null,
       lng: location?.lng ?? geo.coords?.lng ?? null,
+      exif,
     });
   };
 
@@ -135,26 +171,39 @@ function CameraScreen() {
         geo={geo}
         onClose={close}
         onOpenGallery={openGallery}
-        onCapturedPhoto={(blob) =>
+        onCapturedPhoto={(blob) => {
+          const now = new Date();
           handoffAndGo({
             file: blob,
             source: 'camera',
             mode: 'photo',
-            takenAt: new Date(),
-            lat: geo.coords?.lat ?? null,
-            lng: geo.coords?.lng ?? null,
-          })
-        }
-        onCapturedVideo={(blob) =>
+            takenAt: now,
+            // 카메라(in-app) 촬영은 canvas → EXIF 없음. lat/lng는 GPS에서 받음.
+            lat: null,
+            lng: null,
+            exif: {
+              source: 'in_app_camera',
+              DateTimeOriginal: now.toISOString(),
+              facingMode: cam.facingMode || null,
+            },
+          });
+        }}
+        onCapturedVideo={(blob) => {
+          const now = new Date();
           handoffAndGo({
             file: blob,
             source: 'camera',
             mode: 'video',
-            takenAt: new Date(),
-            lat: geo.coords?.lat ?? null,
-            lng: geo.coords?.lng ?? null,
-          })
-        }
+            takenAt: now,
+            lat: null,
+            lng: null,
+            exif: {
+              source: 'in_app_camera',
+              DateTimeOriginal: now.toISOString(),
+              facingMode: cam.facingMode || null,
+            },
+          });
+        }}
       />
       <input
         ref={fileInputRef}
