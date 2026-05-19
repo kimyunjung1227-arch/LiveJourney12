@@ -1,12 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   IconArrowLeft,
   IconSearch,
   IconCurrentLocation,
-  IconChevronUp,
-  IconPhoto,
   IconShieldCheck,
   IconHeart,
   IconMessageCircle,
@@ -22,6 +20,7 @@ import {
 import { supabase } from '../utils/supabaseClient';
 import { getDisplayImageUrl } from '../api/upload';
 import { logger } from '../utils/logger';
+import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
 
@@ -225,11 +224,27 @@ function MapHeader() {
   );
 }
 
-// 8-2. MapCategoryFilter
+// 8-2. MapCategoryFilter (마우스 드래그 + 터치 스와이프 가로 스크롤)
 function MapCategoryFilter({ selected, onChange }) {
+  const { handleDragStart, hasMovedRef } = useHorizontalDragScroll();
+
+  // 드래그 직후 칩이 잘못 발화되지 않게 가드
+  const guardedClick = (handler) => (e) => {
+    if (hasMovedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    handler();
+  };
+
   return (
     <div className="absolute top-[68px] left-3.5 right-3.5 z-10">
-      <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+      <div
+        onMouseDown={handleDragStart}
+        className="flex gap-1.5 overflow-x-auto scrollbar-hide cursor-grab active:cursor-grabbing"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
         {CATEGORIES.map((cat) => {
           const isActive = selected === cat.id;
           const Icon = cat.Icon;
@@ -237,8 +252,8 @@ function MapCategoryFilter({ selected, onChange }) {
             <button
               key={cat.id}
               type="button"
-              onClick={() => onChange(cat.id)}
-              className={`text-[11px] px-3.5 py-1.5 rounded-2xl whitespace-nowrap flex items-center gap-1 flex-shrink-0 ${
+              onClick={guardedClick(() => onChange(cat.id))}
+              className={`text-[11px] px-3.5 py-1.5 rounded-2xl whitespace-nowrap flex items-center gap-1 flex-shrink-0 select-none ${
                 isActive ? 'text-white font-semibold' : 'text-[#1F1F1F]'
               }`}
               style={{
@@ -264,127 +279,18 @@ function MapCategoryFilter({ selected, onChange }) {
   );
 }
 
-// 8-3. MyLocationButton
-function MyLocationButton({ sheetOpen, hasSelected, onClick }) {
-  // 시트 열림(선택 없음): bottom-[250px], 그 외: bottom-[80px]
-  const bottomClass =
-    sheetOpen && !hasSelected ? 'bottom-[250px]' : 'bottom-[80px]';
+// 8-3. MyLocationButton (하단 우측, 단순한 흰 원형 + 키컬러 아이콘)
+function MyLocationButton({ onClick }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label="내 위치"
-      className={`absolute right-[18px] z-10 bg-transparent p-0 transition-all ${bottomClass}`}
-      style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.25))' }}
+      className="absolute right-[18px] bottom-[24px] z-10 bg-white w-[44px] h-[44px] rounded-full flex items-center justify-center"
+      style={{ boxShadow: '0 4px 14px rgba(0,0,0,0.18)' }}
     >
-      <IconCurrentLocation size={32} color={KEY} strokeWidth={2} />
+      <IconCurrentLocation size={20} color={KEY} strokeWidth={2} />
     </button>
-  );
-}
-
-// 8-6. RecentPhotosSheet
-function RecentPhotosSheet({ photos, onClose }) {
-  const y = useMotionValue(0);
-
-  const handleDragEnd = (_, info) => {
-    if (info.offset.y > 60 || info.velocity.y > 500) {
-      onClose();
-    } else {
-      animate(y, 0, { type: 'spring', stiffness: 400, damping: 30 });
-    }
-  };
-
-  return (
-    <motion.div
-      drag="y"
-      dragConstraints={{ top: 0, bottom: 200 }}
-      dragElastic={0.2}
-      onDragEnd={handleDragEnd}
-      style={{
-        y,
-        borderTopLeftRadius: 18,
-        borderTopRightRadius: 18,
-        boxShadow: '0 -4px 16px rgba(0,0,0,0.08)',
-        paddingTop: 14,
-        paddingBottom: 18,
-      }}
-      initial={{ y: 200 }}
-      animate={{ y: 0 }}
-      exit={{ y: 200 }}
-      transition={{ type: 'spring', damping: 30 }}
-      className="absolute bottom-0 left-0 right-0 bg-white z-20"
-    >
-      <div className="flex justify-center mb-2.5 cursor-grab active:cursor-grabbing">
-        <div className="w-9 h-1 bg-[#C8C8C8] rounded-full" />
-      </div>
-      <div className="px-[18px] pb-3 flex items-center gap-1.5">
-        <div
-          className="w-1.5 h-1.5 rounded-full"
-          style={{
-            background: KEY,
-            boxShadow: '0 0 0 3px rgba(77,184,232,0.2)',
-          }}
-        />
-        <p
-          className="text-xs font-semibold m-0"
-          style={{ color: KEY_DARK }}
-        >
-          지도에서 막 올라온 사진
-        </p>
-      </div>
-      {photos.length === 0 ? (
-        <div className="px-[18px] py-3 text-center text-[12px] text-[#B8B8B8]">
-          이 영역에 최근 48시간 사진이 없어요
-        </div>
-      ) : (
-        <div className="flex gap-2 px-[18px] overflow-x-auto scrollbar-hide">
-          {photos.map((photo) => (
-            <div key={photo.post_id} className="flex-shrink-0 w-[88px]">
-              <div className="w-[88px] h-[88px] bg-[#F5F7FA] rounded-[9px] relative mb-1.5 overflow-hidden">
-                {photo.thumbnail_url ? (
-                  <img
-                    src={getDisplayImageUrl(photo.thumbnail_url)}
-                    alt=""
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                ) : null}
-                <div className="absolute top-1 left-1 bg-black/70 px-1.5 py-0.5 rounded">
-                  <span className="text-[8px] text-white font-semibold">
-                    {timeAgo(photo.exif_taken_at)}
-                  </span>
-                </div>
-              </div>
-              <p className="text-[9px] text-[#6B6B6B] truncate m-0">
-                {photo.author_name}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-    </motion.div>
-  );
-}
-
-// 8-7. ShowSheetButton
-function ShowSheetButton({ onOpen }) {
-  return (
-    <motion.button
-      type="button"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 20 }}
-      onClick={onOpen}
-      className="absolute bottom-[18px] left-1/2 -translate-x-1/2 bg-white rounded-full py-2.5 px-4 flex items-center gap-1.5 z-20"
-      style={{ boxShadow: '0 4px 14px rgba(0,0,0,0.15)' }}
-    >
-      <IconPhoto size={15} color={KEY} />
-      <span className="text-xs font-semibold text-[#1F1F1F]">
-        사진 다시 보기
-      </span>
-      <IconChevronUp size={14} color="#6B6B6B" />
-    </motion.button>
   );
 }
 
@@ -776,34 +682,6 @@ function useBundleDetail(bundleId) {
   return { photos };
 }
 
-function useRecentPhotos(bounds) {
-  const [photos, setPhotos] = useState([]);
-  useEffect(() => {
-    if (!bounds) return undefined;
-    let cancelled = false;
-    (async () => {
-      const { data, error } = await supabase.rpc('get_recent_map_photos', {
-        p_sw_lat: bounds.sw.lat,
-        p_sw_lng: bounds.sw.lng,
-        p_ne_lat: bounds.ne.lat,
-        p_ne_lng: bounds.ne.lng,
-        p_limit: 10,
-      });
-      if (cancelled) return;
-      if (error) {
-        logger.warn('get_recent_map_photos 실패', error?.message || error);
-        setPhotos([]);
-      } else if (Array.isArray(data)) {
-        setPhotos(data);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [bounds]);
-  return { photos };
-}
-
 // ────────────────────────────────────────────────
 // MapScreen (스펙 §11)
 // ────────────────────────────────────────────────
@@ -823,11 +701,9 @@ const MapScreen = () => {
   const [mapLevel, setMapLevel] = useState(5);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedBundleId, setSelectedBundleId] = useState(null);
-  const [sheetOpen, setSheetOpen] = useState(true);
 
   const { coords: myLocation, requestLocation } = useGeolocation();
   const { bundles } = useMapBundles(bounds, selectedCategory);
-  const { photos: recentPhotos } = useRecentPhotos(bounds);
 
   const selectedBundle = useMemo(
     () => bundles.find((b) => b.bundle_id === selectedBundleId) || null,
@@ -987,7 +863,6 @@ const MapScreen = () => {
       wrap.addEventListener('click', (e) => {
         e.stopPropagation();
         setSelectedBundleId(id);
-        setSheetOpen(false);
         try {
           map.panTo(
             new kakao.maps.LatLng(bundle.primary_lat, bundle.primary_lng),
@@ -1158,11 +1033,7 @@ const MapScreen = () => {
         selected={selectedCategory}
         onChange={setSelectedCategory}
       />
-      <MyLocationButton
-        sheetOpen={sheetOpen}
-        hasSelected={!!selectedBundleId}
-        onClick={handleMyLocation}
-      />
+      <MyLocationButton onClick={handleMyLocation} />
 
       <AnimatePresence>
         {selectedBundle && !selectedBundle.is_bundle && (
@@ -1202,17 +1073,6 @@ const MapScreen = () => {
               navigate(`/user/${encodeURIComponent(selectedBundle.author_id)}`)
             }
           />
-        )}
-
-        {sheetOpen && !selectedBundleId && (
-          <RecentPhotosSheet
-            key="sheet"
-            photos={recentPhotos}
-            onClose={() => setSheetOpen(false)}
-          />
-        )}
-        {!sheetOpen && !selectedBundleId && (
-          <ShowSheetButton key="show-btn" onOpen={() => setSheetOpen(true)} />
         )}
       </AnimatePresence>
     </div>

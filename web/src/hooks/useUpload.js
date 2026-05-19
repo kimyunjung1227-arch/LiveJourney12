@@ -80,10 +80,13 @@ export function useUpload() {
               : new Date().toISOString();
 
         const categoryName = category ? LJ_CATEGORY_LABEL[category] || category : null;
+        const hasCoords = Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
         const exifData = {
           taken_at: capturedIso,
           lat: lat ?? null,
           lng: lng ?? null,
+          // 지도 화면 RPC가 읽는 정규화 경로
+          map_pin: hasCoords ? { lat: Number(lat), lng: Number(lng) } : null,
           source, // 'camera' | 'gallery'
           mode,   // 'photo' | 'video'
           uploaded_via: 'lj-camera-flow-v2',
