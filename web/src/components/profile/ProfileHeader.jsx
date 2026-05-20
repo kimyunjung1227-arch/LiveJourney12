@@ -89,17 +89,41 @@ export default function ProfileHeader({ user }) {
                 color: TEXT_PRIMARY,
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
+                marginBottom: 10,
               }}
             >
               {user.bio}
             </p>
           ) : (
-            <p className="m-0" style={{ fontSize: 12, color: TEXT_SECONDARY }}>
+            <p
+              className="m-0"
+              style={{
+                fontSize: 12,
+                color: TEXT_SECONDARY,
+                marginBottom: 10,
+              }}
+            >
               지금, 당신의 여행을 실시간으로
             </p>
           )}
+
+          {/* 게시물/팔로워/팔로잉 — 정보 컬럼 안쪽(아바타 우측)에 배치 */}
+          <div className="flex items-baseline" style={{ gap: 16 }}>
+            <InlineStat value={user.photo_count || 0} label="게시물" />
+            <InlineStat value={user.follower_count || 0} label="팔로워" />
+            <InlineStat value={user.following_count || 0} label="팔로잉" />
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function InlineStat({ value, label }) {
+  return (
+    <div className="flex items-baseline gap-1">
+      <span style={{ fontSize: 14, fontWeight: 700, color: TEXT_PRIMARY }}>{value}</span>
+      <span style={{ fontSize: 11, color: TEXT_SECONDARY }}>{label}</span>
     </div>
   );
 }

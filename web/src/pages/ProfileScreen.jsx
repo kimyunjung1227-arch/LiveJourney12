@@ -8,7 +8,6 @@ import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
 import ProfileHeader from '../components/profile/ProfileHeader';
 import HonorBox from '../components/profile/HonorBox';
-import BasicStats from '../components/profile/BasicStats';
 import BestCutCarousel from '../components/profile/BestCutCarousel';
 import ProfileTabs from '../components/profile/ProfileTabs';
 import PhotoTimeline from '../components/profile/PhotoTimeline';
@@ -165,7 +164,6 @@ function ProfileScreen() {
       <ProfileHeaderBar onSettings={() => navigate('/settings')} showSettings />
 
       <ProfileHeader user={profileUser} />
-      <BasicStats user={profileUser} />
       <HonorBox user={profileUser} />
 
       <BestCutCarousel bestCuts={data?.best_cuts} />

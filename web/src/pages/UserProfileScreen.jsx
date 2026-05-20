@@ -12,7 +12,6 @@ import { useProfile } from '../hooks/useProfile';
 import { useFollow } from '../hooks/useFollow';
 import ProfileHeader from '../components/profile/ProfileHeader';
 import HonorBox from '../components/profile/HonorBox';
-import BasicStats from '../components/profile/BasicStats';
 import BestCutCarousel from '../components/profile/BestCutCarousel';
 import ProfileTabs from '../components/profile/ProfileTabs';
 import PhotoTimeline from '../components/profile/PhotoTimeline';
@@ -135,7 +134,6 @@ function UserProfileScreen() {
       ) : (
         <>
           <ProfileHeader user={profileUser} />
-          <BasicStats user={profileUser} />
           <HonorBox user={profileUser} />
 
           {!isMe && (
