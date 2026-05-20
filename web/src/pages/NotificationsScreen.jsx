@@ -1,730 +1,154 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { IconArrowLeft } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNotifications } from '../hooks/useNotifications';
+import BestCutNotice from '../components/notification/BestCutNotice';
+import MilestoneNotice from '../components/notification/MilestoneNotice';
+import ActivityNotice from '../components/notification/ActivityNotice';
+import TimeGroupHeader from '../components/notification/TimeGroupHeader';
 import BottomNavigation from '../components/BottomNavigation';
-import {
-  getNotificationsForCurrentUser,
-  getNotificationStoredUserId,
-  syncNotificationsFromSupabase,
-  markAllNotificationsAsRead,
-  markNotificationAsRead,
-} from '../utils/notifications';
-import { follow, unfollow, isFollowing, getFollowingIds, syncFollowingFromSupabase } from '../utils/followSystem';
-import { getDisplayImageUrl } from '../api/upload';
-import { fetchPostsSupabase } from '../api/postsSupabase';
-import { fetchFriendNewsStateSupabase, upsertFriendNewsStateSupabase } from '../api/friendNewsSupabase';
-import { getBadgeDisplayNameFromName } from '../utils/badgeSystem';
-import { setCachedFollowProfile } from '../utils/userProfileHints';
+import PageSeo from '../components/PageSeo';
+import { PAGE_SEO } from '../config/seo';
 
-const isValidUuid = (v) =>
-  typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
+const KEY = '#4DB8E8';
+const TEXT_PRIMARY = '#1F1F1F';
+const TEXT_SECONDARY = '#6B6B6B';
+const BORDER_LIGHT = '#E8E8E8';
 
-const isUuidLike = (s) => isValidUuid(String(s || '').trim());
+const ORDERED_GROUPS = ['today', 'week', 'earlier'];
 
-// 서버 운영 전환: localStorage 제거 → 친구소식 읽음 상태는 Supabase(friend_news_state)로만 동기화
-
-const typeMeta = {
-  badge: { icon: 'military_tech', bg: 'bg-zinc-100 dark:bg-zinc-800' },
-  like: { icon: 'favorite', bg: 'bg-zinc-100 dark:bg-zinc-800' },
-  comment: { icon: 'chat_bubble', bg: 'bg-zinc-100 dark:bg-zinc-800' },
-  follow: { icon: 'person', bg: 'bg-zinc-100 dark:bg-zinc-800' },
-  post: { icon: 'photo_camera', bg: 'bg-zinc-100 dark:bg-zinc-800' },
-  system: { icon: 'notifications', bg: 'bg-zinc-100 dark:bg-zinc-800' },
-};
-
-function notificationTimeMs(n) {
-  if (n.timestamp) {
-    const t = new Date(n.timestamp).getTime();
-    if (!Number.isNaN(t)) return t;
-  }
-  return Date.now();
-}
-
-function bucketLabel(daysAgo) {
-  if (daysAgo <= 7) return '최근 7일';
-  if (daysAgo <= 30) return '최근 30일';
-  return '이전';
-}
-
-const friendNewsLocalKey = (uid) => `mvp1:friend_news_state:${String(uid)}`;
-
-/** 알림 화면에서 상세 등으로 나갔다가 뒤로 올 때 탭·스크롤 유지 (세션 내, 짧은 TTL) */
-const NOTIFICATIONS_UI_RESTORE_KEY = 'mvp1:notifications_ui_restore';
-const NOTIFICATIONS_UI_RESTORE_MAX_AGE_MS = 10 * 60 * 1000;
-
-function readNotificationsUiRestore() {
-  try {
-    const raw = sessionStorage.getItem(NOTIFICATIONS_UI_RESTORE_KEY);
-    if (!raw) return null;
-    const o = JSON.parse(raw);
-    if (!o || typeof o !== 'object') return null;
-    const ts = Number(o.ts) || 0;
-    if (!ts || Date.now() - ts > NOTIFICATIONS_UI_RESTORE_MAX_AGE_MS) {
-      sessionStorage.removeItem(NOTIFICATIONS_UI_RESTORE_KEY);
-      return null;
-    }
-    const tabVal = o.tab === 'friends' || o.tab === 'all' ? o.tab : 'all';
-    const scrollTop = Number(o.scrollTop);
-    return {
-      tab: tabVal,
-      scrollTop: Number.isFinite(scrollTop) ? scrollTop : 0,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function clearNotificationsUiRestore() {
-  try {
-    sessionStorage.removeItem(NOTIFICATIONS_UI_RESTORE_KEY);
-  } catch {
-    // ignore
-  }
-}
-
-function loadFriendNewsLocal(uid) {
-  if (!uid || typeof sessionStorage === 'undefined') return null;
-  try {
-    const raw = sessionStorage.getItem(friendNewsLocalKey(uid));
-    if (!raw) return null;
-    const o = JSON.parse(raw);
-    if (!o || typeof o !== 'object') return null;
-    const read_map =
-      o.read_map && typeof o.read_map === 'object' && !Array.isArray(o.read_map) ? { ...o.read_map } : {};
-    return { read_map, last_seen_ms: Number(o.last_seen_ms) || 0 };
-  } catch {
-    return null;
-  }
-}
-
-function saveFriendNewsLocal(uid, state) {
-  if (!uid || typeof sessionStorage === 'undefined') return;
-  try {
-    sessionStorage.setItem(
-      friendNewsLocalKey(uid),
-      JSON.stringify({
-        read_map: state.read_map && typeof state.read_map === 'object' ? state.read_map : {},
-        last_seen_ms: Number(state.last_seen_ms) || 0,
-      }),
-    );
-  } catch {
-    // ignore
-  }
-}
-
-const NotificationsScreen = () => {
+function NotificationsScreen() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { user } = useAuth();
-  const restorePayloadRef = useRef(readNotificationsUiRestore());
-  const screenContentRef = useRef(null);
-  const scrollRestoreDoneRef = useRef(false);
-  const [showMarkAllReadModal, setShowMarkAllReadModal] = useState(false);
-  const [allNotifications, setAllNotifications] = useState([]);
-  const [tab, setTab] = useState(() => restorePayloadRef.current?.tab ?? 'all'); // all | friends
-  const [friendNews, setFriendNews] = useState([]);
-  /** 친구소식 비동기 로드 완료 후 스크롤 복원(목록 높이 반영) */
-  const [friendNewsLoaded, setFriendNewsLoaded] = useState(false);
-  const [, setTick] = useState(0);
-  /** 친구소식 읽음 상태(Supabase와 동기화, 기기 간 공유) */
-  const friendNewsStateRef = useRef({ read_map: {}, last_seen_ms: 0 });
+  const { isAuthenticated } = useAuth();
+  const { notifications, loading, markAllRead, followBack } = useNotifications();
 
-  useEffect(() => {
-    // Supabase 동기화 — AuthContext가 늦게 올 때도 localStorage user id로 수행
-    const uid = user?.id || getNotificationStoredUserId();
-    if (uid) {
-      syncNotificationsFromSupabase(String(uid)).finally(() => loadNotifications());
-    } else {
-      loadNotifications();
-    }
-    const handleNotificationUpdate = () => loadNotifications();
-    window.addEventListener('notificationUpdate', handleNotificationUpdate);
-    return () => window.removeEventListener('notificationUpdate', handleNotificationUpdate);
-  }, [user?.id]);
-
-  const loadNotifications = () => {
-    setAllNotifications(getNotificationsForCurrentUser());
-  };
-
-  const loadFriendNews = useCallback(async () => {
-    setFriendNewsLoaded(false);
-    try {
-      const uid = String(user?.id || getNotificationStoredUserId() || '').trim();
-      if (!uid) {
-        setFriendNews([]);
-        friendNewsStateRef.current = { read_map: {}, last_seen_ms: 0 };
-        return;
-      }
-      await syncFollowingFromSupabase(uid);
-      const followingIds = getFollowingIds(uid);
-      if (!Array.isArray(followingIds) || followingIds.length === 0) {
-        setFriendNews([]);
-        friendNewsStateRef.current = { read_map: {}, last_seen_ms: 0 };
-        return;
-      }
-
-      const [rows, remoteState] = await Promise.all([
-        fetchPostsSupabase(),
-        isValidUuid(uid) ? fetchFriendNewsStateSupabase(uid) : Promise.resolve({ last_seen_ms: 0, read_map: {} }),
-      ]);
-
-      let lastSeen = Number(remoteState.last_seen_ms) || 0;
-      let readMap =
-        remoteState.read_map && typeof remoteState.read_map === 'object' && !Array.isArray(remoteState.read_map)
-          ? { ...remoteState.read_map }
-          : {};
-
-      const localFriend = loadFriendNewsLocal(uid);
-      if (localFriend) {
-        readMap = { ...readMap, ...localFriend.read_map };
-        lastSeen = Math.max(lastSeen, localFriend.last_seen_ms || 0);
-      }
-
-      friendNewsStateRef.current = { read_map: readMap, last_seen_ms: lastSeen };
-
-      const followingSet = new Set(followingIds.map(String));
-
-      const items = (rows || [])
-        .filter((p) => followingSet.has(String(p.userId || p.user?.id || '')))
-        .map((p) => {
-          const pid = String(p.id);
-          const ts = Number(p.timestamp || 0) || (p.createdAt ? new Date(p.createdAt).getTime() : 0) || Date.now();
-          const author = p.user && typeof p.user === 'object' ? (p.user.username || '') : '';
-          const who = String(author || p.author_username || '여행자');
-          const thumb = getDisplayImageUrl(p.thumbnail || (Array.isArray(p.images) ? p.images[0] : ''));
-          const id = `friendpost:${pid}`;
-          const isRead = !!(readMap && readMap[id]);
-          return {
-            id,
-            type: 'post',
-            read: isRead,
-            time: '',
-            timestamp: new Date(ts).toISOString(),
-            message: `${who}님이 새 게시물을 올렸습니다.`,
-            subMessage: String(p.placeName || p.location || p.region || '').trim() || null,
-            actorUsername: who,
-            actorAvatar: p.user && typeof p.user === 'object' ? (p.user.profileImage || null) : null,
-            actorUserId: String(p.userId || p.user?.id || ''),
-            thumbnailUrl: thumb || null,
-            postId: pid,
-            link: `/post/${pid}`,
-            __ts: ts,
-            __new: ts > lastSeen,
-          };
-        })
-        .sort((a, b) => (b.__ts || 0) - (a.__ts || 0))
-        .slice(0, 100);
-
-      setFriendNews(items);
-    } catch {
-      setFriendNews([]);
-    } finally {
-      setFriendNewsLoaded(true);
-    }
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (location.pathname !== '/notifications') return undefined;
-    void loadFriendNews();
-    const onFollows = () => void loadFriendNews();
-    window.addEventListener('followsUpdated', onFollows);
-    return () => window.removeEventListener('followsUpdated', onFollows);
-  }, [loadFriendNews, location.pathname]);
-
-  const list = useMemo(() => {
-    const base = tab === 'friends' ? friendNews : allNotifications;
-    const filtered =
-      tab === 'friends'
-        ? base
-        : (base || []).filter((n) => {
-            // 전체 소식에서는 "게시물 업데이트" 류 알림은 숨김
-            if (n?.type === 'post') return false;
-            if (String(n?.data?.kind || '').includes('post')) return false;
-            if (/게시물.*업데이트/i.test(String(n?.message || ''))) return false;
-            return true;
-          });
-    const sorted = [...filtered].sort((a, b) => notificationTimeMs(b) - notificationTimeMs(a));
-    // 같은 뱃지 알림이 클라이언트 notifyBadge + Supabase user_badges 트리거로 두 번 쌓이는 경우가 있어
-    // 같은 뱃지(혹은 동일 메시지 내 뱃지명) 기준으로 가장 최근 1건만 남긴다.
-    const seenBadgeKeys = new Set();
-    return sorted.filter((n) => {
-      if (n?.type !== 'badge') return true;
-      const raw = n.badge && !isUuidLike(n.badge) ? String(n.badge).trim() : '';
-      let badgeKey = '';
-      if (raw) {
-        const display = getBadgeDisplayNameFromName(raw);
-        badgeKey = isUuidLike(display) ? raw : (display || raw);
-      } else {
-        const m = String(n?.message || '').match(/["“']([^"”']+)["”']\s*뱃지/);
-        if (m && m[1]) {
-          const candidate = m[1].trim();
-          const display = getBadgeDisplayNameFromName(candidate);
-          badgeKey = isUuidLike(display) ? candidate : (display || candidate);
-        }
-      }
-      if (!badgeKey) return true;
-      if (seenBadgeKeys.has(badgeKey)) return false;
-      seenBadgeKeys.add(badgeKey);
-      return true;
+  const groups = useMemo(() => {
+    const g = { today: [], week: [], earlier: [] };
+    (notifications || []).forEach((n) => {
+      const key = n?.time_group || 'earlier';
+      (g[key] || g.earlier).push(n);
     });
-  }, [allNotifications, friendNews, tab]);
+    return g;
+  }, [notifications]);
 
-  const grouped = useMemo(() => {
-    const now = Date.now();
-    const groups = { '최근 7일': [], '최근 30일': [], 이전: [] };
-    list.forEach((n) => {
-      const ms = notificationTimeMs(n);
-      const days = (now - ms) / 86400000;
-      const key = bucketLabel(days);
-      if (groups[key]) groups[key].push(n);
-      else groups.이전.push(n);
-    });
-    return groups;
-  }, [list]);
+  const hasAny = (notifications || []).length > 0;
 
-  const persistNotificationsUiForReturn = useCallback(() => {
-    try {
-      sessionStorage.setItem(
-        NOTIFICATIONS_UI_RESTORE_KEY,
-        JSON.stringify({
-          tab,
-          scrollTop: screenContentRef.current?.scrollTop ?? 0,
-          ts: Date.now(),
-        }),
-      );
-    } catch {
-      // ignore
+  const renderItem = (n) => {
+    if (n.type === 'best_cut') {
+      return <BestCutNotice key={n.id} notification={n} />;
     }
-  }, [tab]);
-
-  useEffect(() => {
-    const payload = restorePayloadRef.current;
-    if (!payload || scrollRestoreDoneRef.current || !friendNewsLoaded) return;
-    const run = () => {
-      const el = screenContentRef.current;
-      if (!el) return;
-      el.scrollTop = payload.scrollTop;
-      scrollRestoreDoneRef.current = true;
-      restorePayloadRef.current = null;
-      clearNotificationsUiRestore();
-    };
-    requestAnimationFrame(() => requestAnimationFrame(run));
-  }, [friendNewsLoaded, list.length, tab]);
-
-  const handleOpen = async (notification) => {
-    if (tab === 'friends') {
-      const uid = String(user?.id || getNotificationStoredUserId() || '').trim();
-      const id = String(notification.id);
-      const now = Date.now();
-
-      const prev = friendNewsStateRef.current;
-      const nextRead = { ...prev.read_map, [id]: true };
-      const nextLast = Math.max(Number(prev.last_seen_ms) || 0, now);
-      friendNewsStateRef.current = { read_map: nextRead, last_seen_ms: nextLast };
-      if (uid) saveFriendNewsLocal(uid, friendNewsStateRef.current);
-
-      if (isValidUuid(uid)) {
-        await upsertFriendNewsStateSupabase(uid, { read_map: nextRead, last_seen_ms: nextLast });
-      }
-      setFriendNews((prev) => prev.map((x) => (x.id === notification.id ? { ...x, read: true, __new: false } : x)));
+    if (n.type === 'milestone' && (n.data?.milestone || 0) >= 100) {
+      return <MilestoneNotice key={n.id} notification={n} />;
     }
-    if (tab !== 'friends' && !notification.read) {
-      markNotificationAsRead(notification.id);
-      loadNotifications();
-    }
-    if (notification.data?.type === 'sos_request' && notification.data.sosRequest) {
-      persistNotificationsUiForReturn();
-      navigate('/map');
-      return;
-    }
-    // 좋아요/댓글 등 상호작용 알림은 "게시물"이 아니라 "상호작용한 사용자" 프로필로 이동
-    if (tab !== 'friends' && (notification.type === 'like' || notification.type === 'comment' || notification.type === 'follow')) {
-      const actorId = String(notification.actorUserId || '').trim();
-      if (actorId) {
-        const selfId = String(user?.id || getNotificationStoredUserId() || '').trim();
-        if (selfId && actorId === selfId) {
-          persistNotificationsUiForReturn();
-          navigate('/profile');
-        } else {
-          const rawName = String(notification.actorUsername || '').trim();
-          const nameOk = rawName && rawName !== '사용자' && rawName !== '여행자';
-          const av = notification.actorAvatar ? String(notification.actorAvatar).trim() : null;
-          if (nameOk || av) {
-            setCachedFollowProfile(actorId, {
-              ...(nameOk ? { username: rawName } : {}),
-              ...(av ? { profileImage: av } : {}),
-            });
-          }
-          persistNotificationsUiForReturn();
-          navigate(`/user/${encodeURIComponent(actorId)}`, {
-            state: {
-              profileHint: {
-                ...(nameOk ? { username: rawName } : {}),
-                ...(av ? { profileImage: av } : {}),
-              },
-            },
-          });
-        }
-        return;
-      }
-    }
-    // 친구소식: 게시물로 이동할 때 작성자 표시(알림 목록과 동일)를 상세 화면에 전달
-    if (tab === 'friends' && notification.postId) {
-      const pid = String(notification.postId).trim();
-      const hintUid = String(notification.actorUserId || '').trim();
-      const rawName = String(notification.actorUsername || '').trim();
-      const nameOk = rawName && rawName !== '사용자' && rawName !== '여행자';
-      const av = notification.actorAvatar ? String(notification.actorAvatar).trim() : null;
-      if (isValidUuid(hintUid) && (nameOk || av)) {
-        setCachedFollowProfile(hintUid, {
-          ...(nameOk ? { username: rawName } : {}),
-          ...(av ? { profileImage: av } : {}),
-        });
-      }
-      persistNotificationsUiForReturn();
-      navigate(`/post/${encodeURIComponent(pid)}`, {
-        state: {
-          notificationAuthorHint:
-            hintUid && (nameOk || av)
-              ? { userId: hintUid, username: nameOk ? rawName : '', profileImage: av || null }
-              : undefined,
-        },
-      });
-      return;
-    }
-    if (tab !== 'friends' && notification.type === 'badge') {
-      persistNotificationsUiForReturn();
-      const path = String(notification.link || '').trim();
-      if (path.startsWith('/badge/live/')) {
-        navigate(path, { state: { returnTo: '/notifications' } });
-      } else {
-        navigate('/profile', { state: { returnTo: '/notifications' } });
-      }
-      return;
-    }
-    if (notification.link) {
-      persistNotificationsUiForReturn();
-      navigate(notification.link);
-    }
+    return <ActivityNotice key={n.id} notification={n} onFollowBack={followBack} />;
   };
-
-  const handleMarkAllRead = async () => {
-    if (tab === 'friends') {
-      const uid = String(user?.id || getNotificationStoredUserId() || '').trim();
-      const now = Date.now();
-
-      const prev = friendNewsStateRef.current;
-      const nextRead = { ...prev.read_map };
-      friendNews.forEach((n) => {
-        nextRead[String(n.id)] = true;
-      });
-      friendNewsStateRef.current = { read_map: nextRead, last_seen_ms: now };
-      if (uid) saveFriendNewsLocal(uid, friendNewsStateRef.current);
-
-      if (isValidUuid(uid)) {
-        await upsertFriendNewsStateSupabase(uid, { read_map: nextRead, last_seen_ms: now });
-      }
-      setFriendNews((prev) => prev.map((x) => ({ ...x, read: true, __new: false })));
-    } else {
-      markAllNotificationsAsRead();
-      loadNotifications();
-    }
-    setShowMarkAllReadModal(false);
-    window.dispatchEvent(new Event('notificationCountChanged'));
-  };
-
-  const getBadgeDisplayFromMessage = (msg) => {
-    const m = String(msg || '');
-    if (!m) return '';
-    // 1) dyn:... 토큰
-    const dyn = m.match(/(dyn:[^\s"']+)/);
-    if (dyn && dyn[1]) {
-      try {
-        return getBadgeDisplayNameFromName(String(dyn[1]).trim());
-      } catch {
-        return String(dyn[1]).trim();
-      }
-    }
-    // 2) "뱃지명"
-    const q = m.match(/"([^"]+)"/);
-    if (q && q[1]) return String(q[1]).trim();
-    // 3) 문장 끝 패턴 제거
-    if (m.includes('뱃지')) {
-      const stripped = m.replace(/\s*뱃지를\s*획득했습니다[!！]?\s*$/u, '').trim();
-      return stripped.replace(/^["「『]|["」』]$/g, '').trim();
-    }
-    return '';
-  };
-
-  const avatarFor = (n) => {
-    if (n.actorAvatar) return getDisplayImageUrl(n.actorAvatar);
-    return null;
-  };
-
-  const leftIcon = (n) => {
-    // 친구소식·게시물 알림: 왼쪽에 업로드 게시물 썸네일
-    if (n.type === 'post') {
-      const thumbRaw = n.thumbnailUrl ? String(n.thumbnailUrl).trim() : '';
-      const thumb = thumbRaw ? getDisplayImageUrl(thumbRaw) : null;
-      if (thumb) {
-        return (
-          <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-zinc-100 ring-1 ring-zinc-200/90 dark:bg-zinc-800 dark:ring-zinc-600">
-            <img src={thumb} alt="" className="h-full w-full object-cover" loading="eager" decoding="async" />
-          </div>
-        );
-      }
-      const av = avatarFor(n);
-      if (av) {
-        return (
-          <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/90 dark:bg-zinc-800 dark:ring-zinc-600">
-            <img src={av} alt="" className="h-full w-full object-cover" loading="eager" decoding="async" />
-          </div>
-        );
-      }
-    }
-    const t = typeMeta[n.type] || typeMeta.system;
-    const url = avatarFor(n);
-    if (url && (n.type === 'follow' || n.type === 'like')) {
-      return (
-        <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-zinc-200/90 dark:bg-zinc-800 dark:ring-zinc-600">
-          <img src={url} alt="" className="h-full w-full object-cover" loading="eager" decoding="async" />
-        </div>
-      );
-    }
-    return (
-      <div
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${t.bg}`}
-      >
-        <span className="material-symbols-outlined text-[20px] text-zinc-500 dark:text-zinc-400">
-          {n.icon || t.icon}
-        </span>
-      </div>
-    );
-  };
-
-  const renderRight = (n) => {
-    if (n.type === 'like' && n.thumbnailUrl) {
-      return (
-        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-zinc-100 ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-600">
-          <img src={getDisplayImageUrl(n.thumbnailUrl)} alt="" className="h-full w-full object-cover" loading="eager" decoding="async" />
-        </div>
-      );
-    }
-    if (n.type === 'badge' || n.type === 'system') {
-      return (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            void handleOpen({ ...n, read: n.read });
-          }}
-          className="shrink-0 rounded-lg border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:border-primary/30 hover:text-primary-dark dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-primary/40"
-        >
-          자세히
-        </button>
-      );
-    }
-    if (n.type === 'follow' && n.kind === 'follow_received' && n.actorUserId) {
-      const uid = n.actorUserId;
-      const following = isFollowing(null, uid);
-      return (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (following) {
-              unfollow(uid);
-            } else {
-              follow(uid);
-            }
-            setTick((x) => x + 1);
-            window.dispatchEvent(new CustomEvent('followsUpdated'));
-          }}
-          className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold ${
-            following
-              ? 'border border-zinc-200 bg-zinc-100 text-zinc-600 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
-              : 'bg-primary text-white shadow-sm hover:bg-primary-dark'
-          }`}
-        >
-          {following ? '팔로잉' : '팔로우'}
-        </button>
-      );
-    }
-    return null;
-  };
-
-  const mainText = (n) => {
-    if (n.type === 'badge') {
-      const raw = n.badge || '';
-      let display =
-        n.badgeDisplayName ||
-        (raw ? getBadgeDisplayNameFromName(raw) : '') ||
-        getBadgeDisplayFromMessage(n.message);
-      if (isUuidLike(display)) {
-        display = raw && !isUuidLike(raw) ? getBadgeDisplayNameFromName(raw) : '';
-      }
-      if (display) return `"${display}" 뱃지를 획득했습니다!`;
-      if (n.message) return n.message;
-      return '뱃지를 획득했습니다';
-    }
-    if (n.message) return n.message;
-    return n.title || '알림';
-  };
-
-  const sectionOrder = ['최근 7일', '최근 30일', '이전'];
 
   return (
-    <div className="screen-layout relative h-screen overflow-hidden bg-background-light dark:bg-background-dark">
-      <div ref={screenContentRef} className="screen-content">
-        <header className="screen-header flex h-14 items-center justify-between border-b border-border-light bg-white px-3 dark:border-border-dark dark:bg-gray-900">
-          <button
-            type="button"
-            onClick={() => {
-              clearNotificationsUiRestore();
-              navigate('/main');
-            }}
-            className="flex size-11 shrink-0 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
-            <span className="material-symbols-outlined text-2xl">arrow_back</span>
-          </button>
-          <h1 className="flex-1 text-center text-base font-bold text-text-primary-light dark:text-text-primary-dark">
-            알림
-          </h1>
-          <button
-            type="button"
-            onClick={() => setShowMarkAllReadModal(true)}
-            disabled={(tab === 'friends' ? friendNews : allNotifications).filter((x) => !x.read).length === 0}
-            className="flex size-11 shrink-0 items-center justify-end rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-400 dark:hover:bg-zinc-800"
-          >
-            <span className="material-symbols-outlined text-[22px]">done</span>
-          </button>
-        </header>
+    <div style={{ background: '#fff', minHeight: '100vh', paddingBottom: 80 }}>
+      <PageSeo {...(PAGE_SEO.notifications || PAGE_SEO.profile)} />
 
-        <div className="bg-white px-3 pt-2 dark:bg-gray-900">
-          <div className="flex rounded-xl bg-zinc-100 p-1 dark:bg-zinc-800">
-            <button
-              type="button"
-              onClick={() => setTab('all')}
-              className={`flex-1 rounded-lg py-2 text-xs font-bold transition ${
-                tab === 'all' ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-300'
-              }`}
-            >
-              전체
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('friends')}
-              className={`flex-1 rounded-lg py-2 text-xs font-bold transition ${
-                tab === 'friends' ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-300'
-              }`}
-            >
-              친구소식
-            </button>
-          </div>
-        </div>
+      {/* 헤더 */}
+      <div
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+          height: 52,
+          padding: '0 12px',
+          borderBottom: `1px solid ${BORDER_LIGHT}`,
+          background: '#fff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          aria-label="뒤로가기"
+          style={{
+            position: 'absolute',
+            left: 12,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 36,
+            height: 36,
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <IconArrowLeft size={22} color={TEXT_PRIMARY} />
+        </button>
+        <span style={{ fontSize: 17, fontWeight: 600, color: TEXT_PRIMARY }}>알림</span>
+        <button
+          type="button"
+          onClick={markAllRead}
+          disabled={!hasAny}
+          style={{
+            position: 'absolute',
+            right: 12,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            background: 'transparent',
+            border: 'none',
+            color: hasAny ? KEY : '#B8B8B8',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: hasAny ? 'pointer' : 'default',
+            padding: '6px 4px',
+          }}
+        >
+          모두 읽음
+        </button>
+      </div>
 
-        <div className="screen-body">
-          <div className="pb-24 pt-1">
-            {list.length === 0 ? (
-              <div className="flex flex-col items-center justify-center px-6 py-20">
-                <span className="material-symbols-outlined mb-3 text-5xl text-zinc-300 dark:text-zinc-600">
-                  notifications_off
-                </span>
-                <p className="text-sm font-semibold text-text-primary-light dark:text-text-primary-dark">
-                  알림이 없습니다
-                </p>
-                <p className="mt-1 text-center text-xs text-text-secondary-light dark:text-text-secondary-dark">
-                  활동이 쌓이면 여기에 표시돼요
-                </p>
-              </div>
-            ) : (
-              <div className="px-0">
-                {sectionOrder.map((section) => {
-                  const items = grouped[section];
-                  if (!items || items.length === 0) return null;
-                  return (
-                    <div key={section} className="mb-4">
-                      <p className="px-4 pb-2 pt-3 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark">
-                        {section}
-                      </p>
-                      <div className="divide-y divide-border-light bg-white dark:divide-border-dark dark:bg-gray-900">
-                        {items.map((notification) => (
-                          <div
-                            key={notification.id}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => void handleOpen(notification)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') void handleOpen(notification);
-                            }}
-                            className={`flex cursor-pointer items-center gap-2.5 border-l-[3px] px-4 py-2.5 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/80 ${
-                              !notification.read
-                                ? 'border-primary bg-zinc-50/70 dark:border-primary dark:bg-zinc-800/50'
-                                : 'border-transparent'
-                            }`}
-                          >
-                            {leftIcon(notification)}
-                            <div className="min-w-0 flex-1">
-                              <p className="text-[12px] leading-snug text-text-primary-light dark:text-text-primary-dark">
-                                {mainText(notification)}
-                              </p>
-                              {notification.subMessage ? (
-                                <p className="mt-0.5 line-clamp-1 text-[10px] text-text-secondary-light dark:text-text-secondary-dark">
-                                  {notification.subMessage}
-                                </p>
-                              ) : null}
-                              <p className="mt-1 text-[10px] text-zinc-400 dark:text-zinc-500">
-                                {notification.time}
-                              </p>
-                            </div>
-                            {renderRight(notification)}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+      {/* 본문 */}
+      <div style={{ padding: '4px 18px 18px' }}>
+        {!isAuthenticated ? (
+          <Empty primary="로그인이 필요해요" secondary="로그인하면 영예 알림을 받을 수 있어요" />
+        ) : loading ? (
+          <div className="text-center" style={{ padding: 40, color: TEXT_SECONDARY, fontSize: 13 }}>
+            불러오는 중...
           </div>
-        </div>
+        ) : !hasAny ? (
+          <Empty primary="아직 알림이 없어요" secondary="당신의 한 장이 누군가에게 도움이 되면 여기에 도착해요" />
+        ) : (
+          ORDERED_GROUPS.map(
+            (group) =>
+              groups[group].length > 0 && (
+                <section key={group}>
+                  <TimeGroupHeader group={group} />
+                  {groups[group].map(renderItem)}
+                </section>
+              ),
+          )
+        )}
       </div>
 
       <BottomNavigation />
+    </div>
+  );
+}
 
-      {showMarkAllReadModal && (
-        <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-border-light bg-white shadow-2xl dark:border-border-dark dark:bg-gray-900">
-            <div className="p-5">
-              <h3 className="text-base font-bold text-text-primary-light dark:text-text-primary-dark">
-                모든 알림을 읽음 처리할까요?
-              </h3>
-              <p className="mt-2 text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                읽지 않은 알림 {(tab === 'friends' ? friendNews : allNotifications).filter((n) => !n.read).length}개가 읽음
-                처리됩니다.
-              </p>
-            </div>
-            <div className="flex gap-2 px-5 pb-5">
-              <button
-                type="button"
-                onClick={() => setShowMarkAllReadModal(false)}
-                className="flex-1 rounded-xl bg-zinc-100 py-3 text-sm font-semibold text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleMarkAllRead()}
-                className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark"
-              >
-                확인
-              </button>
-            </div>
-          </div>
-        </div>
+function Empty({ primary, secondary }) {
+  return (
+    <div className="text-center" style={{ padding: '60px 16px' }}>
+      <p className="m-0" style={{ fontSize: 14, color: TEXT_PRIMARY, fontWeight: 600, marginBottom: 6 }}>
+        {primary}
+      </p>
+      {secondary && (
+        <p className="m-0" style={{ fontSize: 12, color: TEXT_SECONDARY, lineHeight: 1.6 }}>
+          {secondary}
+        </p>
       )}
     </div>
   );
-};
+}
 
 export default NotificationsScreen;
