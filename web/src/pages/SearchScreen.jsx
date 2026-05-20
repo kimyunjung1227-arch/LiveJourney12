@@ -241,7 +241,7 @@ function SearchHeader({ query, onChange, onClear }) {
 function SeasonalCards({ cards }) {
   const navigate = useNavigate();
   const { handleDragStart, hasMovedRef } = useHorizontalDragScroll();
-  if (!cards || cards.length === 0) return null;
+  const isEmpty = !cards || cards.length === 0;
 
   const guardedClick = (handler) => (e) => {
     if (hasMovedRef.current) {
@@ -251,6 +251,27 @@ function SeasonalCards({ cards }) {
     }
     handler();
   };
+
+  if (isEmpty) {
+    return (
+      <div className="mb-[22px]">
+        <SectionHeader icon={IconCalendarTime} title="지금 뭐가 한창?" />
+        <div
+          className="flex items-center justify-center"
+          style={{
+            height: 110,
+            borderRadius: 11,
+            background: SURFACE,
+            border: `1px dashed ${BORDER_LIGHT}`,
+          }}
+        >
+          <span style={{ fontSize: 12, color: TEXT_SECONDARY }}>
+            아직 등록된 시즌이 없어요
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mb-[22px]">
@@ -424,27 +445,43 @@ function QuestionCard({ question, onClick, compact = false }) {
 
 function QuestionsSection({ questions, showAllAction = true }) {
   const navigate = useNavigate();
-  if (!questions || questions.length === 0) return null;
+  const isEmpty = !questions || questions.length === 0;
   return (
     <div className="mb-[22px]">
       <SectionHeader
         icon={IconHelpCircle}
         title="지금 답이 필요한 질문"
         action={
-          showAllAction
+          !isEmpty && showAllAction
             ? { label: '전체 보기', onClick: () => navigate('/questions') }
             : undefined
         }
       />
-      <div className="flex flex-col gap-2">
-        {questions.slice(0, 2).map((q) => (
-          <QuestionCard
-            key={q.id}
-            question={q}
-            onClick={() => navigate(`/question/${encodeURIComponent(q.id)}`)}
-          />
-        ))}
-      </div>
+      {isEmpty ? (
+        <div
+          className="flex items-center justify-center"
+          style={{
+            padding: '24px 16px',
+            borderRadius: 11,
+            background: SURFACE,
+            border: `1px dashed ${BORDER_LIGHT}`,
+          }}
+        >
+          <span style={{ fontSize: 12, color: TEXT_SECONDARY }}>
+            아직 등록된 질문이 없어요
+          </span>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {questions.slice(0, 2).map((q) => (
+            <QuestionCard
+              key={q.id}
+              question={q}
+              onClick={() => navigate(`/question/${encodeURIComponent(q.id)}`)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -551,13 +588,10 @@ function SearchHub() {
     );
   }
 
-  const hasSeasonal = Array.isArray(data.seasonal) && data.seasonal.length > 0;
-  const hasQuestions = Array.isArray(data.questions) && data.questions.length > 0;
-
   return (
     <div className="p-[18px]">
-      {hasSeasonal && <SeasonalCards cards={data.seasonal} />}
-      {hasQuestions && <QuestionsSection questions={data.questions} showAllAction />}
+      <SeasonalCards cards={data.seasonal || []} />
+      <QuestionsSection questions={data.questions || []} showAllAction />
       <CityGrid cities={data.cities || []} />
       <CategoryGrid categories={data.categories || []} />
     </div>
