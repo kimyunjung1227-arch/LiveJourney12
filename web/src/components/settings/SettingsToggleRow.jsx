@@ -1,10 +1,11 @@
 import React from 'react';
+import { IconCheck } from '@tabler/icons-react';
 
 const KEY = '#4DB8E8';
 const TEXT_PRIMARY = '#1F1F1F';
 const TEXT_SECONDARY = '#6B6B6B';
 const DIVIDER = '#F5F7FA';
-const TOGGLE_OFF = '#E8E8E8';
+const TOGGLE_OFF_BORDER = '#D5D9DE';
 const GRADIENT = 'linear-gradient(135deg, #4DB8E8, #1A6EA8)';
 
 const ICON_BG_STYLE = {
@@ -60,30 +61,19 @@ export default function SettingsToggleRow({
         type="button"
         onClick={() => onToggle(!value)}
         aria-pressed={!!value}
-        className="relative flex-shrink-0"
+        className="flex items-center justify-center flex-shrink-0"
         style={{
-          width: 44,
-          height: 26,
-          borderRadius: 13,
-          background: value ? KEY : TOGGLE_OFF,
-          border: 'none',
+          width: 28,
+          height: 28,
+          borderRadius: 999,
+          background: value ? KEY : '#fff',
+          border: value ? 'none' : `1.5px solid ${TOGGLE_OFF_BORDER}`,
           padding: 0,
           cursor: 'pointer',
-          transition: 'background 0.15s',
+          transition: 'background 0.15s, border-color 0.15s',
         }}
       >
-        <div
-          className="absolute bg-white"
-          style={{
-            top: 2,
-            left: value ? 20 : 2,
-            width: 22,
-            height: 22,
-            borderRadius: 999,
-            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-            transition: 'left 0.15s',
-          }}
-        />
+        {value && <IconCheck size={16} color="#fff" stroke={3} />}
       </button>
     </div>
   );
