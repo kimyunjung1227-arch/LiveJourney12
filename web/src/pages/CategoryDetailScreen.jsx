@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useCategoryDetail } from '../hooks/useCategoryDetail';
 import CategoryHeader from '../components/explore/CategoryHeader';
@@ -7,19 +7,7 @@ import FilterChips from '../components/explore/FilterChips';
 import LivePhotoGrid from '../components/explore/LivePhotoGrid';
 import QuestionPreview from '../components/explore/QuestionPreview';
 
-const CITY_CHIPS = [
-  { id: 'all', label: '전국' },
-  { id: '서울', label: '서울' },
-  { id: '부산', label: '부산' },
-  { id: '제주', label: '제주' },
-  { id: '강릉', label: '강릉' },
-  { id: '경주', label: '경주' },
-  { id: '전주', label: '전주' },
-  { id: '대구', label: '대구' },
-  { id: '인천', label: '인천' },
-  { id: '구미', label: '구미' },
-  { id: '여수', label: '여수' },
-];
+const ALL_CHIP = { id: 'all', label: '전국' };
 
 const CATEGORY_LABEL = {
   nature: '개화·자연',
@@ -39,12 +27,7 @@ function CategoryDetailScreen() {
   const categoryId = params.categoryId || params.tagId || '';
 
   // ?city= 쿼리로 도시 칩 초기값을 결정 (도시 페이지에서 카테고리 칩 누르고 왔을 때 그 도시를 유지)
-  const initialCity = (() => {
-    const v = searchParams.get('city');
-    if (!v) return 'all';
-    const chip = CITY_CHIPS.find((c) => c.id === v);
-    return chip ? chip.id : 'all';
-  })();
+  const initialCity = searchParams.get('city') || 'all';
   const [city, setCity] = useState(initialCity);
 
   // 카테고리(URL) 또는 ?city=가 외부에서 바뀌면 동기화
@@ -65,6 +48,19 @@ function CategoryDetailScreen() {
   const { data, loading } = useCategoryDetail(categoryId, city === 'all' ? null : city);
 
   const label = CATEGORY_LABEL[categoryId] || categoryId;
+
+  // 사진이 실제로 올라온 도시만 칩으로 노출. '전국'은 항상 맨 앞.
+  const cityChips = useMemo(() => {
+    const list = Array.isArray(data?.cities) ? data.cities : [];
+    const dynamic = list
+      .filter((c) => c && c.city)
+      .map((c) => ({ id: c.city, label: `${c.city} ${c.count}` }));
+    // 현재 선택된 도시가 동적 목록에 없으면(데이터가 사라졌어도 칩은 유지) 보존
+    if (city !== 'all' && !dynamic.some((d) => d.id === city)) {
+      dynamic.push({ id: city, label: city });
+    }
+    return [ALL_CHIP, ...dynamic];
+  }, [data?.cities, city]);
 
   // 첫 로딩에만 풀스크린. 도시 칩 재조회 시에는 기존 데이터를 그대로 두어 깜빡임 방지.
   if (loading && !data) {
@@ -96,7 +92,7 @@ function CategoryDetailScreen() {
         category={categoryId}
         activity={data.activity || { recent_hour: 0, today: 0, level: 'quiet' }}
       />
-      <FilterChips chips={CITY_CHIPS} selected={city} onChange={handleCityChange} />
+      <FilterChips chips={cityChips} selected={city} onChange={handleCityChange} />
 
       <div style={{ padding: '0 18px 24px' }}>
         <LivePhotoGrid photos={data.photos || []} total={data.photos_total || 0} />
