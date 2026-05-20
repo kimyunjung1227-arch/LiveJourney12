@@ -5,7 +5,6 @@ import CategoryHeader from '../components/explore/CategoryHeader';
 import ActivityModule from '../components/explore/ActivityModule';
 import FilterChips from '../components/explore/FilterChips';
 import LivePhotoGrid from '../components/explore/LivePhotoGrid';
-import HotPlaceList from '../components/explore/HotPlaceList';
 import QuestionPreview from '../components/explore/QuestionPreview';
 
 const CITY_CHIPS = [
@@ -75,14 +74,6 @@ function CategoryDetailScreen() {
 
       <div style={{ padding: '0 18px 24px' }}>
         <LivePhotoGrid photos={data.photos || []} total={data.photos_total || 0} />
-        <HotPlaceList
-          title={`${label} 핫플`}
-          places={data.hot_places || []}
-          showCity
-          onSeeAll={() =>
-            navigate(`/hotplace?category=${encodeURIComponent(categoryId)}`)
-          }
-        />
         <QuestionPreview
           title={`${label} 질문`}
           questions={data.questions || []}
