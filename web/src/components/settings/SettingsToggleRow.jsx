@@ -63,27 +63,36 @@ export default function SettingsToggleRow({
         aria-pressed={!!value}
         style={{
           width: '44px',
+          minWidth: '44px',
+          maxWidth: '44px',
           height: '26px',
-          borderRadius: '13px',
+          minHeight: '26px',
+          maxHeight: '26px',
+          borderRadius: '999px',
           background: value ? '#4DB8E8' : '#E8E8E8',
           border: 'none',
-          padding: '2px',
+          padding: '0',
+          margin: '0',
           cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: value ? 'flex-end' : 'flex-start',
-          transition: 'background 0.2s',
-          boxSizing: 'border-box',
+          position: 'relative',
           flexShrink: 0,
+          boxSizing: 'border-box',
+          appearance: 'none',
+          WebkitAppearance: 'none',
         }}
       >
-        <div
+        <span
           style={{
+            position: 'absolute',
+            top: '2px',
+            left: value ? '20px' : '2px',
             width: '22px',
             height: '22px',
             background: 'white',
             borderRadius: '50%',
             boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+            transition: 'left 0.2s',
+            display: 'block',
           }}
         />
       </button>
