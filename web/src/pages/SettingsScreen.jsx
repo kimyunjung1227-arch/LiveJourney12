@@ -1,356 +1,259 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  IconArrowLeft,
+  IconUser,
+  IconLock,
+  IconMapPin,
+  IconCrown,
+  IconHelpCircle,
+  IconHeart,
+  IconUserOff,
+  IconShieldLock,
+  IconInfoCircle,
+  IconFileText,
+  IconMessage2,
+  IconLogout,
+  IconTrash,
+} from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
-import BottomNavigation from '../components/BottomNavigation';
-import { logger } from '../utils/logger';
+import { useSettings } from '../hooks/useSettings';
+import { useProfile } from '../hooks/useProfile';
+import SettingsProfileCard from '../components/settings/SettingsProfileCard';
+import SettingsGroup from '../components/settings/SettingsGroup';
+import SettingsRow from '../components/settings/SettingsRow';
+import SettingsToggleRow from '../components/settings/SettingsToggleRow';
+import ConfirmModal from '../components/settings/ConfirmModal';
+import PageSeo from '../components/PageSeo';
+import { PAGE_SEO } from '../config/seo';
 
-const SettingsScreen = () => {
+const TEXT_PRIMARY = '#1F1F1F';
+const TEXT_SECONDARY = '#6B6B6B';
+const SURFACE = '#F5F7FA';
+const BORDER_LIGHT = '#F0F0F0';
+
+const APP_VERSION = '1.0.0';
+
+function SettingsScreen() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user: me, logout } = useAuth();
+  const { settings, loading: settingsLoading, updateSetting } = useSettings();
+  const { data: profileData, loading: profileLoading } = useProfile(me?.id || null);
 
-  // 토글 상태
-  const [activityNotification, setActivityNotification] = useState(true);
-  const [locationNotification, setLocationNotification] = useState(false);
-  const [locationPermission, setLocationPermission] = useState(true);
-  const [cameraPermission, setCameraPermission] = useState(true);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [logoutModal, setLogoutModal] = useState(false);
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [pending, setPending] = useState(false);
 
-  // 토글 핸들러
-  const toggleActivityNotification = () => setActivityNotification(!activityNotification);
-  const toggleLocationNotification = () => setLocationNotification(!locationNotification);
-  const toggleLocationPermission = () => setLocationPermission(!locationPermission);
-  const toggleCameraPermission = () => setCameraPermission(!cameraPermission);
+  const settingsProfile = useMemo(() => {
+    const u = profileData?.user;
+    if (!u) return null;
+    const handle =
+      (me?.email || '').split('@')[0] ||
+      (u.name && u.name.replace(/\s+/g, '').toLowerCase()) ||
+      'me';
+    return {
+      id: u.id,
+      name: u.name || '여행자',
+      handle,
+      avatar_color: u.avatar_color || '#4DB8E8',
+      avatar_url: u.avatar_url || null,
+      is_best_cut_artist: !!u.is_best_cut_artist,
+    };
+  }, [profileData, me?.email]);
 
-  // 메뉴 핸들러
-  const handleAccountConnection = () => {
-    navigate('/account-connection');
+  const handleLogout = async () => {
+    setPending(true);
+    try {
+      await logout();
+    } finally {
+      setPending(false);
+      setLogoutModal(false);
+      navigate('/main', { replace: true });
+    }
   };
 
-  const handleDeleteAccount = () => {
-    navigate('/account-delete');
-  };
-
-  const handleFeedUpdate = () => {
-    navigate('/feed-update-frequency');
-  };
-
-  const handleNotice = () => {
-    navigate('/notices');
-  };
-
-  const handleFAQ = () => {
-    navigate('/faq');
-  };
-
-  const handleInquiry = () => {
-    navigate('/inquiry');
-  };
-
-  const handleTerms = () => {
-    navigate('/terms-and-policies');
-  };
-
-
-  const handleLogout = () => {
-    setShowLogoutModal(true);
-  };
-
-  const confirmLogout = () => {
-    logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    logger.log('👋 로그아웃 & 완전 초기화 시작...');
-    logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-    // 로그아웃 (내부에서 완전 초기화 수행)
-    logout();
-
-    // 모달 닫기
-    setShowLogoutModal(false);
-
-    logger.log('🏠 시작 화면으로 이동');
-    navigate('/', { replace: true });
+  const handleDelete = async () => {
+    setPending(true);
+    try {
+      // 추후 RPC로 교체 — 현재는 안전한 로그아웃만 수행
+      await logout();
+    } finally {
+      setPending(false);
+      setDeleteModal(false);
+      navigate('/account-delete', { replace: true });
+    }
   };
 
   return (
-    <div className="screen-layout bg-background-light dark:bg-background-dark relative" style={{ height: '100vh', overflow: 'hidden' }}>
-      <div className="screen-content" style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
-        {/* 헤더 */}
-        <header className="screen-header flex h-16 items-center justify-between border-b border-border-light bg-white dark:border-border-dark dark:bg-gray-900 px-4 shadow-sm" style={{ position: 'sticky', top: 0, zIndex: 20 }}>
-          <button
-            onClick={() => navigate('/profile')}
-            className="flex size-12 shrink-0 items-center justify-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-          >
-            <span className="material-symbols-outlined text-2xl text-black dark:text-white">arrow_back</span>
-          </button>
-          <h1 className="text-lg font-bold leading-tight tracking-[-0.015em] text-black dark:text-white">
-            설정
-          </h1>
-          <div className="flex size-12 shrink-0 items-center justify-end"></div>
-        </header>
+    <div style={{ background: SURFACE, minHeight: '100vh' }}>
+      <PageSeo {...(PAGE_SEO.settings || PAGE_SEO.profile)} />
 
-        {/* 메인 콘텐츠 */}
-        <main className="pb-28" style={{ minHeight: 'calc(100vh - 64px)' }}>
-          <div className="flex flex-col">
-            {/* 계정 관리 */}
-            <div className="bg-surface-light dark:bg-surface-dark">
-              <div className="px-4 pt-6 pb-3">
-                <h2 className="text-base font-bold leading-normal text-black dark:text-white">
-                  계정 관리
-                </h2>
-              </div>
-              <div className="flex flex-col">
-                <button
-                  onClick={handleAccountConnection}
-                  className="flex h-14 items-center justify-between px-4 hover:bg-surface-subtle-light dark:hover:bg-surface-subtle-dark transition-colors"
-                >
-                  <p className="text-base font-normal leading-normal text-black dark:text-white">
-                    계정 연결 관리
-                  </p>
-                  <span className="material-symbols-outlined text-black dark:text-white">
-                    chevron_right
-                  </span>
-                </button>
-                <button
-                  onClick={handleDeleteAccount}
-                  className="flex h-14 items-center justify-between px-4 hover:bg-surface-subtle-light dark:hover:bg-surface-subtle-dark transition-colors"
-                >
-                  <p className="text-base font-normal leading-normal text-black dark:text-white">
-                    계정 삭제
-                  </p>
-                  <span className="material-symbols-outlined text-black dark:text-white">
-                    chevron_right
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            {/* 구분선 */}
-            <div className="h-2 bg-background-light dark:bg-background-dark"></div>
-
-            {/* 알림 설정 */}
-            <div className="bg-surface-light dark:bg-surface-dark">
-              <div className="px-4 pt-6 pb-3">
-                <h2 className="text-base font-bold leading-normal text-black dark:text-white">
-                  알림 설정
-                </h2>
-              </div>
-              <div className="flex flex-col">
-                <div className="flex h-14 items-center justify-between px-4">
-                  <p className="text-base font-normal leading-normal text-black dark:text-white">
-                    활동 알림
-                  </p>
-                  <label className="settings-switch">
-                    <input
-                      type="checkbox"
-                      checked={activityNotification}
-                      onChange={toggleActivityNotification}
-                    />
-                    <span className="settings-slider" />
-                  </label>
-                </div>
-                <button
-                  onClick={handleFeedUpdate}
-                  className="flex h-14 items-center justify-between px-4 hover:bg-surface-subtle-light dark:hover:bg-surface-subtle-dark transition-colors"
-                >
-                  <p className="text-base font-normal leading-normal text-black dark:text-white">
-                    실시간 피드 업데이트 주기
-                  </p>
-                  <span className="material-symbols-outlined text-black dark:text-white">
-                    chevron_right
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            {/* 구분선 */}
-            <div className="h-2 bg-background-light dark:bg-background-dark"></div>
-
-            {/* 정보 공유 및 권한 설정 */}
-            <div className="bg-surface-light dark:bg-surface-dark">
-              <div className="px-4 pt-6 pb-3">
-                <h2 className="text-base font-bold leading-normal text-black dark:text-white">
-                  정보 공유 및 권한 설정
-                </h2>
-              </div>
-              <div className="flex flex-col">
-                <div className="flex h-14 items-center justify-between px-4">
-                  <p className="text-base font-normal leading-normal text-black dark:text-white">
-                    위치 정보 접근 권한
-                  </p>
-                  <label className="settings-switch">
-                    <input
-                      type="checkbox"
-                      checked={locationPermission}
-                      onChange={toggleLocationPermission}
-                    />
-                    <span className="settings-slider" />
-                  </label>
-                </div>
-                <div className="flex h-14 items-center justify-between px-4">
-                  <p className="text-base font-normal leading-normal text-black dark:text-white">
-                    사진/카메라 접근 권한
-                  </p>
-                  <label className="settings-switch">
-                    <input
-                      type="checkbox"
-                      checked={cameraPermission}
-                      onChange={toggleCameraPermission}
-                    />
-                    <span className="settings-slider" />
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            {/* 구분선 */}
-            <div className="h-2 bg-background-light dark:bg-background-dark"></div>
-
-            {/* 서비스 정보 및 지원 */}
-            <div className="bg-surface-light dark:bg-surface-dark">
-              <div className="px-4 pt-6 pb-3">
-                <h2 className="text-base font-bold leading-normal text-black dark:text-white">
-                  서비스 정보 및 지원
-                </h2>
-              </div>
-              <div className="flex flex-col">
-                <button
-                  onClick={handleNotice}
-                  className="flex h-14 items-center justify-between px-4 hover:bg-surface-subtle-light dark:hover:bg-surface-subtle-dark transition-colors"
-                >
-                  <p className="text-base font-normal leading-normal text-black dark:text-white">
-                    공지사항
-                  </p>
-                  <span className="material-symbols-outlined text-black dark:text-white">
-                    chevron_right
-                  </span>
-                </button>
-                <button
-                  onClick={handleFAQ}
-                  className="flex h-14 items-center justify-between px-4 hover:bg-surface-subtle-light dark:hover:bg-surface-subtle-dark transition-colors"
-                >
-                  <p className="text-base font-normal leading-normal text-black dark:text-white">
-                    자주 묻는 질문 (FAQ)
-                  </p>
-                  <span className="material-symbols-outlined text-black dark:text-white">
-                    chevron_right
-                  </span>
-                </button>
-                <button
-                  onClick={handleInquiry}
-                  className="flex h-14 items-center justify-between px-4 hover:bg-surface-subtle-light dark:hover:bg-surface-subtle-dark transition-colors"
-                >
-                  <p className="text-base font-normal leading-normal text-black dark:text-white">
-                    문의하기
-                  </p>
-                  <span className="material-symbols-outlined text-black dark:text-white">
-                    chevron_right
-                  </span>
-                </button>
-                <button
-                  onClick={handleTerms}
-                  className="flex h-14 items-center justify-between px-4 hover:bg-surface-subtle-light dark:hover:bg-surface-subtle-dark transition-colors"
-                >
-                  <p className="text-base font-normal leading-normal text-black dark:text-white">
-                    서비스 약관 및 정책
-                  </p>
-                  <span className="material-symbols-outlined text-black dark:text-white">
-                    chevron_right
-                  </span>
-                </button>
-                <div className="flex h-14 items-center justify-between px-4">
-                  <p className="text-base font-normal leading-normal text-black dark:text-white">
-                    버전 정보
-                  </p>
-                  <p className="text-base font-normal leading-normal text-black dark:text-white">
-                    1.0.0
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* 구분선 */}
-            <div className="h-2 bg-background-light dark:bg-background-dark"></div>
-
-            {/* 로그아웃 버튼 */}
-            <div className="bg-surface-light dark:bg-surface-dark px-4 py-6">
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-black dark:text-white font-semibold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-              >
-                <span className="material-symbols-outlined">logout</span>
-                <span>로그아웃</span>
-              </button>
-            </div>
-
-            {/* 하단 여백 */}
-            <div className="h-24"></div>
-          </div>
-        </main>
+      {/* 헤더 */}
+      <div
+        className="flex items-center"
+        style={{
+          gap: 12,
+          padding: '14px 18px',
+          borderBottom: `1px solid ${BORDER_LIGHT}`,
+          background: '#fff',
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          aria-label="뒤로가기"
+          style={{
+            width: 32,
+            height: 32,
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <IconArrowLeft size={22} color={TEXT_PRIMARY} />
+        </button>
+        <span style={{ fontSize: 17, fontWeight: 600, color: TEXT_PRIMARY }}>설정</span>
       </div>
 
-      <BottomNavigation />
+      {/* 프로필 카드 */}
+      {profileLoading ? null : settingsProfile ? (
+        <SettingsProfileCard profile={settingsProfile} />
+      ) : null}
 
-      {/* 로그아웃 확인 모달 */}
-      {showLogoutModal && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-scale-up">
-            {/* 아이콘 */}
-            <div className="flex justify-center mb-4">
-              <div className="flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800">
-                <span className="material-symbols-outlined text-black dark:text-white text-4xl">
-                  logout
-                </span>
-              </div>
-            </div>
+      {/* 계정 */}
+      <SettingsGroup label="계정">
+        <SettingsRow
+          icon={IconUser}
+          label="계정 정보"
+          onClick={() => navigate('/personal-info-edit')}
+        />
+        <SettingsRow
+          icon={IconLock}
+          label="비밀번호 변경"
+          onClick={() => navigate('/password-change')}
+        />
+        <SettingsRow
+          icon={IconMapPin}
+          iconColor="#4DB8E8"
+          label="위치 정보"
+          subtitle="정확한 위치 · EXIF 인증에 사용"
+          isLast
+          onClick={() => navigate('/location-terms')}
+        />
+      </SettingsGroup>
 
-            {/* 메시지 */}
-            <div className="text-center mb-6">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-                로그아웃 하시겠습니까?
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                다시 로그인하시려면 계정 정보를 입력해야 합니다
-              </p>
-            </div>
+      {/* 알림 */}
+      <SettingsGroup label="알림">
+        <SettingsToggleRow
+          icon={IconCrown}
+          iconBg="gradient"
+          label="영예 알림"
+          subtitle="베스트 컷 선정, 도움 마일스톤"
+          value={!!settings?.notify_honor}
+          onToggle={(v) => updateSetting('notify_honor', v)}
+        />
+        <SettingsToggleRow
+          icon={IconHelpCircle}
+          iconBg="key"
+          label="질문 알림"
+          subtitle="내 지역 질문 매칭, 답변 도착"
+          value={!!settings?.notify_question}
+          onToggle={(v) => updateSetting('notify_question', v)}
+        />
+        <SettingsToggleRow
+          icon={IconHeart}
+          iconBg="gray"
+          label="활동 알림"
+          subtitle="좋아요, 댓글, 저장, 팔로우"
+          value={!!settings?.notify_activity}
+          onToggle={(v) => updateSetting('notify_activity', v)}
+          isLast
+        />
+      </SettingsGroup>
 
-            {/* 버튼들 */}
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowLogoutModal(false)}
-                className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-              >
-                취소
-              </button>
-              <button
-                onClick={confirmLogout}
-                className="flex-1 py-3 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-700 transition-colors"
-              >
-                로그아웃
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 개인정보 */}
+      <SettingsGroup label="개인정보">
+        <SettingsRow
+          icon={IconUserOff}
+          label="차단 목록"
+          onClick={() => navigate('/settings/blocked')}
+        />
+        <SettingsRow
+          icon={IconShieldLock}
+          label="개인정보 처리방침"
+          isLast
+          onClick={() => navigate('/privacy-policy')}
+        />
+      </SettingsGroup>
 
+      {/* 앱 정보 */}
+      <SettingsGroup label="앱 정보">
+        <SettingsRow
+          icon={IconInfoCircle}
+          label="버전"
+          value={APP_VERSION}
+          showArrow={false}
+        />
+        <SettingsRow
+          icon={IconFileText}
+          label="이용약관"
+          onClick={() => navigate('/terms-of-service')}
+        />
+        <SettingsRow
+          icon={IconMessage2}
+          label="문의하기"
+          isLast
+          onClick={() => navigate('/inquiry')}
+        />
+      </SettingsGroup>
+
+      {/* 위험 액션 */}
+      <SettingsGroup>
+        <SettingsRow
+          icon={IconLogout}
+          label="로그아웃"
+          showArrow={false}
+          onClick={() => setLogoutModal(true)}
+        />
+        <SettingsRow
+          icon={IconTrash}
+          label="회원 탈퇴"
+          danger
+          isLast
+          onClick={() => setDeleteModal(true)}
+        />
+      </SettingsGroup>
+
+      <div style={{ height: 32 }} />
+
+      {/* 알림 로딩 중일 때는 토글이 어둠 — 그래도 깜빡임 방지를 위해 헤더 위에 안내 X */}
+
+      <ConfirmModal
+        open={logoutModal}
+        title="로그아웃"
+        message="정말 로그아웃 하시겠어요?"
+        confirmLabel={pending ? '처리 중...' : '로그아웃'}
+        onConfirm={handleLogout}
+        onCancel={() => setLogoutModal(false)}
+      />
+      <ConfirmModal
+        open={deleteModal}
+        title="회원 탈퇴"
+        message="탈퇴하면 모든 사진과 기록이 삭제되며 되돌릴 수 없어요. 정말 탈퇴하시겠어요?"
+        confirmLabel={pending ? '처리 중...' : '탈퇴'}
+        danger
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteModal(false)}
+      />
     </div>
   );
-};
+}
 
 export default SettingsScreen;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
