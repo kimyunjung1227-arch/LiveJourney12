@@ -1,5 +1,6 @@
 import React from 'react';
 import { IconCrown } from '@tabler/icons-react';
+import { useNavigate } from 'react-router-dom';
 import { getDisplayImageUrl } from '../../api/upload';
 
 const KEY = '#4DB8E8';
@@ -10,8 +11,13 @@ const GRADIENT = 'linear-gradient(135deg, #4DB8E8, #1A6EA8)';
 
 /**
  * 프로필 상단 영역: 아바타(왕관 인디케이터) + 이름(베스트 컷 작가 라벨) + 바이오.
+ *
+ * @param {object} props
+ * @param {object} props.user
+ * @param {boolean} [props.isMe] /profile 컨텍스트면 true → 팔로워/팔로잉 클릭 시 /profile/follows
  */
-export default function ProfileHeader({ user }) {
+export default function ProfileHeader({ user, isMe = false }) {
+  const navigate = useNavigate();
   if (!user) return null;
 
   const initial = String(user.name || '?').trim().charAt(0).toUpperCase() || '·';
@@ -110,8 +116,22 @@ export default function ProfileHeader({ user }) {
           {/* 게시물/팔로워/팔로잉 — 정보 컬럼 안쪽(아바타 우측)에 배치 */}
           <div className="flex items-baseline" style={{ gap: 16 }}>
             <InlineStat value={user.photo_count || 0} label="게시물" />
-            <InlineStat value={user.follower_count || 0} label="팔로워" />
-            <InlineStat value={user.following_count || 0} label="팔로잉" />
+            <InlineStat
+              value={user.follower_count || 0}
+              label="팔로워"
+              onClick={() => {
+                if (isMe) navigate('/profile/follows?tab=followers');
+                else if (user?.id) navigate(`/user/${encodeURIComponent(user.id)}/follows?tab=followers`);
+              }}
+            />
+            <InlineStat
+              value={user.following_count || 0}
+              label="팔로잉"
+              onClick={() => {
+                if (isMe) navigate('/profile/follows?tab=following');
+                else if (user?.id) navigate(`/user/${encodeURIComponent(user.id)}/follows?tab=following`);
+              }}
+            />
           </div>
         </div>
       </div>
@@ -119,11 +139,23 @@ export default function ProfileHeader({ user }) {
   );
 }
 
-function InlineStat({ value, label }) {
+function InlineStat({ value, label, onClick }) {
+  const interactive = typeof onClick === 'function';
+  const Tag = interactive ? 'button' : 'div';
   return (
-    <div className="flex items-baseline gap-1">
+    <Tag
+      type={interactive ? 'button' : undefined}
+      onClick={onClick}
+      className="flex items-baseline gap-1"
+      style={{
+        background: 'transparent',
+        border: 'none',
+        padding: 0,
+        cursor: interactive ? 'pointer' : 'default',
+      }}
+    >
       <span style={{ fontSize: 14, fontWeight: 700, color: TEXT_PRIMARY }}>{value}</span>
       <span style={{ fontSize: 11, color: TEXT_SECONDARY }}>{label}</span>
-    </div>
+    </Tag>
   );
 }

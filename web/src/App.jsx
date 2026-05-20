@@ -102,6 +102,7 @@ const MagazineAdminScreen = lazyWithRecover(() => import('./pages/MagazineAdminS
 const SearchScreen = lazyWithRecover(() => import('./pages/SearchScreen'))
 const SeasonDetailScreen = lazyWithRecover(() => import('./pages/SeasonDetailScreen'))
 const QuestionDetailScreen = lazyWithRecover(() => import('./pages/QuestionDetailScreen'))
+const FollowListScreen = lazyWithRecover(() => import('./pages/FollowListScreen'))
 const HashtagScreen = lazyWithRecover(() => import('./pages/HashtagScreen'))
 const DetailScreen = lazyWithRecover(() => import('./pages/DetailScreen'))
 const PostDetailScreen = lazyWithRecover(() => import('./pages/PostDetailScreen'))
@@ -230,7 +231,16 @@ function App() {
                 <Route path="/ask-situation/:id/edit" element={<AskSituationEditScreen />} />
                 <Route path="/map/photos" element={<MapPhotoGridScreen />} />
                 <Route path="/profile" element={<ProfileScreen />} />
+                <Route
+                  path="/profile/follows"
+                  element={
+                    <ProtectedRoute>
+                      <FollowListScreen mode="me" />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/user/:userId" element={<UserProfileScreen />} />
+                <Route path="/user/:userId/follows" element={<FollowListScreen mode="user" />} />
                 <Route path="/coupons" element={<MyCouponsScreen />} />
                 {RAFFLE_UI_ENABLED ? (
                   <>

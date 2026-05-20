@@ -163,7 +163,7 @@ function ProfileScreen() {
       <PageSeo {...PAGE_SEO.profile} />
       <ProfileHeaderBar onSettings={() => navigate('/settings')} showSettings />
 
-      <ProfileHeader user={profileUser} />
+      <ProfileHeader user={profileUser} isMe />
       <HonorBox user={profileUser} />
 
       <BestCutCarousel bestCuts={data?.best_cuts} />
