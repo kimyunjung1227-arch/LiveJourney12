@@ -165,8 +165,8 @@ function ProfileScreen() {
       <ProfileHeaderBar onSettings={() => navigate('/settings')} showSettings />
 
       <ProfileHeader user={profileUser} />
-      <HonorBox user={profileUser} />
       <BasicStats user={profileUser} />
+      <HonorBox user={profileUser} />
 
       <BestCutCarousel bestCuts={data?.best_cuts} />
 
@@ -191,14 +191,17 @@ function ProfileScreen() {
 function ProfileHeaderBar({ onSettings, showSettings }) {
   return (
     <div
-      className="flex items-center justify-between"
       style={{
-        padding: '14px 18px',
-        borderBottom: `1px solid ${BORDER_LIGHT}`,
         position: 'sticky',
         top: 0,
         zIndex: 10,
+        height: 52,
+        padding: '0 12px',
+        borderBottom: `1px solid ${BORDER_LIGHT}`,
         background: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       }}
     >
       <span style={{ fontSize: 17, fontWeight: 600, color: TEXT_PRIMARY }}>프로필</span>
@@ -208,6 +211,10 @@ function ProfileHeaderBar({ onSettings, showSettings }) {
           onClick={onSettings}
           aria-label="설정"
           style={{
+            position: 'absolute',
+            right: 12,
+            top: '50%',
+            transform: 'translateY(-50%)',
             width: 36,
             height: 36,
             background: 'transparent',

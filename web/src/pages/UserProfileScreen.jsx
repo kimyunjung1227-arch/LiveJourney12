@@ -51,42 +51,77 @@ function UserProfileScreen() {
     <div style={{ background: '#fff', minHeight: '100vh', paddingBottom: 24 }}>
       <PageSeo {...(PAGE_SEO.userProfile || PAGE_SEO.profile)} />
 
-      {/* 헤더: 뒤로가기 + 이름 + 점 세개 */}
+      {/* 헤더: 가운데 정렬 + 좌측 뒤로가기 + 우측 점 세개 */}
       <div
-        className="flex items-center justify-between"
         style={{
-          padding: '14px 18px',
-          borderBottom: `1px solid ${BORDER_LIGHT}`,
           position: 'sticky',
           top: 0,
           zIndex: 10,
+          height: 52,
+          padding: '0 12px',
+          borderBottom: `1px solid ${BORDER_LIGHT}`,
           background: '#fff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            aria-label="뒤로가기"
-            style={{
-              width: 32,
-              height: 32,
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              padding: 0,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <IconArrowLeft size={22} color={TEXT_PRIMARY} />
-          </button>
-          <span style={{ fontSize: 16, fontWeight: 600, color: TEXT_PRIMARY }}>
-            {profileUser?.name || '프로필'}
-          </span>
-        </div>
-        <IconDots size={20} color={TEXT_SECONDARY} />
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          aria-label="뒤로가기"
+          style={{
+            position: 'absolute',
+            left: 12,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 36,
+            height: 36,
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <IconArrowLeft size={22} color={TEXT_PRIMARY} />
+        </button>
+        <span
+          style={{
+            fontSize: 17,
+            fontWeight: 600,
+            color: TEXT_PRIMARY,
+            maxWidth: 'calc(100% - 120px)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {profileUser?.name || '프로필'}
+        </span>
+        <button
+          type="button"
+          aria-label="더보기"
+          style={{
+            position: 'absolute',
+            right: 12,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 36,
+            height: 36,
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <IconDots size={20} color={TEXT_SECONDARY} />
+        </button>
       </div>
 
       {loading ? (
@@ -100,8 +135,8 @@ function UserProfileScreen() {
       ) : (
         <>
           <ProfileHeader user={profileUser} />
-          <HonorBox user={profileUser} />
           <BasicStats user={profileUser} />
+          <HonorBox user={profileUser} />
 
           {!isMe && (
             <div className="flex items-center gap-2" style={{ padding: '0 18px 18px' }}>
