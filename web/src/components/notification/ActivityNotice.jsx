@@ -44,9 +44,9 @@ export default function ActivityNotice({ notification, onFollowBack }) {
       return (
         <div
           className="flex items-center justify-center flex-shrink-0"
-          style={{ width: 46, height: 46, borderRadius: 999, background: KEY }}
+          style={{ width: 38, height: 38, borderRadius: 999, background: KEY }}
         >
-          <IconHeart size={19} color="white" stroke={2} />
+          <IconHeart size={16} color="white" stroke={2} />
         </div>
       );
     }
@@ -54,9 +54,9 @@ export default function ActivityNotice({ notification, onFollowBack }) {
       return (
         <div
           className="flex items-center justify-center flex-shrink-0"
-          style={{ width: 46, height: 46, borderRadius: 999, background: KEY }}
+          style={{ width: 38, height: 38, borderRadius: 999, background: KEY }}
         >
-          <IconBookmark size={19} color="white" stroke={2} />
+          <IconBookmark size={16} color="white" stroke={2} />
         </div>
       );
     }
@@ -64,9 +64,9 @@ export default function ActivityNotice({ notification, onFollowBack }) {
       return (
         <div
           className="flex items-center justify-center flex-shrink-0"
-          style={{ width: 46, height: 46, borderRadius: 999, background: KEY }}
+          style={{ width: 38, height: 38, borderRadius: 999, background: KEY }}
         >
-          <IconFlame size={19} color="white" stroke={2} />
+          <IconFlame size={16} color="white" stroke={2} />
         </div>
       );
     }
@@ -76,7 +76,7 @@ export default function ActivityNotice({ notification, onFollowBack }) {
           className="flex items-center justify-center flex-shrink-0"
           style={{ width: 46, height: 46, borderRadius: 999, background: '#9CA3AF' }}
         >
-          <IconBell size={19} color="white" stroke={2} />
+          <IconBell size={16} color="white" stroke={2} />
         </div>
       );
     }
@@ -85,9 +85,9 @@ export default function ActivityNotice({ notification, onFollowBack }) {
       return (
         <div
           className="flex items-center justify-center flex-shrink-0"
-          style={{ width: 46, height: 46, borderRadius: 999, background: KEY }}
+          style={{ width: 38, height: 38, borderRadius: 999, background: KEY }}
         >
-          <IconPhoto size={19} color="white" stroke={2} />
+          <IconPhoto size={16} color="white" stroke={2} />
         </div>
       );
     }
@@ -96,11 +96,11 @@ export default function ActivityNotice({ notification, onFollowBack }) {
       <div
         className="flex items-center justify-center flex-shrink-0 text-white font-semibold"
         style={{
-          width: 46,
-          height: 46,
+          width: 38,
+          height: 38,
           borderRadius: 999,
           background: actor?.avatar_color || KEY,
-          fontSize: 17,
+          fontSize: 14,
         }}
       >
         {String(name).charAt(0).toUpperCase() || '·'}
@@ -227,12 +227,12 @@ export default function ActivityNotice({ notification, onFollowBack }) {
       tabIndex={0}
       className="flex items-center"
       style={{
-        gap: 12,
+        gap: 10,
         cursor: 'pointer',
-        borderRadius: 10,
+        borderRadius: 8,
         background: is_read ? 'transparent' : KEY_LIGHT_BG,
-        padding: '12px 10px',
-        marginBottom: 2,
+        padding: '8px 8px',
+        marginBottom: 0,
         borderBottom: `1px solid ${BORDER_LIGHT}`,
       }}
     >
@@ -242,16 +242,16 @@ export default function ActivityNotice({ notification, onFollowBack }) {
         <p
           className="m-0"
           style={{
-            fontSize: 14,
+            fontSize: 13,
             color: TEXT_PRIMARY,
-            lineHeight: 1.5,
-            marginBottom: 4,
+            lineHeight: 1.4,
+            marginBottom: 2,
             wordBreak: 'break-word',
           }}
         >
           {renderMessage()}
         </p>
-        <p className="m-0" style={{ fontSize: 11, color: TEXT_SECONDARY }}>
+        <p className="m-0" style={{ fontSize: 10, color: TEXT_SECONDARY }}>
           {timeAgo(notification.created_at)}
         </p>
       </div>
@@ -267,9 +267,9 @@ export default function ActivityNotice({ notification, onFollowBack }) {
             style={{
               background: KEY,
               color: 'white',
-              padding: '8px 16px',
-              borderRadius: 9,
-              fontSize: 12,
+              padding: '6px 12px',
+              borderRadius: 8,
+              fontSize: 11,
               fontWeight: 700,
               border: 'none',
               cursor: 'pointer',
@@ -282,7 +282,7 @@ export default function ActivityNotice({ notification, onFollowBack }) {
       ) : showThumbRight ? (
         <div
           className="overflow-hidden flex-shrink-0"
-          style={{ width: 46, height: 46, borderRadius: 8, background: SURFACE }}
+          style={{ width: 38, height: 38, borderRadius: 7, background: SURFACE }}
         >
           <img
             src={thumbUrl}
