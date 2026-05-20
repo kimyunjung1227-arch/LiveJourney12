@@ -6,14 +6,12 @@ import {
   IconBoltOff,
   IconRotate2,
   IconShieldCheck,
-  IconShield,
   IconMapPin,
   IconCamera,
   IconAlertTriangle,
   IconCameraOff,
   IconPlayerStopFilled,
   IconPhoto,
-  IconClock,
 } from '@tabler/icons-react';
 import { LJ } from '../components/lj/tokens';
 import { useCamera } from '../hooks/useCamera';
@@ -26,7 +24,6 @@ const DARK = '#0A0A0A';
 const OVERLAY = 'rgba(0,0,0,0.45)';
 const OVERLAY_STRONG = 'rgba(0,0,0,0.6)';
 const RED = 'rgb(220, 38, 38)';
-const KEY_BG_15 = 'rgba(77,184,232,0.15)';
 const KEY_BG_30 = 'rgba(77,184,232,0.3)';
 const WHITE_85 = 'rgba(255,255,255,0.85)';
 const WHITE_70 = 'rgba(255,255,255,0.7)';
@@ -49,6 +46,13 @@ function CameraScreen() {
     location: null,
   });
   const fileInputRef = useRef(null);
+
+  // 인트로(카메라 시작하기) 화면 없이 진입 즉시 권한 요청
+  useEffect(() => {
+    if (cam.permission === 'idle') {
+      cam.requestPermission();
+    }
+  }, [cam.permission, cam.requestPermission]);
 
   const close = () => navigate(-1);
 
@@ -145,13 +149,7 @@ function CameraScreen() {
   };
 
   if (cam.permission === 'idle' || cam.permission === 'requesting') {
-    return (
-      <PermissionRequest
-        onRequest={cam.requestPermission}
-        loading={cam.permission === 'requesting'}
-        onClose={close}
-      />
-    );
+    return <CameraLoading onClose={close} />;
   }
   if (cam.permission === 'denied') return <PermissionDenied onClose={close} />;
   if (cam.permission === 'unsupported') return <PermissionDenied unsupported onClose={close} />;
@@ -233,8 +231,8 @@ function CameraScreen() {
   );
 }
 
-/* -------------------- 권한 요청 -------------------- */
-function PermissionRequest({ onRequest, loading, onClose }) {
+/* -------------------- 카메라 로딩 (권한 자동 요청 대기) -------------------- */
+function CameraLoading({ onClose }) {
   return (
     <DarkFrame onClose={onClose}>
       <div
@@ -245,125 +243,30 @@ function PermissionRequest({ onRequest, loading, onClose }) {
           alignItems: 'center',
           justifyContent: 'center',
           padding: '0 24px 24px',
-          textAlign: 'center',
           fontFamily: LJ.fontStack,
           color: '#fff',
         }}
       >
         <div
           style={{
-            width: 84,
-            height: 84,
+            width: 56,
+            height: 56,
             borderRadius: '50%',
-            background: KEY_BG_15,
-            border: `1.5px solid ${KEY_BG_30}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: 18,
+            border: `2px solid ${KEY_BG_30}`,
+            borderTopColor: LJ.key,
+            animation: 'lj-spin 0.9s linear infinite',
           }}
-        >
-          <IconCamera size={38} stroke={1.8} color={LJ.key} />
-        </div>
-        <h2 style={{ margin: 0, fontSize: 19, fontWeight: 700, lineHeight: 1.4 }}>
-          지금 거기 있는 사람만
-          <br />
-          찍을 수 있어요
-        </h2>
-        <p
-          style={{
-            marginTop: 12,
-            fontSize: 13,
-            color: WHITE_70,
-            lineHeight: 1.6,
-            maxWidth: 320,
-          }}
-        >
-          라이브저니는 카메라가 자동으로 기록한 시간을 그대로 보여줘요. 조작할 수도,
-          갤러리에서 옛 사진을 가져올 수도 없어요.
+        />
+        <p style={{ marginTop: 16, fontSize: 13, color: WHITE_70 }}>
+          카메라 준비 중...
         </p>
-
-        {/* 3가지 안내 리스트 */}
-        <ul
-          style={{
-            margin: '20px 0 0',
-            padding: 0,
-            listStyle: 'none',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 10,
-            width: '100%',
-            maxWidth: 320,
-          }}
-        >
-          <PromiseRow icon={<IconShield size={13} stroke={1.8} color={LJ.key} />} label="촬영 시각 자동 인증" />
-          <PromiseRow icon={<IconMapPin size={13} stroke={1.8} color={LJ.key} />} label="위치 자동 인증" />
-          <PromiseRow icon={<IconClock size={13} stroke={1.8} color={LJ.key} />} label="48시간 동안만 라이브" />
-        </ul>
       </div>
-
-      <div
-        style={{
-          padding: '14px 18px calc(18px + env(safe-area-inset-bottom))',
-        }}
-      >
-        <button
-          type="button"
-          onClick={onRequest}
-          disabled={loading}
-          style={{
-            width: '100%',
-            padding: 14,
-            background: loading ? 'rgba(255,255,255,0.15)' : LJ.key,
-            color: '#fff',
-            border: 'none',
-            borderRadius: 12,
-            fontFamily: LJ.fontStack,
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: loading ? 'wait' : 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-          }}
-        >
-          <IconCamera size={18} stroke={2} />
-          {loading ? '권한 요청 중...' : '카메라 시작하기'}
-        </button>
-      </div>
+      <style>{`
+        @keyframes lj-spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </DarkFrame>
-  );
-}
-
-function PromiseRow({ icon, label }) {
-  return (
-    <li
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '8px 12px',
-        background: 'rgba(255,255,255,0.04)',
-        borderRadius: 8,
-      }}
-    >
-      <span
-        style={{
-          width: 24,
-          height: 24,
-          minWidth: 24,
-          borderRadius: '50%',
-          background: KEY_BG_15,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {icon}
-      </span>
-      <span style={{ fontSize: 12.5, color: WHITE_85 }}>{label}</span>
-    </li>
   );
 }
 
