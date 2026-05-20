@@ -123,6 +123,9 @@ export function useUpload() {
           author_username:
             user.user_metadata?.nickname || user.email?.split('@')[0] || '나',
           author_avatar_url: user.user_metadata?.avatar_url || null,
+          // 신규 RPC(get_question_detail, get_city_detail 등)는 photo_url 컬럼을 읽으므로 함께 세팅
+          photo_url: mode === 'photo' ? publicUrl : null,
+          exif_taken_at: capturedIso,
         };
 
         const { data: inserted, error: insertError } = await supabase

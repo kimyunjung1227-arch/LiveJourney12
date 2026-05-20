@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   IconArrowLeft,
   IconShieldCheck,
@@ -11,6 +11,7 @@ import {
   IconUsers,
   IconMoon,
   IconBuildingStore,
+  IconInfoCircle,
 } from '@tabler/icons-react';
 import { LJ } from '../components/lj/tokens';
 import {
@@ -21,6 +22,10 @@ import {
 import { formatTimeAgo, formatTimeOfDay } from '../lib/exif/formatTimeAgo';
 import { useUpload } from '../hooks/useUpload';
 import { useGeolocation } from '../hooks/useGeolocation';
+import { useQuestionBrief } from '../hooks/useQuestionBrief';
+import QuestionBanner from '../components/answer/QuestionBanner';
+import { supabase } from '../utils/supabaseClient';
+import { logger } from '../utils/logger';
 import { reverseGeocodeToPlace } from '../utils/locationFromGeocode';
 import { searchPlaceWithKakaoFirst, ensureKakaoMapsServicesReady } from '../utils/kakaoPlacesGeocode';
 import { patchUploadMedia } from '../stores/uploadStore';
@@ -38,9 +43,13 @@ const MAX_BODY = 100;
 
 function UploadInfoScreen() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const answerTo = searchParams.get('answerTo');
   const media = useSyncExternalStore(subscribeUploadStore, getUploadSnapshot, getUploadSnapshot);
   const { isUploading, upload, error } = useUpload();
   const geo = useGeolocation();
+  const { question: answerQuestion } = useQuestionBrief(answerTo);
+  const isAnswerMode = !!answerTo;
 
   const [category, setCategory] = useState(null);
   const [body, setBody] = useState('');
@@ -98,14 +107,27 @@ function UploadInfoScreen() {
     };
   }, [media?.lat, media?.lng]);
 
-  // 미디어가 없는 상태로 직접 진입하면 카메라로 유도
+  // 미디어가 없는 상태로 직접 진입하면 카메라로 유도 (답변 모드면 answerTo 유지)
   useEffect(() => {
     if (!media || !media.url) {
-      // sessionStorage 백업도 비었음 — 카메라로 보내기
-      const t = setTimeout(() => navigate('/camera', { replace: true }), 60);
+      const t = setTimeout(
+        () =>
+          navigate(
+            answerTo ? `/camera?answerTo=${encodeURIComponent(answerTo)}` : '/camera',
+            { replace: true },
+          ),
+        60,
+      );
       return () => clearTimeout(t);
     }
-  }, [media, navigate]);
+  }, [media, navigate, answerTo]);
+
+  // 답변 모드: 질문 카테고리를 기본 선택 (사용자가 직접 안 골랐을 때만)
+  useEffect(() => {
+    if (isAnswerMode && answerQuestion?.category && !category) {
+      setCategory(answerQuestion.category);
+    }
+  }, [isAnswerMode, answerQuestion?.category, category]);
 
   const takenAtDate = useMemo(
     () => (media?.takenAt ? new Date(media.takenAt) : null),
@@ -123,11 +145,12 @@ function UploadInfoScreen() {
   const handleUpload = async () => {
     if (!canUpload) return;
     try {
-      // 사용자가 위치를 편집했으면 그 값 우선
+      // 답변 모드면 장소는 질문의 장소를 그대로 사용 (placeName), place_id는 link 단계에서 묶음
       const finalLat = editedLoc?.lat ?? media.lat;
       const finalLng = editedLoc?.lng ?? media.lng;
-      const finalPlace =
-        editedLoc?.placeName || resolvedPlace || media.placeName || null;
+      const finalPlace = isAnswerMode
+        ? answerQuestion?.place_name || editedLoc?.placeName || resolvedPlace || media.placeName || null
+        : editedLoc?.placeName || resolvedPlace || media.placeName || null;
       const postId = await upload({
         file: media.file,
         category,
@@ -142,6 +165,18 @@ function UploadInfoScreen() {
         exif: media.exif ?? null,
       });
       resetUploadStore();
+
+      if (isAnswerMode && answerTo) {
+        // 게시물을 질문에 답변으로 연결 (answer_count 증가 + 알림)
+        const { error: linkErr } = await supabase.rpc('link_post_to_question', {
+          p_question_id: answerTo,
+          p_post_id: postId,
+        });
+        if (linkErr) logger.warn('link_post_to_question 실패', linkErr?.message || linkErr);
+        navigate(`/question/${encodeURIComponent(answerTo)}`, { replace: true });
+        return;
+      }
+
       navigate(`/upload/complete/${postId}`, { replace: true });
     } catch (_) {
       // error는 훅에서 setError; 화면에 표시
@@ -260,7 +295,7 @@ function UploadInfoScreen() {
               <IconArrowLeft size={20} stroke={1.8} />
             </button>
             <span style={{ fontSize: 16, fontWeight: 600, color: LJ.textPrimary, lineHeight: 1 }}>
-              정보 입력
+              {isAnswerMode ? '답변 작성' : '정보 입력'}
             </span>
           </div>
           <button
@@ -278,10 +313,19 @@ function UploadInfoScreen() {
               cursor: canUpload ? 'pointer' : 'not-allowed',
             }}
           >
-            {isUploading ? '업로드 중...' : '업로드'}
+            {isUploading
+              ? (isAnswerMode ? '올리는 중...' : '업로드 중...')
+              : (isAnswerMode ? '답변 올리기' : '업로드')}
           </button>
         </div>
       </header>
+
+      {/* 답변 모드 — 질문 배너 (사진 위) */}
+      {isAnswerMode && answerQuestion && (
+        <div style={{ padding: '14px 18px 0' }}>
+          <QuestionBanner question={answerQuestion} />
+        </div>
+      )}
 
       {/* 사진/영상 미리보기 */}
       {media?.url && (
@@ -558,14 +602,20 @@ function UploadInfoScreen() {
       {/* 한 줄 설명 (선택) */}
       <section style={{ padding: '18px 18px 0' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginBottom: 10 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: LJ.textPrimary }}>한 줄 설명</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: LJ.textPrimary }}>
+            {isAnswerMode ? '답변 한마디' : '한 줄 설명'}
+          </span>
           <span style={{ fontSize: 11, color: LJ.textTertiary }}>선택</span>
         </div>
         <div style={{ position: 'relative' }}>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value.slice(0, MAX_BODY))}
-            placeholder="예: 윤중로 80% 만개, 주말이 절정일 듯"
+            placeholder={
+              isAnswerMode
+                ? '예: 윤중로 끝쪽 100% 만개예요, 사람 적어요'
+                : '예: 윤중로 80% 만개, 주말이 절정일 듯'
+            }
             style={{
               width: '100%',
               minHeight: 60,
@@ -597,26 +647,52 @@ function UploadInfoScreen() {
 
       {/* 하단 안내 */}
       <section style={{ padding: '18px 18px 0' }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '12px 14px',
-            background: LJ.keyBgLight,
-            borderRadius: 10,
-          }}
-        >
-          <IconClock size={16} stroke={1.8} color={LJ.key} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: LJ.keyTextDark }}>
-              48시간 라이브 노출
-            </div>
-            <div style={{ fontSize: 11, color: LJ.keyTextDark, opacity: 0.85, marginTop: 2 }}>
-              지금 누군가 이 정보를 기다리고 있어요
+        {isAnswerMode && answerQuestion ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '12px 14px',
+              background: LJ.keyBgLight,
+              borderRadius: 10,
+            }}
+          >
+            <IconInfoCircle size={16} stroke={1.8} color={LJ.key} />
+            <p
+              className="m-0"
+              style={{
+                flex: 1,
+                fontSize: 11,
+                color: LJ.keyTextDark,
+                lineHeight: 1.5,
+              }}
+            >
+              답변하면 {answerQuestion.author_name}님에게 알림이 가고, 도움이 되면 영예를 받아요.
+            </p>
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '12px 14px',
+              background: LJ.keyBgLight,
+              borderRadius: 10,
+            }}
+          >
+            <IconClock size={16} stroke={1.8} color={LJ.key} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: LJ.keyTextDark }}>
+                48시간 라이브 노출
+              </div>
+              <div style={{ fontSize: 11, color: LJ.keyTextDark, opacity: 0.85, marginTop: 2 }}>
+                지금 누군가 이 정보를 기다리고 있어요
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </section>
 
       {error && (

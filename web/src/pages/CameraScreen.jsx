@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   IconX,
   IconBolt,
@@ -19,6 +19,8 @@ import { useGeolocation } from '../hooks/useGeolocation';
 import { EXIFRejectModal, EXIFConfirmModal } from '../components/lj/ExifModals';
 import { validateGalleryFile } from '../lib/exif/validateGalleryFile';
 import { setUploadMedia } from '../stores/uploadStore';
+import { useQuestionBrief } from '../hooks/useQuestionBrief';
+import QuestionBannerCompact from '../components/answer/QuestionBannerCompact';
 
 const DARK = '#0A0A0A';
 const OVERLAY = 'rgba(0,0,0,0.45)';
@@ -33,6 +35,9 @@ const MAX_RECORD_SECONDS = 30;
 
 function CameraScreen() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const answerTo = searchParams.get('answerTo');
+  const { question: answerQuestion } = useQuestionBrief(answerTo);
   const cam = useCamera();
   const geo = useGeolocation();
 
@@ -93,7 +98,8 @@ function CameraScreen() {
       facingMode: cam.facingMode,
       exif: exif || null,
     });
-    navigate('/upload');
+    // 답변 모드면 query 유지
+    navigate(answerTo ? `/upload?answerTo=${encodeURIComponent(answerTo)}` : '/upload');
   };
 
   const handleGalleryFile = async (e) => {
@@ -159,6 +165,7 @@ function CameraScreen() {
       <CameraView
         cam={cam}
         geo={geo}
+        answerQuestion={answerTo ? answerQuestion : null}
         onClose={close}
         onOpenGallery={openGallery}
         onCapturedPhoto={(blob) => {
@@ -419,7 +426,7 @@ function DarkFrame({ children, onClose }) {
 }
 
 /* -------------------- 카메라 뷰 -------------------- */
-function CameraView({ cam, geo, onClose, onOpenGallery, onCapturedPhoto, onCapturedVideo }) {
+function CameraView({ cam, geo, onClose, onOpenGallery, onCapturedPhoto, onCapturedVideo, answerQuestion }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [recordSeconds, setRecordSeconds] = useState(0);
@@ -558,6 +565,21 @@ function CameraView({ cam, geo, onClose, onOpenGallery, onCapturedPhoto, onCaptu
         </CircleButton>
       </div>
 
+      {/* 답변 모드 — 질문 배너 */}
+      {answerQuestion && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 56,
+            left: 12,
+            right: 12,
+            zIndex: 5,
+          }}
+        >
+          <QuestionBannerCompact question={answerQuestion} />
+        </div>
+      )}
+
       {/* 하단 영역 */}
       <div
         style={{
@@ -612,6 +634,20 @@ function CameraView({ cam, geo, onClose, onOpenGallery, onCapturedPhoto, onCaptu
             )}
           </div>
         </div>
+
+        {answerQuestion && (
+          <p
+            className="m-0"
+            style={{
+              fontSize: 11,
+              color: 'rgba(255,255,255,0.7)',
+              textAlign: 'center',
+              marginTop: 2,
+            }}
+          >
+            갤러리는 1시간 이내 사진만 답변할 수 있어요
+          </p>
+        )}
 
         {error && (
           <div
