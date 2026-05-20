@@ -47,6 +47,8 @@ const MagazineDetailScreen = lazyWithRecover(() => import('./pages/MagazineDetai
 const MagazineWriteScreen = lazyWithRecover(() => import('./pages/MagazineWriteScreen'))
 const MagazineAdminScreen = lazyWithRecover(() => import('./pages/MagazineAdminScreen'))
 const SearchScreen = lazyWithRecover(() => import('./pages/SearchScreen'))
+const SeasonDetailScreen = lazyWithRecover(() => import('./pages/SeasonDetailScreen'))
+const QuestionDetailScreen = lazyWithRecover(() => import('./pages/QuestionDetailScreen'))
 const HashtagScreen = lazyWithRecover(() => import('./pages/HashtagScreen'))
 const DetailScreen = lazyWithRecover(() => import('./pages/DetailScreen'))
 const PostDetailScreen = lazyWithRecover(() => import('./pages/PostDetailScreen'))
@@ -172,6 +174,8 @@ function App() {
                 <Route path="/chat" element={<ChatScreen />} />
                 <Route path="/chat/write" element={<ChatWriteScreen />} />
                 <Route path="/search" element={<SearchScreen />} />
+                <Route path="/season/:id" element={<SeasonDetailScreen />} />
+                <Route path="/question/:id" element={<QuestionDetailScreen />} />
                 <Route path="/hashtags" element={<HashtagScreen />} />
                 <Route path="/detail" element={<DetailScreen />} />
                 <Route path="/post/:id/edit" element={<UploadScreen />} />
