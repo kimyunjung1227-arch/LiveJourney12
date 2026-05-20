@@ -142,7 +142,19 @@ const ensureKakaoMapsReady = async () => {
       reject(new Error('Kakao SDK 초기화 실패'));
       return;
     }
-    window.kakao.maps.load(() => resolve());
+    // 12초 타임아웃 (도메인 화이트리스트 누락 등으로 load 콜백이 끝까지 안 올 때 대비)
+    let settled = false;
+    const t = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error('Kakao 지도 로드가 너무 오래 걸려요. 새로고침해 주세요.'));
+    }, 12000);
+    window.kakao.maps.load(() => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(t);
+      resolve();
+    });
   });
 };
 

@@ -1,4 +1,4 @@
-import React, { useEffect, Suspense, lazy } from 'react'
+import React, { useEffect, useState, Suspense, lazy } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { ExifConsentProvider } from './contexts/ExifConsentContext'
@@ -13,27 +13,81 @@ import { RAFFLE_UI_ENABLED } from './config/featureFlags'
 
 // GitHub Pages/정적 호스팅에서 간헐적으로 index.html과 assets 해시가 불일치(캐시)하면
 // lazy chunk 로딩이 "text/html" MIME(404/SPA fallback)로 떨어지며 동적 import가 실패한다.
-// 이 경우 1회 강제 새로고침으로 최신 index를 다시 받아 복구한다.
+// 1) 짧은 딜레이 후 1회 재시도 → 일시적 네트워크 흔들림 흡수
+// 2) 그래도 실패하면 강제 새로고침으로 최신 index를 받음
 let __didRecoverFromChunkLoadError = false
-const lazyWithRecover = (factory) =>
-  lazy(() =>
-    factory().catch((err) => {
-      const msg = String(err?.message || err || '')
-      const isChunkLoad =
-        /Failed to fetch dynamically imported module/i.test(msg) ||
-        /Expected a JavaScript-or-Wasm module script/i.test(msg) ||
-        /Loading chunk \\d+ failed/i.test(msg) ||
-        /ChunkLoadError/i.test(msg)
 
-      if (isChunkLoad && typeof window !== 'undefined' && !__didRecoverFromChunkLoadError) {
-        __didRecoverFromChunkLoadError = true
-        // replace로 히스토리 누적 방지
-        window.location.replace(window.location.href)
-        // lazy는 Promise를 기대하므로, 여기서는 실패를 유지한다(리로드가 곧 진행됨).
-      }
-      throw err
-    })
+const isChunkLoadError = (err) => {
+  const msg = String(err?.message || err || '')
+  return (
+    /Failed to fetch dynamically imported module/i.test(msg) ||
+    /Expected a JavaScript-or-Wasm module script/i.test(msg) ||
+    /Loading chunk \d+ failed/i.test(msg) ||
+    /ChunkLoadError/i.test(msg) ||
+    /error loading dynamically imported module/i.test(msg)
   )
+}
+
+const lazyWithRecover = (factory) =>
+  lazy(async () => {
+    try {
+      return await factory()
+    } catch (err1) {
+      if (!isChunkLoadError(err1) || typeof window === 'undefined') {
+        throw err1
+      }
+      // 1차 재시도: 250ms 대기 후 한 번 더 (일시적 네트워크/HTTP2 흔들림 흡수)
+      await new Promise((r) => setTimeout(r, 250))
+      try {
+        return await factory()
+      } catch (err2) {
+        if (!isChunkLoadError(err2)) throw err2
+        // 2차 실패: 캐시 무효화 새로고침 (단 한 번만)
+        if (!__didRecoverFromChunkLoadError) {
+          __didRecoverFromChunkLoadError = true
+          window.location.replace(window.location.href)
+        }
+        throw err2
+      }
+    }
+  })
+
+// 로딩이 너무 오래 걸리면(>4초) 사용자가 직접 다시 시도할 수 있게 버튼을 노출한다.
+// 정적 스피너만 띄워두면 청크가 실제로 404/타임아웃일 때 사용자가 무한 대기에 갇힘.
+function SmartLoadingFallback() {
+  const [stuck, setStuck] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setStuck(true), 4000)
+    return () => clearTimeout(t)
+  }, [])
+  const handleRetry = () => {
+    try {
+      if (typeof caches !== 'undefined' && caches?.keys) {
+        caches.keys().then((keys) => keys.forEach((k) => caches.delete(k))).catch(() => {})
+      }
+    } catch (_) {}
+    window.location.reload()
+  }
+  return (
+    <div className="screen-layout bg-background-light dark:bg-background-dark flex items-center justify-center">
+      <div className="flex flex-col items-center gap-3 px-6 text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400" />
+        <span className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
+          {stuck ? '로딩이 평소보다 오래 걸려요' : '화면을 불러오는 중입니다...'}
+        </span>
+        {stuck && (
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="mt-1 rounded-full bg-[#4DB8E8] px-4 py-2 text-xs font-semibold text-white shadow-sm"
+          >
+            다시 시도
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
 
 // Pages (코드 스플리팅을 위해 lazy 로드)
 const WelcomeScreen = lazyWithRecover(() => import('./pages/WelcomeScreen'))
@@ -129,18 +183,7 @@ function App() {
           <div className="page-wrapper">
             <SosAlertBanner />
             <BadgeEarnedNavigator />
-            <Suspense
-              fallback={
-                <div className="screen-layout bg-background-light dark:bg-background-dark flex items-center justify-center">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400" />
-                    <span className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
-                      화면을 불러오는 중입니다...
-                    </span>
-                  </div>
-                </div>
-              }
-            >
+            <Suspense fallback={<SmartLoadingFallback />}>
               <Routes>
                 {/* HomeScreen이 진입점 (스펙: / → HomeScreen) */}
                 <Route path="/" element={<MainScreen />} />

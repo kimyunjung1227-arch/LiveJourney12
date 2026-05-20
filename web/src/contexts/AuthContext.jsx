@@ -29,6 +29,13 @@ export const AuthProvider = ({ children }) => {
 
   // Supabase 세션 초기화 + 상태 구독
   useEffect(() => {
+    let timedOut = false;
+    // 안전망: 4초 안에 세션 조회가 끝나지 않으면 비로그인으로 간주하고 화면을 풀어준다.
+    // (네트워크 흔들림으로 getSession이 늦게 응답할 때 ProfileScreen 등이 영원히 로딩 상태에 머무는 문제 방지)
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      setAuthLoading(false);
+    }, 4000);
     const init = async () => {
       try {
         // getUser()는 네트워크를 타고 localStorage 락을 사용해,
@@ -39,7 +46,8 @@ export const AuthProvider = ({ children }) => {
       } catch (error) {
         logger.error('Supabase 세션 초기화 실패:', error);
       } finally {
-        setAuthLoading(false);
+        clearTimeout(timeoutId);
+        if (!timedOut) setAuthLoading(false);
       }
     };
 

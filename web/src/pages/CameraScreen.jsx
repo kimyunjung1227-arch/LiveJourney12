@@ -149,7 +149,7 @@ function CameraScreen() {
   };
 
   if (cam.permission === 'idle' || cam.permission === 'requesting') {
-    return <CameraLoading onClose={close} />;
+    return <CameraLoading onClose={close} onRetry={cam.requestPermission} />;
   }
   if (cam.permission === 'denied') return <PermissionDenied onClose={close} />;
   if (cam.permission === 'unsupported') return <PermissionDenied unsupported onClose={close} />;
@@ -232,7 +232,12 @@ function CameraScreen() {
 }
 
 /* -------------------- 카메라 로딩 (권한 자동 요청 대기) -------------------- */
-function CameraLoading({ onClose }) {
+function CameraLoading({ onClose, onRetry }) {
+  const [stuck, setStuck] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setStuck(true), 4000);
+    return () => clearTimeout(t);
+  }, []);
   return (
     <DarkFrame onClose={onClose}>
       <div
@@ -257,9 +262,43 @@ function CameraLoading({ onClose }) {
             animation: 'lj-spin 0.9s linear infinite',
           }}
         />
-        <p style={{ marginTop: 16, fontSize: 13, color: WHITE_70 }}>
-          카메라 준비 중...
+        <p style={{ marginTop: 16, fontSize: 13, color: WHITE_70, textAlign: 'center' }}>
+          {stuck ? '권한 요청을 기다리고 있어요' : '카메라 준비 중...'}
         </p>
+        {stuck && (
+          <>
+            <p
+              style={{
+                marginTop: 6,
+                fontSize: 11,
+                color: 'rgba(255,255,255,0.55)',
+                textAlign: 'center',
+                lineHeight: 1.5,
+                maxWidth: 280,
+              }}
+            >
+              브라우저 주소창의 카메라 아이콘에서 허용해 주세요
+            </p>
+            <button
+              type="button"
+              onClick={onRetry}
+              style={{
+                marginTop: 18,
+                padding: '10px 18px',
+                background: LJ.key,
+                color: '#fff',
+                border: 'none',
+                borderRadius: 999,
+                fontFamily: LJ.fontStack,
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              다시 시도
+            </button>
+          </>
+        )}
       </div>
       <style>{`
         @keyframes lj-spin {
