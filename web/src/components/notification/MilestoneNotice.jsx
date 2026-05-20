@@ -58,10 +58,10 @@ export default function MilestoneNotice({ notification }) {
           <p
             className="m-0"
             style={{
-              fontSize: 13,
+              fontSize: 14,
               color: TEXT_PRIMARY,
-              lineHeight: 1.4,
-              marginBottom: 2,
+              lineHeight: 1.5,
+              marginBottom: 4,
             }}
           >
             <span style={{ fontWeight: 700, color: KEY_DARK }}>
@@ -69,7 +69,7 @@ export default function MilestoneNotice({ notification }) {
             </span>{' '}
             달성! 당신의 사진이 {milestone}명에게 도움이 됐어요.
           </p>
-          <p className="m-0" style={{ fontSize: 10, color: TEXT_SECONDARY }}>
+          <p className="m-0" style={{ fontSize: 11, color: TEXT_SECONDARY }}>
             {timeAgo(notification.created_at)}
           </p>
         </div>

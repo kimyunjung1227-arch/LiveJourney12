@@ -60,10 +60,10 @@ export default function BestCutNotice({ notification }) {
       <p
         className="m-0 relative"
         style={{
-          fontSize: 14,
+          fontSize: 14.5,
           color: 'white',
-          lineHeight: 1.5,
-          marginBottom: 12,
+          lineHeight: 1.55,
+          marginBottom: 14,
         }}
       >
         {place ? `${place} 사진이 ` : '당신의 사진이 '}
@@ -92,7 +92,7 @@ export default function BestCutNotice({ notification }) {
           )}
         </div>
         <div className="flex-1">
-          <p className="m-0" style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)' }}>
+          <p className="m-0" style={{ fontSize: 11, color: 'rgba(255,255,255,0.9)' }}>
             {timeAgo(notification.created_at)}
           </p>
         </div>

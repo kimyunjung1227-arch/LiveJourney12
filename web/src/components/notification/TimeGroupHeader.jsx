@@ -11,11 +11,11 @@ export default function TimeGroupHeader({ group }) {
     <p
       className="m-0"
       style={{
-        fontSize: 11,
-        color: '#6B6B6B',
-        fontWeight: 600,
-        marginTop: 14,
-        marginBottom: 10,
+        fontSize: 12,
+        color: '#1F1F1F',
+        fontWeight: 700,
+        marginTop: 18,
+        marginBottom: 8,
         letterSpacing: 0.2,
       }}
     >
