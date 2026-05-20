@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconSettings, IconPencil } from '@tabler/icons-react';
+import { IconSettings } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import BottomNavigation from '../components/BottomNavigation';
@@ -135,11 +135,7 @@ function ProfileScreen() {
     return (
       <div style={{ background: '#fff', minHeight: '100vh', paddingBottom: 80 }}>
         <PageSeo {...PAGE_SEO.profile} />
-        <ProfileHeaderBar
-          onSettings={() => navigate('/settings')}
-          onEdit={() => navigate('/profile/edit')}
-          showSettings
-        />
+        <ProfileHeaderBar onSettings={() => navigate('/settings')} showSettings />
         <div className="text-center" style={{ padding: 40, color: TEXT_SECONDARY, fontSize: 13 }}>
           불러오는 중...
         </div>
@@ -153,11 +149,7 @@ function ProfileScreen() {
     return (
       <div style={{ background: '#fff', minHeight: '100vh', paddingBottom: 80 }}>
         <PageSeo {...PAGE_SEO.profile} />
-        <ProfileHeaderBar
-          onSettings={() => navigate('/settings')}
-          onEdit={() => navigate('/profile/edit')}
-          showSettings
-        />
+        <ProfileHeaderBar onSettings={() => navigate('/settings')} showSettings />
         <div className="text-center" style={{ padding: 40, color: TEXT_SECONDARY, fontSize: 13 }}>
           프로필 정보를 불러오지 못했어요
         </div>
@@ -194,7 +186,7 @@ function ProfileScreen() {
   );
 }
 
-function ProfileHeaderBar({ onSettings, onEdit, showSettings }) {
+function ProfileHeaderBar({ onSettings, showSettings }) {
   return (
     <div
       style={{
@@ -212,53 +204,28 @@ function ProfileHeaderBar({ onSettings, onEdit, showSettings }) {
     >
       <span style={{ fontSize: 17, fontWeight: 600, color: TEXT_PRIMARY }}>프로필</span>
       {showSettings && (
-        <div
+        <button
+          type="button"
+          onClick={onSettings}
+          aria-label="설정"
           style={{
             position: 'absolute',
-            right: 6,
+            right: 12,
             top: '50%',
             transform: 'translateY(-50%)',
-            display: 'flex',
+            width: 36,
+            height: 36,
+            background: 'transparent',
+            border: 'none',
+            display: 'inline-flex',
             alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            padding: 0,
           }}
         >
-          <button
-            type="button"
-            onClick={onEdit}
-            aria-label="프로필 편집"
-            style={{
-              width: 36,
-              height: 36,
-              background: 'transparent',
-              border: 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              padding: 0,
-            }}
-          >
-            <IconPencil size={19} color={TEXT_PRIMARY} stroke={1.8} />
-          </button>
-          <button
-            type="button"
-            onClick={onSettings}
-            aria-label="설정"
-            style={{
-              width: 36,
-              height: 36,
-              background: 'transparent',
-              border: 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              padding: 0,
-            }}
-          >
-            <IconSettings size={20} color={TEXT_PRIMARY} stroke={1.8} />
-          </button>
-        </div>
+          <IconSettings size={20} color={TEXT_PRIMARY} stroke={1.8} />
+        </button>
       )}
     </div>
   );

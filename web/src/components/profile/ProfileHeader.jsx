@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconCrown } from '@tabler/icons-react';
+import { IconCrown, IconPencil } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { getDisplayImageUrl } from '../../api/upload';
 
@@ -83,6 +83,26 @@ export default function ProfileHeader({ user, isMe = false }) {
                   베스트 컷 작가
                 </span>
               </div>
+            )}
+            {isMe && (
+              <button
+                type="button"
+                onClick={() => navigate('/profile/edit')}
+                aria-label="프로필 편집"
+                className="flex items-center justify-center flex-shrink-0"
+                style={{
+                  marginLeft: 'auto',
+                  width: 28,
+                  height: 28,
+                  borderRadius: 999,
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                <IconPencil size={16} color={TEXT_SECONDARY} stroke={1.8} />
+              </button>
             )}
           </div>
 
