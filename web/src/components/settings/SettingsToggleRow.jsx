@@ -56,14 +56,14 @@ export default function SettingsToggleRow({
         )}
       </div>
 
-      {/* 토글 스위치 */}
+      {/* 토글 스위치 — 핸들은 가로형 알약(pill) */}
       <button
         type="button"
         onClick={() => onToggle(!value)}
         aria-pressed={!!value}
         className="relative flex-shrink-0"
         style={{
-          width: 44,
+          width: 52,
           height: 26,
           borderRadius: 13,
           background: value ? '#4DB8E8' : '#E8E8E8',
@@ -76,12 +76,12 @@ export default function SettingsToggleRow({
         <div
           style={{
             position: 'absolute',
-            top: 2,
-            left: 2,
-            width: 22,
-            height: 22,
+            top: 3,
+            left: 3,
+            width: 28,
+            height: 20,
             background: 'white',
-            borderRadius: '50%',
+            borderRadius: 999,
             boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
             transform: value ? 'translateX(18px)' : 'translateX(0)',
             transition: 'transform 0.2s',
