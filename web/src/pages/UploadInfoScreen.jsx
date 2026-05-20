@@ -20,8 +20,10 @@ import {
 } from '../stores/uploadStore';
 import { formatTimeAgo, formatTimeOfDay } from '../lib/exif/formatTimeAgo';
 import { useUpload } from '../hooks/useUpload';
+import { useGeolocation } from '../hooks/useGeolocation';
 import { reverseGeocodeToPlace } from '../utils/locationFromGeocode';
 import { searchPlaceWithKakaoFirst, ensureKakaoMapsServicesReady } from '../utils/kakaoPlacesGeocode';
+import { patchUploadMedia } from '../stores/uploadStore';
 
 const CATEGORIES = [
   { id: 'nature', label: '개화·자연', Icon: IconFlower },
@@ -38,20 +40,52 @@ function UploadInfoScreen() {
   const navigate = useNavigate();
   const media = useSyncExternalStore(subscribeUploadStore, getUploadSnapshot, getUploadSnapshot);
   const { isUploading, upload, error } = useUpload();
+  const geo = useGeolocation();
 
   const [category, setCategory] = useState(null);
   const [body, setBody] = useState('');
-  // placeName이 캡처 시점에 없었으면 (geocoding 미완료) 여기서 좌표로 직접 한 번 시도
-  const [resolvedPlace, setResolvedPlace] = useState(media?.placeName || '');
+  // 화면에 표시할 장소명. 좌표 변경 시 항상 재지오코딩해 최신값을 보여준다.
+  const [resolvedPlace, setResolvedPlace] = useState('');
   // 사용자가 위치를 직접 편집한 경우의 좌표/장소 (있으면 media 값을 덮어씀)
   const [editedLoc, setEditedLoc] = useState(null); // { lat, lng, placeName } | null
   const [locOpen, setLocOpen] = useState(false);
   const [locQuery, setLocQuery] = useState('');
   const [locResults, setLocResults] = useState([]);
   const [locLoading, setLocLoading] = useState(false);
+
+  // 인앱 카메라로 찍은 사진이면 업로드 입장 시 한 번 더 정밀 GPS를 받아 좌표를 보정.
+  // (셔터 시점 watchPosition 값이 throttle/정확도로 어긋났을 가능성 차단)
   useEffect(() => {
-    if (resolvedPlace) return;
-    if (!media?.lat || !media?.lng) return;
+    if (!media?.url) return;
+    if (media.source !== 'camera') return; // 갤러리 사진은 EXIF GPS 우선이라 건드리지 않음
+    if (editedLoc) return; // 사용자가 직접 수정했으면 그대로
+    let cancelled = false;
+    (async () => {
+      try {
+        const fix = await geo.getPreciseLocation(8000);
+        if (cancelled || !fix) return;
+        // accuracy가 너무 나쁘면 보정 보류 (>200m)
+        if (typeof fix.accuracy === 'number' && fix.accuracy > 200) return;
+        patchUploadMedia({
+          lat: fix.lat,
+          lng: fix.lng,
+          accuracy: fix.accuracy ?? null,
+        });
+      } catch (_) {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [media?.url, media?.source]);
+
+  // 좌표가 잡혀 있으면 항상 좌표 기반으로 장소명을 재지오코딩한다.
+  // (셔터 시점 media.placeName이 어긋났더라도, 저장된 좌표 기준의 정확한 주소로 갱신)
+  useEffect(() => {
+    if (!media?.lat || !media?.lng) {
+      setResolvedPlace('');
+      return undefined;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -62,7 +96,7 @@ function UploadInfoScreen() {
     return () => {
       cancelled = true;
     };
-  }, [media?.lat, media?.lng, resolvedPlace]);
+  }, [media?.lat, media?.lng]);
 
   // 미디어가 없는 상태로 직접 진입하면 카메라로 유도
   useEffect(() => {

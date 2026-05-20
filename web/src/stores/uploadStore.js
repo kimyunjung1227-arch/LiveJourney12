@@ -80,6 +80,16 @@ export function setUploadMedia(payload) {
   emit();
 }
 
+/**
+ * 현재 media에 부분 업데이트 (좌표/장소만 갱신할 때 등). 다른 필드는 보존.
+ */
+export function patchUploadMedia(patch) {
+  if (!state || !patch) return;
+  state = { ...state, ...patch };
+  writeToSession(state);
+  emit();
+}
+
 export function resetUploadStore() {
   if (state?.url) {
     try {
