@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useCategoryDetail } from '../hooks/useCategoryDetail';
 import CategoryHeader from '../components/explore/CategoryHeader';
 import ActivityModule from '../components/explore/ActivityModule';
@@ -35,8 +35,33 @@ const TEXT_SECONDARY = '#6B6B6B';
 function CategoryDetailScreen() {
   const params = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const categoryId = params.categoryId || params.tagId || '';
-  const [city, setCity] = useState('all');
+
+  // ?city= 쿼리로 도시 칩 초기값을 결정 (도시 페이지에서 카테고리 칩 누르고 왔을 때 그 도시를 유지)
+  const initialCity = (() => {
+    const v = searchParams.get('city');
+    if (!v) return 'all';
+    const chip = CITY_CHIPS.find((c) => c.id === v);
+    return chip ? chip.id : 'all';
+  })();
+  const [city, setCity] = useState(initialCity);
+
+  // 카테고리(URL) 또는 ?city=가 외부에서 바뀌면 동기화
+  useEffect(() => {
+    setCity(initialCity);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryId]);
+
+  // 도시 칩 변경 → URL ?city= 동기화 (전국이면 쿼리 제거)
+  const handleCityChange = (nextCity) => {
+    setCity(nextCity);
+    const next = new URLSearchParams(searchParams);
+    if (nextCity === 'all') next.delete('city');
+    else next.set('city', nextCity);
+    setSearchParams(next, { replace: true });
+  };
+
   const { data, loading } = useCategoryDetail(categoryId, city === 'all' ? null : city);
 
   const label = CATEGORY_LABEL[categoryId] || categoryId;
@@ -70,7 +95,7 @@ function CategoryDetailScreen() {
         category={categoryId}
         activity={data.activity || { recent_hour: 0, today: 0, level: 'quiet' }}
       />
-      <FilterChips chips={CITY_CHIPS} selected={city} onChange={setCity} />
+      <FilterChips chips={CITY_CHIPS} selected={city} onChange={handleCityChange} />
 
       <div style={{ padding: '0 18px 24px' }}>
         <LivePhotoGrid photos={data.photos || []} total={data.photos_total || 0} />
