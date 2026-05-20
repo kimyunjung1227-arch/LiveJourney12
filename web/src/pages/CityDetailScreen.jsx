@@ -12,7 +12,6 @@ import { useCityDetail } from '../hooks/useCityDetail';
 import CityHero from '../components/explore/CityHero';
 import FilterChips from '../components/explore/FilterChips';
 import LivePhotoGrid from '../components/explore/LivePhotoGrid';
-import HotPlaceList from '../components/explore/HotPlaceList';
 import QuestionPreview from '../components/explore/QuestionPreview';
 
 const CATEGORY_CHIPS = [
@@ -63,14 +62,6 @@ function CityDetailScreen() {
 
       <div style={{ padding: '0 18px 24px' }}>
         <LivePhotoGrid photos={data.photos || []} total={data.photos_total || 0} />
-        <HotPlaceList
-          title="지금 핫플"
-          places={data.hot_places || []}
-          showCity={false}
-          onSeeAll={() =>
-            navigate(`/hotplace?city=${encodeURIComponent(cityName)}`)
-          }
-        />
         <QuestionPreview
           title={`${cityName} 질문`}
           questions={data.questions || []}
