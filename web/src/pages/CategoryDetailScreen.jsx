@@ -66,7 +66,8 @@ function CategoryDetailScreen() {
 
   const label = CATEGORY_LABEL[categoryId] || categoryId;
 
-  if (loading) {
+  // 첫 로딩에만 풀스크린. 도시 칩 재조회 시에는 기존 데이터를 그대로 두어 깜빡임 방지.
+  if (loading && !data) {
     return (
       <div style={{ background: '#fff', minHeight: '100vh' }}>
         <CategoryHeader category={categoryId} />

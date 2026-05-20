@@ -34,17 +34,8 @@ function CityDetailScreen() {
   const [category, setCategory] = useState('all');
   const { data, loading } = useCityDetail(cityName, category === 'all' ? null : category);
 
-  // 카테고리 칩을 누르면 그 카테고리 페이지로 이동 (현재 도시는 ?city=로 유지).
-  // '전체'는 현재 도시 페이지에 머무름.
-  const handleCategoryChange = (catId) => {
-    if (catId === 'all') {
-      setCategory('all');
-      return;
-    }
-    navigate(`/category/${encodeURIComponent(catId)}?city=${encodeURIComponent(cityName)}`);
-  };
-
-  if (loading) {
+  // 첫 로딩이거나 데이터가 아직 없을 때만 풀스크린 안내. 칩으로 재조회될 때는 기존 데이터를 그대로 보여 깜빡임 방지.
+  if (loading && !data) {
     return (
       <div style={{ background: '#fff', minHeight: '100vh' }} className="text-center p-[18px]">
         <span style={{ fontSize: 13, color: TEXT_SECONDARY }}>불러오는 중...</span>
@@ -68,7 +59,7 @@ function CityDetailScreen() {
         cityName={data.city?.name || cityName}
         liveCount={data.city?.live_count || 0}
       />
-      <FilterChips chips={CATEGORY_CHIPS} selected={category} onChange={handleCategoryChange} />
+      <FilterChips chips={CATEGORY_CHIPS} selected={category} onChange={setCategory} />
 
       <div style={{ padding: '0 18px 24px' }}>
         <LivePhotoGrid photos={data.photos || []} total={data.photos_total || 0} />
