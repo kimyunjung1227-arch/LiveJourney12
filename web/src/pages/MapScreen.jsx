@@ -247,7 +247,7 @@ function MapHeader() {
   );
 }
 
-// 8-2. MapCategoryFilter (마우스 드래그 + 터치 스와이프 가로 스크롤)
+// 8-2. MapCategoryFilter — 홈 화면(CategoryFilter)과 동일한 칩 스타일 + 흰 배경 띠
 function MapCategoryFilter({ selected, onChange }) {
   const { handleDragStart, hasMovedRef } = useHorizontalDragScroll();
 
@@ -262,11 +262,23 @@ function MapCategoryFilter({ selected, onChange }) {
   };
 
   return (
-    <div className="absolute top-[68px] left-3.5 right-3.5 z-10">
+    <div
+      className="absolute left-0 right-0 z-10"
+      style={{
+        top: 64,
+        background: '#ffffff',
+        boxShadow: '0 1px 0 rgba(0,0,0,0.04)',
+      }}
+    >
       <div
         onMouseDown={handleDragStart}
-        className="flex gap-1.5 overflow-x-auto scrollbar-hide cursor-grab active:cursor-grabbing"
-        style={{ WebkitOverflowScrolling: 'touch' }}
+        className="lj-no-scrollbar flex overflow-x-auto cursor-grab active:cursor-grabbing"
+        style={{
+          gap: 8,
+          padding: '12px 18px',
+          scrollbarWidth: 'none',
+          WebkitOverflowScrolling: 'touch',
+        }}
       >
         {CATEGORIES.map((cat) => {
           const isActive = selected === cat.id;
@@ -276,19 +288,23 @@ function MapCategoryFilter({ selected, onChange }) {
               key={cat.id}
               type="button"
               onClick={guardedClick(() => onChange(cat.id))}
-              className={`text-[11px] px-3.5 py-1.5 rounded-2xl whitespace-nowrap flex items-center gap-1 flex-shrink-0 select-none ${
-                isActive ? 'text-white font-semibold' : 'text-[#1F1F1F]'
-              }`}
+              className="flex-shrink-0 inline-flex items-center whitespace-nowrap select-none"
               style={{
+                gap: 4,
+                padding: '7px 12px',
+                borderRadius: 999,
+                border: isActive ? 'none' : '1px solid #E8E8E8',
                 background: isActive ? KEY : '#ffffff',
-                boxShadow: isActive
-                  ? '0 2px 6px rgba(77, 184, 232, 0.3)'
-                  : '0 2px 8px rgba(0, 0, 0, 0.1)',
+                color: isActive ? '#ffffff' : '#1F1F1F',
+                fontSize: 12,
+                fontWeight: isActive ? 600 : 500,
+                lineHeight: 1.4,
+                cursor: 'pointer',
               }}
             >
               {Icon && (
                 <Icon
-                  size={11}
+                  size={14}
                   stroke={1.8}
                   color={isActive ? '#ffffff' : '#1F1F1F'}
                 />
