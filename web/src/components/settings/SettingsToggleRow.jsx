@@ -56,33 +56,35 @@ export default function SettingsToggleRow({
         )}
       </div>
 
+      {/* 토글 스위치 */}
       <button
         type="button"
         onClick={() => onToggle(!value)}
         aria-pressed={!!value}
         className="relative flex-shrink-0"
         style={{
-          width: 48,
-          height: 28,
-          borderRadius: 999,
-          background: value ? KEY : TOGGLE_OFF,
+          width: 44,
+          height: 26,
+          borderRadius: 13,
+          background: value ? '#4DB8E8' : '#E8E8E8',
+          transition: 'background 0.2s',
           border: 'none',
           padding: 0,
           cursor: 'pointer',
-          transition: 'background 0.18s',
         }}
       >
         <div
-          className="absolute"
           style={{
-            top: 3,
-            left: value ? 23 : 3,
+            position: 'absolute',
+            top: 2,
+            left: 2,
             width: 22,
             height: 22,
-            borderRadius: 999,
-            background: '#fff',
+            background: 'white',
+            borderRadius: '50%',
             boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-            transition: 'left 0.18s ease',
+            transform: value ? 'translateX(18px)' : 'translateX(0)',
+            transition: 'transform 0.2s',
           }}
         />
       </button>
