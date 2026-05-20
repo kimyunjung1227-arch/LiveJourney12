@@ -1,17 +1,13 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { IconCrown } from '@tabler/icons-react';
 import { getDisplayImageUrl } from '../../api/upload';
 
 const KEY = '#4DB8E8';
 const TEXT_PRIMARY = '#1F1F1F';
 const TEXT_SECONDARY = '#6B6B6B';
-const SURFACE = '#F5F7FA';
-const BORDER_LIGHT = '#E8E8E8';
 const GRADIENT = 'linear-gradient(135deg, #4DB8E8, #1A6EA8)';
 
 export default function SettingsProfileCard({ profile }) {
-  const navigate = useNavigate();
   if (!profile) return null;
   const initial = String(profile.name || '?').trim().charAt(0).toUpperCase() || '·';
   const avatarUrl = profile.avatar_url ? getDisplayImageUrl(profile.avatar_url) : '';
@@ -73,24 +69,6 @@ export default function SettingsProfileCard({ profile }) {
           @{profile.handle || ''}
         </p>
       </div>
-
-      <button
-        type="button"
-        onClick={() => navigate('/profile/edit')}
-        className="flex-shrink-0"
-        style={{
-          background: SURFACE,
-          border: `1px solid ${BORDER_LIGHT}`,
-          padding: '8px 14px',
-          borderRadius: 9,
-          fontSize: 12,
-          fontWeight: 600,
-          color: TEXT_PRIMARY,
-          cursor: 'pointer',
-        }}
-      >
-        프로필 편집
-      </button>
     </div>
   );
 }
