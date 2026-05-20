@@ -2,13 +2,10 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   IconArrowLeft,
-  IconUser,
-  IconLock,
   IconMapPin,
   IconCrown,
   IconHelpCircle,
   IconHeart,
-  IconUserOff,
   IconShieldLock,
   IconInfoCircle,
   IconFileText,
@@ -130,16 +127,6 @@ function SettingsScreen() {
       {/* 계정 */}
       <SettingsGroup label="계정">
         <SettingsRow
-          icon={IconUser}
-          label="계정 정보"
-          onClick={() => navigate('/personal-info-edit')}
-        />
-        <SettingsRow
-          icon={IconLock}
-          label="비밀번호 변경"
-          onClick={() => navigate('/password-change')}
-        />
-        <SettingsRow
           icon={IconMapPin}
           iconColor="#4DB8E8"
           label="위치 정보"
@@ -180,11 +167,6 @@ function SettingsScreen() {
 
       {/* 개인정보 */}
       <SettingsGroup label="개인정보">
-        <SettingsRow
-          icon={IconUserOff}
-          label="차단 목록"
-          onClick={() => navigate('/settings/blocked')}
-        />
         <SettingsRow
           icon={IconShieldLock}
           label="개인정보 처리방침"
