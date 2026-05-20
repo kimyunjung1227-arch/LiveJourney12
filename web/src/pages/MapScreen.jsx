@@ -163,36 +163,36 @@ const ensureKakaoMapsReady = async () => {
 // ────────────────────────────────────────────────
 function buildPinHTML(bundle, { isSelected, isOtherSelected }) {
   const thumb = esc(getDisplayImageUrl(bundle.primary_thumbnail || ''));
-  const size = isSelected ? 56 : isOtherSelected ? 32 : 38;
-  const borderW = isSelected ? 3.5 : 2.5;
-  const radius = isSelected ? 12 : 9;
+  const size = isSelected ? 76 : isOtherSelected ? 44 : 54;
+  const borderW = isSelected ? 4 : 3;
+  const radius = isSelected ? 16 : 12;
   const opacity = isOtherSelected && !isSelected ? 0.5 : 1;
   const outline = isSelected
-    ? `outline:2.5px solid ${KEY};outline-offset:0;`
+    ? `outline:3px solid ${KEY};outline-offset:0;`
     : '';
   const shadow = isSelected
-    ? '0 6px 20px rgba(77,184,232,0.4)'
-    : '0 3px 9px rgba(0,0,0,0.18)';
+    ? '0 8px 24px rgba(77,184,232,0.45)'
+    : '0 4px 12px rgba(0,0,0,0.22)';
   const arrowColor = isSelected ? KEY : '#ffffff';
-  const arrowW = isSelected ? 8 : 6;
-  const arrowH = isSelected ? 11 : 7;
-  const arrowBottom = isSelected ? -10 : -6;
+  const arrowW = isSelected ? 10 : 8;
+  const arrowH = isSelected ? 14 : 10;
+  const arrowBottom = isSelected ? -13 : -9;
 
   const bundleBadge = bundle.is_bundle
-    ? `<div style="position:absolute;top:${isSelected ? -7 : -5}px;right:${
-        isSelected ? -7 : -5
+    ? `<div style="position:absolute;top:${isSelected ? -9 : -7}px;right:${
+        isSelected ? -9 : -7
       }px;background:rgba(0,0,0,${
-        isSelected ? 0.7 : 0.65
+        isSelected ? 0.78 : 0.7
       });padding:${
-        isSelected ? '2px 6px' : '1px 4px'
-      };border-radius:${isSelected ? 6 : 3}px;display:flex;align-items:center;gap:${
-        isSelected ? 4 : 2
-      }px;border:${isSelected ? 2 : 1.5}px solid white;pointer-events:none;">
-        <svg width="${isSelected ? 9 : 7}" height="${
-        isSelected ? 9 : 7
+        isSelected ? '3px 9px' : '2px 6px'
+      };border-radius:${isSelected ? 9 : 6}px;display:flex;align-items:center;gap:${
+        isSelected ? 5 : 3
+      }px;border:${isSelected ? 2.5 : 2}px solid white;pointer-events:none;">
+        <svg width="${isSelected ? 12 : 9}" height="${
+        isSelected ? 12 : 9
       }" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/><rect width="14" height="14" x="9" y="3" rx="2"/></svg>
         <span style="font-size:${
-          isSelected ? 9 : 7
+          isSelected ? 12 : 10
         }px;color:white;font-weight:700;line-height:1;">${
         bundle.bundle_count
       }</span>
@@ -335,8 +335,23 @@ function AuthorAvatar({ name, color, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
-      style={{ background: color || KEY }}
+      className="flex items-center justify-center text-white font-semibold flex-shrink-0"
+      style={{
+        width: 30,
+        minWidth: 30,
+        maxWidth: 30,
+        height: 30,
+        minHeight: 30,
+        maxHeight: 30,
+        borderRadius: '50%',
+        background: color || KEY,
+        fontSize: 13,
+        border: 'none',
+        padding: 0,
+        boxSizing: 'border-box',
+        appearance: 'none',
+        WebkitAppearance: 'none',
+      }}
     >
       {ch}
     </button>
@@ -419,11 +434,12 @@ function PostPinPreview({
                 onClick={onAuthorClick}
               />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5" style={{ lineHeight: 1.1 }}>
                   <button
                     type="button"
                     onClick={onAuthorClick}
                     className="text-[13px] font-semibold text-[#1F1F1F]"
+                    style={{ padding: 0, lineHeight: 1.1, background: 'none', border: 'none' }}
                   >
                     {bundle.author_name}
                   </button>
@@ -448,7 +464,8 @@ function PostPinPreview({
                 <button
                   type="button"
                   onClick={onLocationClick}
-                  className="text-[10px] text-[#6B6B6B] mt-0.5 m-0 block text-left truncate w-full"
+                  className="text-[10px] text-[#6B6B6B] block text-left truncate w-full"
+                  style={{ padding: 0, marginTop: 1, lineHeight: 1.2, background: 'none', border: 'none' }}
                 >
                   {bundle.place_name || '위치 없음'} ·{' '}
                   {formatHoursLeft(bundle.primary_taken_at)}
@@ -521,11 +538,12 @@ function BundlePinPreview({ bundle, photos, onViewDetail, onAuthorClick }) {
                 onClick={onAuthorClick}
               />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5" style={{ lineHeight: 1.1 }}>
                   <button
                     type="button"
                     onClick={onAuthorClick}
                     className="text-[13px] font-semibold text-[#1F1F1F]"
+                    style={{ padding: 0, lineHeight: 1.1, background: 'none', border: 'none' }}
                   >
                     {bundle.author_name}
                   </button>
@@ -547,7 +565,10 @@ function BundlePinPreview({ bundle, photos, onViewDetail, onAuthorClick }) {
                     </div>
                   )}
                 </div>
-                <p className="text-[10px] text-[#6B6B6B] mt-0.5 m-0 truncate">
+                <p
+                  className="text-[10px] text-[#6B6B6B] m-0 truncate"
+                  style={{ marginTop: 1, lineHeight: 1.2 }}
+                >
                   {bundle.place_name || '위치 없음'} · 1시간 동안 {total}장
                 </p>
               </div>
@@ -1030,6 +1051,17 @@ const MapScreen = () => {
           map.panTo(
             new kakao.maps.LatLng(bundle.primary_lat, bundle.primary_lng),
           );
+          // 묶음 핀(여러 게시물)이면 한 단계 더 가까이 들어가 게시물들이 펼쳐져 보이게
+          if (bundle.is_bundle) {
+            const curLevel = typeof map.getLevel === 'function' ? map.getLevel() : 5;
+            const nextLevel = Math.max(2, curLevel - 2);
+            if (typeof map.setLevel === 'function' && nextLevel < curLevel) {
+              map.setLevel(nextLevel, {
+                anchor: new kakao.maps.LatLng(bundle.primary_lat, bundle.primary_lng),
+                animate: true,
+              });
+            }
+          }
         } catch {
           /* ignore */
         }
