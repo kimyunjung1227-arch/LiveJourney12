@@ -264,11 +264,7 @@ function MapCategoryFilter({ selected, onChange }) {
   return (
     <div
       className="absolute left-0 right-0 z-10"
-      style={{
-        top: 64,
-        background: '#ffffff',
-        boxShadow: '0 1px 0 rgba(0,0,0,0.04)',
-      }}
+      style={{ top: 64 }}
     >
       <div
         onMouseDown={handleDragStart}

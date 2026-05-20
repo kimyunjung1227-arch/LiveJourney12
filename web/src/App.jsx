@@ -7,7 +7,6 @@ import AdminRoute from './components/AdminRoute'
 import { initStatusBar } from './utils/statusBar'
 import SosAlertBanner from './components/SosAlertBanner'
 import { cleanLegacyUploadedPosts } from './utils/localStorageManager'
-import BadgeEarnedNavigator from './components/BadgeEarnedNavigator'
 import RootSeo from './components/RootSeo'
 import { RAFFLE_UI_ENABLED } from './config/featureFlags'
 
@@ -121,7 +120,6 @@ const AskSituationListScreen = lazyWithRecover(() => import('./pages/AskSituatio
 const AskSituationDetailScreen = lazyWithRecover(() => import('./pages/AskSituationDetailScreen'))
 const AskSituationEditScreen = lazyWithRecover(() => import('./pages/AskSituationEditScreen'))
 const ProfileScreen = lazyWithRecover(() => import('./pages/ProfileScreen'))
-const EarnedBadgesScreen = lazyWithRecover(() => import('./pages/EarnedBadgesScreen'))
 const UserProfileScreen = lazyWithRecover(() => import('./pages/UserProfileScreen'))
 const EditProfileScreen = lazyWithRecover(() => import('./pages/EditProfileScreen'))
 const PersonalInfoEditScreen = lazyWithRecover(() => import('./pages/PersonalInfoEditScreen'))
@@ -129,8 +127,6 @@ const PasswordChangeScreen = lazyWithRecover(() => import('./pages/PasswordChang
 const AccountConnectionScreen = lazyWithRecover(() => import('./pages/AccountConnectionScreen'))
 const AccountDeleteScreen = lazyWithRecover(() => import('./pages/AccountDeleteScreen'))
 const AccountDeleteConfirmScreen = lazyWithRecover(() => import('./pages/AccountDeleteConfirmScreen'))
-const BadgeAchievementScreen = lazyWithRecover(() => import('./pages/BadgeAchievementScreen'))
-const LiveBadgeDetailScreen = lazyWithRecover(() => import('./pages/LiveBadgeDetailScreen'))
 const MyCouponsScreen = lazyWithRecover(() => import('./pages/MyCouponsScreen'))
 const RaffleScreen = lazyWithRecover(() => import('./pages/RaffleScreen'))
 const RaffleGuideScreen = lazyWithRecover(() => import('./pages/RaffleGuideScreen'))
@@ -182,7 +178,6 @@ function App() {
         <div className="app-container">
           <div className="page-wrapper">
             <SosAlertBanner />
-            <BadgeEarnedNavigator />
             <Suspense fallback={<SmartLoadingFallback />}>
               <Routes>
                 {/* HomeScreen이 진입점 (스펙: / → HomeScreen) */}
@@ -235,19 +230,7 @@ function App() {
                 <Route path="/ask-situation/:id/edit" element={<AskSituationEditScreen />} />
                 <Route path="/map/photos" element={<MapPhotoGridScreen />} />
                 <Route path="/profile" element={<ProfileScreen />} />
-                <Route
-                  path="/profile/badges"
-                  element={
-                    <ProtectedRoute>
-                      <EarnedBadgesScreen />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route path="/user/:userId/badges" element={<EarnedBadgesScreen />} />
-                <Route path="/badge/live/:badgeName" element={<LiveBadgeDetailScreen />} />
                 <Route path="/user/:userId" element={<UserProfileScreen />} />
-                <Route path="/badge-achievement/:badgeId" element={<BadgeAchievementScreen />} />
-                <Route path="/badge/achievement" element={<BadgeAchievementScreen />} />
                 <Route path="/coupons" element={<MyCouponsScreen />} />
                 {RAFFLE_UI_ENABLED ? (
                   <>

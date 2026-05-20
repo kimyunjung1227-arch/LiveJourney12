@@ -537,22 +537,8 @@ const getTimeAgo = (date) => {
   return `${Math.floor(days / 365)}년 전`;
 };
 
-// 뱃지 획득 알림
-export const notifyBadge = (badgeName, difficulty = '중') => {
-  const display = getBadgeDisplayNameFromName(badgeName);
-  addNotification({
-    type: 'badge',
-    title: '',
-    message: `"${display}" 뱃지를 획득했습니다!`,
-    badge: badgeName,
-    badgeDisplayName: display,
-    difficulty,
-    icon: 'military_tech',
-    iconBg: 'bg-amber-50 dark:bg-amber-900/20',
-    iconColor: 'text-amber-700',
-    link: '/profile',
-  });
-};
+// 뱃지 기능 제거됨 — 호환 위해 no-op만 유지
+export const notifyBadge = () => {};
 
 // 좋아요 알림 (썸네일·게시글 링크는 opts로 전달, 타인 수신은 서버 sendNotificationToUser 경로만 사용)
 export const notifyLike = (username, postLocation, opts = {}) => {

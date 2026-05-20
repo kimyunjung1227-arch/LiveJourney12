@@ -4,7 +4,6 @@ import {
   IconHeart,
   IconBookmark,
   IconFlame,
-  IconAward,
   IconPhoto,
   IconBell,
 } from '@tabler/icons-react';
@@ -35,18 +34,6 @@ function timeAgo(iso) {
  * 일반 활동 알림 — 가장 많이 쓰는 행 컴포넌트.
  * type별 메시지/아바타/우측 위젯 분기.
  */
-// 백엔드 message 안의 UUID(badge_id) 패턴을 깔끔히 처리
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-function cleanBadgeMessage(message) {
-  if (!message) return null;
-  // 예: "\"007f2784-c6c5-49a7-ad88-09fc2fb2ebae\" 뱃지를 획득했습니다!"
-  const m = message.match(/^"([^"]+)"\s*(뱃지를?\s*획득.*)$/);
-  if (m && UUID_RE.test(m[1])) {
-    return '새 뱃지를 획득했어요!';
-  }
-  return message;
-}
-
 export default function ActivityNotice({ notification, onFollowBack }) {
   const navigate = useNavigate();
   const { type, actor, data = {}, post_thumbnail, is_read, i_follow_back, message } = notification;
@@ -80,16 +67,6 @@ export default function ActivityNotice({ notification, onFollowBack }) {
           style={{ width: 46, height: 46, borderRadius: 999, background: KEY }}
         >
           <IconFlame size={19} color="white" stroke={2} />
-        </div>
-      );
-    }
-    if (type === 'badge') {
-      return (
-        <div
-          className="flex items-center justify-center flex-shrink-0"
-          style={{ width: 46, height: 46, borderRadius: 999, background: KEY }}
-        >
-          <IconAward size={20} color="white" stroke={2} />
         </div>
       );
     }
@@ -201,14 +178,6 @@ export default function ActivityNotice({ notification, onFollowBack }) {
           </>
         );
       }
-      case 'badge':
-        return (
-          <span>
-            <span style={{ fontWeight: 700, color: KEY_DARK }}>
-              {cleanBadgeMessage(message) || '새 뱃지를 획득했어요!'}
-            </span>
-          </span>
-        );
       case 'post':
         if (actor) {
           return (
@@ -240,9 +209,6 @@ export default function ActivityNotice({ notification, onFollowBack }) {
         break;
       case 'milestone':
         navigate('/profile');
-        break;
-      case 'badge':
-        navigate('/profile/badges');
         break;
       default:
         if (notification.post_id) {
