@@ -103,6 +103,8 @@ const SearchScreen = lazyWithRecover(() => import('./pages/SearchScreen'))
 const SeasonDetailScreen = lazyWithRecover(() => import('./pages/SeasonDetailScreen'))
 const QuestionDetailScreen = lazyWithRecover(() => import('./pages/QuestionDetailScreen'))
 const FollowListScreen = lazyWithRecover(() => import('./pages/FollowListScreen'))
+const CityDetailScreen = lazyWithRecover(() => import('./pages/CityDetailScreen'))
+const CategoryDetailScreen = lazyWithRecover(() => import('./pages/CategoryDetailScreen'))
 const HashtagScreen = lazyWithRecover(() => import('./pages/HashtagScreen'))
 const DetailScreen = lazyWithRecover(() => import('./pages/DetailScreen'))
 const PostDetailScreen = lazyWithRecover(() => import('./pages/PostDetailScreen'))
@@ -219,7 +221,10 @@ function App() {
                 <Route path="/detail" element={<DetailScreen />} />
                 <Route path="/post/:id/edit" element={<UploadScreen />} />
                 <Route path="/post/:id" element={<PostDetailScreen />} />
-                <Route path="/region/:regionName" element={<RegionDetailScreen />} />
+                <Route path="/region/:regionName" element={<CityDetailScreen />} />
+                <Route path="/city/:cityName" element={<CityDetailScreen />} />
+                <Route path="/hashtag/:categoryId" element={<CategoryDetailScreen />} />
+                <Route path="/category/:categoryId" element={<CategoryDetailScreen />} />
                 <Route path="/upload" element={<UploadInfoScreen />} />
                 <Route path="/upload/complete/:postId" element={<UploadCompleteScreen />} />
                 <Route path="/upload/legacy" element={<UploadScreen />} />
