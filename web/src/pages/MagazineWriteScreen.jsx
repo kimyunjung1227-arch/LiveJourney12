@@ -6,7 +6,7 @@ import { publishMagazine } from '../utils/magazinesStore';
 import { useAuth } from '../contexts/AuthContext';
 import { useAdminState } from '../utils/admin';
 import { fetchPostsSupabase } from '../api/postsSupabase';
-import { getCombinedPosts } from '../utils/mockData';
+import { normalizePostsForFeed } from '../utils/postNormalize';
 import { buildSlidesForMagazine, getGridPostsPool, getRegionPostsForSlide } from '../utils/magazinePublishedUi';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
@@ -420,7 +420,7 @@ const MagazineWriteScreen = () => {
             if (p && p.id && !byId.has(p.id)) byId.set(p.id, p);
           }
         );
-        const combined = getCombinedPosts(Array.from(byId.values()));
+        const combined = normalizePostsForFeed(Array.from(byId.values()));
         if (alive) setAllPosts(combined);
       } catch {
         if (alive) setAllPosts([]);

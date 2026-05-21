@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { listPublishedMagazines } from '../utils/magazinesStore';
 import { fetchPostsSupabase } from '../api/postsSupabase';
-import { getCombinedPosts } from '../utils/mockData';
+import { normalizePostsForFeed } from '../utils/postNormalize';
 import { getDisplayImageUrl } from '../api/upload';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
 
@@ -54,7 +54,7 @@ const MagazineCollectionScreen = () => {
           if (p && p.id && !byId.has(p.id)) byId.set(p.id, p);
         }
       );
-      setAllPosts(getCombinedPosts(Array.from(byId.values()).filter((p) => p && p.id)));
+      setAllPosts(normalizePostsForFeed(Array.from(byId.values()).filter((p) => p && p.id)));
     } finally {
       setLoading(false);
     }

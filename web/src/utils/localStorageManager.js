@@ -123,32 +123,6 @@ export const cleanLegacyUploadedPosts = () => {
   }
 };
 
-// 과거에 사용하던 목업 데이터 정리용 함수들
-// 현재는 실제 사용자 데이터만 사용하지만,
-// safeSetItem 내부에서 호출하므로 안전하게 no-op 수준으로 구현
-export const cleanOldMockData = () => {
-  try {
-    memoryStore.delete('MOCK_POSTS');
-    memoryStore.delete('mockPosts');
-    return true;
-  } catch (error) {
-    logger.error('Mock 데이터 정리 실패:', error);
-    return false;
-  }
-};
-
-export const clearAllMockData = () => {
-  try {
-    memoryStore.delete('MOCK_POSTS');
-    memoryStore.delete('mockPosts');
-    logger.log('🗑️ 모든 Mock 데이터 삭제 완료');
-    return { success: true };
-  } catch (error) {
-    logger.error('Mock 데이터 삭제 실패:', error);
-    return { success: false, error: error.message };
-  }
-};
-
 // 안전 저장 (메모리 기반)
 export const safeSetItem = (key, value) => {
   try {

@@ -4,7 +4,7 @@ import BottomNavigation from '../components/BottomNavigation';
 import { getWeatherByRegion } from '../api/weather';
 import { filterRecentPosts, filterActivePosts48 } from '../utils/timeUtils';
 import { logger } from '../utils/logger';
-import { getCombinedPosts } from '../utils/mockData';
+import { normalizePostsForFeed } from '../utils/postNormalize';
 import { getDisplayImageUrl } from '../api/upload';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getRegionDefaultImage } from '../utils/regionDefaultImages';
@@ -66,7 +66,7 @@ const RegionDetailScreen = () => {
   const loadRegionData = useCallback(async () => {
     const localPosts = getUploadedPostsSafe();
     const supabasePosts = await fetchPostsSupabase(user?.id || null);
-    const combinedPosts = getCombinedPosts(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
+    const combinedPosts = normalizePostsForFeed(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
 
     // 7일 이내 게시물 필터링
     const recentPosts = filterActivePosts48(combinedPosts);

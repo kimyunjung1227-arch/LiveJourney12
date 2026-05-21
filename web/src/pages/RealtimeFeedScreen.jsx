@@ -5,7 +5,7 @@ import BottomNavigation from '../components/BottomNavigation';
 import { filterActivePosts48, getTimeAgo } from '../utils/timeUtils';
 import './MainScreen.css';
 
-import { getCombinedPosts } from '../utils/mockData';
+import { normalizePostsForFeed } from '../utils/postNormalize';
 import { getDisplayImageUrl } from '../api/upload';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getWeatherByRegion } from '../api/weather';
@@ -43,7 +43,7 @@ const RealtimeFeedScreen = () => {
     const loadData = async () => {
       const localPosts = getUploadedPostsSafe();
       const supabasePosts = await fetchPostsSupabase(user?.id || null);
-      const allPosts = getCombinedPosts(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
+      const allPosts = normalizePostsForFeed(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
       const posts = filterActivePosts48(allPosts);
 
       const formattedWithRaw = posts.map((post) => {

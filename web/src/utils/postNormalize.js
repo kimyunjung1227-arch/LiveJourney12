@@ -1,4 +1,5 @@
-// Supabase에서 받은 게시물만 사용 (localStorage 병합 없음)
+// 서버에서 받은 게시물 객체를 피드에서 일관되게 다루기 위한 정규화.
+// 과거 mockData.js의 getCombinedPosts에서 이전됨 (mock 데이터 제거 후 정리).
 
 const normalizePostForFeed = (p) => {
   if (!p || typeof p !== 'object') return null;
@@ -8,7 +9,7 @@ const normalizePostForFeed = (p) => {
   return { ...p, images: imgs };
 };
 
-export const getCombinedPosts = (serverPosts = []) => {
+export const normalizePostsForFeed = (serverPosts = []) => {
   if (!Array.isArray(serverPosts)) return [];
   return serverPosts.map(normalizePostForFeed).filter(Boolean);
 };

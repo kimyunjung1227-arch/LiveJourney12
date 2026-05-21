@@ -5,7 +5,7 @@ import MagazinePublishedCarousel from '../components/MagazinePublishedCarousel';
 import MagazineFieldVoices from '../components/MagazineFieldVoices';
 import { getMagazineTopicById } from '../utils/magazinesConfig';
 import { fetchPostsSupabase } from '../api/postsSupabase';
-import { getCombinedPosts } from '../utils/mockData';
+import { normalizePostsForFeed } from '../utils/postNormalize';
 import { getTimeAgo } from '../utils/timeUtils';
 import { getDisplayImageUrl } from '../api/upload';
 import { logger } from '../utils/logger';
@@ -122,7 +122,7 @@ const MagazineDetailScreen = () => {
           }
         );
         const combined = Array.from(byId.values());
-        const combinedAllPosts = getCombinedPosts(combined);
+        const combinedAllPosts = normalizePostsForFeed(combined);
         setAllPosts(combinedAllPosts);
 
         const now = Date.now();

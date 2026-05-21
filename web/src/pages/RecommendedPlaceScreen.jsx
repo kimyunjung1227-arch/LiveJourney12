@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { getRecommendedRegions, getRecommendationTypesForUi } from '../utils/recommendationEngine';
-import { getCombinedPosts } from '../utils/mockData';
+import { normalizePostsForFeed } from '../utils/postNormalize';
 import { getDisplayImageUrl } from '../api/upload';
 import './MainScreen.css';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
@@ -19,7 +19,7 @@ const RecommendedPlaceScreen = () => {
 
   const loadData = useCallback(() => {
     const localPosts = getUploadedPostsSafe();
-    const combined = getCombinedPosts(localPosts);
+    const combined = normalizePostsForFeed(localPosts);
     setAllPosts(combined);
     const recs = getRecommendedRegions(combined, selectedTag);
     setRecommendedData(recs);

@@ -46,7 +46,7 @@ import { normalizePlaceIdentityKey } from '../utils/placeKeyNormalize';
 import { fetchLiveSyncPctSupabase } from '../api/liveSyncSupabase';
 import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 
-const MOCK_PRIMARY = '#1353d8';
+const HOTPLACE_PRIMARY = '#1353d8';
 
 const getPostTimeMs = (post) => {
   const raw = post?.timestamp || post?.createdAt || post?.time || post?.photoDate;
@@ -386,7 +386,7 @@ export default function HotplaceLiveFeedScreen() {
                     <div
                       className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-inter text-[10px] font-extrabold tracking-wide text-white shadow-md"
                       style={{
-                        background: `linear-gradient(135deg, ${MOCK_PRIMARY} 0%, #0c3a9e 100%)`,
+                        background: `linear-gradient(135deg, ${HOTPLACE_PRIMARY} 0%, #0c3a9e 100%)`,
                         boxShadow: '0 4px 14px rgba(19, 83, 216, 0.4)',
                       }}
                     >

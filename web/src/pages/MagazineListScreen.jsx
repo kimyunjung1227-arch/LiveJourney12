@@ -4,7 +4,7 @@ import BottomNavigation from '../components/BottomNavigation';
 import MagazinePublishedCarousel from '../components/MagazinePublishedCarousel';
 import { listPublishedMagazines } from '../utils/magazinesStore';
 import { fetchPostsSupabase } from '../api/postsSupabase';
-import { getCombinedPosts } from '../utils/mockData';
+import { normalizePostsForFeed } from '../utils/postNormalize';
 import {
   buildMagazineListSlides,
   getGridPostsPool,
@@ -41,7 +41,7 @@ const MagazineListScreen = () => {
       const combinedFiltered = Array.from(byId.values()).filter(
         (p) => p && p.id && !deletedIds.has(String(p.id))
       );
-      setAllPosts(getCombinedPosts(combinedFiltered));
+      setAllPosts(normalizePostsForFeed(combinedFiltered));
     } finally {
       setLoading(false);
     }

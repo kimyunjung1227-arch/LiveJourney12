@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import { getTimeAgo } from '../utils/timeUtils';
-import { getCombinedPosts } from '../utils/mockData';
+import { normalizePostsForFeed } from '../utils/postNormalize';
 import { getDisplayImageUrl } from '../api/upload';
 import PostThumbnail from '../components/PostThumbnail';
 import { fetchPostsSupabase } from '../api/postsSupabase';
@@ -101,7 +101,7 @@ const HashtagScreen = () => {
       [...(Array.isArray(supabase) ? supabase : []), ...(Array.isArray(local) ? local : [])].forEach((p) => {
         if (p && p.id && !byId.has(p.id)) byId.set(p.id, p);
       });
-      setAllPosts(getCombinedPosts(Array.from(byId.values())));
+      setAllPosts(normalizePostsForFeed(Array.from(byId.values())));
       try {
         const res = await getTags();
         if (res?.success && Array.isArray(res.tags)) setServerTagStats(res.tags);

@@ -4,7 +4,7 @@ import BottomNavigation from '../components/BottomNavigation';
 import { filterActivePosts48 } from '../utils/timeUtils';
 import './MainScreen.css';
 
-import { getCombinedPosts } from '../utils/mockData';
+import { normalizePostsForFeed } from '../utils/postNormalize';
 import { getDisplayImageUrl } from '../api/upload';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { rankHotspotPlaces } from '../utils/hotnessEngine';
@@ -275,7 +275,7 @@ const CrowdedPlaceScreen = () => {
         const loadData = async () => {
             const localPosts = getUploadedPostsSafe();
             const supabasePosts = await fetchPostsSupabase(user?.id || null);
-            const allPosts = getCombinedPosts(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
+            const allPosts = normalizePostsForFeed(combinePostsSupabaseAndLocal(supabasePosts, localPosts));
             // 메인 실시간 핫플과 동일한 장소 집계 → 좌상단 핫 태그(reasonTags·급상승 등) 일치
             const postsForPlaceStats = selectPostsForPlaceStats(allPosts);
             const placeStats = buildPlaceStatsMap(postsForPlaceStats);
