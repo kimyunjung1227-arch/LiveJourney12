@@ -103,6 +103,8 @@ const SearchScreen = lazyWithRecover(() => import('./pages/SearchScreen'))
 const SeasonCalendarScreen = lazyWithRecover(() => import('./pages/SeasonCalendarScreen'))
 const SeasonDetailScreen = lazyWithRecover(() => import('./pages/SeasonDetailScreen'))
 const QuestionsListScreen = lazyWithRecover(() => import('./pages/QuestionsListScreen'))
+const AskQuestionScreen = lazyWithRecover(() => import('./pages/AskQuestionScreen'))
+const PlaceSearchScreen = lazyWithRecover(() => import('./pages/PlaceSearchScreen'))
 const QuestionDetailScreen = lazyWithRecover(() => import('./pages/QuestionDetailScreen'))
 const FollowListScreen = lazyWithRecover(() => import('./pages/FollowListScreen'))
 const CityDetailScreen = lazyWithRecover(() => import('./pages/CityDetailScreen'))
@@ -220,6 +222,8 @@ function App() {
                 <Route path="/season" element={<SeasonCalendarScreen />} />
                 <Route path="/season/:id" element={<SeasonDetailScreen />} />
                 <Route path="/questions" element={<QuestionsListScreen />} />
+                <Route path="/question/new" element={<AskQuestionScreen />} />
+                <Route path="/question/new/place" element={<PlaceSearchScreen />} />
                 <Route path="/question/:id" element={<QuestionDetailScreen />} />
                 <Route path="/hashtags" element={<HashtagScreen />} />
                 <Route path="/detail" element={<DetailScreen />} />
