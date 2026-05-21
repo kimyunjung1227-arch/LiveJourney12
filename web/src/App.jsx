@@ -100,7 +100,9 @@ const MagazineDetailScreen = lazyWithRecover(() => import('./pages/MagazineDetai
 const MagazineWriteScreen = lazyWithRecover(() => import('./pages/MagazineWriteScreen'))
 const MagazineAdminScreen = lazyWithRecover(() => import('./pages/MagazineAdminScreen'))
 const SearchScreen = lazyWithRecover(() => import('./pages/SearchScreen'))
+const SeasonCalendarScreen = lazyWithRecover(() => import('./pages/SeasonCalendarScreen'))
 const SeasonDetailScreen = lazyWithRecover(() => import('./pages/SeasonDetailScreen'))
+const QuestionsListScreen = lazyWithRecover(() => import('./pages/QuestionsListScreen'))
 const QuestionDetailScreen = lazyWithRecover(() => import('./pages/QuestionDetailScreen'))
 const FollowListScreen = lazyWithRecover(() => import('./pages/FollowListScreen'))
 const CityDetailScreen = lazyWithRecover(() => import('./pages/CityDetailScreen'))
@@ -215,7 +217,9 @@ function App() {
                 <Route path="/chat" element={<ChatScreen />} />
                 <Route path="/chat/write" element={<ChatWriteScreen />} />
                 <Route path="/search" element={<SearchScreen />} />
+                <Route path="/season" element={<SeasonCalendarScreen />} />
                 <Route path="/season/:id" element={<SeasonDetailScreen />} />
+                <Route path="/questions" element={<QuestionsListScreen />} />
                 <Route path="/question/:id" element={<QuestionDetailScreen />} />
                 <Route path="/hashtags" element={<HashtagScreen />} />
                 <Route path="/detail" element={<DetailScreen />} />
