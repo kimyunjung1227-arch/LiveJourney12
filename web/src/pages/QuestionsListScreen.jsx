@@ -4,6 +4,7 @@ import {
   IconArrowLeft,
   IconHelpCircle,
   IconMapPin,
+  IconPencilPlus,
   IconWorld,
 } from '@tabler/icons-react';
 import { useQuestionsList } from '../hooks/useQuestionsList';
@@ -117,6 +118,32 @@ const QuestionsListScreen = () => {
           </>
         )}
       </div>
+
+      {/* 질문하기 FAB — 프로필 탭 위, 가벼운 톤 */}
+      <button
+        type="button"
+        onClick={() => navigate('/question/new')}
+        aria-label="질문하기"
+        className="flex items-center gap-1.5"
+        style={{
+          position: 'fixed',
+          bottom: 'calc(70px + env(safe-area-inset-bottom, 0px))',
+          right: 'max(12px, calc(50vw - 195px))',
+          padding: '7px 12px',
+          borderRadius: 999,
+          background: '#ffffff',
+          border: `1px solid ${KEY}`,
+          color: KEY_DARK,
+          fontSize: 12,
+          fontWeight: 700,
+          cursor: 'pointer',
+          boxShadow: '0 4px 12px rgba(77, 184, 232, 0.18), 0 1px 3px rgba(0,0,0,0.06)',
+          zIndex: 48,
+        }}
+      >
+        <IconPencilPlus size={14} stroke={2.2} />
+        질문하기
+      </button>
 
       <BottomNavigation />
     </div>

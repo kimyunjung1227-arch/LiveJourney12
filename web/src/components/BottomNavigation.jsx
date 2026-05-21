@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { IconCamera, IconPencilPlus } from '@tabler/icons-react';
+import { IconCamera } from '@tabler/icons-react';
 
 const BottomNavigation = React.memo(() => {
   const navigate = useNavigate();
@@ -132,13 +132,6 @@ const BottomNavigation = React.memo(() => {
     return false;
   }, [location.pathname]);
 
-  // 질문하기 FAB 노출 여부: 질문 작성/장소 검색 경로에서는 숨김
-  const showAskFab = !(
-    location.pathname.startsWith('/question/new') ||
-    location.pathname.startsWith('/admin') ||
-    location.pathname.startsWith('/camera')
-  );
-
   return (
     <>
       {/* 네비가 숨겨져도 하단 영역에 스크롤 콘텐츠가 비치지 않도록 흰 배경을 고정 */}
@@ -158,49 +151,6 @@ const BottomNavigation = React.memo(() => {
           pointerEvents: 'none',
         }}
       />
-
-      {/* 질문하기 가벼운 FAB — 프로필 탭 위에 떠있음 */}
-      {showAskFab && (
-        <div
-          aria-hidden
-          style={{
-            position: 'fixed',
-            bottom: 'calc(70px + env(safe-area-inset-bottom, 0px))',
-            left: '50%',
-            transform: `translateX(-50%) ${isVisible ? 'translateY(0)' : 'translateY(80px)'}`,
-            transition: 'transform 0.3s ease-in-out',
-            width: '100%',
-            maxWidth: '414px',
-            pointerEvents: 'none',
-            zIndex: 48,
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => navigate('/question/new')}
-            aria-label="질문하기"
-            className="flex items-center gap-1.5"
-            style={{
-              position: 'absolute',
-              right: 12,
-              bottom: 0,
-              pointerEvents: 'auto',
-              padding: '7px 12px',
-              borderRadius: 999,
-              background: '#ffffff',
-              border: '1px solid #4DB8E8',
-              color: '#1A6EA8',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(77, 184, 232, 0.18), 0 1px 3px rgba(0,0,0,0.06)',
-            }}
-          >
-            <IconPencilPlus size={14} stroke={2.2} />
-            질문하기
-          </button>
-        </div>
-      )}
       <nav
         className="flex-shrink-0 flex h-16 items-center justify-around"
         style={{

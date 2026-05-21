@@ -452,25 +452,34 @@ function QuestionsSection({ questions, showAllAction = true }) {
         icon={IconHelpCircle}
         title="지금 답이 필요한 질문"
         action={
-          !isEmpty && showAllAction
+          showAllAction
             ? { label: '전체 보기', onClick: () => navigate('/questions') }
             : undefined
         }
       />
       {isEmpty ? (
-        <div
-          className="flex items-center justify-center"
+        <button
+          type="button"
+          onClick={() => navigate('/questions')}
+          className="flex items-center justify-between w-full text-left"
           style={{
-            padding: '24px 16px',
+            padding: '14px 16px',
             borderRadius: 11,
             background: SURFACE,
             border: `1px dashed ${BORDER_LIGHT}`,
+            cursor: 'pointer',
           }}
         >
-          <span style={{ fontSize: 12, color: TEXT_SECONDARY }}>
-            아직 등록된 질문이 없어요
-          </span>
-        </div>
+          <div className="flex flex-col">
+            <span style={{ fontSize: 12, color: TEXT_PRIMARY, fontWeight: 600 }}>
+              아직 올라온 질문이 없어요
+            </span>
+            <span style={{ fontSize: 10, color: TEXT_SECONDARY, marginTop: 2 }}>
+              질문 전체보기로 이동
+            </span>
+          </div>
+          <IconChevronRight size={14} color={TEXT_SECONDARY} />
+        </button>
       ) : (
         <div className="flex flex-col gap-2">
           {questions.slice(0, 2).map((q) => (
