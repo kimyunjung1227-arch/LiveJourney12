@@ -55,6 +55,7 @@ function UploadInfoScreen() {
   const [body, setBody] = useState('');
   // 화면에 표시할 장소명. 좌표 변경 시 항상 재지오코딩해 최신값을 보여준다.
   const [resolvedPlace, setResolvedPlace] = useState('');
+  const [geocoding, setGeocoding] = useState(false);
   // 사용자가 위치를 직접 편집한 경우의 좌표/장소 (있으면 media 값을 덮어씀)
   const [editedLoc, setEditedLoc] = useState(null); // { lat, lng, placeName } | null
   const [locOpen, setLocOpen] = useState(false);
@@ -116,18 +117,25 @@ function UploadInfoScreen() {
   };
 
   // 좌표가 잡혀 있으면 항상 좌표 기반으로 장소명을 재지오코딩한다.
-  // (셔터 시점 media.placeName이 어긋났더라도, 저장된 좌표 기준의 정확한 주소로 갱신)
+  // (셔터 시점 media.placeName이 어긋났더라도, 좌표 기준의 정확한 건물명/POI로 갱신)
   useEffect(() => {
-    if (!media?.lat || !media?.lng) {
+    if (!Number.isFinite(media?.lat) || !Number.isFinite(media?.lng)) {
       setResolvedPlace('');
+      setGeocoding(false);
       return undefined;
     }
     let cancelled = false;
+    setGeocoding(true);
     (async () => {
       try {
         const name = await reverseGeocodeToPlace(media.lat, media.lng);
-        if (!cancelled && name) setResolvedPlace(name);
-      } catch (_) {}
+        if (cancelled) return;
+        setResolvedPlace(name || '');
+      } catch (_) {
+        if (!cancelled) setResolvedPlace('');
+      } finally {
+        if (!cancelled) setGeocoding(false);
+      }
     })();
     return () => {
       cancelled = true;
@@ -535,8 +543,12 @@ function UploadInfoScreen() {
           >
             {refreshing
               ? '위치 측정 중…'
-              : displayPlaceName ||
-                (hasCoords ? '주소를 불러오는 중…' : '위치 정보가 없어요 — "다시 측정" 또는 "위치 수정"')}
+              : geocoding
+                ? '근처 장소 찾는 중…'
+                : displayPlaceName ||
+                  (hasCoords
+                    ? '근처에 알아볼 만한 장소가 없어요 — "위치 수정"으로 직접 검색해 주세요'
+                    : '위치 정보가 없어요 — "다시 측정" 또는 "위치 수정"')}
           </span>
           {editedLoc && (
             <span
