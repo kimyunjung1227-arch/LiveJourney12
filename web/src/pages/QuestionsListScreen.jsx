@@ -9,7 +9,6 @@ import {
 import { useQuestionsList } from '../hooks/useQuestionsList';
 import QuestionListCard from '../components/question/QuestionListCard';
 import CategoryChips from '../components/question/CategoryChips';
-import AskFAB from '../components/question/AskFAB';
 import BottomNavigation from '../components/BottomNavigation';
 
 const TEXT_PRIMARY = '#1F1F1F';
@@ -119,7 +118,6 @@ const QuestionsListScreen = () => {
         )}
       </div>
 
-      <AskFAB />
       <BottomNavigation />
     </div>
   );

@@ -18,7 +18,6 @@ import {
   IconUsers,
   IconMoon,
   IconBuildingStore,
-  IconPencilPlus,
 } from '@tabler/icons-react';
 import { supabase } from '../utils/supabaseClient';
 import { getDisplayImageUrl } from '../api/upload';
@@ -483,24 +482,6 @@ function QuestionsSection({ questions, showAllAction = true }) {
           ))}
         </div>
       )}
-      <button
-        type="button"
-        onClick={() => navigate('/question/new')}
-        className="flex items-center justify-center gap-1.5 w-full"
-        style={{
-          marginTop: 10,
-          padding: '11px 14px',
-          borderRadius: 11,
-          background: KEY_LIGHT,
-          border: `1px dashed ${KEY}`,
-          cursor: 'pointer',
-        }}
-      >
-        <IconPencilPlus size={14} color={KEY_DARK} />
-        <span style={{ fontSize: 12, color: KEY_DARK, fontWeight: 600 }}>
-          질문하기
-        </span>
-      </button>
     </div>
   );
 }
