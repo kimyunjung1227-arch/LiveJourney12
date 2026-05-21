@@ -62,31 +62,58 @@ function UploadInfoScreen() {
   const [locResults, setLocResults] = useState([]);
   const [locLoading, setLocLoading] = useState(false);
 
-  // 인앱 카메라로 찍은 사진이면 업로드 입장 시 한 번 더 정밀 GPS를 받아 좌표를 보정.
-  // (셔터 시점 watchPosition 값이 throttle/정확도로 어긋났을 가능성 차단)
+  // 업로드 진입 시 한 번 더 정밀 GPS를 받아 좌표를 보정.
+  // - 카메라 사진: 셔터 시점 watchPosition fix가 흔들렸을 수 있으니 무조건 한 번 갱신
+  // - 갤러리 사진: EXIF에 GPS가 있으면 EXIF 우선 (좌표가 이미 정밀). 없으면 현재 위치로 채움
+  // accuracy 게이트를 80m로 강화 — 더 부정확한 fix는 주변 매칭 위험이 있어 반영하지 않는다.
+  const [refreshing, setRefreshing] = useState(false);
   useEffect(() => {
     if (!media?.url) return;
-    if (media.source !== 'camera') return; // 갤러리 사진은 EXIF GPS 우선이라 건드리지 않음
     if (editedLoc) return; // 사용자가 직접 수정했으면 그대로
+    const hasExifGps = media.source === 'gallery' && media.exif?.gps;
+    if (hasExifGps) return; // 갤러리 + EXIF GPS는 좌표가 이미 정확
+
     let cancelled = false;
+    setRefreshing(true);
     (async () => {
       try {
-        const fix = await geo.getPreciseLocation(8000);
+        const fix = await geo.getPreciseLocation(9000);
         if (cancelled || !fix) return;
-        // accuracy가 너무 나쁘면 보정 보류 (>200m)
-        if (typeof fix.accuracy === 'number' && fix.accuracy > 200) return;
+        if (typeof fix.accuracy === 'number' && fix.accuracy > 80) return; // 80m 초과는 반영 안 함
         patchUploadMedia({
           lat: fix.lat,
           lng: fix.lng,
           accuracy: fix.accuracy ?? null,
+          // 셔터 시점 placeName은 정밀 좌표 기준 재지오코드로 덮어쓸 거라 비움
+          placeName: null,
         });
-      } catch (_) {}
+      } finally {
+        if (!cancelled) setRefreshing(false);
+      }
     })();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [media?.url, media?.source]);
+
+  const refreshLocation = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setEditedLoc(null);
+    try {
+      const fix = await geo.getPreciseLocation(10000);
+      if (!fix) return;
+      patchUploadMedia({
+        lat: fix.lat,
+        lng: fix.lng,
+        accuracy: fix.accuracy ?? null,
+        placeName: null,
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // 좌표가 잡혀 있으면 항상 좌표 기반으로 장소명을 재지오코딩한다.
   // (셔터 시점 media.placeName이 어긋났더라도, 저장된 좌표 기준의 정확한 주소로 갱신)
@@ -241,8 +268,20 @@ function UploadInfoScreen() {
     setLocResults([]);
   };
 
+  // 사용자가 직접 수정 → 그 값. 없으면 현재 좌표 기준 재지오코딩 결과.
+  // 셔터 시점에 박힌 media.placeName은 좌표가 흔들렸을 수 있어 좌표가 없는 경우에만 폴백.
+  const hasCoords = Number.isFinite(media?.lat) && Number.isFinite(media?.lng);
   const displayPlaceName =
-    editedLoc?.placeName || resolvedPlace || media?.placeName || '';
+    editedLoc?.placeName || resolvedPlace || (hasCoords ? '' : media?.placeName || '');
+  const displayAccuracy = editedLoc ? null : (media?.accuracy ?? null);
+  const accuracyLabel = (() => {
+    if (!Number.isFinite(displayAccuracy) || displayAccuracy <= 0) return '';
+    if (displayAccuracy <= 15) return `정밀 ±${Math.round(displayAccuracy)}m`;
+    if (displayAccuracy <= 50) return `±${Math.round(displayAccuracy)}m`;
+    if (displayAccuracy <= 80) return `대략 ±${Math.round(displayAccuracy)}m`;
+    return `부정확 ±${Math.round(displayAccuracy)}m`;
+  })();
+  const accuracyIsLoose = Number.isFinite(displayAccuracy) && displayAccuracy > 50;
 
   return (
     <div
@@ -422,23 +461,57 @@ function UploadInfoScreen() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <IconMapPin size={14} stroke={1.8} color={LJ.textSecondary} />
             <span style={{ fontSize: 13, fontWeight: 600, color: LJ.textPrimary }}>위치</span>
+            {accuracyLabel && (
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: accuracyIsLoose ? '#B45309' : LJ.textTertiary,
+                  background: accuracyIsLoose ? '#FFF4D6' : 'transparent',
+                  padding: accuracyIsLoose ? '2px 6px' : 0,
+                  borderRadius: 4,
+                }}
+              >
+                {accuracyLabel}
+              </span>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={() => setLocOpen((v) => !v)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              padding: '4px 6px',
-              color: LJ.key,
-              fontFamily: LJ.fontStack,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            {locOpen ? '닫기' : '위치 수정'}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button
+              type="button"
+              onClick={refreshLocation}
+              disabled={refreshing}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: '4px 6px',
+                color: refreshing ? LJ.textTertiary : LJ.textSecondary,
+                fontFamily: LJ.fontStack,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: refreshing ? 'default' : 'pointer',
+              }}
+              aria-label="현재 위치 다시 측정"
+            >
+              {refreshing ? '측정 중…' : '다시 측정'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setLocOpen((v) => !v)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: '4px 6px',
+                color: LJ.key,
+                fontFamily: LJ.fontStack,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {locOpen ? '닫기' : '위치 수정'}
+            </button>
+          </div>
         </div>
         <div
           style={{
@@ -460,7 +533,10 @@ function UploadInfoScreen() {
               whiteSpace: 'nowrap',
             }}
           >
-            {displayPlaceName || '위치 정보가 없어요 — "위치 수정" 누르고 검색해 주세요'}
+            {refreshing
+              ? '위치 측정 중…'
+              : displayPlaceName ||
+                (hasCoords ? '주소를 불러오는 중…' : '위치 정보가 없어요 — "다시 측정" 또는 "위치 수정"')}
           </span>
           {editedLoc && (
             <span
@@ -477,6 +553,18 @@ function UploadInfoScreen() {
             </span>
           )}
         </div>
+        {accuracyIsLoose && !editedLoc && (
+          <p
+            style={{
+              margin: '6px 0 0',
+              fontSize: 10.5,
+              color: '#B45309',
+              lineHeight: 1.45,
+            }}
+          >
+            GPS가 살짝 불안정해요. 야외에서 잠시 후 "다시 측정"을 누르거나, "위치 수정"으로 정확한 장소를 검색해 주세요.
+          </p>
+        )}
 
         {locOpen && (
           <div style={{ marginTop: 8 }}>

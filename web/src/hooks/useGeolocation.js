@@ -14,7 +14,12 @@ import { reverseGeocodeToPlace } from '../utils/locationFromGeocode';
  *
  * @param {{ throttleMs?: number, geocodeMinMoveMeters?: number }} opt
  */
-export function useGeolocation({ throttleMs = 5000, geocodeMinMoveMeters = 30 } = {}) {
+// GPS fix가 충분히 정확하다고 볼 수 있는 임계치 (m). 이 값을 넘어가면 사용자 위치가
+// 아닌 주변 영역으로 매칭될 수 있어 reverse geocode 결과가 부정확해진다.
+const PRECISE_ACCURACY_M = 80;
+const ACCEPT_FIX_M = 150; // 이 값을 넘는 fix는 watchPosition에서 좌표 갱신을 건너뜀
+
+export function useGeolocation({ throttleMs = 2500, geocodeMinMoveMeters = 15 } = {}) {
   const [coords, setCoords] = useState(null);
   const [accuracy, setAccuracy] = useState(0);
   const [placeName, setPlaceName] = useState(null);
@@ -38,11 +43,15 @@ export function useGeolocation({ throttleMs = 5000, geocodeMinMoveMeters = 30 } 
           accuracy: acc,
           ts: Date.now(),
         };
-        // 더 정확한 fix(낮은 accuracy)일 때만 갱신 — 추적 흔들림 완화
+        // 더 정확한 fix(낮은 accuracy)일 때만 best fix 갱신
         const prev = bestFixRef.current;
         if (!prev || acc <= prev.accuracy + 5 || Date.now() - prev.ts > 30000) {
           bestFixRef.current = fix;
         }
+
+        // accuracy가 너무 나쁘면 (>150m) 상태 좌표 갱신을 건너뜀 — 주변 매칭 방지.
+        // 첫 fix는 정확도와 무관하게 한 번 반영(완전한 빈 상태 회피)하되, 그 이후엔 게이트.
+        if (acc > ACCEPT_FIX_M && coordsExist()) return;
 
         const now = Date.now();
         if (now - lastUpdateRef.current < throttleMs) return;
@@ -63,6 +72,11 @@ export function useGeolocation({ throttleMs = 5000, geocodeMinMoveMeters = 30 } 
         navigator.geolocation.clearWatch(watchId);
       } catch (_) {}
     };
+
+    function coordsExist() {
+      return !!bestFixRef.current && bestFixRef.current.ts > 0 &&
+        Date.now() - bestFixRef.current.ts < 30000;
+    }
   }, [throttleMs]);
 
   // coords가 충분히 움직였을 때만 reverse geocode
@@ -88,17 +102,18 @@ export function useGeolocation({ throttleMs = 5000, geocodeMinMoveMeters = 30 } 
   }, [coords, geocodeMinMoveMeters]);
 
   /**
-   * 셔터 시점 정밀 위치 요청.
-   * - 최근(<8s) fix가 50m 이내면 그대로 반환 (배터리/속도 절약)
-   * - 아니면 fresh getCurrentPosition(timeout 8s)로 한 번 더 받음
-   * - getCurrentPosition 실패 시 캐시된 bestFix 또는 현재 coords로 폴백
+   * 셔터/업로드 진입 시 정밀 위치 요청.
+   * - 최근(<3s) fix가 30m 이내면 그대로 반환 (매우 신선/정확할 때만)
+   * - 아니면 fresh getCurrentPosition으로 받음 (정확도 향상)
+   * - 첫 fix가 부정확하면(>80m) 한 번 더 짧게 재시도해 더 좋은 fix 채택
+   * - 실패 시 캐시된 bestFix 또는 현재 coords로 폴백
    */
   const getPreciseLocation = useCallback(
     (maxWaitMs = 8000) =>
       new Promise((resolve) => {
         const cached = bestFixRef.current;
         const now = Date.now();
-        if (cached && cached.accuracy <= 50 && now - cached.ts < 8000) {
+        if (cached && cached.accuracy <= 30 && now - cached.ts < 3000) {
           resolve({
             lat: cached.lat,
             lng: cached.lng,
@@ -147,30 +162,51 @@ export function useGeolocation({ throttleMs = 5000, geocodeMinMoveMeters = 30 } 
           }
         };
         const timer = setTimeout(fallback, maxWaitMs + 200);
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            if (settled) return;
-            settled = true;
-            clearTimeout(timer);
-            const fix = {
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
-              accuracy: pos.coords.accuracy || null,
-              ts: Date.now(),
-            };
-            bestFixRef.current = fix;
-            resolve({ ...fix, source: 'fresh' });
-          },
-          () => {
-            fallback();
-          },
-          { enableHighAccuracy: true, maximumAge: 0, timeout: maxWaitMs }
-        );
+
+        // 첫 fix를 받고 정확도가 부정확하면 짧게 한 번 더 시도해 더 좋은 fix 선택
+        const tryGet = (attempt) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              if (settled) return;
+              const fix = {
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                accuracy: pos.coords.accuracy || null,
+                ts: Date.now(),
+              };
+              const prev = bestFixRef.current;
+              if (!prev || (fix.accuracy ?? 9999) < (prev.accuracy ?? 9999)) {
+                bestFixRef.current = fix;
+              }
+              // 충분히 정확하면 즉시 반환 — 아니면 한 번 더 시도
+              if ((fix.accuracy ?? 9999) <= PRECISE_ACCURACY_M || attempt >= 1) {
+                settled = true;
+                clearTimeout(timer);
+                resolve({ ...bestFixRef.current, source: 'fresh' });
+                return;
+              }
+              // 부정확한 첫 fix — 짧게 한 번 더
+              setTimeout(() => tryGet(attempt + 1), 600);
+            },
+            () => {
+              if (attempt >= 1) {
+                fallback();
+              } else {
+                setTimeout(() => tryGet(attempt + 1), 400);
+              }
+            },
+            { enableHighAccuracy: true, maximumAge: 0, timeout: maxWaitMs }
+          );
+        };
+        tryGet(0);
       }),
     [coords, accuracy],
   );
 
-  return { coords, accuracy, placeName, status, getPreciseLocation };
+  // 정밀 fix 기준 (UI에서 정확도 표시/판정에 사용)
+  const isPrecise = Number.isFinite(accuracy) && accuracy > 0 && accuracy <= PRECISE_ACCURACY_M;
+
+  return { coords, accuracy, placeName, status, getPreciseLocation, isPrecise };
 }
 
 /** 두 좌표 간 거리(m) — 카카오 호출 throttle 용. */
