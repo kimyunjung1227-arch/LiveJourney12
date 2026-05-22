@@ -152,14 +152,8 @@ export function PostCard({
         )}
       </div>
 
-      {/* EXIF 촬영시각 + 기온 명시 줄 — 사진 직하단에서 한 번 더 또렷이 */}
-      <CardExifLine
-        takenAt={post.exif_taken_at}
-        weather={post.weather || post.weatherSnapshot}
-      />
-
       {/* 작성자 행: 아바타 | 이름(N) · 남은시간 | 지금 현장 — 카드 상단으로 이동 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '10px 0 8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 8px' }}>
         <Avatar nickname={author.nickname} avatarUrl={author.avatar_url} size={28} onClick={goAuthor} />
         <div
           style={{
@@ -197,31 +191,49 @@ export function PostCard({
         {post.is_on_site && <OnSiteBadge />}
       </div>
 
-      {/* 위치명 (작성자 아래로 이동) */}
-      {post.place_name && (
-        <button
-          type="button"
-          onClick={goPlace}
+      {/* 위치명 (좌) + 기온 (우) */}
+      {(post.place_name || post.weather || post.weatherSnapshot) && (
+        <div
           style={{
-            background: 'transparent',
-            border: 'none',
-            padding: 0,
-            margin: '0 0 6px',
-            cursor: post.place_id ? 'pointer' : 'default',
-            fontFamily: LJ.fontStack,
-            fontSize: 17,
-            fontWeight: 700,
-            color: LJ.textPrimary,
-            letterSpacing: -0.3,
             display: 'flex',
             alignItems: 'center',
-            gap: 4,
-            textAlign: 'left',
+            justifyContent: 'space-between',
+            gap: 8,
+            margin: '0 0 6px',
           }}
         >
-          <IconMapPin size={16} stroke={2} color={LJ.key} />
-          {post.place_name}
-        </button>
+          {post.place_name ? (
+            <button
+              type="button"
+              onClick={goPlace}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                cursor: post.place_id ? 'pointer' : 'default',
+                fontFamily: LJ.fontStack,
+                fontSize: 17,
+                fontWeight: 700,
+                color: LJ.textPrimary,
+                letterSpacing: -0.3,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                textAlign: 'left',
+                minWidth: 0,
+                flex: '1 1 auto',
+              }}
+            >
+              <IconMapPin size={16} stroke={2} color={LJ.key} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {post.place_name}
+              </span>
+            </button>
+          ) : (
+            <span />
+          )}
+          <WeatherInlineChip weather={post.weather || post.weatherSnapshot} />
+        </div>
       )}
 
       {/* 본문 (4줄 클램프) */}
@@ -486,74 +498,41 @@ function ExifBadge({ takenAt }) {
   );
 }
 
-function CardExifLine({ takenAt, weather }) {
-  const stamp = formatExifStamp(takenAt);
-  const relative = formatExifTime(takenAt);
+function WeatherInlineChip({ weather }) {
   const display = pickWeatherDisplay(weather);
-  if (!stamp && !relative && !display) return null;
+  if (!display) return null;
   return (
-    <div
+    <span
       style={{
-        display: 'flex',
-        flexWrap: 'wrap',
+        display: 'inline-flex',
         alignItems: 'center',
-        gap: 8,
-        marginTop: 10,
-        padding: '7px 10px',
+        gap: 5,
+        padding: '4px 9px',
         background: LJ.keyBgLight,
-        borderRadius: 8,
+        borderRadius: 999,
+        fontFamily: LJ.fontStack,
         fontSize: 12,
         color: LJ.keyTextDark,
-        fontFamily: LJ.fontStack,
+        flexShrink: 0,
+        whiteSpace: 'nowrap',
       }}
     >
-      {(stamp || relative) && (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <IconShieldCheck size={13} stroke={2} color={LJ.keyTextDark} />
-          <span style={{ fontWeight: 700, letterSpacing: 0.2 }}>촬영</span>
-          {stamp && (
-            <span
-              style={{
-                fontWeight: 700,
-                fontVariantNumeric: 'tabular-nums',
-                color: LJ.textPrimary,
-              }}
-            >
-              {stamp}
-            </span>
-          )}
-          {relative && (
-            <span style={{ color: LJ.textSecondary, fontWeight: 500 }}>· {relative}</span>
-          )}
+      {display.icon && <span style={{ fontSize: 13, lineHeight: 1 }}>{display.icon}</span>}
+      {display.temperature && (
+        <span
+          style={{
+            color: LJ.textPrimary,
+            fontWeight: 700,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {display.temperature}
         </span>
       )}
-      {(stamp || relative) && display && (
-        <span style={{ color: LJ.textTertiary }}>·</span>
+      {display.condition && (
+        <span style={{ color: LJ.keyTextDark, fontWeight: 600 }}>{display.condition}</span>
       )}
-      {display && (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          {display.icon && (
-            <span style={{ fontSize: 14, lineHeight: 1 }}>{display.icon}</span>
-          )}
-          {display.temperature && (
-            <span
-              style={{
-                color: LJ.textPrimary,
-                fontWeight: 700,
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              {display.temperature}
-            </span>
-          )}
-          {display.condition && (
-            <span style={{ color: LJ.textSecondary, fontWeight: 500 }}>
-              {display.condition}
-            </span>
-          )}
-        </span>
-      )}
-    </div>
+    </span>
   );
 }
 

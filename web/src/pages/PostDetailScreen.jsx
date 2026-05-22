@@ -15,7 +15,6 @@ import {
   categoryLabel,
   formatExifTime,
   formatExifStamp,
-  formatExifLong,
   formatRemaining,
   pickWeatherDisplay,
 } from '../components/lj/tokens';
@@ -261,37 +260,49 @@ function PostDetailScreen() {
           </div>
         </div>
 
-        {/* EXIF 촬영시간 명시 — 사진 아래에서 한 번 더 또렷하게 */}
-        <ExifMetaLine
-          takenAt={post.exif_taken_at}
-          weather={post.weather || post.weatherSnapshot}
-        />
-
-        {/* 위치명 (헤드라인 — 제목처럼) */}
-        {post.place_name && (
-          <button
-            type="button"
-            onClick={goPlace}
+        {/* 위치명 (좌) + 기온 (우) */}
+        {(post.place_name || post.weather || post.weatherSnapshot) && (
+          <div
             style={{
-              background: 'transparent',
-              border: 'none',
-              padding: 0,
-              margin: '14px 0 8px',
-              cursor: post.place_id ? 'pointer' : 'default',
-              fontFamily: LJ.fontStack,
-              fontSize: 18,
-              fontWeight: 700,
-              color: LJ.textPrimary,
-              letterSpacing: -0.3,
               display: 'flex',
               alignItems: 'center',
-              gap: 4,
-              textAlign: 'left',
+              justifyContent: 'space-between',
+              gap: 8,
+              margin: '14px 0 8px',
             }}
           >
-            <IconMapPin size={17} stroke={2} color={LJ.key} />
-            {post.place_name}
-          </button>
+            {post.place_name ? (
+              <button
+                type="button"
+                onClick={goPlace}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: 0,
+                  cursor: post.place_id ? 'pointer' : 'default',
+                  fontFamily: LJ.fontStack,
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: LJ.textPrimary,
+                  letterSpacing: -0.3,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  textAlign: 'left',
+                  minWidth: 0,
+                  flex: '1 1 auto',
+                }}
+              >
+                <IconMapPin size={17} stroke={2} color={LJ.key} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {post.place_name}
+                </span>
+              </button>
+            ) : (
+              <span />
+            )}
+            <DetailWeatherInlineChip weather={post.weather || post.weatherSnapshot} />
+          </div>
         )}
 
         {/* 작성자 + 팔로우 */}
@@ -514,81 +525,41 @@ function DetailWeatherChip({ weather }) {
   );
 }
 
-function ExifMetaLine({ takenAt, weather }) {
-  const stamp = formatExifStamp(takenAt);
-  const longLabel = formatExifLong(takenAt);
-  const relative = formatExifTime(takenAt);
+function DetailWeatherInlineChip({ weather }) {
   const display = pickWeatherDisplay(weather);
-  if (!stamp && !display) return null;
+  if (!display) return null;
   return (
-    <div
+    <span
       style={{
-        marginTop: 12,
-        padding: '12px 14px',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        padding: '5px 10px',
         background: LJ.keyBgLight,
-        border: `1px solid ${LJ.borderLight}`,
-        borderRadius: 10,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 6,
+        borderRadius: 999,
         fontFamily: LJ.fontStack,
+        fontSize: 13,
+        color: LJ.keyTextDark,
+        flexShrink: 0,
+        whiteSpace: 'nowrap',
       }}
     >
-      {stamp && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <IconShieldCheck size={15} stroke={2} color={LJ.keyTextDark} />
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              color: LJ.keyTextDark,
-              letterSpacing: 0.6,
-              textTransform: 'uppercase',
-            }}
-          >
-            EXIF 촬영시각
-          </span>
-          <span
-            style={{
-              fontSize: 15,
-              fontWeight: 700,
-              color: LJ.textPrimary,
-              letterSpacing: 0.2,
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {stamp}
-          </span>
-          {relative && (
-            <span style={{ fontSize: 12, color: LJ.keyTextDark, fontWeight: 600 }}>
-              {relative}
-            </span>
-          )}
-        </div>
-      )}
-      {longLabel && (
-        <div style={{ fontSize: 12, color: LJ.textSecondary }}>{longLabel}</div>
-      )}
-      {display && (
-        <div
+      {display.icon && <span style={{ fontSize: 14, lineHeight: 1 }}>{display.icon}</span>}
+      {display.temperature && (
+        <span
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            paddingTop: 6,
-            borderTop: `1px dashed ${LJ.borderLight}`,
-            fontSize: 12,
-            color: LJ.textSecondary,
+            color: LJ.textPrimary,
+            fontWeight: 700,
+            fontVariantNumeric: 'tabular-nums',
           }}
         >
-          {display.icon && <span style={{ fontSize: 14, lineHeight: 1 }}>{display.icon}</span>}
-          {display.temperature && (
-            <span style={{ color: LJ.textPrimary, fontWeight: 700 }}>{display.temperature}</span>
-          )}
-          {display.condition && <span>{display.condition}</span>}
-        </div>
+          {display.temperature}
+        </span>
       )}
-    </div>
+      {display.condition && (
+        <span style={{ color: LJ.keyTextDark, fontWeight: 600 }}>{display.condition}</span>
+      )}
+    </span>
   );
 }
 
