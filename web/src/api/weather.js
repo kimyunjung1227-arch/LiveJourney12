@@ -3,6 +3,41 @@ import { getCoordinatesByRegion } from '../utils/regionCoordinates';
 import { logger } from '../utils/logger';
 import { getFetchApiUrl, getBackendOrigin } from '../utils/apiBase';
 
+/**
+ * 위경도 → 기상청 동네예보 LCC 격자(nx/ny).
+ * KMA 공식 LCC 투영 파라미터.
+ */
+export function latLngToKmaGrid(lat, lng) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const RE = 6371.00877;
+  const GRID = 5.0;
+  const SLAT1 = 30.0;
+  const SLAT2 = 60.0;
+  const OLON = 126.0;
+  const OLAT = 38.0;
+  const XO = 43;
+  const YO = 136;
+  const DEGRAD = Math.PI / 180.0;
+  const re = RE / GRID;
+  const slat1 = SLAT1 * DEGRAD;
+  const slat2 = SLAT2 * DEGRAD;
+  const olon = OLON * DEGRAD;
+  const olat = OLAT * DEGRAD;
+  const sn = Math.log(Math.cos(slat1) / Math.cos(slat2)) /
+    Math.log(Math.tan(Math.PI * 0.25 + slat2 * 0.5) / Math.tan(Math.PI * 0.25 + slat1 * 0.5));
+  const sf = (Math.pow(Math.tan(Math.PI * 0.25 + slat1 * 0.5), sn) * Math.cos(slat1)) / sn;
+  const ro = (re * sf) / Math.pow(Math.tan(Math.PI * 0.25 + olat * 0.5), sn);
+  const ra = (re * sf) / Math.pow(Math.tan(Math.PI * 0.25 + lat * DEGRAD * 0.5), sn);
+  let theta = lng * DEGRAD - olon;
+  if (theta > Math.PI) theta -= 2 * Math.PI;
+  if (theta < -Math.PI) theta += 2 * Math.PI;
+  theta *= sn;
+  const nx = Math.floor(ra * Math.sin(theta) + XO + 0.5);
+  const ny = Math.floor(ro - ra * Math.cos(theta) + YO + 0.5);
+  if (!Number.isFinite(nx) || !Number.isFinite(ny)) return null;
+  return { nx, ny };
+}
+
 const weatherCache = new Map();
 const CACHE_DURATION = 5 * 60 * 1000;
 const MAX_RETRIES = 3;
@@ -223,6 +258,177 @@ function getKstNcstBaseDateTimeForDate(dateLike, hoursBack = 0) {
     baseTime: `${pad2(H)}00`,
   };
 }
+
+/**
+ * nx/ny + 선택적 시각으로 기상청 초단기실황 호출.
+ * 성공 시 { success: true, weather: { icon, condition, temperature, humidity, wind } } 반환.
+ */
+async function fetchKmaUltraNcst(nx, ny, opts = {}) {
+  const fixedAt = opts?.at ? new Date(opts.at) : null;
+  const fixedAtMs = fixedAt && !Number.isNaN(fixedAt.getTime()) ? fixedAt.getTime() : 0;
+  let lastError = 'API 응답 실패';
+
+  for (let hoursBack = 0; hoursBack < 4; hoursBack += 1) {
+    const { baseDate, baseTime } = fixedAtMs
+      ? getKstNcstBaseDateTimeForDate(fixedAt, hoursBack)
+      : getKstNcstBaseDateTime(hoursBack);
+    logger.log(`📅 기준시각(KST) 시도 ${hoursBack}: ${baseDate} ${baseTime} (nx:${nx}, ny:${ny})`);
+
+    const params = new URLSearchParams({
+      base_date: baseDate,
+      base_time: baseTime,
+      nx: String(nx),
+      ny: String(ny),
+    });
+    const urlCandidates = buildKmaProxyUrlList(params);
+
+    let data = null;
+    let responseOk = false;
+    let httpErrorDetail = '';
+
+    for (const fullUrl of urlCandidates) {
+      try {
+        const response = await fetchWithRetry(fullUrl, null, MAX_RETRIES, buildKmaFetchInit(fullUrl));
+        if (!response.ok) {
+          let detail = response.statusText;
+          try {
+            const errBody = await response.clone().json();
+            if (errBody?.error) detail = String(errBody.error);
+          } catch (_) {}
+          httpErrorDetail = detail;
+          continue;
+        }
+        data = await response.json();
+        responseOk = true;
+        break;
+      } catch (err) {
+        httpErrorDetail = err?.message || String(err);
+      }
+    }
+
+    if (!responseOk) {
+      lastError = httpErrorDetail || '모든 날씨 프록시 경로 실패';
+      if (lastError.includes('not configured') || lastError.includes('KMA_API_KEY')) {
+        throw new Error(
+          '날씨 프록시 미설정: backend에 KMA_API_KEY(또는 DATA_GO_KR_SERVICE_KEY)를 넣거나 Supabase Edge에 KMA 시크릿을 설정하세요.'
+        );
+      }
+      continue;
+    }
+
+    const header = data?.response?.header;
+    const code = normalizeKmaResultCode(header);
+    const rawItems = data?.response?.body?.items?.item;
+
+    if (code === '03' || code === '3' || code === '02' || code === '2' || rawItems == null) {
+      lastError = header?.resultMsg || `NO_DATA (${code || 'empty'})`;
+      continue;
+    }
+    if (code !== '00' && code !== '0') {
+      lastError = header?.resultMsg || 'API 응답 실패';
+      throw new Error(lastError);
+    }
+
+    const items = normalizeKmaItems(rawItems);
+    if (items.length === 0) {
+      lastError = '관측 항목 없음';
+      continue;
+    }
+
+    let temperature = null;
+    let sky = '맑음';
+    let icon = '☀️';
+    let humidity = null;
+    let wind = null;
+
+    items.forEach((item) => {
+      if (item.category === 'T1H' && item.obsrValue != null && item.obsrValue !== '') {
+        const t = Number(item.obsrValue);
+        if (!Number.isNaN(t)) temperature = Math.round(t);
+      }
+      if (item.category === 'PTY') {
+        const ptyValue = parseInt(item.obsrValue, 10);
+        if (ptyValue === 1 || ptyValue === 4) { sky = '비'; icon = '🌧️'; }
+        else if (ptyValue === 2) { sky = '진눈깨비'; icon = '🌨️'; }
+        else if (ptyValue === 3) { sky = '눈'; icon = '❄️'; }
+      }
+      if (item.category === 'SKY' && sky === '맑음') {
+        const skyValue = parseInt(item.obsrValue, 10);
+        if (skyValue === 3) { sky = '구름많음'; icon = '🌤️'; }
+        else if (skyValue === 4) { sky = '흐림'; icon = '☁️'; }
+      }
+      if (item.category === 'REH' && item.obsrValue != null && item.obsrValue !== '') {
+        const h = Number(item.obsrValue);
+        if (!Number.isNaN(h)) humidity = `${Math.round(h)}%`;
+      }
+      if (item.category === 'WSD' && item.obsrValue != null && item.obsrValue !== '') {
+        const w = Number(item.obsrValue);
+        if (!Number.isNaN(w)) wind = `${w.toFixed(1)}m/s`;
+      }
+    });
+
+    if (temperature == null) {
+      lastError = '기온 항목 없음';
+      continue;
+    }
+
+    return {
+      success: true,
+      weather: {
+        icon,
+        condition: sky,
+        temperature: `${temperature}℃`,
+        humidity: humidity ?? '-',
+        wind: wind ?? '-',
+      },
+    };
+  }
+
+  throw new Error(lastError || '해당 좌표의 최신 관측 데이터를 찾지 못했습니다.');
+}
+
+/**
+ * 좌표(위경도)로 기상청 초단기실황을 조회.
+ * @param {number} lat
+ * @param {number} lng
+ * @param {{ at?: string|Date|number, forceRefresh?: boolean }} [opts]
+ */
+export const getWeatherByCoords = async (lat, lng, opts = {}) => {
+  const grid = latLngToKmaGrid(Number(lat), Number(lng));
+  if (!grid) {
+    return {
+      success: false,
+      error: 'invalid_coords',
+      weather: { icon: '🌤️', condition: '-', temperature: '-', humidity: '-', wind: '-' },
+    };
+  }
+  const fixedAt = opts?.at ? new Date(opts.at) : null;
+  const fixedAtMs = fixedAt && !Number.isNaN(fixedAt.getTime()) ? fixedAt.getTime() : 0;
+  const cacheKey = `coord:${grid.nx},${grid.ny}${fixedAtMs ? `::${fixedAtMs}` : ''}`;
+
+  if (!opts.forceRefresh) {
+    const cached = weatherCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      return cached.data;
+    }
+  }
+
+  try {
+    const result = await fetchKmaUltraNcst(grid.nx, grid.ny, fixedAt ? { at: fixedAt } : {});
+    weatherCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    logger.log(`✅ 기상청 좌표 성공: (${lat},${lng}) → nx:${grid.nx} ny:${grid.ny} → ${result.weather.temperature} ${result.weather.condition}`);
+    return result;
+  } catch (error) {
+    logger.error(`❌ 기상청 좌표 호출 실패:`, error.message);
+    const cached = weatherCache.get(cacheKey);
+    if (cached) return cached.data;
+    return {
+      success: false,
+      error: error.message,
+      weather: { icon: '🌤️', condition: '-', temperature: '-', humidity: '-', wind: '-' },
+    };
+  }
+};
 
 export const getWeatherByRegion = async (regionName, forceRefresh = false, opts = {}) => {
   logger.log('🌦️ 날씨 API 호출 시작:', regionName);

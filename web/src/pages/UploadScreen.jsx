@@ -14,7 +14,7 @@ import { getBadgeCongratulationMessage, getBadgeDifficultyEffects } from '../uti
 import { logger } from '../utils/logger';
 import { useExifConsent } from '../contexts/ExifConsentContext';
 import { convertGpsToAddress, extractExifData, isExifCaptureTooOldForUpload } from '../utils/exifExtractor';
-import { getWeatherByRegion } from '../api/weather';
+import { getWeatherByRegion, getWeatherByCoords } from '../api/weather';
 import { resolveRegionFromLocationInput } from '../utils/regionLocationMapping';
 import { useLoginGate } from '../hooks/useLoginGate';
 
@@ -871,7 +871,13 @@ const UploadScreen = () => {
 
       const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
       const currentUser = user || savedUser;
-      const username = currentUser?.username || currentUser?.email?.split('@')[0] || '모사모';
+      const meta = currentUser?.user_metadata || {};
+      const username =
+        (typeof currentUser?.username === 'string' && currentUser.username.trim()) ||
+        (typeof meta.nickname === 'string' && meta.nickname.trim()) ||
+        (typeof meta.name === 'string' && meta.name.trim()) ||
+        (typeof currentUser?.email === 'string' && currentUser.email.split('@')[0]) ||
+        '익명';
       const rawId = currentUser?.id || savedUser?.id || null;
       const uid = rawId != null ? String(rawId).trim() : '';
       const userIdForDb = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uid) ? uid : null;
@@ -879,17 +885,24 @@ const UploadScreen = () => {
       const region = resolveRegionFromLocationInput(formData.location) || '기타';
 
       // 촬영 시각(EXIF) 기준 기온을 posts.weather(jsonb)에 스냅샷으로 저장.
-      // - 상세 화면은 이 값을 고정 표시(실시간 재조회 없음)
+      // - 좌표가 있으면 좌표(LCC 격자) 기반 호출 → 게시 위치에 정확한 기온
+      // - 좌표 없으면 광역 지역명 기반으로 폴백
       // - 실패해도 업로드는 계속 진행
       let weatherSnapshot = null;
       try {
         const fixedAt = effectiveExif?.photoDate || null;
-        const w = await getWeatherByRegion(region, false, fixedAt ? { at: fixedAt } : {});
+        const coordLat = Number(formData.coordinates?.lat);
+        const coordLng = Number(formData.coordinates?.lng);
+        const hasCoords = Number.isFinite(coordLat) && Number.isFinite(coordLng);
+        const w = hasCoords
+          ? await getWeatherByCoords(coordLat, coordLng, fixedAt ? { at: fixedAt } : {})
+          : await getWeatherByRegion(region, false, fixedAt ? { at: fixedAt } : {});
         if (w?.success && w?.weather) {
           weatherSnapshot = {
             ...w.weather,
             observedAt: fixedAt || new Date().toISOString(),
-            source: 'kma_ultra_ncst',
+            source: hasCoords ? 'kma_ultra_ncst_coord' : 'kma_ultra_ncst_region',
+            coord: hasCoords ? { lat: coordLat, lng: coordLng } : null,
           };
         }
       } catch (e) {

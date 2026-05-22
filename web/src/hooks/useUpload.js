@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { getWeatherByCoords } from '../api/weather';
+import { logger } from '../utils/logger';
 
 const BUCKET = 'post-images';
 const LJ_CATEGORY_LABEL = {
@@ -108,6 +110,24 @@ export function useUpload() {
           tags: exif && typeof exif === 'object' ? exif : null,
         };
 
+        // 좌표가 있으면 기상청 초단기실황(좌표 기반) 호출하여 weather 스냅샷 저장
+        let weatherSnapshot = null;
+        if (hasCoords) {
+          try {
+            const w = await getWeatherByCoords(Number(lat), Number(lng), { at: capturedIso });
+            if (w?.success && w?.weather) {
+              weatherSnapshot = {
+                ...w.weather,
+                observedAt: capturedIso,
+                source: 'kma_ultra_ncst_coord',
+                coord: { lat: Number(lat), lng: Number(lng) },
+              };
+            }
+          } catch (e) {
+            logger.warn('useUpload 날씨 스냅샷 실패:', e?.message || e);
+          }
+        }
+
         const row = {
           user_id: user.id,
           content: body || '',
@@ -120,8 +140,13 @@ export function useUpload() {
           captured_at: capturedIso,
           is_in_app_camera: source === 'camera',
           exif_data: exifData,
+          weather: weatherSnapshot,
           author_username:
-            user.user_metadata?.nickname || user.email?.split('@')[0] || '나',
+            (typeof user?.username === 'string' && user.username.trim()) ||
+            user.user_metadata?.nickname ||
+            user.user_metadata?.name ||
+            user.email?.split('@')[0] ||
+            '익명',
           author_avatar_url: user.user_metadata?.avatar_url || null,
           // 신규 RPC(get_question_detail, get_city_detail 등)는 photo_url 컬럼을 읽으므로 함께 세팅
           photo_url: mode === 'photo' ? publicUrl : null,

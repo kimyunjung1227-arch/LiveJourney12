@@ -1,34 +1,12 @@
 /**
  * GPS 좌표 → 사람이 읽는 장소명.
  *
- * 정책(2026-05 두 번째 개정):
- * - 건물명 또는 POI(가장 가까운 장소) 만 사용한다.
- * - 행정주소(시·군·구·동) 폴백은 사용하지 않는다.
- * - 결과를 못 찾으면 빈 문자열을 반환 (호출자가 "위치 정보 없음" UI 처리).
- *
- * 우선순위:
- *   1) coord2Address → road.building_name (좌표가 명확히 건물 안을 가리킬 때)
- *   2) Places.categorySearch — 좌표 반경 50m 내 POI 중 가장 가까운 것
- *      (관광명소·문화시설·카페·음식점·숙박·지하철역·대형마트 등 주요 카테고리 병렬 호출)
- *   3) 반경 100m로 확장하여 한 번 더 시도
- *   4) 그래도 없으면 ''
+ * 정책(2026-05 세 번째 개정):
+ * - "근처 POI"는 가져오지 않는다 — 좌표가 가리키는 *현재 위치 자체*만 사용한다.
+ * - 도로명 주소를 1순위, 지번 주소를 2순위로 사용한다.
+ * - 호환을 위해 건물명이 명확하면 그 안에 함께 노출 가능하지만, POI(카테고리 검색)는 더 이상 호출하지 않는다.
+ * - 결과를 못 찾으면 빈 문자열을 반환 (호출자가 좌표 라벨로 폴백).
  */
-
-const PLACE_CATEGORY_CODES = [
-  'AT4', // 관광명소
-  'CT1', // 문화시설
-  'CE7', // 카페
-  'FD6', // 음식점
-  'AD5', // 숙박
-  'SW8', // 지하철역
-  'MT1', // 대형마트
-  'BK9', // 은행
-  'HP8', // 병원
-  'PO3', // 공공기관
-];
-
-const NEAR_RADIUS_M = 50;
-const WIDER_RADIUS_M = 120;
 
 /**
  * 카카오 JS SDK가 services 라이브러리와 함께 준비될 때까지 대기.
@@ -97,106 +75,49 @@ function fetchCoord2Address(lat, lng) {
   });
 }
 
-/** 단일 카테고리에 대해 좌표 반경 내 가장 가까운 장소 1건 반환. */
-function searchNearestInCategory(lat, lng, categoryCode, radius) {
-  return new Promise((resolve) => {
-    waitForKakaoServices()
-      .then((kakao) => {
-        const Status = kakao.maps.services.Status;
-        const places = new kakao.maps.services.Places();
-        try {
-          places.categorySearch(
-            categoryCode,
-            (data, status) => {
-              if (status !== Status.OK || !Array.isArray(data) || data.length === 0) {
-                return resolve(null);
-              }
-              // data는 distance asc 정렬됨 (sort: DISTANCE)
-              const nearest = data[0];
-              const dist = parseFloat(nearest.distance);
-              if (!Number.isFinite(dist) || dist > radius) return resolve(null);
-              resolve({
-                name: String(nearest.place_name || '').trim(),
-                distance: dist,
-                category: categoryCode,
-                roadAddress: nearest.road_address_name || nearest.address_name || '',
-              });
-            },
-            {
-              location: new kakao.maps.LatLng(lat, lng),
-              radius,
-              sort: kakao.maps.services.SortBy.DISTANCE,
-              size: 5,
-            },
-          );
-        } catch (_) {
-          resolve(null);
-        }
-      })
-      .catch(() => resolve(null));
-  });
-}
+/**
+ * coord2Address 한 줄 결과(row) → 사람이 읽는 정확한 현재 위치 라벨.
+ * - 도로명 주소(있으면 건물명을 괄호로) → 지번 주소 → ''.
+ */
+function pickPreciseAddressFromCoordRow(row) {
+  if (!row || typeof row !== 'object') return '';
+  const road = row.road_address;
+  const lot = row.address;
 
-/** 여러 카테고리 병렬 검색 후 가장 가까운 장소 1건. */
-async function findNearestPoi(lat, lng, radius) {
-  const calls = PLACE_CATEGORY_CODES.map((code) => searchNearestInCategory(lat, lng, code, radius));
-  const results = await Promise.all(calls);
-  const valid = results.filter((r) => r && r.name);
-  if (valid.length === 0) return null;
-  valid.sort((a, b) => a.distance - b.distance);
-  return valid[0];
+  const roadAddr = road?.address_name ? String(road.address_name).trim() : '';
+  const building = road?.building_name ? String(road.building_name).trim() : '';
+  if (roadAddr) {
+    return building && !roadAddr.includes(building)
+      ? `${roadAddr} (${building})`
+      : roadAddr;
+  }
+
+  const lotAddr = lot?.address_name ? String(lot.address_name).trim() : '';
+  if (lotAddr) return lotAddr;
+  return '';
 }
 
 /**
- * 좌표 → 사람이 읽는 장소명(건물명 또는 가장 가까운 POI).
- * 행정주소는 반환하지 않는다.
- *
- * @param {number} lat
- * @param {number} lng
- * @returns {Promise<string>}
+ * 좌표 → "현재 위치 그대로"의 주소 라벨.
+ * - 도로명 주소를 1순위, 지번 주소를 2순위로 반환.
+ * - 근처 POI/카테고리 검색은 하지 않는다 (사용자가 실제로 있지 않은 곳을 가져오지 않기 위해).
  */
 export async function reverseGeocodeToPlace(lat, lng) {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return '';
-
-  // 1) coord2Address의 건물명
   try {
-    const raw = await fetchCoord2Address(lat, lng);
-    const building = raw?.road_address?.building_name;
-    if (building && String(building).trim()) {
-      return String(building).trim();
-    }
+    const row = await fetchCoord2Address(lat, lng);
+    const label = pickPreciseAddressFromCoordRow(row);
+    if (label) return label;
   } catch (_) {
     /* ignore */
   }
-
-  // 2) 50m 내 가장 가까운 POI
-  try {
-    const near = await findNearestPoi(lat, lng, NEAR_RADIUS_M);
-    if (near?.name) return near.name;
-  } catch (_) {
-    /* ignore */
-  }
-
-  // 3) 120m로 한 번 더 확장
-  try {
-    const wider = await findNearestPoi(lat, lng, WIDER_RADIUS_M);
-    if (wider?.name) return wider.name;
-  } catch (_) {
-    /* ignore */
-  }
-
   return '';
 }
 
 /**
- * 호환성 유지용 export — 다른 곳에서 import 하던 함수.
- * 더 이상 행정주소를 반환하지 않으므로, 호출자가 사용하는 firstResult가 있다면
- * 거기서 building_name만 뽑아 반환.
+ * 호출자가 이미 coord2Address row를 들고 있을 때 라벨만 뽑는 호환 API.
  */
 // eslint-disable-next-line no-unused-vars
 export async function resolveDisplayLocationFromKakaoCoordResult(firstResult, _lng, _lat) {
-  if (!firstResult || typeof firstResult !== 'object') return '';
-  const building = firstResult.road_address?.building_name;
-  if (building && String(building).trim()) return String(building).trim();
-  return '';
+  return pickPreciseAddressFromCoordRow(firstResult);
 }
