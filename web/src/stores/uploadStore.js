@@ -19,15 +19,16 @@ let cachedProjectionFrom;    // 그때의 state 레퍼런스 (변경 감지)
 const listeners = new Set();
 
 function readFromSession() {
+  // ⚠️ File 과 blob: URL 은 새로고침 후 살아남지 못한다.
+  //   - File: 직렬화 불가 (애초에 저장 안 함)
+  //   - blob:URL: 페이지 reload 시 자동 무효화 → <img src="blob:..."> 는 ERR_FILE_NOT_FOUND
+  // 따라서 복원 시 medias 는 무조건 비워서 카메라 진입을 유도한다.
+  // (sessionStorage 키는 단순 폴백 컨테이너로만 유지)
   if (typeof sessionStorage === 'undefined') return null;
   try {
-    const raw = sessionStorage.getItem(SS_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch (_) {
-    return null;
-  }
+    sessionStorage.removeItem(SS_KEY);
+  } catch (_) {}
+  return null;
 }
 
 function writeToSession(next) {
@@ -42,7 +43,8 @@ function stripBlobsFromState(s) {
   if (!s) return s;
   const out = { ...s };
   if (Array.isArray(out.medias)) {
-    out.medias = out.medias.map(({ file, ...rest }) => rest);
+    // file + url(blob:) 둘 다 새로고침 후 무효라 직렬화 제외
+    out.medias = out.medias.map(({ file, url, ...rest }) => rest);
   }
   return out;
 }
