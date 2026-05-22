@@ -338,11 +338,15 @@ function PostDetailScreen() {
               <img
                 src={author.avatar_url}
                 alt=""
+                referrerPolicy="no-referrer"
                 style={{
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover',
                   display: 'block',
+                }}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
                 }}
               />
             ) : (

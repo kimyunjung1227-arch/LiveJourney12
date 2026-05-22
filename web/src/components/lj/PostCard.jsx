@@ -397,7 +397,11 @@ function Avatar({ nickname, avatarUrl, size = 28, onClick }) {
         <img
           src={avatarUrl}
           alt=""
+          referrerPolicy="no-referrer"
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          onError={(e) => {
+            e.currentTarget.style.display = 'none';
+          }}
         />
       ) : (
         initial

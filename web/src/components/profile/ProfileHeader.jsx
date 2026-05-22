@@ -41,7 +41,16 @@ export default function ProfileHeader({ user, isMe = false }) {
             }}
           >
             {avatarUrl ? (
-              <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+              <img
+                src={avatarUrl}
+                alt=""
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  // Google/Kakao CDN 등 외부 이미지가 referer 차단으로 깨질 때 이니셜로 폴백
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
             ) : (
               initial
             )}

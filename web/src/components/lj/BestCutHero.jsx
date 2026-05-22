@@ -134,7 +134,15 @@ export function BestCutHero({
           }}
         >
           {author.avatar_url ? (
-            <img src={author.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            <img
+              src={author.avatar_url}
+              alt=""
+              referrerPolicy="no-referrer"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
           ) : (
             (author.nickname || '?').slice(0, 1)
           )}
