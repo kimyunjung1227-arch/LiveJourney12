@@ -213,8 +213,11 @@ function UploadInfoScreen() {
       }
 
       navigate(`/upload/complete/${postId}`, { replace: true });
-    } catch (_) {
-      // error는 훅에서 setError; 화면에 표시
+    } catch (err) {
+      // 훅에서 setError 호출되지만, 사용자 화면에 즉시 피드백을 줘서 "왜 업로드 화면으로 돌아왔나" 가 안 보이게.
+      const msg = err?.message || '업로드에 실패했어요. 다시 시도해주세요.';
+      logger.error('업로드 실패:', err);
+      alert(msg);
     }
   };
 

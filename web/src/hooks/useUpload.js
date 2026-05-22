@@ -110,24 +110,6 @@ export function useUpload() {
           tags: exif && typeof exif === 'object' ? exif : null,
         };
 
-        // 좌표가 있으면 기상청 초단기실황(좌표 기반) 호출하여 weather 스냅샷 저장
-        let weatherSnapshot = null;
-        if (hasCoords) {
-          try {
-            const w = await getWeatherByCoords(Number(lat), Number(lng), { at: capturedIso });
-            if (w?.success && w?.weather) {
-              weatherSnapshot = {
-                ...w.weather,
-                observedAt: capturedIso,
-                source: 'kma_ultra_ncst_coord',
-                coord: { lat: Number(lat), lng: Number(lng) },
-              };
-            }
-          } catch (e) {
-            logger.warn('useUpload 날씨 스냅샷 실패:', e?.message || e);
-          }
-        }
-
         const row = {
           user_id: user.id,
           content: body || '',
@@ -140,7 +122,6 @@ export function useUpload() {
           captured_at: capturedIso,
           is_in_app_camera: source === 'camera',
           exif_data: exifData,
-          weather: weatherSnapshot,
           author_username:
             (typeof user?.username === 'string' && user.username.trim()) ||
             user.user_metadata?.nickname ||
@@ -163,6 +144,32 @@ export function useUpload() {
           .select('id')
           .single();
         if (insertError) throw insertError;
+
+        // 좌표가 있으면 기상청 초단기실황(좌표 기반)으로 weather 스냅샷을 best-effort 업데이트.
+        // weather 컬럼이 없거나 KMA가 응답 안 해도 게시물 자체는 이미 만들어진 상태라 흐름이 끊기지 않는다.
+        if (hasCoords) {
+          (async () => {
+            try {
+              const w = await getWeatherByCoords(Number(lat), Number(lng), { at: capturedIso });
+              if (!w?.success || !w?.weather) return;
+              const weatherSnapshot = {
+                ...w.weather,
+                observedAt: capturedIso,
+                source: 'kma_ultra_ncst_coord',
+                coord: { lat: Number(lat), lng: Number(lng) },
+              };
+              const { error: weatherErr } = await supabase
+                .from('posts')
+                .update({ weather: weatherSnapshot })
+                .eq('id', inserted.id);
+              if (weatherErr) {
+                logger.warn('weather 업데이트 실패(무시):', weatherErr?.message || weatherErr);
+              }
+            } catch (e) {
+              logger.warn('useUpload 날씨 스냅샷 실패:', e?.message || e);
+            }
+          })();
+        }
 
         return inserted.id;
       } catch (e) {
