@@ -10,7 +10,15 @@ import {
   IconBookmark,
   IconBookmarkFilled,
 } from '@tabler/icons-react';
-import { LJ, categoryLabel, formatExifTime, formatRemaining } from '../components/lj/tokens';
+import {
+  LJ,
+  categoryLabel,
+  formatExifTime,
+  formatExifAbsolute,
+  formatExifLong,
+  formatRemaining,
+  pickWeatherDisplay,
+} from '../components/lj/tokens';
 import MoreMenuDropdown from '../components/lj/MoreMenuDropdown';
 import ReportModal from '../components/lj/ReportModal';
 import PostPhotoGallery from '../components/lj/PostPhotoGallery';
@@ -235,7 +243,29 @@ function PostDetailScreen() {
               })
             }
           />
+          {/* 좌상단 EXIF + 날씨 뱃지 */}
+          <div
+            style={{
+              position: 'absolute',
+              top: 10,
+              left: 10,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              gap: 6,
+              pointerEvents: 'none',
+            }}
+          >
+            <DetailExifBadge takenAt={post.exif_taken_at} />
+            <DetailWeatherChip weather={post.weather || post.weatherSnapshot} />
+          </div>
         </div>
+
+        {/* EXIF 촬영시간 명시 — 사진 아래에서 한 번 더 또렷하게 */}
+        <ExifMetaLine
+          takenAt={post.exif_taken_at}
+          weather={post.weather || post.weatherSnapshot}
+        />
 
         {/* 위치명 (헤드라인 — 제목처럼) */}
         {post.place_name && (
@@ -397,6 +427,111 @@ function PostDetailScreen() {
 
       {showReport && (
         <ReportModal postId={post.id} onClose={() => setShowReport(false)} />
+      )}
+    </div>
+  );
+}
+
+function DetailExifBadge({ takenAt }) {
+  const absolute = formatExifAbsolute(takenAt);
+  const relative = formatExifTime(takenAt);
+  if (!absolute && !relative) return null;
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        padding: '5px 10px',
+        background: 'rgba(0,0,0,0.7)',
+        borderRadius: 6,
+        backdropFilter: 'blur(8px)',
+      }}
+    >
+      <IconShieldCheck size={13} stroke={2} color={LJ.key} />
+      {absolute && (
+        <span style={{ color: '#fff', fontSize: 11, fontWeight: 700, letterSpacing: 0.1 }}>
+          {absolute}
+        </span>
+      )}
+      {absolute && relative && (
+        <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11 }}>·</span>
+      )}
+      {relative && (
+        <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: 500 }}>
+          {relative}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function DetailWeatherChip({ weather }) {
+  const display = pickWeatherDisplay(weather);
+  if (!display) return null;
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '4px 9px',
+        background: 'rgba(0,0,0,0.7)',
+        borderRadius: 6,
+        backdropFilter: 'blur(8px)',
+      }}
+    >
+      {display.icon && <span style={{ fontSize: 12, lineHeight: 1 }}>{display.icon}</span>}
+      {display.temperature && (
+        <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>{display.temperature}</span>
+      )}
+      {display.condition && (
+        <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: 500 }}>
+          {display.condition}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ExifMetaLine({ takenAt, weather }) {
+  const longLabel = formatExifLong(takenAt);
+  const relative = formatExifTime(takenAt);
+  const display = pickWeatherDisplay(weather);
+  if (!longLabel && !display) return null;
+  return (
+    <div
+      style={{
+        marginTop: 12,
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 8,
+        fontSize: 12,
+        color: LJ.textSecondary,
+      }}
+    >
+      {longLabel && (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <IconShieldCheck size={13} stroke={2} color={LJ.key} />
+          <span style={{ color: LJ.textPrimary, fontWeight: 600 }}>촬영</span>
+          <span>{longLabel}</span>
+          {relative && (
+            <span style={{ color: LJ.textTertiary }}>({relative})</span>
+          )}
+        </span>
+      )}
+      {longLabel && display && (
+        <span style={{ color: LJ.textTertiary }}>·</span>
+      )}
+      {display && (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          {display.icon && <span style={{ fontSize: 14, lineHeight: 1 }}>{display.icon}</span>}
+          {display.temperature && (
+            <span style={{ color: LJ.textPrimary, fontWeight: 700 }}>{display.temperature}</span>
+          )}
+          {display.condition && <span>{display.condition}</span>}
+        </span>
       )}
     </div>
   );

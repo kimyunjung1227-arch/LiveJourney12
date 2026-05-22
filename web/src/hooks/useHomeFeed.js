@@ -20,6 +20,7 @@ const SELECT_COLUMNS = `
   captured_at,
   created_at,
   exif_data,
+  weather,
   author_username,
   author_avatar_url,
   is_in_app_camera

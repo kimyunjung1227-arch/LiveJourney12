@@ -45,6 +45,58 @@ export function formatExifTime(iso) {
   return `${Math.floor(hour / 24)}일 전`;
 }
 
+const pad2 = (n) => String(n).padStart(2, '0');
+
+/** EXIF 촬영 시각의 절대 표기. 같은 해는 "M.D HH:mm", 다른 해는 "YYYY.M.D HH:mm" */
+export function formatExifAbsolute(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  const mmdd = `${d.getMonth() + 1}.${d.getDate()}`;
+  const hhmm = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  if (d.getFullYear() !== now.getFullYear()) {
+    return `${d.getFullYear()}.${mmdd} ${hhmm}`;
+  }
+  return `${mmdd} ${hhmm}`;
+}
+
+/** "5월 22일 (목) 오후 2:32" 형식 — 상세 화면 등 더 또렷한 표기용 */
+export function formatExifLong(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  const h24 = d.getHours();
+  const ampm = h24 < 12 ? '오전' : '오후';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]}) ${ampm} ${h12}:${pad2(d.getMinutes())}`;
+}
+
+/**
+ * weather/weatherSnapshot 객체에서 표시용 값을 안전하게 뽑는다.
+ * - temperature 는 "23℃" 같은 문자열일 수도, 23 같은 숫자일 수도 있음
+ * - 둘 다 없으면 null
+ */
+export function pickWeatherDisplay(w) {
+  if (!w || typeof w !== 'object') return null;
+  const rawTemp = w.temperature ?? w.temp ?? null;
+  let tempLabel = null;
+  if (rawTemp != null && rawTemp !== '') {
+    const asString = String(rawTemp).trim();
+    if (asString && asString !== '-') {
+      tempLabel = /[℃°]/.test(asString) ? asString : `${asString}℃`;
+    }
+  }
+  const icon = typeof w.icon === 'string' && w.icon.trim() ? w.icon.trim() : null;
+  const condition =
+    typeof w.condition === 'string' && w.condition.trim() && w.condition.trim() !== '-'
+      ? w.condition.trim()
+      : null;
+  if (!tempLabel && !icon && !condition) return null;
+  return { icon, condition, temperature: tempLabel };
+}
+
 /** expires_at → "N시간 남음" */
 export function formatRemaining(iso) {
   if (!iso) return '';

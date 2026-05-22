@@ -9,7 +9,14 @@ import {
   IconBookmarks,
   IconBookmarksFilled,
 } from '@tabler/icons-react';
-import { LJ, categoryLabel, formatExifTime, formatRemaining } from './tokens';
+import {
+  LJ,
+  categoryLabel,
+  formatExifTime,
+  formatExifAbsolute,
+  formatRemaining,
+  pickWeatherDisplay,
+} from './tokens';
 import MoreMenuDropdown from './MoreMenuDropdown';
 import PhotoCarousel from './PhotoCarousel';
 import ReportModal from './ReportModal';
@@ -107,26 +114,21 @@ export function PostCard({
           priority={priority}
           onPhotoClick={(i) => goPhoto(i)}
         />
-        {/* 좌상단 EXIF 뱃지 */}
+        {/* 좌상단 EXIF + 날씨 뱃지 (스택) */}
         <div
           style={{
             position: 'absolute',
             top: 10,
             left: 10,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            padding: '5px 10px',
-            background: 'rgba(0,0,0,0.7)',
-            borderRadius: 6,
-            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            gap: 6,
             pointerEvents: 'none',
           }}
         >
-          <IconShieldCheck size={13} stroke={2} color={LJ.key} />
-          <span style={{ color: '#fff', fontSize: 11, fontWeight: 600 }}>
-            {formatExifTime(post.exif_taken_at)}
-          </span>
+          <ExifBadge takenAt={post.exif_taken_at} />
+          <WeatherChip weather={post.weather || post.weatherSnapshot} />
         </div>
         {/* 우상단 카테고리 뱃지 */}
         {(post.category_raw || post.category) && (
@@ -414,6 +416,77 @@ function ReactionButton({ active, iconOff, iconOn, count, onClick, ariaLabel }) 
       {active ? iconOn : iconOff}
       <span style={{ minWidth: 12 }}>{count}</span>
     </button>
+  );
+}
+
+function ExifBadge({ takenAt }) {
+  const absolute = formatExifAbsolute(takenAt);
+  const relative = formatExifTime(takenAt);
+  if (!absolute && !relative) return null;
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        padding: '5px 10px',
+        background: 'rgba(0,0,0,0.7)',
+        borderRadius: 6,
+        backdropFilter: 'blur(8px)',
+      }}
+    >
+      <IconShieldCheck size={13} stroke={2} color={LJ.key} />
+      {absolute && (
+        <span
+          style={{
+            color: '#fff',
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: 0.1,
+          }}
+        >
+          {absolute}
+        </span>
+      )}
+      {absolute && relative && (
+        <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11 }}>·</span>
+      )}
+      {relative && (
+        <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: 500 }}>
+          {relative}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function WeatherChip({ weather }) {
+  const display = pickWeatherDisplay(weather);
+  if (!display) return null;
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '4px 9px',
+        background: 'rgba(0,0,0,0.7)',
+        borderRadius: 6,
+        backdropFilter: 'blur(8px)',
+      }}
+    >
+      {display.icon && <span style={{ fontSize: 12, lineHeight: 1 }}>{display.icon}</span>}
+      {display.temperature && (
+        <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>
+          {display.temperature}
+        </span>
+      )}
+      {display.condition && (
+        <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: 500 }}>
+          {display.condition}
+        </span>
+      )}
+    </div>
   );
 }
 

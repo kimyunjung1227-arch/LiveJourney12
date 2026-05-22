@@ -126,6 +126,8 @@ export function normalizePostRow(row) {
   const ljCategory = mapCategoryToLj(row.category_name || row.category);
   const placeName = row.place_name || row.location || row.region || '';
 
+  const weather = row.weather && typeof row.weather === 'object' ? row.weather : null;
+
   return {
     id: row.id,
     author_id: row.user_id,
@@ -145,6 +147,8 @@ export function normalizePostRow(row) {
     comment_count: row.comments_count ?? 0,
     save_count: 0,
     created_at: row.created_at,
+    weather,
+    weatherSnapshot: weather,
     author: {
       id: row.user_id,
       nickname: row.author_username || '익명',
