@@ -14,6 +14,8 @@ const SS_KEY = 'lj:uploadStore';
 const MAX_MEDIAS = 5;
 
 let state = readFromSession();
+let cachedProjection;        // 직전에 만든 projection 결과
+let cachedProjectionFrom;    // 그때의 state 레퍼런스 (변경 감지)
 const listeners = new Set();
 
 function readFromSession() {
@@ -57,6 +59,8 @@ function emit() {
  * 화면에서 쓰기 편하도록 첫 번째 media 의 필드를 평탄화해서 함께 노출.
  * - medias 배열은 항상 포함 (다중 사진 UI 가 사용)
  * - 첫 번째 media 의 file/url/lat/lng/... 등이 최상위에 평탄화됨 (단일 media 가정 코드 호환)
+ *
+ * ⚠️ useSyncExternalStore 가 동일성 검사로 변경 감지를 하므로, state 가 같으면 같은 객체를 반환해야 한다.
  */
 function projectSnapshot(s) {
   if (!s || !Array.isArray(s.medias) || s.medias.length === 0) return null;
@@ -68,7 +72,11 @@ function projectSnapshot(s) {
 }
 
 export function getUploadSnapshot() {
-  return projectSnapshot(state);
+  if (cachedProjectionFrom !== state) {
+    cachedProjection = projectSnapshot(state);
+    cachedProjectionFrom = state;
+  }
+  return cachedProjection;
 }
 
 export function subscribeUploadStore(listener) {
