@@ -152,8 +152,11 @@ export function PostCard({
         )}
       </div>
 
-      {/* EXIF 촬영시각 명시 줄 — 사진 직하단에서 한 번 더 또렷이 */}
-      <CardExifLine takenAt={post.exif_taken_at} />
+      {/* EXIF 촬영시각 + 기온 명시 줄 — 사진 직하단에서 한 번 더 또렷이 */}
+      <CardExifLine
+        takenAt={post.exif_taken_at}
+        weather={post.weather || post.weatherSnapshot}
+      />
 
       {/* 작성자 행: 아바타 | 이름(N) · 남은시간 | 지금 현장 — 카드 상단으로 이동 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '10px 0 8px' }}>
@@ -483,40 +486,72 @@ function ExifBadge({ takenAt }) {
   );
 }
 
-function CardExifLine({ takenAt }) {
+function CardExifLine({ takenAt, weather }) {
   const stamp = formatExifStamp(takenAt);
   const relative = formatExifTime(takenAt);
-  if (!stamp && !relative) return null;
+  const display = pickWeatherDisplay(weather);
+  if (!stamp && !relative && !display) return null;
   return (
     <div
       style={{
-        display: 'inline-flex',
+        display: 'flex',
+        flexWrap: 'wrap',
         alignItems: 'center',
-        gap: 6,
+        gap: 8,
         marginTop: 10,
-        padding: '5px 9px',
+        padding: '7px 10px',
         background: LJ.keyBgLight,
-        borderRadius: 6,
+        borderRadius: 8,
         fontSize: 12,
         color: LJ.keyTextDark,
         fontFamily: LJ.fontStack,
       }}
     >
-      <IconShieldCheck size={13} stroke={2} color={LJ.keyTextDark} />
-      <span style={{ fontWeight: 700, letterSpacing: 0.2 }}>촬영</span>
-      {stamp && (
-        <span
-          style={{
-            fontWeight: 700,
-            fontVariantNumeric: 'tabular-nums',
-            color: LJ.textPrimary,
-          }}
-        >
-          {stamp}
+      {(stamp || relative) && (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <IconShieldCheck size={13} stroke={2} color={LJ.keyTextDark} />
+          <span style={{ fontWeight: 700, letterSpacing: 0.2 }}>촬영</span>
+          {stamp && (
+            <span
+              style={{
+                fontWeight: 700,
+                fontVariantNumeric: 'tabular-nums',
+                color: LJ.textPrimary,
+              }}
+            >
+              {stamp}
+            </span>
+          )}
+          {relative && (
+            <span style={{ color: LJ.textSecondary, fontWeight: 500 }}>· {relative}</span>
+          )}
         </span>
       )}
-      {relative && (
-        <span style={{ color: LJ.textSecondary, fontWeight: 500 }}>· {relative}</span>
+      {(stamp || relative) && display && (
+        <span style={{ color: LJ.textTertiary }}>·</span>
+      )}
+      {display && (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          {display.icon && (
+            <span style={{ fontSize: 14, lineHeight: 1 }}>{display.icon}</span>
+          )}
+          {display.temperature && (
+            <span
+              style={{
+                color: LJ.textPrimary,
+                fontWeight: 700,
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {display.temperature}
+            </span>
+          )}
+          {display.condition && (
+            <span style={{ color: LJ.textSecondary, fontWeight: 500 }}>
+              {display.condition}
+            </span>
+          )}
+        </span>
       )}
     </div>
   );
