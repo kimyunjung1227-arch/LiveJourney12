@@ -13,7 +13,7 @@ import {
   LJ,
   categoryLabel,
   formatExifTime,
-  formatExifAbsolute,
+  formatExifStamp,
   formatRemaining,
   pickWeatherDisplay,
 } from './tokens';
@@ -152,8 +152,11 @@ export function PostCard({
         )}
       </div>
 
+      {/* EXIF 촬영시각 명시 줄 — 사진 직하단에서 한 번 더 또렷이 */}
+      <CardExifLine takenAt={post.exif_taken_at} />
+
       {/* 작성자 행: 아바타 | 이름(N) · 남은시간 | 지금 현장 — 카드 상단으로 이동 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '10px 0 8px' }}>
         <Avatar nickname={author.nickname} avatarUrl={author.avatar_url} size={28} onClick={goAuthor} />
         <div
           style={{
@@ -420,41 +423,100 @@ function ReactionButton({ active, iconOff, iconOn, count, onClick, ariaLabel }) 
 }
 
 function ExifBadge({ takenAt }) {
-  const absolute = formatExifAbsolute(takenAt);
+  const stamp = formatExifStamp(takenAt);
   const relative = formatExifTime(takenAt);
-  if (!absolute && !relative) return null;
+  if (!stamp && !relative) return null;
   return (
     <div
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 5,
-        padding: '5px 10px',
-        background: 'rgba(0,0,0,0.7)',
-        borderRadius: 6,
+        gap: 8,
+        padding: '7px 11px',
+        background: 'rgba(0,0,0,0.78)',
+        borderRadius: 8,
         backdropFilter: 'blur(8px)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
       }}
     >
-      <IconShieldCheck size={13} stroke={2} color={LJ.key} />
-      {absolute && (
+      <IconShieldCheck size={15} stroke={2} color={LJ.key} />
+      <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
         <span
           style={{
-            color: '#fff',
-            fontSize: 11,
+            color: 'rgba(255,255,255,0.65)',
+            fontSize: 9,
             fontWeight: 700,
-            letterSpacing: 0.1,
+            letterSpacing: 0.8,
+            textTransform: 'uppercase',
           }}
         >
-          {absolute}
+          EXIF 촬영
         </span>
-      )}
-      {absolute && relative && (
-        <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11 }}>·</span>
+        {stamp && (
+          <span
+            style={{
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 700,
+              letterSpacing: 0.2,
+              fontVariantNumeric: 'tabular-nums',
+              marginTop: 1,
+            }}
+          >
+            {stamp}
+          </span>
+        )}
+        {relative && (
+          <span
+            style={{
+              color: LJ.key,
+              fontSize: 10,
+              fontWeight: 600,
+              marginTop: 1,
+            }}
+          >
+            {relative}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CardExifLine({ takenAt }) {
+  const stamp = formatExifStamp(takenAt);
+  const relative = formatExifTime(takenAt);
+  if (!stamp && !relative) return null;
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 10,
+        padding: '5px 9px',
+        background: LJ.keyBgLight,
+        borderRadius: 6,
+        fontSize: 12,
+        color: LJ.keyTextDark,
+        fontFamily: LJ.fontStack,
+      }}
+    >
+      <IconShieldCheck size={13} stroke={2} color={LJ.keyTextDark} />
+      <span style={{ fontWeight: 700, letterSpacing: 0.2 }}>촬영</span>
+      {stamp && (
+        <span
+          style={{
+            fontWeight: 700,
+            fontVariantNumeric: 'tabular-nums',
+            color: LJ.textPrimary,
+          }}
+        >
+          {stamp}
+        </span>
       )}
       {relative && (
-        <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: 500 }}>
-          {relative}
-        </span>
+        <span style={{ color: LJ.textSecondary, fontWeight: 500 }}>· {relative}</span>
       )}
     </div>
   );

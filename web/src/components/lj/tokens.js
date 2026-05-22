@@ -61,6 +61,14 @@ export function formatExifAbsolute(iso) {
   return `${mmdd} ${hhmm}`;
 }
 
+/** EXIF 촬영 시각의 풀 타임스탬프 — 항상 "YYYY.MM.DD HH:mm" (카메라가 새긴 시간임을 명확히) */
+export function formatExifStamp(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
 /** "5월 22일 (목) 오후 2:32" 형식 — 상세 화면 등 더 또렷한 표기용 */
 export function formatExifLong(iso) {
   if (!iso) return '';

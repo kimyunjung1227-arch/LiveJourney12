@@ -14,7 +14,7 @@ import {
   LJ,
   categoryLabel,
   formatExifTime,
-  formatExifAbsolute,
+  formatExifStamp,
   formatExifLong,
   formatRemaining,
   pickWeatherDisplay,
@@ -433,35 +433,55 @@ function PostDetailScreen() {
 }
 
 function DetailExifBadge({ takenAt }) {
-  const absolute = formatExifAbsolute(takenAt);
+  const stamp = formatExifStamp(takenAt);
   const relative = formatExifTime(takenAt);
-  if (!absolute && !relative) return null;
+  if (!stamp && !relative) return null;
   return (
     <div
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 5,
-        padding: '5px 10px',
-        background: 'rgba(0,0,0,0.7)',
-        borderRadius: 6,
+        gap: 8,
+        padding: '7px 11px',
+        background: 'rgba(0,0,0,0.78)',
+        borderRadius: 8,
         backdropFilter: 'blur(8px)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
       }}
     >
-      <IconShieldCheck size={13} stroke={2} color={LJ.key} />
-      {absolute && (
-        <span style={{ color: '#fff', fontSize: 11, fontWeight: 700, letterSpacing: 0.1 }}>
-          {absolute}
+      <IconShieldCheck size={15} stroke={2} color={LJ.key} />
+      <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
+        <span
+          style={{
+            color: 'rgba(255,255,255,0.65)',
+            fontSize: 9,
+            fontWeight: 700,
+            letterSpacing: 0.8,
+            textTransform: 'uppercase',
+          }}
+        >
+          EXIF 촬영
         </span>
-      )}
-      {absolute && relative && (
-        <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11 }}>·</span>
-      )}
-      {relative && (
-        <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: 500 }}>
-          {relative}
-        </span>
-      )}
+        {stamp && (
+          <span
+            style={{
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 700,
+              letterSpacing: 0.2,
+              fontVariantNumeric: 'tabular-nums',
+              marginTop: 1,
+            }}
+          >
+            {stamp}
+          </span>
+        )}
+        {relative && (
+          <span style={{ color: LJ.key, fontSize: 10, fontWeight: 600, marginTop: 1 }}>
+            {relative}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -495,43 +515,78 @@ function DetailWeatherChip({ weather }) {
 }
 
 function ExifMetaLine({ takenAt, weather }) {
+  const stamp = formatExifStamp(takenAt);
   const longLabel = formatExifLong(takenAt);
   const relative = formatExifTime(takenAt);
   const display = pickWeatherDisplay(weather);
-  if (!longLabel && !display) return null;
+  if (!stamp && !display) return null;
   return (
     <div
       style={{
         marginTop: 12,
+        padding: '12px 14px',
+        background: LJ.keyBgLight,
+        border: `1px solid ${LJ.borderLight}`,
+        borderRadius: 10,
         display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        gap: 8,
-        fontSize: 12,
-        color: LJ.textSecondary,
+        flexDirection: 'column',
+        gap: 6,
+        fontFamily: LJ.fontStack,
       }}
     >
-      {longLabel && (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          <IconShieldCheck size={13} stroke={2} color={LJ.key} />
-          <span style={{ color: LJ.textPrimary, fontWeight: 600 }}>촬영</span>
-          <span>{longLabel}</span>
+      {stamp && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <IconShieldCheck size={15} stroke={2} color={LJ.keyTextDark} />
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              color: LJ.keyTextDark,
+              letterSpacing: 0.6,
+              textTransform: 'uppercase',
+            }}
+          >
+            EXIF 촬영시각
+          </span>
+          <span
+            style={{
+              fontSize: 15,
+              fontWeight: 700,
+              color: LJ.textPrimary,
+              letterSpacing: 0.2,
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {stamp}
+          </span>
           {relative && (
-            <span style={{ color: LJ.textTertiary }}>({relative})</span>
+            <span style={{ fontSize: 12, color: LJ.keyTextDark, fontWeight: 600 }}>
+              {relative}
+            </span>
           )}
-        </span>
+        </div>
       )}
-      {longLabel && display && (
-        <span style={{ color: LJ.textTertiary }}>·</span>
+      {longLabel && (
+        <div style={{ fontSize: 12, color: LJ.textSecondary }}>{longLabel}</div>
       )}
       {display && (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            paddingTop: 6,
+            borderTop: `1px dashed ${LJ.borderLight}`,
+            fontSize: 12,
+            color: LJ.textSecondary,
+          }}
+        >
           {display.icon && <span style={{ fontSize: 14, lineHeight: 1 }}>{display.icon}</span>}
           {display.temperature && (
             <span style={{ color: LJ.textPrimary, fontWeight: 700 }}>{display.temperature}</span>
           )}
           {display.condition && <span>{display.condition}</span>}
-        </span>
+        </div>
       )}
     </div>
   );
