@@ -242,21 +242,16 @@ function PostDetailScreen() {
               })
             }
           />
-          {/* 좌상단 EXIF + 날씨 뱃지 */}
+          {/* 좌상단 EXIF 뱃지 (날씨는 위치명 옆에서만 노출) */}
           <div
             style={{
               position: 'absolute',
               top: 10,
               left: 10,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'flex-start',
-              gap: 6,
               pointerEvents: 'none',
             }}
           >
             <DetailExifBadge takenAt={post.exif_taken_at} />
-            <DetailWeatherChip weather={post.weather || post.weatherSnapshot} />
           </div>
         </div>
 
@@ -497,34 +492,6 @@ function DetailExifBadge({ takenAt }) {
   );
 }
 
-function DetailWeatherChip({ weather }) {
-  const display = pickWeatherDisplay(weather);
-  if (!display) return null;
-  return (
-    <div
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 4,
-        padding: '4px 9px',
-        background: 'rgba(0,0,0,0.7)',
-        borderRadius: 6,
-        backdropFilter: 'blur(8px)',
-      }}
-    >
-      {display.icon && <span style={{ fontSize: 12, lineHeight: 1 }}>{display.icon}</span>}
-      {display.temperature && (
-        <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>{display.temperature}</span>
-      )}
-      {display.condition && (
-        <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: 500 }}>
-          {display.condition}
-        </span>
-      )}
-    </div>
-  );
-}
-
 function DetailWeatherInlineChip({ weather }) {
   const display = pickWeatherDisplay(weather);
   if (!display) return null;
@@ -534,17 +501,15 @@ function DetailWeatherInlineChip({ weather }) {
         display: 'inline-flex',
         alignItems: 'center',
         gap: 5,
-        padding: '5px 10px',
-        background: LJ.keyBgLight,
-        borderRadius: 999,
+        padding: 0,
         fontFamily: LJ.fontStack,
         fontSize: 13,
-        color: LJ.keyTextDark,
+        color: LJ.textSecondary,
         flexShrink: 0,
         whiteSpace: 'nowrap',
       }}
     >
-      {display.icon && <span style={{ fontSize: 14, lineHeight: 1 }}>{display.icon}</span>}
+      {display.icon && <span style={{ fontSize: 15, lineHeight: 1 }}>{display.icon}</span>}
       {display.temperature && (
         <span
           style={{
@@ -557,7 +522,7 @@ function DetailWeatherInlineChip({ weather }) {
         </span>
       )}
       {display.condition && (
-        <span style={{ color: LJ.keyTextDark, fontWeight: 600 }}>{display.condition}</span>
+        <span style={{ color: LJ.textSecondary, fontWeight: 500 }}>{display.condition}</span>
       )}
     </span>
   );

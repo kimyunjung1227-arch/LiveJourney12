@@ -77,20 +77,24 @@ function fetchCoord2Address(lat, lng) {
 
 /**
  * coord2Address 한 줄 결과(row) → 사람이 읽는 정확한 현재 위치 라벨.
- * - 도로명 주소(있으면 건물명을 괄호로) → 지번 주소 → ''.
+ * 우선순위:
+ *  1) 좌표가 가리키는 건물명 (예: "여의도 IFC몰")
+ *  2) 도로명 주소 (예: "여의대로 24")
+ *  3) 지번 주소 (예: "여의도동 23")
+ *  4) ''
+ *
+ * 근처 POI는 절대 호출하지 않는다 — 좌표 자체의 정보만 사용.
  */
 function pickPreciseAddressFromCoordRow(row) {
   if (!row || typeof row !== 'object') return '';
   const road = row.road_address;
   const lot = row.address;
 
-  const roadAddr = road?.address_name ? String(road.address_name).trim() : '';
   const building = road?.building_name ? String(road.building_name).trim() : '';
-  if (roadAddr) {
-    return building && !roadAddr.includes(building)
-      ? `${roadAddr} (${building})`
-      : roadAddr;
-  }
+  if (building) return building;
+
+  const roadAddr = road?.address_name ? String(road.address_name).trim() : '';
+  if (roadAddr) return roadAddr;
 
   const lotAddr = lot?.address_name ? String(lot.address_name).trim() : '';
   if (lotAddr) return lotAddr;

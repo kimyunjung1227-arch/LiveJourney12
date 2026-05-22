@@ -147,7 +147,11 @@ export function useUpload() {
             user.user_metadata?.name ||
             user.email?.split('@')[0] ||
             '익명',
-          author_avatar_url: user.user_metadata?.avatar_url || null,
+          author_avatar_url:
+            (typeof user?.profileImage === 'string' && user.profileImage !== 'default' && user.profileImage) ||
+            user.user_metadata?.picture ||
+            user.user_metadata?.avatar_url ||
+            null,
           // 신규 RPC(get_question_detail, get_city_detail 등)는 photo_url 컬럼을 읽으므로 함께 세팅
           photo_url: mode === 'photo' ? publicUrl : null,
           exif_taken_at: capturedIso,

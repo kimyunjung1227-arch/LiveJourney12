@@ -929,7 +929,12 @@ const UploadScreen = () => {
                 ? {
                     id: userIdForDb,
                     username,
-                    profileImage: currentUser.profileImage || currentUser.avatar_url || null,
+                    profileImage:
+                      currentUser.profileImage ||
+                      meta?.picture ||
+                      meta?.avatar_url ||
+                      currentUser.avatar_url ||
+                      null,
                   }
                 : { username },
             note: formData.note,
@@ -1008,11 +1013,13 @@ const UploadScreen = () => {
           logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           window.dispatchEvent(new Event('badgeProgressUpdated'));
           if (!earnedBadge) {
-            logger.debug('Navigate to main in 2 seconds...');
+            // 업로드 완료 화면으로 이동 (라이브저니 호혜 경험)
             setTimeout(() => {
               setShowSuccessModal(false);
-              navigate('/main');
-            }, 2000);
+              navigate(`/upload/complete/${encodeURIComponent(String(uploadedPost.id))}`, {
+                replace: true,
+              });
+            }, 700);
           } else {
             logger.log('Badge earned! Showing badge modal...');
           }

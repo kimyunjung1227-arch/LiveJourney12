@@ -114,21 +114,16 @@ export function PostCard({
           priority={priority}
           onPhotoClick={(i) => goPhoto(i)}
         />
-        {/* 좌상단 EXIF + 날씨 뱃지 (스택) */}
+        {/* 좌상단 EXIF 뱃지 (날씨는 위치명 옆에서만 노출) */}
         <div
           style={{
             position: 'absolute',
             top: 10,
             left: 10,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-start',
-            gap: 6,
             pointerEvents: 'none',
           }}
         >
           <ExifBadge takenAt={post.exif_taken_at} />
-          <WeatherChip weather={post.weather || post.weatherSnapshot} />
         </div>
         {/* 우상단 카테고리 뱃지 */}
         {(post.category_raw || post.category) && (
@@ -507,17 +502,15 @@ function WeatherInlineChip({ weather }) {
         display: 'inline-flex',
         alignItems: 'center',
         gap: 5,
-        padding: '4px 9px',
-        background: LJ.keyBgLight,
-        borderRadius: 999,
+        padding: 0,
         fontFamily: LJ.fontStack,
-        fontSize: 12,
-        color: LJ.keyTextDark,
+        fontSize: 13,
+        color: LJ.textSecondary,
         flexShrink: 0,
         whiteSpace: 'nowrap',
       }}
     >
-      {display.icon && <span style={{ fontSize: 13, lineHeight: 1 }}>{display.icon}</span>}
+      {display.icon && <span style={{ fontSize: 14, lineHeight: 1 }}>{display.icon}</span>}
       {display.temperature && (
         <span
           style={{
@@ -530,39 +523,9 @@ function WeatherInlineChip({ weather }) {
         </span>
       )}
       {display.condition && (
-        <span style={{ color: LJ.keyTextDark, fontWeight: 600 }}>{display.condition}</span>
+        <span style={{ color: LJ.textSecondary, fontWeight: 500 }}>{display.condition}</span>
       )}
     </span>
-  );
-}
-
-function WeatherChip({ weather }) {
-  const display = pickWeatherDisplay(weather);
-  if (!display) return null;
-  return (
-    <div
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 4,
-        padding: '4px 9px',
-        background: 'rgba(0,0,0,0.7)',
-        borderRadius: 6,
-        backdropFilter: 'blur(8px)',
-      }}
-    >
-      {display.icon && <span style={{ fontSize: 12, lineHeight: 1 }}>{display.icon}</span>}
-      {display.temperature && (
-        <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>
-          {display.temperature}
-        </span>
-      )}
-      {display.condition && (
-        <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: 500 }}>
-          {display.condition}
-        </span>
-      )}
-    </div>
   );
 }
 
