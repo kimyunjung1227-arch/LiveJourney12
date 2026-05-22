@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   IconArrowLeft,
@@ -12,13 +12,19 @@ import {
   IconMoon,
   IconBuildingStore,
   IconInfoCircle,
+  IconPlus,
+  IconX,
 } from '@tabler/icons-react';
 import { LJ } from '../components/lj/tokens';
 import {
   getUploadSnapshot,
   subscribeUploadStore,
   resetUploadStore,
+  appendUploadMedias,
+  removeUploadMediaAt,
+  UPLOAD_MAX_MEDIAS,
 } from '../stores/uploadStore';
+import { validateGalleryFile } from '../lib/exif/validateGalleryFile';
 import { formatTimeAgo, formatTimeOfDay } from '../lib/exif/formatTimeAgo';
 import { useUpload } from '../hooks/useUpload';
 import { useGeolocation } from '../hooks/useGeolocation';
@@ -175,7 +181,9 @@ function UploadInfoScreen() {
     return tod ? `${rel} · ${tod}` : rel;
   }, [takenAtDate]);
 
-  const canUpload = !!category && !!media?.file && !isUploading;
+  const mediasArr = Array.isArray(media?.medias) ? media.medias : [];
+  const filesArr = mediasArr.map((m) => m?.file).filter(Boolean);
+  const canUpload = !!category && filesArr.length > 0 && !isUploading;
 
   const handleUpload = async () => {
     if (!canUpload) return;
@@ -187,7 +195,7 @@ function UploadInfoScreen() {
         ? answerQuestion?.place_name || editedLoc?.placeName || resolvedPlace || media.placeName || null
         : editedLoc?.placeName || resolvedPlace || media.placeName || null;
       const postId = await upload({
-        file: media.file,
+        files: filesArr,
         category,
         body,
         takenAt: media.takenAt,
@@ -224,6 +232,51 @@ function UploadInfoScreen() {
       logger.error('업로드 실패:', err);
       alert(msg);
     }
+  };
+
+  // 사진 추가 (갤러리 다중 선택). 인앱 카메라 묶음에는 갤러리 추가 금지 (현장성 보존)
+  const addInputRef = useRef(null);
+  const remainingSlots = Math.max(0, UPLOAD_MAX_MEDIAS - mediasArr.length);
+  const canAddMore = remainingSlots > 0 && media?.source !== 'camera' && media?.mode !== 'video';
+
+  const handleAddFiles = async (e) => {
+    const picked = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (picked.length === 0) return;
+
+    const sliced = picked.slice(0, remainingSlots);
+    const validations = await Promise.all(sliced.map((f) => validateGalleryFile(f)));
+    const firstFail = validations.findIndex((v) => !v.valid);
+    if (firstFail !== -1) {
+      const v = validations[firstFail];
+      alert(
+        v.reason === 'too_old'
+          ? '추가한 사진 중 1시간이 지난 것이 있어요.'
+          : 'EXIF 가 없는 사진은 추가할 수 없어요.',
+      );
+      return;
+    }
+
+    const newMedias = sliced.map((f, i) => {
+      const v = validations[i];
+      const url = URL.createObjectURL(f);
+      return {
+        file: f,
+        url,
+        source: 'gallery',
+        mode: f.type?.startsWith('video') ? 'video' : 'photo',
+        mimeType: f.type,
+        size: f.size,
+        takenAt: (v.takenAt || new Date()).toISOString(),
+        lat: v.location?.lat ?? null,
+        lng: v.location?.lng ?? null,
+        accuracy: null,
+        placeName: null,
+        facingMode: null,
+        exif: v.exif || null,
+      };
+    });
+    appendUploadMedias(newMedias);
   };
 
   // 카카오 Places 키워드 검색 (debounced)
@@ -400,9 +453,10 @@ function UploadInfoScreen() {
         </div>
       )}
 
-      {/* 사진/영상 미리보기 */}
-      {media?.url && (
+      {/* 사진/영상 미리보기 — 첫 컷은 크게, 나머지는 가로 스트립 + 추가/삭제 */}
+      {mediasArr.length > 0 && (
         <div style={{ padding: '14px 18px 0' }}>
+          {/* 대표 컷 (첫 번째) */}
           <div
             style={{
               position: 'relative',
@@ -450,7 +504,25 @@ function UploadInfoScreen() {
                 <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 10.5 }}>· {takenLabel}</span>
               )}
             </div>
-            {/* GPS — resolvedPlace(카카오 reverse geocode) 우선, 없으면 좌표 */}
+            {mediasArr.length > 1 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 10,
+                  right: 10,
+                  padding: '4px 9px',
+                  background: 'rgba(0,0,0,0.7)',
+                  color: '#fff',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  borderRadius: 6,
+                  backdropFilter: 'blur(8px)',
+                }}
+              >
+                1 / {mediasArr.length}
+              </div>
+            )}
+            {/* GPS */}
             {(resolvedPlace || media.placeName || (media.lat && media.lng)) && (
               <div
                 style={{
@@ -486,6 +558,120 @@ function UploadInfoScreen() {
               </div>
             )}
           </div>
+
+          {/* 썸네일 스트립 + 추가 버튼 */}
+          {(mediasArr.length > 1 || canAddMore) && (
+            <div
+              style={{
+                marginTop: 10,
+                display: 'flex',
+                gap: 8,
+                overflowX: 'auto',
+                paddingBottom: 2,
+                touchAction: 'pan-x',
+              }}
+              className="hide-scrollbar"
+            >
+              {mediasArr.map((m, i) => (
+                <div
+                  key={i}
+                  style={{
+                    position: 'relative',
+                    width: 64,
+                    height: 64,
+                    flex: '0 0 auto',
+                    borderRadius: 8,
+                    overflow: 'hidden',
+                    background: LJ.bgSurface,
+                    border: i === 0 ? `1.5px solid ${LJ.key}` : `1px solid ${LJ.borderLight}`,
+                  }}
+                >
+                  {m?.mode === 'video' ? (
+                    <video
+                      src={m.url}
+                      muted
+                      playsInline
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <img
+                      src={m?.url}
+                      alt=""
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                    />
+                  )}
+                  {mediasArr.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeUploadMediaAt(i)}
+                      aria-label="사진 삭제"
+                      style={{
+                        position: 'absolute',
+                        top: 2,
+                        right: 2,
+                        width: 18,
+                        height: 18,
+                        borderRadius: 999,
+                        background: 'rgba(0,0,0,0.7)',
+                        color: '#fff',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <IconX size={11} stroke={2.5} />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {canAddMore && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => addInputRef.current?.click()}
+                    aria-label="사진 추가"
+                    style={{
+                      width: 64,
+                      height: 64,
+                      flex: '0 0 auto',
+                      borderRadius: 8,
+                      background: '#fff',
+                      border: `1.5px dashed ${LJ.key}`,
+                      cursor: 'pointer',
+                      color: LJ.key,
+                      display: 'inline-flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 2,
+                      padding: 0,
+                    }}
+                  >
+                    <IconPlus size={18} stroke={2} />
+                    <span style={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>
+                      {remainingSlots}장
+                    </span>
+                  </button>
+                  <input
+                    ref={addInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    style={{ display: 'none' }}
+                    onChange={handleAddFiles}
+                  />
+                </>
+              )}
+            </div>
+          )}
+          {media?.source === 'camera' && mediasArr.length === 1 && (
+            <p style={{ margin: '8px 0 0', fontSize: 10.5, color: LJ.textTertiary, lineHeight: 1.5 }}>
+              인앱 카메라로 찍은 사진에는 갤러리 사진을 섞을 수 없어요 (지금 현장 인증 보존)
+            </p>
+          )}
         </div>
       )}
 

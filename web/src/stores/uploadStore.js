@@ -2,13 +2,16 @@
  * 업로드 흐름 3화면(CameraScreen → UploadInfoScreen → UploadCompleteScreen)
  * 간 미디어 데이터 핸드오프.
  *
- * - 메모리 + sessionStorage 백업: 새로고침해도 미디어 메타데이터는 유지되며,
- *   blob URL은 페이지 리로드 시 무효라 메모리만 신뢰한다.
- * - 구독 API(subscribe/getSnapshot)를 제공해 useSyncExternalStore로 React에
- *   바인딩할 수 있게 함.
+ * - 내부 상태는 항상 { medias: MediaItem[], ...rest } 형태. (다중 사진 묶음 업로드)
+ * - 화면 일부는 아직 "단일 media" 호환 API 를 쓰고 있어서 getUploadSnapshot() 은
+ *   첫 번째 media 의 평탄화된 필드(file/url/lat/...) + medias 배열을 함께 반환한다.
+ *   → 기존 코드가 깨지지 않고 점진 마이그레이션 가능.
+ * - 메모리 + sessionStorage 백업: 새로고침해도 메타데이터는 유지되며, blob URL/File 은
+ *   직렬화 불가라 메모리 신뢰. (새로고침 후엔 medias 가 비어 있어 카메라로 유도됨)
  */
 
 const SS_KEY = 'lj:uploadStore';
+const MAX_MEDIAS = 5;
 
 let state = readFromSession();
 const listeners = new Set();
@@ -19,7 +22,6 @@ function readFromSession() {
     const raw = sessionStorage.getItem(SS_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    // blob URL은 세션 새로고침 후 유효성을 보장 못함 — 메타데이터만 보존
     return parsed && typeof parsed === 'object' ? parsed : null;
   } catch (_) {
     return null;
@@ -29,15 +31,18 @@ function readFromSession() {
 function writeToSession(next) {
   if (typeof sessionStorage === 'undefined') return;
   try {
-    if (next) sessionStorage.setItem(SS_KEY, JSON.stringify(stripBlob(next)));
+    if (next) sessionStorage.setItem(SS_KEY, JSON.stringify(stripBlobsFromState(next)));
     else sessionStorage.removeItem(SS_KEY);
   } catch (_) {}
 }
 
-function stripBlob(s) {
+function stripBlobsFromState(s) {
   if (!s) return s;
-  const { file, ...rest } = s;
-  return rest; // File/Blob은 직렬화 불가
+  const out = { ...s };
+  if (Array.isArray(out.medias)) {
+    out.medias = out.medias.map(({ file, ...rest }) => rest);
+  }
+  return out;
 }
 
 function emit() {
@@ -48,8 +53,22 @@ function emit() {
   }
 }
 
+/**
+ * 화면에서 쓰기 편하도록 첫 번째 media 의 필드를 평탄화해서 함께 노출.
+ * - medias 배열은 항상 포함 (다중 사진 UI 가 사용)
+ * - 첫 번째 media 의 file/url/lat/lng/... 등이 최상위에 평탄화됨 (단일 media 가정 코드 호환)
+ */
+function projectSnapshot(s) {
+  if (!s || !Array.isArray(s.medias) || s.medias.length === 0) return null;
+  const head = s.medias[0];
+  return {
+    ...head,
+    medias: s.medias,
+  };
+}
+
 export function getUploadSnapshot() {
-  return state;
+  return projectSnapshot(state);
 }
 
 export function subscribeUploadStore(listener) {
@@ -58,45 +77,80 @@ export function subscribeUploadStore(listener) {
 }
 
 /**
- * 미디어 설정. payload 예시:
- * {
- *   file: Blob | File,
- *   url: string,           // URL.createObjectURL(file)
- *   source: 'camera' | 'gallery',
- *   mode: 'photo' | 'video',
- *   mimeType: string,
- *   size: number,
- *   takenAt: string,       // ISO
- *   lat: number | null,
- *   lng: number | null,
- *   accuracy: number | null,
- *   placeName: string | null,
- *   facingMode: 'environment' | 'user' | null,
- * }
+ * 미디어 1건 설정 (= medias 배열을 길이 1로 교체). 기존 호출부 호환용.
+ * payload 가 falsy 면 reset 과 동일.
  */
 export function setUploadMedia(payload) {
-  state = payload || null;
+  if (!payload) {
+    resetUploadStore();
+    return;
+  }
+  state = { medias: [payload] };
   writeToSession(state);
   emit();
 }
 
 /**
- * 현재 media에 부분 업데이트 (좌표/장소만 갱신할 때 등). 다른 필드는 보존.
+ * 첫 번째 media 에 부분 업데이트 (좌표/장소 갱신 등 단일 가정 코드 호환).
  */
 export function patchUploadMedia(patch) {
   if (!state || !patch) return;
-  state = { ...state, ...patch };
+  if (!Array.isArray(state.medias) || state.medias.length === 0) return;
+  const next = [...state.medias];
+  next[0] = { ...next[0], ...patch };
+  state = { ...state, medias: next };
+  writeToSession(state);
+  emit();
+}
+
+/**
+ * 묶음에 새 미디어 추가. MAX_MEDIAS 초과분은 무시.
+ * payload 는 단일 객체 또는 객체 배열.
+ */
+export function appendUploadMedias(payload) {
+  if (!payload) return;
+  const arr = Array.isArray(payload) ? payload : [payload];
+  const prev = state && Array.isArray(state.medias) ? state.medias : [];
+  const merged = [...prev, ...arr].slice(0, MAX_MEDIAS);
+  state = { ...(state || {}), medias: merged };
+  writeToSession(state);
+  emit();
+}
+
+/**
+ * index 위치의 미디어 제거. blob URL 도 회수.
+ */
+export function removeUploadMediaAt(index) {
+  if (!state || !Array.isArray(state.medias)) return;
+  const target = state.medias[index];
+  if (target?.url) {
+    try {
+      URL.revokeObjectURL(target.url);
+    } catch (_) {}
+  }
+  const next = state.medias.filter((_, i) => i !== index);
+  if (next.length === 0) {
+    resetUploadStore();
+    return;
+  }
+  state = { ...state, medias: next };
   writeToSession(state);
   emit();
 }
 
 export function resetUploadStore() {
-  if (state?.url) {
-    try {
-      URL.revokeObjectURL(state.url);
-    } catch (_) {}
+  if (state && Array.isArray(state.medias)) {
+    for (const m of state.medias) {
+      if (m?.url) {
+        try {
+          URL.revokeObjectURL(m.url);
+        } catch (_) {}
+      }
+    }
   }
   state = null;
   writeToSession(null);
   emit();
 }
+
+export const UPLOAD_MAX_MEDIAS = MAX_MEDIAS;

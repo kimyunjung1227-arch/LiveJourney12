@@ -28,22 +28,33 @@ function extOf(file) {
 }
 
 /**
- * 업로드 훅.
- * @returns {{
- *   isUploading: boolean,
- *   error: Error | null,
- *   upload: (args: {
- *     file: Blob,
- *     category: string | null,        // lj_category id
- *     body: string,
- *     takenAt: string | Date | null,
- *     lat: number | null,
- *     lng: number | null,
- *     placeName: string | null,
- *     source: 'camera' | 'gallery',
- *     mode: 'photo' | 'video',
- *   }) => Promise<string>             // returns postId
- * }}
+ * 단일 파일을 Storage 에 업로드하고 public URL 반환.
+ */
+async function uploadOneFile(file, userId) {
+  const ext = extOf(file);
+  const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
+  const path = `${userId}/${filename}`;
+  const contentType = file.type || (file.type?.startsWith('video/') ? 'video/webm' : 'image/jpeg');
+
+  const { error: uploadError } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, file, { contentType, upsert: false });
+  if (uploadError) throw uploadError;
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from(BUCKET).getPublicUrl(path);
+  return publicUrl;
+}
+
+/**
+ * 업로드 훅 — 단일/다중 파일 묶음 업로드.
+ *
+ * 호출 형태 (둘 다 지원):
+ *   upload({ file, ... })           // 단일
+ *   upload({ files: File[], ... }) // 다중 (한 게시물에 캐러셀)
+ *
+ * 결과: 만들어진 단일 post id.
  */
 export function useUpload() {
   const { user } = useAuth();
@@ -53,6 +64,7 @@ export function useUpload() {
   const upload = useCallback(
     async ({
       file,
+      files,
       category,
       body,
       takenAt,
@@ -65,25 +77,17 @@ export function useUpload() {
       exif,
     }) => {
       if (!user) throw new Error('로그인이 필요해요');
-      if (!file) throw new Error('파일이 없어요');
+      const fileList = Array.isArray(files) && files.length > 0 ? files : file ? [file] : [];
+      if (fileList.length === 0) throw new Error('파일이 없어요');
 
       setIsUploading(true);
       setError(null);
       try {
-        // 1) Storage 업로드
-        const ext = extOf(file);
-        const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
-        const path = `${user.id}/${filename}`;
-        const contentType = file.type || (mode === 'video' ? 'video/webm' : 'image/jpeg');
-
-        const { error: uploadError } = await supabase.storage
-          .from(BUCKET)
-          .upload(path, file, { contentType, upsert: false });
-        if (uploadError) throw uploadError;
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from(BUCKET).getPublicUrl(path);
+        // 1) Storage 병렬 업로드 (한 게시물 묶음)
+        const urls = await Promise.all(fileList.map((f) => uploadOneFile(f, user.id)));
+        const isVideo = (mode || '') === 'video';
+        const imageUrls = isVideo ? [] : urls;
+        const videoUrls = isVideo ? urls : [];
 
         // 2) posts insert
         const capturedIso =
@@ -100,21 +104,20 @@ export function useUpload() {
           photoDate: capturedIso,
           lat: lat ?? null,
           lng: lng ?? null,
-          // 지도 화면 RPC가 읽는 정규화 경로
           map_pin: hasCoords ? { lat: Number(lat), lng: Number(lng) } : null,
           gps_accuracy_m: Number.isFinite(Number(accuracy)) ? Number(accuracy) : null,
-          source, // 'camera' | 'gallery'
-          mode,   // 'photo' | 'video'
+          source,
+          mode,
           uploaded_via: 'lj-camera-flow-v2',
-          // 추출한 EXIF 원본 메타 (gallery: 카메라 기종/시간/GPS 등, camera: 인앱)
           tags: exif && typeof exif === 'object' ? exif : null,
+          photo_count: fileList.length,
         };
 
         const row = {
           user_id: user.id,
           content: body || '',
-          images: mode === 'photo' ? [publicUrl] : [],
-          videos: mode === 'video' ? [publicUrl] : [],
+          images: imageUrls,
+          videos: videoUrls,
           location: placeName || null,
           place_name: placeName || null,
           category: category || null,
@@ -133,8 +136,8 @@ export function useUpload() {
             user.user_metadata?.picture ||
             user.user_metadata?.avatar_url ||
             null,
-          // 신규 RPC(get_question_detail, get_city_detail 등)는 photo_url 컬럼을 읽으므로 함께 세팅
-          photo_url: mode === 'photo' ? publicUrl : null,
+          // 신규 RPC 가 photo_url 컬럼을 읽으므로 첫 컷을 대표로 세팅
+          photo_url: imageUrls[0] || null,
           exif_taken_at: capturedIso,
         };
 
@@ -145,8 +148,7 @@ export function useUpload() {
           .single();
         if (insertError) throw insertError;
 
-        // 좌표가 있으면 기상청 초단기실황(좌표 기반)으로 weather 스냅샷을 best-effort 업데이트.
-        // weather 컬럼이 없거나 KMA가 응답 안 해도 게시물 자체는 이미 만들어진 상태라 흐름이 끊기지 않는다.
+        // weather 스냅샷은 best-effort
         if (hasCoords) {
           (async () => {
             try {

@@ -18,7 +18,11 @@ import { useCamera } from '../hooks/useCamera';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { EXIFRejectModal, EXIFConfirmModal } from '../components/lj/ExifModals';
 import { validateGalleryFile } from '../lib/exif/validateGalleryFile';
-import { setUploadMedia } from '../stores/uploadStore';
+import {
+  setUploadMedia,
+  appendUploadMedias,
+  UPLOAD_MAX_MEDIAS,
+} from '../stores/uploadStore';
 import { useQuestionBrief } from '../hooks/useQuestionBrief';
 import QuestionBannerCompact from '../components/answer/QuestionBannerCompact';
 
@@ -103,31 +107,79 @@ function CameraScreen() {
   };
 
   const handleGalleryFile = async (e) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files || []);
     e.target.value = ''; // 같은 파일 재선택 가능하도록
-    if (!file) return;
+    if (files.length === 0) return;
 
-    const result = await validateGalleryFile(file);
-    if (!result.valid) {
+    // 단일 파일 — 기존 확인 모달 흐름 유지
+    if (files.length === 1) {
+      const file = files[0];
+      const result = await validateGalleryFile(file);
+      if (!result.valid) {
+        setGalleryModal({
+          type: 'reject',
+          reason: result.reason,
+          minutesAgo: result.minutesAgo || 0,
+          file: null,
+          takenAt: null,
+          location: null,
+        });
+        return;
+      }
+      setGalleryModal({
+        type: 'confirm',
+        reason: null,
+        minutesAgo: result.minutesAgo,
+        file,
+        takenAt: result.takenAt,
+        location: result.location || null,
+        exif: result.exif || null,
+      });
+      return;
+    }
+
+    // 다중 선택 — 한 묶음 업로드
+    const sliced = files.slice(0, UPLOAD_MAX_MEDIAS);
+    const validations = await Promise.all(sliced.map((f) => validateGalleryFile(f)));
+    const firstFail = validations.findIndex((v) => !v.valid);
+    if (firstFail !== -1) {
+      const v = validations[firstFail];
       setGalleryModal({
         type: 'reject',
-        reason: result.reason,
-        minutesAgo: result.minutesAgo || 0,
+        reason: v.reason,
+        minutesAgo: v.minutesAgo || 0,
         file: null,
         takenAt: null,
         location: null,
       });
       return;
     }
-    setGalleryModal({
-      type: 'confirm',
-      reason: null,
-      minutesAgo: result.minutesAgo,
-      file,
-      takenAt: result.takenAt,
-      location: result.location || null,
-      exif: result.exif || null,
-    });
+
+    // 전체 통과 → 첫 컷은 setUploadMedia 로 묶음 초기화, 나머지는 append
+    const buildMedia = (file, v) => {
+      const url = URL.createObjectURL(file);
+      return {
+        file,
+        url,
+        source: 'gallery',
+        mode: file.type?.startsWith('video') ? 'video' : 'photo',
+        mimeType: file.type,
+        size: file.size,
+        takenAt: (v.takenAt || new Date()).toISOString(),
+        lat: v.location?.lat ?? geo.coords?.lat ?? null,
+        lng: v.location?.lng ?? geo.coords?.lng ?? null,
+        accuracy: geo.accuracy ?? null,
+        placeName: geo.placeName ?? null,
+        facingMode: null,
+        exif: v.exif || null,
+      };
+    };
+
+    const first = buildMedia(sliced[0], validations[0]);
+    const rest = sliced.slice(1).map((f, i) => buildMedia(f, validations[i + 1]));
+    setUploadMedia(first);
+    if (rest.length > 0) appendUploadMedias(rest);
+    navigate(answerTo ? `/upload?answerTo=${encodeURIComponent(answerTo)}` : '/upload');
   };
 
   const handleConfirmGallery = () => {
@@ -206,6 +258,7 @@ function CameraScreen() {
         ref={fileInputRef}
         type="file"
         accept="image/*"
+        multiple
         capture={undefined}
         style={{ display: 'none' }}
         onChange={handleGalleryFile}
