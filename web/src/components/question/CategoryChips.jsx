@@ -18,13 +18,30 @@ export const QUESTION_CATEGORIES = [
   { id: 'business', label: '영업·운영', Icon: IconBuildingStore },
 ];
 
-export default function CategoryChips({ selected, onChange, hideAll = false }) {
+export default function CategoryChips({ selected, onChange, hideAll = false, bleed = 18 }) {
   const items = hideAll ? QUESTION_CATEGORIES.filter((c) => c.id !== 'all') : QUESTION_CATEGORIES;
 
   return (
     <div
-      className="flex gap-1.5 overflow-x-auto scrollbar-hide"
-      style={{ WebkitOverflowScrolling: 'touch' }}
+      style={{
+        // 부모 좌우 패딩을 벗어나 화면 끝까지 스크롤되게 (bleed = 부모 padding 값)
+        marginLeft: -bleed,
+        marginRight: -bleed,
+        paddingLeft: bleed,
+        paddingRight: bleed,
+        display: 'flex',
+        flexWrap: 'nowrap',
+        gap: 6,
+        overflowX: 'auto',
+        overflowY: 'hidden',
+        // 가로 스와이프 제스처에 우선권 — 모바일에서 세로 스크롤에 먹히지 않게
+        touchAction: 'pan-x',
+        WebkitOverflowScrolling: 'touch',
+        // 스크롤바 시각적 숨김 (Webkit + Firefox)
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+      }}
+      className="hide-scrollbar"
     >
       {items.map((cat) => {
         const isActive = selected === cat.id;
@@ -34,8 +51,12 @@ export default function CategoryChips({ selected, onChange, hideAll = false }) {
             key={cat.id}
             type="button"
             onClick={() => onChange(cat.id)}
-            className="whitespace-nowrap flex items-center gap-1 flex-shrink-0"
             style={{
+              flex: '0 0 auto',
+              whiteSpace: 'nowrap',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
               padding: '6px 14px',
               borderRadius: 18,
               fontSize: 11,
