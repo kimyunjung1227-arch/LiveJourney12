@@ -199,20 +199,25 @@ function UploadInfoScreen() {
         accuracy: media.accuracy ?? null,
         exif: media.exif ?? null,
       });
-      resetUploadStore();
 
+      // 답변 모드: 질문 상세로 이동
       if (isAnswerMode && answerTo) {
-        // 게시물을 질문에 답변으로 연결 (answer_count 증가 + 알림)
         const { error: linkErr } = await supabase.rpc('link_post_to_question', {
           p_question_id: answerTo,
           p_post_id: postId,
         });
         if (linkErr) logger.warn('link_post_to_question 실패', linkErr?.message || linkErr);
         navigate(`/question/${encodeURIComponent(answerTo)}`, { replace: true });
+        // navigate 가 라우트를 바꾸므로 store 초기화는 다음 마운트가 안전 — 여기서 비워둬도 됨
+        resetUploadStore();
         return;
       }
 
+      // ⚠️ resetUploadStore() 를 먼저 호출하면 useEffect 가 media 없음 → /camera 로 보내는 redirect 가
+      //    setTimeout(60ms) 로 큐에 들어가 우리의 /upload/complete/... navigate 를 덮어쓴다.
+      //    그래서 라우트를 먼저 바꾸고, 그 다음에 store 를 비운다.
       navigate(`/upload/complete/${postId}`, { replace: true });
+      resetUploadStore();
     } catch (err) {
       // 훅에서 setError 호출되지만, 사용자 화면에 즉시 피드백을 줘서 "왜 업로드 화면으로 돌아왔나" 가 안 보이게.
       const msg = err?.message || '업로드에 실패했어요. 다시 시도해주세요.';
@@ -274,6 +279,24 @@ function UploadInfoScreen() {
     const name = r.place_name || r.address_name || locQuery;
     setEditedLoc({ lat, lng, placeName: name });
     setResolvedPlace(name);
+    setLocOpen(false);
+    setLocQuery('');
+    setLocResults([]);
+  };
+
+  // 사용자가 검색 결과에서 고르지 않고 자기가 친 이름을 그대로 쓰고 싶을 때.
+  // 현재 좌표(있으면)를 유지한 채 placeName만 사용자가 친 텍스트로 덮어쓴다.
+  const useTypedLocationAsName = () => {
+    const text = String(locQuery || '').trim();
+    if (!text) return;
+    const lat = editedLoc?.lat ?? media?.lat ?? null;
+    const lng = editedLoc?.lng ?? media?.lng ?? null;
+    setEditedLoc({
+      lat: Number.isFinite(lat) ? lat : null,
+      lng: Number.isFinite(lng) ? lng : null,
+      placeName: text,
+    });
+    setResolvedPlace(text);
     setLocOpen(false);
     setLocQuery('');
     setLocResults([]);
@@ -583,25 +606,54 @@ function UploadInfoScreen() {
 
         {locOpen && (
           <div style={{ marginTop: 8 }}>
-            <input
-              type="text"
-              autoFocus
-              value={locQuery}
-              onChange={(e) => setLocQuery(e.target.value)}
-              placeholder="장소 또는 지역 검색 (예: 석촌호수, 성수역, 제주공항)"
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                background: '#fff',
-                border: `1px solid ${LJ.borderLight}`,
-                borderRadius: 10,
-                fontSize: 13,
-                fontFamily: LJ.fontStack,
-                color: LJ.textPrimary,
-                outline: 'none',
-                boxSizing: 'border-box',
-              }}
-            />
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                type="text"
+                autoFocus
+                value={locQuery}
+                onChange={(e) => setLocQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    useTypedLocationAsName();
+                  }
+                }}
+                placeholder="장소를 검색하거나 직접 입력 (예: 석촌호수, 성수역)"
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  padding: '10px 12px',
+                  background: '#fff',
+                  border: `1px solid ${LJ.borderLight}`,
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontFamily: LJ.fontStack,
+                  color: LJ.textPrimary,
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+              <button
+                type="button"
+                onClick={useTypedLocationAsName}
+                disabled={!locQuery.trim()}
+                style={{
+                  padding: '0 12px',
+                  background: locQuery.trim() ? LJ.key : LJ.borderLight,
+                  color: locQuery.trim() ? '#fff' : LJ.textTertiary,
+                  border: 'none',
+                  borderRadius: 10,
+                  fontFamily: LJ.fontStack,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: locQuery.trim() ? 'pointer' : 'default',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                }}
+              >
+                이 이름 사용
+              </button>
+            </div>
             {locQuery.trim() && (
               <div
                 style={{
