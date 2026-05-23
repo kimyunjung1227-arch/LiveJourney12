@@ -2,7 +2,6 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   IconX,
-  IconCamera,
   IconUser,
   IconPhoto,
   IconCameraPlus,
@@ -29,7 +28,6 @@ const GRADIENT = 'linear-gradient(135deg, #4DB8E8, #1A6EA8)';
 
 const DEFAULT_PROFILE_IMAGE = 'default';
 const USERNAME_REGEX = /^[가-힣a-zA-Z0-9\s]+$/;
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const EditProfileScreen = () => {
   const navigate = useNavigate();
@@ -40,7 +38,6 @@ const EditProfileScreen = () => {
 
   const [formData, setFormData] = useState({
     username: savedUser?.username || '',
-    email: savedUser?.email || 'mosamo@example.com',
     bio: savedUser?.bio || '',
   });
 
@@ -49,7 +46,7 @@ const EditProfileScreen = () => {
   );
   const [showImageOptions, setShowImageOptions] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [errors, setErrors] = useState({ username: '', email: '', bio: '' });
+  const [errors, setErrors] = useState({ username: '', bio: '' });
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -98,7 +95,7 @@ const EditProfileScreen = () => {
   };
 
   const validate = () => {
-    const next = { username: '', email: '', bio: '' };
+    const next = { username: '', bio: '' };
     const trimmedUsername = formData.username.trim();
 
     if (!trimmedUsername) next.username = '닉네임을 입력해주세요.';
@@ -109,13 +106,10 @@ const EditProfileScreen = () => {
     else if (trimmedUsername.includes('  '))
       next.username = '연속된 공백은 사용할 수 없어요.';
 
-    if (!formData.email.trim()) next.email = '이메일을 입력해주세요.';
-    else if (!EMAIL_REGEX.test(formData.email)) next.email = '올바른 이메일 형식이 아니에요.';
-
     if (formData.bio.length > 150) next.bio = '자기소개는 150자 이하로 입력해주세요.';
 
     setErrors(next);
-    return !next.username && !next.email && !next.bio;
+    return !next.username && !next.bio;
   };
 
   const handleSave = async () => {
@@ -126,7 +120,6 @@ const EditProfileScreen = () => {
       const updatedUser = {
         ...(user || {}),
         username: trimmedUsername,
-        email: formData.email.trim(),
         bio: formData.bio.trim(),
         profileImage,
       };
@@ -163,7 +156,6 @@ const EditProfileScreen = () => {
   const canSave =
     usernameTrimmed.length >= 2 &&
     usernameTrimmed.length <= 20 &&
-    formData.email.trim().length > 0 &&
     formData.bio.length <= 150;
 
   return (
@@ -223,16 +215,13 @@ const EditProfileScreen = () => {
             className="flex items-center justify-center"
             style={{
               height: 36,
-              padding: '0 14px',
-              borderRadius: 999,
-              background: canSave ? GRADIENT : '#D9DEE3',
-              color: 'white',
-              fontSize: 13,
+              padding: '0 12px',
+              background: 'transparent',
+              color: canSave ? KEY : TEXT_TERTIARY,
+              fontSize: 14,
               fontWeight: 700,
               border: 'none',
               cursor: canSave ? 'pointer' : 'not-allowed',
-              transition: 'opacity .15s ease',
-              opacity: canSave ? 1 : 0.85,
             }}
           >
             저장
@@ -250,47 +239,26 @@ const EditProfileScreen = () => {
               alignItems: 'center',
             }}
           >
-            <div className="relative" style={{ width: 108, height: 108 }}>
-              <div
-                className="flex items-center justify-center overflow-hidden"
-                style={{
-                  width: 108,
-                  height: 108,
-                  borderRadius: 999,
-                  background: profileImage === DEFAULT_PROFILE_IMAGE ? KEY_LIGHT : KEY,
-                  boxShadow: '0 6px 18px rgba(26,110,168,0.18)',
-                }}
-              >
-                {profileImage === DEFAULT_PROFILE_IMAGE ? (
-                  <IconUser size={56} color={KEY_DARK} stroke={1.6} />
-                ) : (
-                  <img
-                    src={profileImage}
-                    alt=""
-                    referrerPolicy="no-referrer"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                )}
-              </div>
-
-              <button
-                onClick={() => setShowImageOptions(true)}
-                aria-label="프로필 사진 변경"
-                className="absolute flex items-center justify-center"
-                style={{
-                  right: -2,
-                  bottom: -2,
-                  width: 34,
-                  height: 34,
-                  borderRadius: 999,
-                  background: GRADIENT,
-                  border: '3px solid white',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
-                  cursor: 'pointer',
-                }}
-              >
-                <IconCamera size={16} color="white" stroke={2.2} />
-              </button>
+            <div
+              className="flex items-center justify-center overflow-hidden"
+              style={{
+                width: 108,
+                height: 108,
+                borderRadius: 999,
+                background: profileImage === DEFAULT_PROFILE_IMAGE ? KEY_LIGHT : KEY,
+                boxShadow: '0 6px 18px rgba(26,110,168,0.18)',
+              }}
+            >
+              {profileImage === DEFAULT_PROFILE_IMAGE ? (
+                <IconUser size={56} color={KEY_DARK} stroke={1.6} />
+              ) : (
+                <img
+                  src={profileImage}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              )}
             </div>
 
             <button
@@ -334,18 +302,6 @@ const EditProfileScreen = () => {
                 maxLength={20}
                 placeholder="닉네임 (2-20자)"
                 style={inputStyle(errors.username)}
-              />
-            </FieldGroup>
-
-            {/* 이메일 */}
-            <FieldGroup label="이메일" required error={errors.email}>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                placeholder="example@email.com"
-                style={inputStyle(errors.email)}
               />
             </FieldGroup>
 
