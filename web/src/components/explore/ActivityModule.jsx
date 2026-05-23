@@ -75,37 +75,25 @@ export default function ActivityModule({ category, activity }) {
         )}
       </div>
 
-      <div className="flex items-center" style={{ gap: 10, marginBottom: 6 }}>
-        <div className="flex flex-1" style={{ gap: 4 }}>
-          {Array.from({ length: 8 }).map((_, i) => {
-            const filled = i < config.bars;
-            return (
-              <div
-                key={i}
-                className="flex-1"
-                style={{
-                  height: 8,
-                  borderRadius: 2,
-                  background: filled
-                    ? config.isGradient
-                      ? 'linear-gradient(90deg, #4DB8E8, #1A6EA8)'
-                      : config.barColor
-                    : '#FFFFFF',
-                }}
-              />
-            );
-          })}
-        </div>
-        <span
-          style={{
-            fontSize: 13,
-            fontWeight: 700,
-            color: KEY_DARK,
-            flexShrink: 0,
-          }}
-        >
-          최근 1시간 {activity?.recent_hour || 0}장
-        </span>
+      <div className="flex" style={{ gap: 4, marginBottom: 6 }}>
+        {Array.from({ length: 8 }).map((_, i) => {
+          const filled = i < config.bars;
+          return (
+            <div
+              key={i}
+              className="flex-1"
+              style={{
+                height: 8,
+                borderRadius: 2,
+                background: filled
+                  ? config.isGradient
+                    ? 'linear-gradient(90deg, #4DB8E8, #1A6EA8)'
+                    : config.barColor
+                  : '#FFFFFF',
+              }}
+            />
+          );
+        })}
       </div>
 
       <p className="m-0" style={{ fontSize: 11, color: '#4A7DA8' }}>
