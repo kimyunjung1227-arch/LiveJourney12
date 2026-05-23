@@ -144,7 +144,7 @@ const BottomNavigation = React.memo(() => {
           transform: 'translateX(-50%)',
           width: '100%',
           maxWidth: '414px',
-          height: 'calc(64px + env(safe-area-inset-bottom, 0px))',
+          height: 'calc(52px + env(safe-area-inset-bottom, 0px))',
           background: '#ffffff',
           borderTop: '1px solid rgba(242, 244, 247, 0.8)',
           zIndex: 45,
@@ -152,7 +152,7 @@ const BottomNavigation = React.memo(() => {
         }}
       />
       <nav
-        className="flex-shrink-0 flex h-16 items-center justify-around"
+        className="flex-shrink-0 flex items-center justify-around"
         style={{
           position: 'fixed',
           bottom: 0,
@@ -160,6 +160,7 @@ const BottomNavigation = React.memo(() => {
           transform: `translateX(-50%) ${isVisible ? 'translateY(0)' : 'translateY(100%)'}`,
           width: '100%',
           maxWidth: '414px',
+          height: '52px',
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           boxShadow: 'none',
           zIndex: 50,
@@ -169,20 +170,20 @@ const BottomNavigation = React.memo(() => {
       >
       <button
       onClick={() => navigate('/main')}
-      className={`flex flex-col items-center justify-center gap-1 py-1.5 ${isActive('/main') ? 'text-primary' : 'text-text-subtle-light dark:text-text-subtle-dark hover:text-text-primary-light dark:hover:text-text-primary-dark transition-colors'
+      className={`flex flex-col items-center justify-center gap-0.5 py-1 ${isActive('/main') ? 'text-primary' : 'text-text-subtle-light dark:text-text-subtle-dark hover:text-text-primary-light dark:hover:text-text-primary-dark transition-colors'
           }`}
       >
-        <span className="material-symbols-outlined" style={{ fontSize: 26 }}>home</span>
-        <span className="text-sm font-bold">홈</span>
+        <span className="material-symbols-outlined" style={{ fontSize: 20 }}>home</span>
+        <span className="text-[10px] font-bold leading-none">홈</span>
       </button>
       <button
       type="button"
       onClick={() => navigate('/crowded-place')}
-      className={`flex flex-col items-center justify-center gap-1 py-1.5 ${isActive('/crowded-place') ? 'text-primary' : 'text-text-subtle-light dark:text-text-subtle-dark hover:text-text-primary-light dark:hover:text-text-primary-dark transition-colors'
+      className={`flex flex-col items-center justify-center gap-0.5 py-1 ${isActive('/crowded-place') ? 'text-primary' : 'text-text-subtle-light dark:text-text-subtle-dark hover:text-text-primary-light dark:hover:text-text-primary-dark transition-colors'
           }`}
       >
-        <span className="material-symbols-outlined" style={{ fontSize: 26 }}>local_fire_department</span>
-        <span className="text-sm font-bold leading-tight text-center">실시간 핫플</span>
+        <span className="material-symbols-outlined" style={{ fontSize: 20 }}>local_fire_department</span>
+        <span className="text-[10px] font-bold leading-none text-center">실시간 핫플</span>
       </button>
       <button
         onClick={() => navigate('/camera')}
@@ -190,31 +191,31 @@ const BottomNavigation = React.memo(() => {
         style={{
           background: '#26C6DA',
           borderRadius: '50%',
-          width: '50px',
-          height: '50px',
+          width: '40px',
+          height: '40px',
           justifyContent: 'center',
           alignItems: 'center',
-          boxShadow: '0 4px 12px rgba(0, 188, 212, 0.3)',
-          marginTop: '-4px'
+          boxShadow: '0 3px 9px rgba(0, 188, 212, 0.3)',
+          marginTop: '-2px'
         }}
       >
-        <IconCamera size={26} stroke={2} color="#fff" />
+        <IconCamera size={20} stroke={2} color="#fff" />
       </button>
       <button
         onClick={() => navigate('/map')}
-        className={`flex flex-col items-center justify-center gap-1 py-1.5 ${isActive('/map') ? 'text-primary' : 'text-text-subtle-light dark:text-text-subtle-dark hover:text-text-primary-light dark:hover:text-text-primary-dark transition-colors'
+        className={`flex flex-col items-center justify-center gap-0.5 py-1 ${isActive('/map') ? 'text-primary' : 'text-text-subtle-light dark:text-text-subtle-dark hover:text-text-primary-light dark:hover:text-text-primary-dark transition-colors'
           }`}
       >
-        <span className="material-symbols-outlined" style={{ fontSize: 26 }}>map</span>
-        <span className="text-sm font-bold">지도</span>
+        <span className="material-symbols-outlined" style={{ fontSize: 20 }}>map</span>
+        <span className="text-[10px] font-bold leading-none">지도</span>
       </button>
       <button
         onClick={() => navigate('/profile')}
-        className={`flex flex-col items-center justify-center gap-1 py-1.5 ${isActive('/profile') ? 'text-primary' : 'text-text-subtle-light dark:text-text-subtle-dark hover:text-text-primary-light dark:hover:text-text-primary-dark transition-colors'
+        className={`flex flex-col items-center justify-center gap-0.5 py-1 ${isActive('/profile') ? 'text-primary' : 'text-text-subtle-light dark:text-text-subtle-dark hover:text-text-primary-light dark:hover:text-text-primary-dark transition-colors'
           }`}
       >
-        <span className="material-symbols-outlined" style={{ fontSize: 26 }}>person</span>
-        <span className="text-sm font-bold">프로필</span>
+        <span className="material-symbols-outlined" style={{ fontSize: 20 }}>person</span>
+        <span className="text-[10px] font-bold leading-none">프로필</span>
       </button>
       </nav>
     </>
