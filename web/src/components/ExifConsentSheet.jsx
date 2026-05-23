@@ -4,7 +4,7 @@ import React from 'react';
  * 메인 화면 하단용 EXIF 동의 — 전역 모달보다 부담이 적은 시트 UI
  */
 export default function ExifConsentSheet({ onGrant, onDecline }) {
-  const navOffset = 'calc(52px + env(safe-area-inset-bottom, 0px))';
+  const navOffset = 'calc(58px + env(safe-area-inset-bottom, 0px))';
 
   return (
     <div

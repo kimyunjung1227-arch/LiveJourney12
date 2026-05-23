@@ -144,7 +144,7 @@ const BottomNavigation = React.memo(() => {
           transform: 'translateX(-50%)',
           width: '100%',
           maxWidth: '414px',
-          height: 'calc(52px + env(safe-area-inset-bottom, 0px))',
+          height: 'calc(58px + env(safe-area-inset-bottom, 0px))',
           background: '#ffffff',
           borderTop: '1px solid rgba(242, 244, 247, 0.8)',
           zIndex: 45,
@@ -160,7 +160,7 @@ const BottomNavigation = React.memo(() => {
           transform: `translateX(-50%) ${isVisible ? 'translateY(0)' : 'translateY(100%)'}`,
           width: '100%',
           maxWidth: '414px',
-          height: '52px',
+          height: '58px',
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           boxShadow: 'none',
           zIndex: 50,
@@ -173,8 +173,8 @@ const BottomNavigation = React.memo(() => {
       className={`flex flex-col items-center justify-center gap-0.5 py-1 ${isActive('/main') ? 'text-primary' : 'text-text-subtle-light dark:text-text-subtle-dark hover:text-text-primary-light dark:hover:text-text-primary-dark transition-colors'
           }`}
       >
-        <span className="material-symbols-outlined" style={{ fontSize: 20 }}>home</span>
-        <span className="text-[10px] font-bold leading-none">홈</span>
+        <span className="material-symbols-outlined" style={{ fontSize: 23 }}>home</span>
+        <span className="text-[11px] font-bold leading-none">홈</span>
       </button>
       <button
       type="button"
@@ -182,8 +182,8 @@ const BottomNavigation = React.memo(() => {
       className={`flex flex-col items-center justify-center gap-0.5 py-1 ${isActive('/crowded-place') ? 'text-primary' : 'text-text-subtle-light dark:text-text-subtle-dark hover:text-text-primary-light dark:hover:text-text-primary-dark transition-colors'
           }`}
       >
-        <span className="material-symbols-outlined" style={{ fontSize: 20 }}>local_fire_department</span>
-        <span className="text-[10px] font-bold leading-none text-center">실시간 핫플</span>
+        <span className="material-symbols-outlined" style={{ fontSize: 23 }}>local_fire_department</span>
+        <span className="text-[11px] font-bold leading-none text-center">실시간 핫플</span>
       </button>
       <button
         onClick={() => navigate('/camera')}
@@ -191,31 +191,31 @@ const BottomNavigation = React.memo(() => {
         style={{
           background: '#26C6DA',
           borderRadius: '50%',
-          width: '40px',
-          height: '40px',
+          width: '46px',
+          height: '46px',
           justifyContent: 'center',
           alignItems: 'center',
-          boxShadow: '0 3px 9px rgba(0, 188, 212, 0.3)',
-          marginTop: '-2px'
+          boxShadow: '0 3px 10px rgba(0, 188, 212, 0.3)',
+          marginTop: '-3px'
         }}
       >
-        <IconCamera size={20} stroke={2} color="#fff" />
+        <IconCamera size={23} stroke={2} color="#fff" />
       </button>
       <button
         onClick={() => navigate('/map')}
         className={`flex flex-col items-center justify-center gap-0.5 py-1 ${isActive('/map') ? 'text-primary' : 'text-text-subtle-light dark:text-text-subtle-dark hover:text-text-primary-light dark:hover:text-text-primary-dark transition-colors'
           }`}
       >
-        <span className="material-symbols-outlined" style={{ fontSize: 20 }}>map</span>
-        <span className="text-[10px] font-bold leading-none">지도</span>
+        <span className="material-symbols-outlined" style={{ fontSize: 23 }}>map</span>
+        <span className="text-[11px] font-bold leading-none">지도</span>
       </button>
       <button
         onClick={() => navigate('/profile')}
         className={`flex flex-col items-center justify-center gap-0.5 py-1 ${isActive('/profile') ? 'text-primary' : 'text-text-subtle-light dark:text-text-subtle-dark hover:text-text-primary-light dark:hover:text-text-primary-dark transition-colors'
           }`}
       >
-        <span className="material-symbols-outlined" style={{ fontSize: 20 }}>person</span>
-        <span className="text-[10px] font-bold leading-none">프로필</span>
+        <span className="material-symbols-outlined" style={{ fontSize: 23 }}>person</span>
+        <span className="text-[11px] font-bold leading-none">프로필</span>
       </button>
       </nav>
     </>
