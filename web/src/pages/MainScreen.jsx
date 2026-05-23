@@ -7,6 +7,7 @@ import CategoryFilter from '../components/lj/CategoryFilter';
 import PostCard from '../components/lj/PostCard';
 import { useHomeFeed } from '../hooks/useHomeFeed';
 import { useReactions } from '../hooks/useReactions';
+import { useNotifications } from '../hooks/useNotifications';
 
 /**
  * HomeScreen (라우트: /, /main).
@@ -18,6 +19,8 @@ function MainScreen() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const { posts, loading, loadingMore, hasMore, loadMore } = useHomeFeed(selectedCategory);
   const { state, toggleLike, toggleSave } = useReactions(posts);
+  const { notifications } = useNotifications({ limit: 30 });
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   // 무한 스크롤 sentinel
   const sentinelRef = useRef(null);
@@ -100,8 +103,9 @@ function MainScreen() {
           <button
             type="button"
             onClick={() => navigate('/notifications')}
-            aria-label="알림"
+            aria-label={unreadCount > 0 ? `알림 ${unreadCount}건` : '알림'}
             style={{
+              position: 'relative',
               height: 32,
               width: 32,
               padding: 0,
@@ -116,6 +120,33 @@ function MainScreen() {
             }}
           >
             <IconBell size={20} stroke={1.7} />
+            {unreadCount > 0 && (
+              <span
+                aria-hidden
+                style={{
+                  position: 'absolute',
+                  top: 2,
+                  right: 0,
+                  minWidth: 16,
+                  height: 16,
+                  padding: '0 4px',
+                  borderRadius: 999,
+                  background: '#FF3B30',
+                  color: '#fff',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '1.5px solid #fff',
+                  boxSizing: 'border-box',
+                  letterSpacing: 0,
+                }}
+              >
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
           </button>
         </div>
       </header>
