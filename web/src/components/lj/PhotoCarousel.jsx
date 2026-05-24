@@ -1,56 +1,92 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { LJ } from './tokens';
-import { useHorizontalDragScroll } from '../../hooks/useHorizontalDragScroll';
 
 /**
- * 가로 스크롤-스냅 기반 사진 캐러셀.
+ * 한 장씩 슬라이드되는 사진 캐러셀 (state 기반 transform 슬라이더).
+ * - 한 번의 스와이프/드래그 = 1장만 이동 (강한 플릭에도 다음 장만)
  * - 1장이면 인디케이터 숨김
- * - 터치 스와이프 + 마우스 드래그 모두 지원
- * - 사진 중앙 하단 점 인디케이터: 현재=흰색, 비활성=반투명 회색
+ * - 터치 / 마우스 / 펜 모두 PointerEvents 로 통합 처리
+ * - 인디케이터: 현재=흰색, 비활성=반투명 회색
  */
 /**
  * @param {{ photos: string[], height?: number, onPhotoClick?: (i:number,e:any)=>void, alt?: string, priority?: boolean }} props
  *  priority=true면 첫 사진은 eager + fetchPriority=high (LCP 단축, 홈 첫 카드용).
  */
 export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '', priority = false }) {
-  const ref = useRef(null);
   const [index, setIndex] = useState(0);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
 
-  // 마우스 드래그 — 드래그 끝에 가장 가까운 페이지로 스냅
-  const { handleDragStart, hasMovedRef } = useHorizontalDragScroll((slider) => {
-    if (!slider) return;
-    const w = slider.clientWidth;
-    if (w === 0) return;
-    const target = Math.round(slider.scrollLeft / w);
-    slider.scrollTo({ left: target * w, behavior: 'smooth' });
-  });
+  const containerRef = useRef(null);
+  const startXRef = useRef(0);
+  const startYRef = useRef(0);
+  const lockedAxisRef = useRef(null); // 'x' | 'y' | null
+  const movedRef = useRef(false);
+  const activePointerIdRef = useRef(null);
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    let frame = 0;
-    const onScroll = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const w = el.clientWidth;
-        if (w === 0) return;
-        const idx = Math.round(el.scrollLeft / w);
-        setIndex(Math.max(0, Math.min(photos.length - 1, idx)));
-      });
-    };
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      cancelAnimationFrame(frame);
-      el.removeEventListener('scroll', onScroll);
-    };
-  }, [photos.length]);
+  const SWIPE_COMMIT_PX = 40;
+  const N = photos.length;
 
-  if (!photos || photos.length === 0) return null;
+  if (!photos || N === 0) return null;
 
-  // 드래그 직후의 클릭은 풀스크린 진입과 충돌하므로 가드.
-  // 클릭된 사진 인덱스도 같이 전달.
-  const makeGuardedClick = (i) => (e) => {
-    if (hasMovedRef.current) {
+  const goTo = (next) => {
+    setIndex(Math.max(0, Math.min(N - 1, next)));
+  };
+
+  const onPointerDown = (e) => {
+    if (N <= 1) return;
+    // 1차/마우스 좌클릭만
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    activePointerIdRef.current = e.pointerId;
+    startXRef.current = e.clientX;
+    startYRef.current = e.clientY;
+    lockedAxisRef.current = null;
+    movedRef.current = false;
+    setIsDragging(true);
+    setDragOffset(0);
+    try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch (_) {}
+  };
+
+  const onPointerMove = (e) => {
+    if (!isDragging || activePointerIdRef.current !== e.pointerId) return;
+    const dx = e.clientX - startXRef.current;
+    const dy = e.clientY - startYRef.current;
+    if (lockedAxisRef.current === null) {
+      // 6px 이동 후 축 결정 — 세로 우세면 페이지 스크롤에 양보
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      lockedAxisRef.current = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+    }
+    if (lockedAxisRef.current !== 'x') return;
+    if (Math.abs(dx) > 5) movedRef.current = true;
+    if (e.cancelable) e.preventDefault();
+    // 양 끝에서는 저항 (반만 따라옴)
+    let dragX = dx;
+    if ((index === 0 && dx > 0) || (index === N - 1 && dx < 0)) {
+      dragX = dx * 0.35;
+    }
+    setDragOffset(dragX);
+  };
+
+  const finishDrag = (e) => {
+    if (!isDragging) return;
+    if (activePointerIdRef.current != null && activePointerIdRef.current !== e?.pointerId) return;
+    const dx = dragOffset;
+    setIsDragging(false);
+    setDragOffset(0);
+    activePointerIdRef.current = null;
+    if (lockedAxisRef.current === 'x' && Math.abs(dx) >= SWIPE_COMMIT_PX) {
+      goTo(index + (dx < 0 ? 1 : -1));
+    }
+    lockedAxisRef.current = null;
+    try {
+      if (e?.pointerId != null) e?.currentTarget?.releasePointerCapture?.(e.pointerId);
+    } catch (_) {}
+    // 드래그가 클릭으로 오인되지 않도록 짧게 지연 후 해제
+    setTimeout(() => { movedRef.current = false; }, 0);
+  };
+
+  const handlePhotoClick = (i) => (e) => {
+    if (movedRef.current) {
       e.preventDefault();
       e.stopPropagation();
       return;
@@ -70,32 +106,32 @@ export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '
       }}
     >
       <div
-        ref={ref}
-        className="lj-no-scrollbar"
-        onMouseDown={handleDragStart}
+        ref={containerRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={finishDrag}
+        onPointerCancel={finishDrag}
         style={{
           width: '100%',
           height: '100%',
           display: 'flex',
-          overflowX: 'auto',
-          scrollSnapType: 'x mandatory',
-          scrollBehavior: 'smooth',
-          scrollbarWidth: 'none',
-          WebkitOverflowScrolling: 'touch',
-          cursor: photos.length > 1 ? 'grab' : 'pointer',
+          touchAction: 'pan-y',
+          transform: `translate3d(calc(${-index * 100}% + ${dragOffset}px), 0, 0)`,
+          transition: isDragging ? 'none' : 'transform 320ms cubic-bezier(0.22, 0.7, 0.2, 1)',
+          cursor: N > 1 ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
+          willChange: 'transform',
         }}
       >
         {photos.map((url, i) => (
           <button
             key={`${url}-${i}`}
             type="button"
-            onClick={makeGuardedClick(i)}
+            onClick={handlePhotoClick(i)}
             aria-label={`사진 ${i + 1} 크게 보기`}
             style={{
               flex: '0 0 100%',
               width: '100%',
               height: '100%',
-              scrollSnapAlign: 'start',
               border: 'none',
               padding: 0,
               background: 'transparent',
@@ -124,7 +160,7 @@ export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '
         ))}
       </div>
 
-      {photos.length > 1 && (
+      {N > 1 && (
         <div
           aria-hidden="true"
           style={{
