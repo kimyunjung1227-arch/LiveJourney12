@@ -22,8 +22,17 @@ import { getDisplayImageUrl } from '../api/upload';
 import { logger } from '../utils/logger';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import { searchPlaceWithKakaoFirst } from '../utils/kakaoPlacesGeocode';
+import { fetchProfileByIdSupabase } from '../api/profilesSupabase';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
+
+const isAnonymousName = (v) => {
+  const s = String(v ?? '').trim();
+  if (!s) return true;
+  if (s === '익명' || s === '익명사용자') return true;
+  if (/^anonymous$/i.test(s)) return true;
+  return false;
+};
 
 // 지오코드 결과 캐시 (place_name → {lat, lng} | null). 페이지 수명 동안 유지.
 const GEO_CACHE_KEY = '__lj_map_geo_cache_v4';
@@ -427,21 +436,21 @@ function PostPinPreview({
 
           {/* 정보 */}
           <div className="p-3 px-3.5">
-            <div className="flex items-center gap-2 mb-2.5">
+            <div className="flex items-start gap-2.5 mb-2.5">
               <AuthorAvatar
                 name={bundle.author_name}
                 color={bundle.author_avatar_color}
                 onClick={onAuthorClick}
               />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5" style={{ lineHeight: 1.1 }}>
+                <div className="flex items-center gap-1.5 flex-wrap" style={{ lineHeight: 1.2 }}>
                   <button
                     type="button"
                     onClick={onAuthorClick}
-                    className="text-[13px] font-semibold text-[#1F1F1F]"
-                    style={{ padding: 0, lineHeight: 1.1, background: 'none', border: 'none' }}
+                    className="text-[14px] font-bold text-[#1F1F1F]"
+                    style={{ padding: 0, lineHeight: 1.2, background: 'none', border: 'none' }}
                   >
-                    {bundle.author_name}
+                    {bundle.author_name || '이름 없음'}
                   </button>
                   {bundle.is_author_on_site && (
                     <div
@@ -464,11 +473,26 @@ function PostPinPreview({
                 <button
                   type="button"
                   onClick={onLocationClick}
-                  className="text-[10px] text-[#6B6B6B] block text-left truncate w-full"
-                  style={{ padding: 0, marginTop: 1, lineHeight: 1.2, background: 'none', border: 'none' }}
+                  className="block text-left w-full"
+                  style={{
+                    padding: 0,
+                    marginTop: 4,
+                    background: 'none',
+                    border: 'none',
+                  }}
                 >
-                  {bundle.place_name || '위치 없음'} ·{' '}
-                  {formatHoursLeft(bundle.primary_taken_at)}
+                  <span
+                    className="block text-[13px] font-semibold text-[#1F1F1F]"
+                    style={{ lineHeight: 1.3, wordBreak: 'keep-all' }}
+                  >
+                    {bundle.place_name || '위치 정보 없음'}
+                  </span>
+                  <span
+                    className="block text-[11px] text-[#6B6B6B]"
+                    style={{ lineHeight: 1.3, marginTop: 2 }}
+                  >
+                    {formatHoursLeft(bundle.primary_taken_at)}
+                  </span>
                 </button>
               </div>
             </div>
@@ -531,21 +555,21 @@ function BundlePinPreview({ bundle, photos, onViewDetail, onAuthorClick }) {
         >
           <div className="p-3 px-3.5 pb-0">
             {/* 작성자 */}
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-start gap-2.5 mb-3">
               <AuthorAvatar
                 name={bundle.author_name}
                 color={bundle.author_avatar_color}
                 onClick={onAuthorClick}
               />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5" style={{ lineHeight: 1.1 }}>
+                <div className="flex items-center gap-1.5 flex-wrap" style={{ lineHeight: 1.2 }}>
                   <button
                     type="button"
                     onClick={onAuthorClick}
-                    className="text-[13px] font-semibold text-[#1F1F1F]"
-                    style={{ padding: 0, lineHeight: 1.1, background: 'none', border: 'none' }}
+                    className="text-[14px] font-bold text-[#1F1F1F]"
+                    style={{ padding: 0, lineHeight: 1.2, background: 'none', border: 'none' }}
                   >
-                    {bundle.author_name}
+                    {bundle.author_name || '이름 없음'}
                   </button>
                   {bundle.is_author_on_site && (
                     <div
@@ -566,10 +590,16 @@ function BundlePinPreview({ bundle, photos, onViewDetail, onAuthorClick }) {
                   )}
                 </div>
                 <p
-                  className="text-[10px] text-[#6B6B6B] m-0 truncate"
-                  style={{ marginTop: 1, lineHeight: 1.2 }}
+                  className="text-[13px] font-semibold text-[#1F1F1F] m-0"
+                  style={{ marginTop: 4, lineHeight: 1.3, wordBreak: 'keep-all' }}
                 >
-                  {bundle.place_name || '위치 없음'} · 1시간 동안 {total}장
+                  {bundle.place_name || '위치 정보 없음'}
+                </p>
+                <p
+                  className="text-[11px] text-[#6B6B6B] m-0"
+                  style={{ marginTop: 2, lineHeight: 1.3 }}
+                >
+                  1시간 동안 {total}장
                 </p>
               </div>
             </div>
@@ -827,6 +857,26 @@ function useGeocodedPosts(bounds, category) {
   return { extraBundles };
 }
 
+// 작성자 이름이 비어있거나 익명일 때 profiles 에서 다시 보강
+function useAuthorFallback(bundle) {
+  const [profile, setProfile] = useState(null);
+  const authorId = bundle?.author_id || null;
+  const needs = bundle ? isAnonymousName(bundle.author_name) : false;
+  useEffect(() => {
+    if (!authorId || !needs) {
+      setProfile(null);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      const p = await fetchProfileByIdSupabase(authorId);
+      if (!cancelled) setProfile(p);
+    })();
+    return () => { cancelled = true; };
+  }, [authorId, needs]);
+  return profile;
+}
+
 function useBundleDetail(bundleId) {
   const [photos, setPhotos] = useState([]);
   useEffect(() => {
@@ -889,10 +939,21 @@ const MapScreen = () => {
     return Array.from(map.values());
   }, [rpcBundles, extraBundles]);
 
-  const selectedBundle = useMemo(
+  const selectedBundleRaw = useMemo(
     () => bundles.find((b) => b.bundle_id === selectedBundleId) || null,
     [bundles, selectedBundleId],
   );
+  const fallbackProfile = useAuthorFallback(selectedBundleRaw);
+  const selectedBundle = useMemo(() => {
+    if (!selectedBundleRaw) return null;
+    if (!fallbackProfile) return selectedBundleRaw;
+    const resolvedName =
+      (fallbackProfile.nickname && String(fallbackProfile.nickname).trim()) ||
+      (fallbackProfile.username && String(fallbackProfile.username).trim()) ||
+      (fallbackProfile.display_name && String(fallbackProfile.display_name).trim()) ||
+      selectedBundleRaw.author_name;
+    return { ...selectedBundleRaw, author_name: resolvedName };
+  }, [selectedBundleRaw, fallbackProfile]);
   const { photos: bundlePhotos } = useBundleDetail(
     selectedBundle?.is_bundle ? selectedBundleId : null,
   );
@@ -1082,7 +1143,7 @@ const MapScreen = () => {
       overlayMapRef.current.set(id, { overlay, wrap });
     });
 
-    // 클러스터러 (level >= 6)
+    // 클러스터러 (level >= 6) — 네모박스에 통합 사진 개수 표시
     try {
       const Clusterer = window.kakao?.maps?.MarkerClusterer;
       if (Clusterer) {
@@ -1092,64 +1153,89 @@ const MapScreen = () => {
             averageCenter: true,
             minLevel: 6,
             gridSize: 60,
-            disableClickZoom: false,
+            disableClickZoom: true, // 직접 줌 처리 (더 세부적으로 분할)
             styles: [
               {
-                width: '40px',
-                height: '40px',
+                // 1~9장: 작은 흰 네모박스 + 키컬러 테두리
+                width: '36px',
+                height: '36px',
                 background: '#ffffff',
                 border: `2px solid ${KEY}`,
-                borderRadius: '20px',
+                borderRadius: '8px',
                 color: '#1F1F1F',
                 textAlign: 'center',
-                fontWeight: '700',
-                fontSize: '12px',
-                lineHeight: '36px',
-                boxShadow: '0 3px 10px rgba(0,0,0,0.13)',
-              },
-              {
-                width: '48px',
-                height: '48px',
-                background: '#ffffff',
-                border: `2px solid ${KEY}`,
-                borderRadius: '24px',
-                color: '#1F1F1F',
-                textAlign: 'center',
-                fontWeight: '700',
+                fontWeight: '800',
                 fontSize: '13px',
-                lineHeight: '44px',
-                boxShadow: '0 3px 10px rgba(0,0,0,0.18)',
+                lineHeight: '32px',
+                boxShadow: '0 3px 10px rgba(0,0,0,0.14)',
               },
               {
-                width: '56px',
-                height: '56px',
+                // 10~49장: 중간 흰 네모박스
+                width: '44px',
+                height: '44px',
+                background: '#ffffff',
+                border: `2px solid ${KEY}`,
+                borderRadius: '8px',
+                color: '#1F1F1F',
+                textAlign: 'center',
+                fontWeight: '800',
+                fontSize: '14px',
+                lineHeight: '40px',
+                boxShadow: '0 3px 12px rgba(0,0,0,0.18)',
+              },
+              {
+                // 50장+: 키컬러 채움 네모박스
+                width: '52px',
+                height: '52px',
                 background: KEY,
                 border: '2px solid #ffffff',
-                borderRadius: '28px',
+                borderRadius: '10px',
                 color: '#ffffff',
                 textAlign: 'center',
-                fontWeight: '700',
-                fontSize: '14px',
-                lineHeight: '52px',
+                fontWeight: '800',
+                fontSize: '15px',
+                lineHeight: '48px',
                 boxShadow: '0 4px 14px rgba(77,184,232,0.45)',
               },
             ],
             calculator: [10, 50],
           });
+
+          // 클러스터 클릭 시: 한 번에 충분히 줌인하여 세부 분할/사진이 보이게
+          try {
+            kakao.maps.event.addListener(
+              clustererRef.current,
+              'clusterclick',
+              (cluster) => {
+                const curLevel = typeof map.getLevel === 'function' ? map.getLevel() : 7;
+                // 현재 6 이상이면 5 이하로 한 번에 내려가서 사진 핀이 보이도록
+                const nextLevel = curLevel >= 8 ? Math.max(4, curLevel - 3) : Math.max(3, curLevel - 2);
+                try {
+                  map.setLevel(nextLevel, {
+                    anchor: cluster.getCenter(),
+                    animate: true,
+                  });
+                } catch {
+                  try { map.setLevel(nextLevel); } catch { /* ignore */ }
+                  try { map.panTo(cluster.getCenter()); } catch { /* ignore */ }
+                }
+              },
+            );
+          } catch {
+            /* ignore */
+          }
         }
         clustererRef.current.clear();
         if (useClustering) {
-          const markers = bundles
-            .map(
-              (b) =>
-                new kakao.maps.Marker({
-                  position: new kakao.maps.LatLng(
-                    b.primary_lat,
-                    b.primary_lng,
-                  ),
-                }),
-            )
-            .filter(Boolean);
+          // 묶음(bundle_count) 만큼의 마커를 생성해 클러스터 숫자가 실제 사진 통합 개수가 되도록
+          const markers = [];
+          bundles.forEach((b) => {
+            const count = Math.max(1, Number(b.bundle_count) || 1);
+            const pos = new kakao.maps.LatLng(b.primary_lat, b.primary_lng);
+            for (let i = 0; i < count; i += 1) {
+              markers.push(new kakao.maps.Marker({ position: pos }));
+            }
+          });
           clustererRef.current.addMarkers(markers);
         }
       }
