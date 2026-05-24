@@ -13,6 +13,7 @@ import { LJ } from '../components/lj/tokens';
 import HotplaceTopCard from '../components/lj/HotplaceTopCard';
 import HotplaceListItem from '../components/lj/HotplaceListItem';
 import { useHotplaceRanking } from '../hooks/useHotplaceRanking';
+import { reverseGeocodeToPlaceDetail } from '../utils/locationFromGeocode';
 
 const INITIAL = 20;
 const STEP = 5;
@@ -41,7 +42,53 @@ function HotplaceScreen() {
   const [scope, setScope] = useState('national');
   const [scopeOpen, setScopeOpen] = useState(false);
   const scopeRef = useRef(null);
-  const { ranking, loading } = useHotplaceRanking({ limit });
+
+  // 사용자 위치 — 전국이 아닌 범위(지역/동네)일 때 사용
+  const [userCoords, setUserCoords] = useState(null);
+  const [userRegion1depth, setUserRegion1depth] = useState('');
+  const [locStatus, setLocStatus] = useState('idle'); // 'idle' | 'requesting' | 'granted' | 'denied'
+
+  // 스코프가 전국 외로 바뀌면 1회 위치/지역 요청
+  useEffect(() => {
+    if (scope === 'national') return undefined;
+    if (userCoords) return undefined;
+    if (locStatus === 'requesting') return undefined;
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setLocStatus('denied');
+      return undefined;
+    }
+    setLocStatus('requesting');
+    let cancelled = false;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        if (cancelled) return;
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setUserCoords({ lat, lng });
+        setLocStatus('granted');
+        // 1depth 지역명도 함께 확보 (지역 필터에 사용)
+        reverseGeocodeToPlaceDetail(lat, lng)
+          .then((d) => {
+            if (cancelled) return;
+            const first = String(d?.region || '').trim().split(/\s+/)[0] || '';
+            setUserRegion1depth(first);
+          })
+          .catch(() => {});
+      },
+      () => {
+        if (!cancelled) setLocStatus('denied');
+      },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
+    );
+    return () => { cancelled = true; };
+  }, [scope, userCoords, locStatus]);
+
+  const { ranking, loading } = useHotplaceRanking({
+    limit,
+    scope,
+    userCoords,
+    userRegion1depth,
+  });
 
   // 외부 클릭으로 드롭다운 닫기
   useEffect(() => {
@@ -232,6 +279,36 @@ function HotplaceScreen() {
           </div>
         </div>
       </header>
+
+      {/* 범위별 상태 안내 (전국 외에서만) */}
+      {scope !== 'national' && (
+        <div
+          style={{
+            padding: '0 18px',
+            margin: '4px 0 8px',
+            fontSize: 11,
+            color: LJ.textSecondary,
+            lineHeight: 1.45,
+          }}
+        >
+          {locStatus === 'requesting' ? (
+            <span>내 위치 확인 중…</span>
+          ) : locStatus === 'denied' ? (
+            <span style={{ color: '#B45309' }}>
+              위치 권한이 필요해요. 브라우저 위치 권한을 켜 주세요.
+            </span>
+          ) : scope === 'region' ? (
+            <span>
+              <strong style={{ color: LJ.textPrimary, fontWeight: 700 }}>
+                {userRegion1depth || '내 지역'}
+              </strong>
+              {' '}내 핫플
+            </span>
+          ) : (
+            <span>내 위치 반경 5km 핫플</span>
+          )}
+        </div>
+      )}
 
       {/* 1~3위 강조 카드 */}
       {loading && ranking.length === 0 ? (
