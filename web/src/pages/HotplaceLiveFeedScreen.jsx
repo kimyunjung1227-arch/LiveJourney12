@@ -130,18 +130,17 @@ export default function HotplaceLiveFeedScreen() {
 
   const now = Date.now();
 
-  /** 48시간 내 반응 순으로 정렬된 베스트컷 후보 목록 (최대 10개) */
+  /** 베스트컷 캐러셀 — 이 장소의 게시물 전체. 48h 내 게시물을 먼저, 그 다음 반응 순으로 정렬 */
   const bestCutPosts = useMemo(() => {
     if (postsForPlace.length === 0) return [];
-    const in48 = postsForPlace.filter((p) => now - getPostTimeMs(p) <= HOURS_48_MS);
-    const pool = in48.length > 0 ? in48 : postsForPlace;
-    return [...pool]
-      .sort((a, b) => {
-        const d = getEngagementScore(b) - getEngagementScore(a);
-        if (d !== 0) return d;
-        return getPostTimeMs(b) - getPostTimeMs(a);
-      })
-      .slice(0, 10);
+    return [...postsForPlace].sort((a, b) => {
+      const aIn48 = now - getPostTimeMs(a) <= HOURS_48_MS ? 1 : 0;
+      const bIn48 = now - getPostTimeMs(b) <= HOURS_48_MS ? 1 : 0;
+      if (aIn48 !== bIn48) return bIn48 - aIn48; // 48h 내가 먼저
+      const d = getEngagementScore(b) - getEngagementScore(a);
+      if (d !== 0) return d;
+      return getPostTimeMs(b) - getPostTimeMs(a);
+    });
   }, [postsForPlace, now]);
 
   const [bestCutIdx, setBestCutIdx] = useState(0);
@@ -264,7 +263,7 @@ export default function HotplaceLiveFeedScreen() {
                     실시간 베스트 컷
                   </h2>
                   <p className="mt-0.5 font-inter text-[10px] leading-snug text-zinc-500 dark:text-zinc-400">
-                    48시간 내 반응 순 베스트 {bestCutPosts.length}개 · 좌우로 게시물 넘기기
+                    이 장소 게시물 {bestCutPosts.length}개 · 좌우로 넘겨 모두 보기
                   </p>
                 </div>
                 {bestCutPosts.length > 1 ? (
