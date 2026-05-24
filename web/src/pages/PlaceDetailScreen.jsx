@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { IconArrowLeft, IconBookmark, IconBookmarkFilled, IconShare3 } from '@tabler/icons-react';
 import { LJ } from '../components/lj/tokens';
-import BestCutHero from '../components/lj/BestCutHero';
+import BestCutsCarousel from '../components/lj/BestCutsCarousel';
 import PlacePhotoGrid from '../components/lj/PlacePhotoGrid';
 import PlaceCTA from '../components/lj/PlaceCTA';
 import { usePlaceDetail } from '../hooks/usePlaceDetail';
+import { bestCutScore } from '../hooks/ljPostsMapping';
+
+const BEST_CUT_LIMIT = 10;
 
 /**
  * 장소 페이지 (/place/:placeId).
@@ -15,12 +18,22 @@ import { usePlaceDetail } from '../hooks/usePlaceDetail';
 function PlaceDetailScreen() {
   const { placeId } = useParams();
   const navigate = useNavigate();
-  const { place, bestCut, posts, loading } = usePlaceDetail(placeId);
+  const { place, posts, loading } = usePlaceDetail(placeId);
   const [bookmarked, setBookmarked] = useState(false);
-  const [following, setFollowing] = useState(false);
 
-  // 그리드는 베스트 컷 제외 (BestCutHero에 이미 큰 사진으로 노출)
-  const gridPosts = bestCut ? posts.filter((p) => p.id !== bestCut.id) : posts;
+  // 베스트 컷 캐러셀에 보일 상위 후보들 (점수 내림차순)
+  const bestCuts = useMemo(() => {
+    const arr = (posts || []).slice();
+    arr.sort((a, b) => bestCutScore(b) - bestCutScore(a));
+    return arr.slice(0, BEST_CUT_LIMIT);
+  }, [posts]);
+
+  // 그리드는 베스트 컷 캐러셀에 포함된 게시물 제외
+  const bestCutIds = useMemo(() => new Set(bestCuts.map((p) => p.id)), [bestCuts]);
+  const gridPosts = useMemo(
+    () => (posts || []).filter((p) => !bestCutIds.has(p.id)),
+    [posts, bestCutIds],
+  );
 
   const handleShare = async () => {
     const url = window.location.href;
@@ -153,14 +166,12 @@ function PlaceDetailScreen() {
         </div>
       </header>
 
-      {/* 베스트 컷 히어로 (있을 때만) */}
-      {bestCut && (
-        <BestCutHero
-          post={bestCut}
-          onPostClick={() => navigate(`/post/${bestCut.id}`)}
-          onAuthorClick={() => navigate(`/user/${bestCut.author?.id || bestCut.author_id}`)}
-          onFollowClick={() => setFollowing((v) => !v)}
-          following={following}
+      {/* 베스트 컷 캐러셀 — 게시물 수만큼 좌우 슬라이드 */}
+      {bestCuts.length > 0 && (
+        <BestCutsCarousel
+          posts={bestCuts}
+          onPostClick={(p) => navigate(`/post/${p.id}`)}
+          onAuthorClick={(p) => navigate(`/user/${p.author?.id || p.author_id}`)}
         />
       )}
 

@@ -5,7 +5,6 @@ import {
   IconHeart,
   IconMessage,
   IconBookmark,
-  IconAward,
 } from '@tabler/icons-react';
 import { LJ, formatExifTime } from './tokens';
 
@@ -13,28 +12,28 @@ import { LJ, formatExifTime } from './tokens';
  * 장소 페이지 베스트 컷 히어로.
  * 1) 헤더 — 왕관 + 베스트 컷 + 부제
  * 2) 사진 340px — 좌상단 EXIF, 우상단 그라데이션 베스트컷 뱃지 (작성자 오버레이 없음)
- * 3) 작성자 행 — 사진 아래에 아바타 + 이름 (도움 N명 표시 제거)
+ * 3) 작성자 행 — 사진 아래에 아바타 + 이름
  * 4) 본문 + 반응 박스
- * 5) 영예 트러스트 카드 + 팔로우
  */
 export function BestCutHero({
   post,
   onPostClick,
   onAuthorClick,
-  onFollowClick,
-  following = false,
+  showHeader = true,
 }) {
   if (!post) return null;
   const author = post.author || {};
 
   return (
-    <section style={{ padding: '20px 18px 0', fontFamily: LJ.fontStack }}>
-      {/* 1) 헤더 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <IconCrown size={16} stroke={2} color={LJ.key} />
-        <span style={{ fontSize: 13, fontWeight: 600, color: LJ.textPrimary }}>베스트 컷</span>
-        <span style={{ fontSize: 11, color: LJ.textSecondary }}>이 장소를 대표하는 한 장</span>
-      </div>
+    <section style={{ padding: showHeader ? '20px 18px 0' : '0 18px', fontFamily: LJ.fontStack }}>
+      {/* 1) 헤더 — showHeader=false 일 때는 캐러셀 외부에서 한 번만 그림 */}
+      {showHeader && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <IconCrown size={16} stroke={2} color={LJ.key} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: LJ.textPrimary }}>베스트 컷</span>
+          <span style={{ fontSize: 11, color: LJ.textSecondary }}>이 장소를 대표하는 한 장</span>
+        </div>
+      )}
 
       {/* 2) 메인 사진 — 작성자 오버레이 없음 */}
       <button
@@ -217,46 +216,6 @@ export function BestCutHero({
         </div>
       </div>
 
-      {/* 5) 영예 트러스트 카드 */}
-      <div
-        style={{
-          marginTop: 12,
-          padding: 13,
-          background: '#fff',
-          border: `1.5px solid ${LJ.key}`,
-          borderRadius: 11,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-        }}
-      >
-        <IconAward size={22} stroke={1.8} color={LJ.key} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: LJ.textPrimary }}>
-            {author.nickname || '익명'}님이 만든 영예
-          </div>
-          <div style={{ fontSize: 10, color: LJ.textSecondary, marginTop: 2, lineHeight: 1.5 }}>
-            이 베스트 컷이 {post.place_name}을 대표해요
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={onFollowClick}
-          style={{
-            padding: '6px 12px',
-            borderRadius: 8,
-            border: following ? `1px solid ${LJ.borderLight}` : 'none',
-            background: following ? '#fff' : LJ.key,
-            color: following ? LJ.textSecondary : '#fff',
-            fontFamily: LJ.fontStack,
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          {following ? '팔로잉' : '팔로우'}
-        </button>
-      </div>
     </section>
   );
 }
