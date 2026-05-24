@@ -32,7 +32,7 @@ import { useQuestionBrief } from '../hooks/useQuestionBrief';
 import QuestionBanner from '../components/answer/QuestionBanner';
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
-import { reverseGeocodeToPlace } from '../utils/locationFromGeocode';
+import { reverseGeocodeToPlaceDetail, extractRegionFromAddress } from '../utils/locationFromGeocode';
 import { searchPlaceWithKakaoFirst, ensureKakaoMapsServicesReady } from '../utils/kakaoPlacesGeocode';
 import { patchUploadMedia } from '../stores/uploadStore';
 
@@ -61,9 +61,11 @@ function UploadInfoScreen() {
   const [body, setBody] = useState('');
   // 화면에 표시할 장소명. 좌표 변경 시 항상 재지오코딩해 최신값을 보여준다.
   const [resolvedPlace, setResolvedPlace] = useState('');
+  // 위 장소의 도시/구/동 라벨 (예: "서울 강남구 역삼동")
+  const [resolvedRegion, setResolvedRegion] = useState('');
   const [geocoding, setGeocoding] = useState(false);
   // 사용자가 위치를 직접 편집한 경우의 좌표/장소 (있으면 media 값을 덮어씀)
-  const [editedLoc, setEditedLoc] = useState(null); // { lat, lng, placeName } | null
+  const [editedLoc, setEditedLoc] = useState(null); // { lat, lng, placeName, region? } | null
   const [locOpen, setLocOpen] = useState(false);
   const [locQuery, setLocQuery] = useState('');
   const [locResults, setLocResults] = useState([]);
@@ -122,11 +124,12 @@ function UploadInfoScreen() {
     }
   };
 
-  // 좌표가 잡혀 있으면 항상 좌표 기반으로 장소명을 재지오코딩한다.
-  // (셔터 시점 media.placeName이 어긋났더라도, 좌표 기준의 정확한 건물명/POI로 갱신)
+  // 좌표가 잡혀 있으면 항상 좌표 기반으로 장소명+지역을 재지오코딩한다.
+  // (셔터 시점 media.placeName이 어긋났더라도, 좌표 기준의 정확한 건물명/도로명/지번으로 갱신)
   useEffect(() => {
     if (!Number.isFinite(media?.lat) || !Number.isFinite(media?.lng)) {
       setResolvedPlace('');
+      setResolvedRegion('');
       setGeocoding(false);
       return undefined;
     }
@@ -134,11 +137,15 @@ function UploadInfoScreen() {
     setGeocoding(true);
     (async () => {
       try {
-        const name = await reverseGeocodeToPlace(media.lat, media.lng);
+        const detail = await reverseGeocodeToPlaceDetail(media.lat, media.lng);
         if (cancelled) return;
-        setResolvedPlace(name || '');
+        setResolvedPlace(detail?.name || '');
+        setResolvedRegion(detail?.region || '');
       } catch (_) {
-        if (!cancelled) setResolvedPlace('');
+        if (!cancelled) {
+          setResolvedPlace('');
+          setResolvedRegion('');
+        }
       } finally {
         if (!cancelled) setGeocoding(false);
       }
@@ -330,8 +337,11 @@ function UploadInfoScreen() {
     const lng = parseFloat(r.x);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     const name = r.place_name || r.address_name || locQuery;
-    setEditedLoc({ lat, lng, placeName: name });
+    // 카카오 Places 결과의 address_name 에서 도시/구를 추출
+    const region = extractRegionFromAddress(r.road_address_name || r.address_name || '');
+    setEditedLoc({ lat, lng, placeName: name, region });
     setResolvedPlace(name);
+    setResolvedRegion(region);
     setLocOpen(false);
     setLocQuery('');
     setLocResults([]);
@@ -339,17 +349,27 @@ function UploadInfoScreen() {
 
   // 사용자가 검색 결과에서 고르지 않고 자기가 친 이름을 그대로 쓰고 싶을 때.
   // 현재 좌표(있으면)를 유지한 채 placeName만 사용자가 친 텍스트로 덮어쓴다.
-  const useTypedLocationAsName = () => {
+  // 좌표가 있으면 그 좌표 기준의 도시 라벨을 보강해서 함께 표시.
+  const useTypedLocationAsName = async () => {
     const text = String(locQuery || '').trim();
     if (!text) return;
     const lat = editedLoc?.lat ?? media?.lat ?? null;
     const lng = editedLoc?.lng ?? media?.lng ?? null;
+    let region = extractRegionFromAddress(text);
+    if (!region && Number.isFinite(lat) && Number.isFinite(lng)) {
+      try {
+        const detail = await reverseGeocodeToPlaceDetail(lat, lng);
+        if (detail?.region) region = detail.region;
+      } catch (_) { /* ignore */ }
+    }
     setEditedLoc({
       lat: Number.isFinite(lat) ? lat : null,
       lng: Number.isFinite(lng) ? lng : null,
       placeName: text,
+      region,
     });
     setResolvedPlace(text);
+    setResolvedRegion(region);
     setLocOpen(false);
     setLocQuery('');
     setLocResults([]);
@@ -360,6 +380,10 @@ function UploadInfoScreen() {
   const hasCoords = Number.isFinite(media?.lat) && Number.isFinite(media?.lng);
   const displayPlaceName =
     editedLoc?.placeName || resolvedPlace || (hasCoords ? '' : media?.placeName || '');
+  const displayRegion =
+    (editedLoc && typeof editedLoc.region === 'string' ? editedLoc.region : '') ||
+    resolvedRegion ||
+    '';
   const displayAccuracy = editedLoc ? null : (media?.accuracy ?? null);
   const accuracyLabel = (() => {
     if (!Number.isFinite(displayAccuracy) || displayAccuracy <= 0) return '';
@@ -739,29 +763,46 @@ function UploadInfoScreen() {
             borderRadius: 10,
             padding: '10px 12px',
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             gap: 8,
           }}
         >
-          <span
-            style={{
-              fontSize: 13,
-              color: displayPlaceName ? LJ.textPrimary : LJ.textTertiary,
-              flex: 1,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {refreshing
-              ? '위치 측정 중…'
-              : geocoding
-                ? '근처 장소 찾는 중…'
-                : displayPlaceName ||
-                  (hasCoords
-                    ? '근처에 알아볼 만한 장소가 없어요 — "위치 수정"으로 직접 검색해 주세요'
-                    : '위치 정보가 없어요 — "다시 측정" 또는 "위치 수정"')}
-          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 600,
+                color: displayPlaceName ? LJ.textPrimary : LJ.textTertiary,
+                lineHeight: 1.35,
+                wordBreak: 'keep-all',
+              }}
+            >
+              {refreshing
+                ? '위치 측정 중…'
+                : geocoding
+                  ? '근처 장소 찾는 중…'
+                  : displayPlaceName ||
+                    (hasCoords
+                      ? '근처에 알아볼 만한 장소가 없어요 — "위치 수정"으로 직접 검색해 주세요'
+                      : '위치 정보가 없어요 — "다시 측정" 또는 "위치 수정"')}
+            </div>
+            {displayRegion && (
+              <div
+                style={{
+                  marginTop: 3,
+                  fontSize: 11.5,
+                  color: LJ.textSecondary,
+                  lineHeight: 1.35,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <IconMapPin size={11} stroke={1.8} color={LJ.textTertiary} />
+                <span>{displayRegion}</span>
+              </div>
+            )}
+          </div>
           {editedLoc && (
             <span
               style={{
@@ -771,6 +812,8 @@ function UploadInfoScreen() {
                 padding: '2px 6px',
                 borderRadius: 4,
                 fontWeight: 600,
+                flexShrink: 0,
+                marginTop: 2,
               }}
             >
               직접 입력

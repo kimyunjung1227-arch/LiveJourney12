@@ -79,11 +79,11 @@ function fetchCoord2Address(lat, lng) {
  * coord2Address 한 줄 결과(row) → 사람이 읽는 정확한 현재 위치 라벨.
  * 우선순위:
  *  1) 좌표가 가리키는 건물명 (예: "여의도 IFC몰")
- *  2) 지번 주소 (예: "여의도동 23")
- *  3) ''
+ *  2) 도로명 주소 (예: "서울 영등포구 의사당대로 88")
+ *  3) 지번 주소 (예: "여의도동 23")
+ *  4) ''
  *
- * 도로명 주소는 사용하지 않는다.
- * 근처 POI도 호출하지 않는다 — 좌표 자체의 정보만 사용.
+ * 근처 POI는 호출하지 않는다 — 좌표 자체의 정보만 사용.
  */
 function pickPreciseAddressFromCoordRow(row) {
   if (!row || typeof row !== 'object') return '';
@@ -93,9 +93,27 @@ function pickPreciseAddressFromCoordRow(row) {
   const building = road?.building_name ? String(road.building_name).trim() : '';
   if (building) return building;
 
+  const roadAddr = road?.address_name ? String(road.address_name).trim() : '';
+  if (roadAddr) return roadAddr;
+
   const lotAddr = lot?.address_name ? String(lot.address_name).trim() : '';
   if (lotAddr) return lotAddr;
   return '';
+}
+
+/**
+ * coord2Address row → 도시/구/동 라벨 (예: "서울 강남구 역삼동").
+ * road_address 가 있으면 road 의 region, 아니면 address(지번) 의 region 사용.
+ */
+function pickRegionFromCoordRow(row) {
+  if (!row || typeof row !== 'object') return '';
+  const src = row.road_address || row.address || null;
+  if (!src) return '';
+  const r1 = String(src.region_1depth_name || '').trim(); // 시/도
+  const r2 = String(src.region_2depth_name || '').trim(); // 시/군/구
+  const r3 = String(src.region_3depth_name || '').trim(); // 동/읍/면
+  const parts = [r1, r2, r3].filter(Boolean);
+  return parts.join(' ');
 }
 
 /**
@@ -116,9 +134,59 @@ export async function reverseGeocodeToPlace(lat, lng) {
 }
 
 /**
+ * 좌표 → 상세 정보 ({name, region}).
+ *  - name: 건물명 / 도로명 / 지번 중 우선순위 1개 (없으면 '')
+ *  - region: "시 구 동" 형태의 도시 라벨 (예: "서울 강남구 역삼동")
+ */
+export async function reverseGeocodeToPlaceDetail(lat, lng) {
+  const empty = { name: '', region: '' };
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return empty;
+  try {
+    const row = await fetchCoord2Address(lat, lng);
+    if (!row) return empty;
+    return {
+      name: pickPreciseAddressFromCoordRow(row) || '',
+      region: pickRegionFromCoordRow(row) || '',
+    };
+  } catch (_) {
+    return empty;
+  }
+}
+
+/**
  * 호출자가 이미 coord2Address row를 들고 있을 때 라벨만 뽑는 호환 API.
  */
 // eslint-disable-next-line no-unused-vars
 export async function resolveDisplayLocationFromKakaoCoordResult(firstResult, _lng, _lat) {
   return pickPreciseAddressFromCoordRow(firstResult);
+}
+
+/**
+ * 카카오 Places 검색 결과(r) 또는 임의 주소 문자열에서 도시/구/동 라벨을 뽑는다.
+ *  - "서울 강남구 테헤란로 123" → "서울 강남구"
+ *  - "경기도 성남시 분당구 …" → "경기도 성남시 분당구"
+ */
+export function extractRegionFromAddress(addr) {
+  const s = String(addr || '').trim();
+  if (!s) return '';
+  const toks = s.split(/\s+/);
+  if (toks.length === 0) return '';
+  // 1depth(시/도) + 2depth(시/군/구)까지만. 분당·일산처럼 3depth가 있는 경우 한 단계 더.
+  const out = [];
+  for (let i = 0; i < toks.length && out.length < 3; i += 1) {
+    const t = toks[i];
+    if (/(시|도|특별시|광역시|자치시|자치도|군|구|읍|면|동)$/.test(t)) {
+      out.push(t);
+      // "시/도 + 시/군/구" 두 토큰 모이면 보통 충분
+      if (out.length >= 2 && /(구|군|시)$/.test(t)) {
+        // 분당구·일산서구 처럼 더 잘게 들어가는 케이스는 다음 토큰까지
+        const next = toks[i + 1];
+        if (next && /(구|동|읍|면)$/.test(next)) {
+          out.push(next);
+        }
+        break;
+      }
+    }
+  }
+  return out.join(' ');
 }
