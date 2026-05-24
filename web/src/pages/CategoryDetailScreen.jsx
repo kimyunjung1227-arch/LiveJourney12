@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useCategoryDetail } from '../hooks/useCategoryDetail';
 import CategoryHeader from '../components/explore/CategoryHeader';
-import ActivityModule from '../components/explore/ActivityModule';
 import FilterChips from '../components/explore/FilterChips';
 import LivePhotoGrid from '../components/explore/LivePhotoGrid';
 import QuestionPreview from '../components/explore/QuestionPreview';
@@ -88,10 +87,6 @@ function CategoryDetailScreen() {
   return (
     <div style={{ background: '#fff', minHeight: '100vh' }}>
       <CategoryHeader category={categoryId} />
-      <ActivityModule
-        category={categoryId}
-        activity={data.activity || { recent_hour: 0, today: 0, level: 'quiet' }}
-      />
       <FilterChips chips={cityChips} selected={city} onChange={handleCityChange} />
 
       <div style={{ padding: '0 18px 24px' }}>
