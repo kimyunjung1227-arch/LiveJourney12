@@ -145,6 +145,17 @@ export function PostCard({
             {post.category_raw || categoryLabel(post.category)}
           </div>
         )}
+        {/* 우하단 EXIF 촬영시각 — 가볍게 반투명 */}
+        <div
+          style={{
+            position: 'absolute',
+            right: 10,
+            bottom: 10,
+            pointerEvents: 'none',
+          }}
+        >
+          <ExifStampOverlay takenAt={post.exif_taken_at} />
+        </div>
       </div>
 
       {/* 작성자 행: 아바타 | 이름(N) · 남은시간 | 지금 현장 — 카드 상단으로 이동 */}
@@ -437,63 +448,55 @@ function ReactionButton({ active, iconOff, iconOn, count, onClick, ariaLabel }) 
 }
 
 function ExifBadge({ takenAt }) {
-  const stamp = formatExifStamp(takenAt);
   const relative = formatExifTime(takenAt);
-  if (!stamp && !relative) return null;
+  if (!relative) return null;
   return (
     <div
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 8,
-        padding: '7px 11px',
+        gap: 6,
+        padding: '7px 12px',
         background: 'rgba(0,0,0,0.78)',
-        borderRadius: 8,
+        borderRadius: 999,
         backdropFilter: 'blur(8px)',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
       }}
     >
-      <IconShieldCheck size={15} stroke={2} color={LJ.key} />
-      <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
-        <span
-          style={{
-            color: 'rgba(255,255,255,0.65)',
-            fontSize: 9,
-            fontWeight: 700,
-            letterSpacing: 0.8,
-            textTransform: 'uppercase',
-          }}
-        >
-          EXIF 촬영
-        </span>
-        {stamp && (
-          <span
-            style={{
-              color: '#fff',
-              fontSize: 13,
-              fontWeight: 700,
-              letterSpacing: 0.2,
-              fontVariantNumeric: 'tabular-nums',
-              marginTop: 1,
-            }}
-          >
-            {stamp}
-          </span>
-        )}
-        {relative && (
-          <span
-            style={{
-              color: LJ.key,
-              fontSize: 10,
-              fontWeight: 600,
-              marginTop: 1,
-            }}
-          >
-            {relative}
-          </span>
-        )}
-      </div>
+      <IconShieldCheck size={15} stroke={2.2} color={LJ.key} />
+      <span
+        style={{
+          color: '#fff',
+          fontSize: 13,
+          fontWeight: 800,
+          letterSpacing: 0.2,
+          fontVariantNumeric: 'tabular-nums',
+          lineHeight: 1,
+        }}
+      >
+        {relative}
+      </span>
     </div>
+  );
+}
+
+function ExifStampOverlay({ takenAt }) {
+  const stamp = formatExifStamp(takenAt);
+  if (!stamp) return null;
+  return (
+    <span
+      style={{
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 10,
+        fontWeight: 500,
+        fontVariantNumeric: 'tabular-nums',
+        letterSpacing: 0.1,
+        textShadow: '0 1px 3px rgba(0,0,0,0.55)',
+        lineHeight: 1,
+      }}
+    >
+      {stamp}
+    </span>
   );
 }
 
