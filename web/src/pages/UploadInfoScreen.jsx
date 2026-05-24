@@ -477,111 +477,16 @@ function UploadInfoScreen() {
         </div>
       )}
 
-      {/* 사진/영상 미리보기 — 첫 컷은 크게, 나머지는 가로 스트립 + 추가/삭제 */}
+      {/* 사진/영상 미리보기 — 대표 영역에서 좌우 스와이프로 전체 미리보기 */}
       {mediasArr.length > 0 && (
         <div style={{ padding: '14px 18px 0' }}>
-          {/* 대표 컷 (첫 번째) */}
-          <div
-            style={{
-              position: 'relative',
-              width: '100%',
-              height: 280,
-              background: LJ.bgSurface,
-              borderRadius: 12,
-              overflow: 'hidden',
-            }}
-          >
-            {media.mode === 'video' ? (
-              <video
-                src={media.url}
-                controls
-                playsInline
-                style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#000' }}
-              />
-            ) : (
-              <img
-                src={media.url}
-                alt="업로드 미리보기"
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-            )}
-            {/* EXIF */}
-            <div
-              style={{
-                position: 'absolute',
-                top: 10,
-                left: 10,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                padding: '5px 10px',
-                background: 'rgba(0,0,0,0.7)',
-                borderRadius: 6,
-                backdropFilter: 'blur(8px)',
-              }}
-            >
-              <IconShieldCheck size={12} stroke={2} color={LJ.key} />
-              <span style={{ color: '#fff', fontSize: 11, fontWeight: 600, lineHeight: 1 }}>
-                EXIF 자동 인증
-              </span>
-              {takenLabel && (
-                <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 10.5 }}>· {takenLabel}</span>
-              )}
-            </div>
-            {mediasArr.length > 1 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 10,
-                  right: 10,
-                  padding: '4px 9px',
-                  background: 'rgba(0,0,0,0.7)',
-                  color: '#fff',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  borderRadius: 6,
-                  backdropFilter: 'blur(8px)',
-                }}
-              >
-                1 / {mediasArr.length}
-              </div>
-            )}
-            {/* GPS */}
-            {(resolvedPlace || media.placeName || (media.lat && media.lng)) && (
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: 10,
-                  left: 10,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  padding: '5px 10px',
-                  background: 'rgba(0,0,0,0.7)',
-                  borderRadius: 6,
-                  backdropFilter: 'blur(8px)',
-                  maxWidth: 'calc(100% - 20px)',
-                }}
-              >
-                <IconMapPin size={12} stroke={2} color={LJ.key} />
-                <span
-                  style={{
-                    color: '#fff',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                >
-                  {displayPlaceName ||
-                    (media.lat && media.lng
-                      ? `${(editedLoc?.lat ?? media.lat).toFixed(4)}, ${(editedLoc?.lng ?? media.lng).toFixed(4)}`
-                      : '')}
-                </span>
-              </div>
-            )}
-          </div>
+          <UploadPreviewSlider
+            medias={mediasArr}
+            displayPlaceName={displayPlaceName}
+            editedLocLat={editedLoc?.lat ?? null}
+            editedLocLng={editedLoc?.lng ?? null}
+            firstTakenLabel={takenLabel}
+          />
 
           {/* 썸네일 스트립 + 추가 버튼 */}
           {(mediasArr.length > 1 || canAddMore) && (
@@ -1100,6 +1005,270 @@ function UploadInfoScreen() {
             </div>
           </div>
         </section>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 업로드 정보화면 대표 미리보기 슬라이더.
+ * - 선택한 사진/영상 전체를 좌우 스와이프로 미리볼 수 있음
+ * - 한 번의 스와이프 = 1장 이동, PointerEvents 기반
+ */
+function UploadPreviewSlider({ medias, displayPlaceName, editedLocLat, editedLocLng, firstTakenLabel }) {
+  const [idx, setIdx] = React.useState(0);
+  const [dragOffset, setDragOffset] = React.useState(0);
+  const [isDragging, setIsDragging] = React.useState(false);
+  const startXRef = React.useRef(0);
+  const startYRef = React.useRef(0);
+  const lockedAxisRef = React.useRef(null);
+  const activePointerIdRef = React.useRef(null);
+
+  const SWIPE_COMMIT_PX = 40;
+  const N = medias.length;
+
+  // 미디어 수가 바뀌면 인덱스 보정
+  React.useEffect(() => {
+    if (idx >= N) setIdx(Math.max(0, N - 1));
+  }, [N, idx]);
+
+  const current = medias[idx] || medias[0];
+
+  const formatLabel = (m) => {
+    if (!m?.takenAt) return '';
+    try {
+      return formatTimeAgo(new Date(m.takenAt));
+    } catch {
+      return '';
+    }
+  };
+
+  const itemTakenLabel = idx === 0 ? firstTakenLabel : formatLabel(current);
+
+  const onPointerDown = (e) => {
+    if (N <= 1) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    activePointerIdRef.current = e.pointerId;
+    startXRef.current = e.clientX;
+    startYRef.current = e.clientY;
+    lockedAxisRef.current = null;
+    setIsDragging(true);
+    setDragOffset(0);
+    try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch (_) {}
+  };
+
+  const onPointerMove = (e) => {
+    if (!isDragging || activePointerIdRef.current !== e.pointerId) return;
+    const dx = e.clientX - startXRef.current;
+    const dy = e.clientY - startYRef.current;
+    if (lockedAxisRef.current === null) {
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      lockedAxisRef.current = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+    }
+    if (lockedAxisRef.current !== 'x') return;
+    if (e.cancelable) e.preventDefault();
+    let dragX = dx;
+    if ((idx === 0 && dx > 0) || (idx === N - 1 && dx < 0)) {
+      dragX = dx * 0.35;
+    }
+    setDragOffset(dragX);
+  };
+
+  const finishDrag = (e) => {
+    if (!isDragging) return;
+    if (activePointerIdRef.current != null && activePointerIdRef.current !== e?.pointerId) return;
+    const dx = dragOffset;
+    setIsDragging(false);
+    setDragOffset(0);
+    activePointerIdRef.current = null;
+    if (lockedAxisRef.current === 'x' && Math.abs(dx) >= SWIPE_COMMIT_PX) {
+      setIdx((prev) => Math.max(0, Math.min(N - 1, prev + (dx < 0 ? 1 : -1))));
+    }
+    lockedAxisRef.current = null;
+    try {
+      if (e?.pointerId != null) e?.currentTarget?.releasePointerCapture?.(e.pointerId);
+    } catch (_) {}
+  };
+
+  return (
+    <div
+      style={{
+        position: 'relative',
+        width: '100%',
+        height: 280,
+        background: LJ.bgSurface,
+        borderRadius: 12,
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={finishDrag}
+        onPointerCancel={finishDrag}
+        style={{
+          display: 'flex',
+          width: '100%',
+          height: '100%',
+          touchAction: 'pan-y',
+          transform: `translate3d(calc(${-idx * 100}% + ${dragOffset}px), 0, 0)`,
+          transition: isDragging ? 'none' : 'transform 320ms cubic-bezier(0.22, 0.7, 0.2, 1)',
+          cursor: N > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default',
+          willChange: 'transform',
+        }}
+      >
+        {medias.map((m, i) => (
+          <div
+            key={`${m.url}-${i}`}
+            style={{
+              flex: '0 0 100%',
+              width: '100%',
+              height: '100%',
+              background: '#000',
+            }}
+          >
+            {m.mode === 'video' ? (
+              <video
+                src={m.url}
+                controls
+                playsInline
+                style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#000', display: 'block' }}
+              />
+            ) : (
+              <img
+                src={m.url}
+                alt={`업로드 미리보기 ${i + 1}`}
+                draggable="false"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: 'block',
+                  userSelect: 'none',
+                  WebkitUserDrag: 'none',
+                  pointerEvents: 'none',
+                }}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* EXIF */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 10,
+          left: 10,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 5,
+          padding: '5px 10px',
+          background: 'rgba(0,0,0,0.7)',
+          borderRadius: 6,
+          backdropFilter: 'blur(8px)',
+          pointerEvents: 'none',
+        }}
+      >
+        <IconShieldCheck size={12} stroke={2} color={LJ.key} />
+        <span style={{ color: '#fff', fontSize: 11, fontWeight: 600, lineHeight: 1 }}>
+          EXIF 자동 인증
+        </span>
+        {itemTakenLabel && (
+          <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 10.5 }}>· {itemTakenLabel}</span>
+        )}
+      </div>
+
+      {/* N / M */}
+      {N > 1 && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 10,
+            right: 10,
+            padding: '4px 9px',
+            background: 'rgba(0,0,0,0.7)',
+            color: '#fff',
+            fontSize: 11,
+            fontWeight: 700,
+            borderRadius: 6,
+            backdropFilter: 'blur(8px)',
+            pointerEvents: 'none',
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {idx + 1} / {N}
+        </div>
+      )}
+
+      {/* GPS — 첫 미디어 기준 좌표/장소 */}
+      {(displayPlaceName ||
+        (Number.isFinite(editedLocLat) && Number.isFinite(editedLocLng)) ||
+        (current?.lat != null && current?.lng != null)) && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 10,
+            left: 10,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '5px 10px',
+            background: 'rgba(0,0,0,0.7)',
+            borderRadius: 6,
+            backdropFilter: 'blur(8px)',
+            maxWidth: 'calc(100% - 20px)',
+            pointerEvents: 'none',
+          }}
+        >
+          <IconMapPin size={12} stroke={2} color={LJ.key} />
+          <span
+            style={{
+              color: '#fff',
+              fontSize: 11,
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {displayPlaceName ||
+              (current?.lat != null && current?.lng != null
+                ? `${Number(editedLocLat ?? current.lat).toFixed(4)}, ${Number(editedLocLng ?? current.lng).toFixed(4)}`
+                : '')}
+          </span>
+        </div>
+      )}
+
+      {/* 페이지 점 인디케이터 (5장 이하) */}
+      {N > 1 && N <= 5 && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 10,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 6,
+            pointerEvents: 'none',
+          }}
+        >
+          {medias.map((_, i) => (
+            <span
+              key={i}
+              style={{
+                width: i === idx ? 16 : 6,
+                height: 6,
+                borderRadius: 999,
+                background: i === idx ? '#fff' : 'rgba(255,255,255,0.5)',
+                transition: 'all 160ms ease-out',
+              }}
+            />
+          ))}
+        </div>
       )}
     </div>
   );

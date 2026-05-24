@@ -11,7 +11,8 @@
  */
 
 const SS_KEY = 'lj:uploadStore';
-const MAX_MEDIAS = 5;
+// 한 게시물에 첨부할 수 있는 미디어 상한 — 사실상 무제한으로 두되 메모리·성능을 위해 안전한 큰 값
+const MAX_MEDIAS = 100;
 
 let state = readFromSession();
 let cachedProjection;        // 직전에 만든 projection 결과

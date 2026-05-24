@@ -1118,7 +1118,7 @@ const UploadScreen = () => {
               >
                 <span className="material-symbols-outlined text-4xl text-primary">add_circle</span>
                 <p className="text-base font-bold">사진 또는 동영상 추가</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">최대 10개까지</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">선택한 만큼 업로드</p>
               </button>
             ) : (
               <div className="-mx-1">
@@ -1252,19 +1252,17 @@ const UploadScreen = () => {
                     </div>
                   ))}
                   
-                  {/* 추가 버튼 (최대 10개까지) */}
-                  {(formData.images.length + formData.videos.length) < 10 && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowPhotoOptions(true);
-                      }}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      className="w-24 h-24 flex-shrink-0 rounded border-2 border-dashed border-subtle-light dark:border-subtle-dark flex items-center justify-center hover:border-primary transition-colors bg-gray-50 dark:bg-gray-800/50 snap-start z-10"
-                    >
-                      <span className="material-symbols-outlined text-xl text-primary">add</span>
-                    </button>
-                  )}
+                  {/* 추가 버튼 — 사용자가 선택한 만큼 모두 업로드 */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowPhotoOptions(true);
+                    }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    className="w-24 h-24 flex-shrink-0 rounded border-2 border-dashed border-subtle-light dark:border-subtle-dark flex items-center justify-center hover:border-primary transition-colors bg-gray-50 dark:bg-gray-800/50 snap-start z-10"
+                  >
+                    <span className="material-symbols-outlined text-xl text-primary">add</span>
+                  </button>
                 </div>
               </div>
             )}
