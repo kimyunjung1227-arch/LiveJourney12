@@ -197,7 +197,7 @@ const UploadScreen = () => {
     const el = noteAreaRef.current;
     if (!el) return;
     el.style.height = '0px';
-    const next = Math.min(Math.max(el.scrollHeight, 76), 280);
+    const next = Math.max(el.scrollHeight, 76);
     el.style.height = `${next}px`;
   }, []);
 
@@ -1012,17 +1012,14 @@ const UploadScreen = () => {
           logger.debug('Badge earned result:', earnedBadge);
           logger.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           window.dispatchEvent(new Event('badgeProgressUpdated'));
-          if (!earnedBadge) {
-            // 업로드 완료 화면으로 이동 (라이브저니 호혜 경험)
-            setTimeout(() => {
-              setShowSuccessModal(false);
-              navigate(`/upload/complete/${encodeURIComponent(String(uploadedPost.id))}`, {
-                replace: true,
-              });
-            }, 700);
-          } else {
-            logger.log('Badge earned! Showing badge modal...');
-          }
+          // 업로드 완료 화면으로 항상 이동 (배지 획득 여부와 무관 — 라이브저니 호혜 경험)
+          setTimeout(() => {
+            setShowSuccessModal(false);
+            setShowBadgeModal(false);
+            navigate(`/upload/complete/${encodeURIComponent(String(uploadedPost.id))}`, {
+              replace: true,
+            });
+          }, 700);
         })();
       }, 800);
     } catch (error) {
@@ -1398,7 +1395,7 @@ const UploadScreen = () => {
                 <div className="relative">
                   <textarea
                     ref={noteAreaRef}
-                    className="form-textarea w-full max-h-[280px] min-h-[76px] resize-none overflow-y-auto rounded-lg border border-subtle-light bg-background-light p-3 text-sm font-normal placeholder:text-placeholder-light focus:border-primary focus:ring-0 dark:border-subtle-dark dark:bg-background-dark dark:placeholder:text-placeholder-dark"
+                    className="form-textarea w-full min-h-[76px] resize-none overflow-hidden rounded-lg border border-subtle-light bg-background-light p-3 text-sm font-normal placeholder:text-placeholder-light focus:border-primary focus:ring-0 dark:border-subtle-dark dark:bg-background-dark dark:placeholder:text-placeholder-dark"
                     placeholder="지금 이곳이 어떤지(분위기, 사람, 날씨 등)를 간단히 적어주세요"
                     rows={2}
                     value={formData.note}
