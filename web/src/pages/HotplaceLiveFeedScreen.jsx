@@ -43,7 +43,6 @@ const hotplaceSituationDescStyle = {
   WebkitLineClamp: 1,
 };
 import { normalizePlaceIdentityKey } from '../utils/placeKeyNormalize';
-import { fetchLiveSyncPctSupabase } from '../api/liveSyncSupabase';
 import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 
 const HOTPLACE_PRIMARY = '#1353d8';
@@ -131,67 +130,41 @@ export default function HotplaceLiveFeedScreen() {
 
   const now = Date.now();
 
-  /** 48시간 내 반응 순 1위 게시물만 베스트 컷으로 사용 */
-  const bestCutPost = useMemo(() => {
-    if (postsForPlace.length === 0) return null;
+  /** 48시간 내 반응 순으로 정렬된 베스트컷 후보 목록 (최대 10개) */
+  const bestCutPosts = useMemo(() => {
+    if (postsForPlace.length === 0) return [];
     const in48 = postsForPlace.filter((p) => now - getPostTimeMs(p) <= HOURS_48_MS);
     const pool = in48.length > 0 ? in48 : postsForPlace;
-    const sorted = [...pool].sort((a, b) => {
-      const d = getEngagementScore(b) - getEngagementScore(a);
-      if (d !== 0) return d;
-      return getPostTimeMs(b) - getPostTimeMs(a);
-    });
-    return sorted[0] ?? null;
+    return [...pool]
+      .sort((a, b) => {
+        const d = getEngagementScore(b) - getEngagementScore(a);
+        if (d !== 0) return d;
+        return getPostTimeMs(b) - getPostTimeMs(a);
+      })
+      .slice(0, 10);
   }, [postsForPlace, now]);
 
-  const [mediaIdx, setMediaIdx] = useState(0);
-  const mediaSwiperRef = useRef(null);
+  const [bestCutIdx, setBestCutIdx] = useState(0);
+  const bestCutSwiperRef = useRef(null);
   const cardTapRef = useRef({ x: 0, y: 0 });
 
+  // 후보 목록 자체가 바뀌면 첫 게시물로 리셋
   useEffect(() => {
-    setMediaIdx(0);
-    mediaSwiperRef.current?.slideTo(0, 0);
-  }, [bestCutPost?.id]);
+    setBestCutIdx(0);
+    bestCutSwiperRef.current?.slideTo(0, 0);
+  }, [postsForPlace]);
 
   const displayTitle = String(loc.state?.placeKey || placeKey || '실시간 현장').trim();
-  const heroPost = bestCutPost;
-  const heroAuthorId = heroPost ? getUserIdForPost(heroPost) : '';
-
-  const heroMediaItems = useMemo(() => (heroPost ? getHeroMediaItems(heroPost) : []), [heroPost]);
-
-  const heroTrustMeta = useMemo(() => {
-    if (!heroPost || !heroAuthorId) {
-      return { regionLabel: '' };
-    }
-    const u = heroPost.user;
-    const region =
-      String(u?.region || u?.city || u?.location || '').trim() ||
-      String(heroPost.region || '').trim() ||
-      displayTitle.split(/[\s,·]/)[0]?.trim() ||
-      '';
-    return { regionLabel: region || '여행' };
-  }, [heroPost, heroAuthorId, allPosts, displayTitle]);
-
-  const [heroLiveSync, setHeroLiveSync] = useState(null);
-  useEffect(() => {
-    if (!heroAuthorId) {
-      setHeroLiveSync(null);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      const pct = await fetchLiveSyncPctSupabase(heroAuthorId);
-      if (!cancelled) setHeroLiveSync(pct);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [heroAuthorId]);
-
-  const situationPosts = useMemo(() => {
-    if (!heroPost?.id) return postsForPlace;
-    return postsForPlace.filter((p) => String(p.id) !== String(heroPost.id));
-  }, [postsForPlace, heroPost]);
+  const heroPost = bestCutPosts[bestCutIdx] || null;
+  // 베스트컷 캐러셀에 포함된 게시물 전부를 상황 그리드에서 제외
+  const bestCutIds = useMemo(
+    () => new Set(bestCutPosts.map((p) => String(p.id))),
+    [bestCutPosts],
+  );
+  const situationPosts = useMemo(
+    () => postsForPlace.filter((p) => !bestCutIds.has(String(p.id))),
+    [postsForPlace, bestCutIds],
+  );
 
   const [weatherByRegion, setWeatherByRegion] = useState({});
 
@@ -239,23 +212,8 @@ export default function HotplaceLiveFeedScreen() {
     }
   };
 
-  const heroAvatarUrl = heroPost ? getAvatarUrlForPost(heroPost) : null;
-
-  const profileLine1Suffix = '';
-
-  const openHeroPost = () => {
-    if (!heroPost) return;
-    navigate(`/post/${heroPost.id}`, { state: { post: heroPost, allPosts } });
-  };
-
   const onHeroCardPointerDown = (e) => {
     cardTapRef.current = { x: e.clientX, y: e.clientY };
-  };
-
-  const onHeroCardPointerUp = (e) => {
-    if (e.target.closest?.('button') || e.target.closest?.('.swiper-pagination')) return;
-    const d = Math.hypot(e.clientX - cardTapRef.current.x, e.clientY - cardTapRef.current.y);
-    if (d < 14) openHeroPost();
   };
 
   return (
@@ -297,175 +255,181 @@ export default function HotplaceLiveFeedScreen() {
         <div className="px-5">
           {heroPost ? (
             <section className="mb-4" aria-labelledby="best-cut-title">
-              <div className="mb-2">
-                <h2
-                  id="best-cut-title"
-                  className="font-manrope text-[16px] font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100"
-                >
-                  실시간 베스트 컷
-                </h2>
-                <p className="mt-0.5 font-inter text-[10px] leading-snug text-zinc-500 dark:text-zinc-400">
-                  48시간 내 반응이 가장 높은 게시물 전체 · 좌우로 사진·영상 넘기기
-                </p>
+              <div className="mb-2 flex items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <h2
+                    id="best-cut-title"
+                    className="font-manrope text-[16px] font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100"
+                  >
+                    실시간 베스트 컷
+                  </h2>
+                  <p className="mt-0.5 font-inter text-[10px] leading-snug text-zinc-500 dark:text-zinc-400">
+                    48시간 내 반응 순 베스트 {bestCutPosts.length}개 · 좌우로 게시물 넘기기
+                  </p>
+                </div>
+                {bestCutPosts.length > 1 ? (
+                  <span
+                    className="shrink-0 font-inter text-[11px] font-bold text-zinc-500 dark:text-zinc-400"
+                    style={{ fontVariantNumeric: 'tabular-nums' }}
+                  >
+                    {bestCutIdx + 1} / {bestCutPosts.length}
+                  </span>
+                ) : null}
               </div>
 
               <div
                 className="overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-black/5 dark:bg-zinc-900 dark:ring-white/10"
                 style={{ boxShadow: '0 12px 36px rgba(19, 83, 216, 0.1)' }}
               >
-                <div
-                  className="relative h-[min(380px,54svh)] w-full max-h-[58vh] bg-zinc-950 sm:h-[380px] sm:max-h-none"
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      openHeroPost();
-                    }
+                <Swiper
+                  className="best-cut-swiper h-full w-full [&_.swiper-wrapper]:h-full [&_.swiper-slide]:h-full"
+                  speed={400}
+                  resistanceRatio={0.85}
+                  threshold={8}
+                  longSwipesRatio={0.3}
+                  slidesPerView={1}
+                  spaceBetween={0}
+                  onSwiper={(s) => {
+                    bestCutSwiperRef.current = s;
                   }}
-                  onPointerDown={onHeroCardPointerDown}
-                  onPointerUp={onHeroCardPointerUp}
-                  aria-label={
-                    heroMediaItems.length > 1
-                      ? '베스트 컷 게시물, 좌우로 사진·영상 넘기기 · 탭하면 게시물로 이동'
-                      : '베스트 컷 게시물, 탭하면 게시물로 이동'
-                  }
+                  onSlideChange={(s) => setBestCutIdx(s.activeIndex)}
+                  key={`bestcut-list-${bestCutPosts.length}`}
                 >
-                  {!bestCutPost ? (
-                    <div className="h-full w-full bg-zinc-700" />
-                  ) : (
-                    <Swiper
-                      className="best-cut-swiper h-full w-full [&_.swiper-wrapper]:h-full [&_.swiper-slide]:h-full"
-                      speed={400}
-                      resistanceRatio={0.85}
-                      threshold={6}
-                      longSwipesRatio={0.3}
-                      slidesPerView={1}
-                      spaceBetween={0}
-                      onSwiper={(s) => {
-                        mediaSwiperRef.current = s;
-                      }}
-                      onSlideChange={(s) => setMediaIdx(s.activeIndex)}
-                      key={String(bestCutPost.id)}
-                    >
-                      {(heroMediaItems.length > 0 ? heroMediaItems : [{ type: 'empty' }]).map((m, mi) => (
-                        <SwiperSlide key={`${bestCutPost.id}-m-${mi}`}>
-                          <div className="relative h-full min-h-[min(380px,54svh)] w-full overflow-hidden bg-zinc-950 sm:min-h-[380px]">
-                            {m.type === 'video' ? (
-                              <video
-                                src={getDisplayImageUrl(m.uri)}
-                                className="h-full w-full object-cover [transform:translateZ(0)]"
-                                muted
-                                playsInline
-                                preload="metadata"
-                                autoPlay={mediaIdx === mi}
-                                loop
-                              />
-                            ) : m.type === 'empty' ? (
-                              <div className="h-full w-full bg-zinc-700" />
-                            ) : (
-                              <img
-                                src={getDisplayImageUrl(m.uri, { hero: true })}
-                                alt=""
-                                className="h-full w-full object-cover [transform:translateZ(0)]"
-                                loading="eager"
-                                decoding="async"
-                                fetchPriority={mi < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
-                                sizes="100vw"
-                              />
-                            )}
-                          </div>
-                        </SwiperSlide>
-                      ))}
-                    </Swiper>
-                  )}
-
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/8 via-transparent to-black/30" />
-
-                  <div className="pointer-events-none absolute left-3 top-3 z-10 sm:left-4 sm:top-4">
-                    <div
-                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-inter text-[10px] font-extrabold tracking-wide text-white shadow-md"
-                      style={{
-                        background: `linear-gradient(135deg, ${HOTPLACE_PRIMARY} 0%, #0c3a9e 100%)`,
-                        boxShadow: '0 4px 14px rgba(19, 83, 216, 0.4)',
-                      }}
-                    >
-                      <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: '"FILL" 1' }}>
-                        workspace_premium
-                      </span>
-                      베스트
-                    </div>
-                  </div>
-
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/95 via-black/45 to-transparent px-3 pb-2.5 pt-8 sm:px-4 sm:pb-3 sm:pt-9">
-                    <div className="flex flex-col items-stretch gap-2">
-                      {heroMediaItems.length > 1 ? (
-                        <div className="flex justify-center gap-1.5">
-                          {heroMediaItems.map((_, index) => (
-                            <button
-                              key={String(index)}
-                              type="button"
-                              tabIndex={0}
-                              aria-label={`사진 ${index + 1} / ${heroMediaItems.length}`}
-                              onPointerDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                mediaSwiperRef.current?.slideTo(index);
-                              }}
-                              className={`carousel-page-dot pointer-events-auto inline-flex min-h-0 min-w-0 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 p-0 leading-none transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
-                                index === mediaIdx ? 'h-1.5 w-5 bg-white' : 'h-1.5 w-1.5 bg-white/40 hover:bg-white/55'
-                              }`}
-                            />
-                          ))}
-                        </div>
-                      ) : null}
-                      <div className="pointer-events-none flex items-end gap-2 sm:gap-2.5">
-                        <div className="flex shrink-0 flex-col items-center gap-1">
-                          <p className="whitespace-nowrap font-manrope text-[9px] font-extrabold uppercase tracking-[0.1em] text-white/75 drop-shadow-sm">
-                            오늘의 작가
-                          </p>
-                          {heroAvatarUrl ? (
-                            <img
-                              src={heroAvatarUrl}
-                              alt=""
-                              className="size-9 rounded-full border-2 border-white object-cover shadow-md ring-1 ring-black/15"
+                  {bestCutPosts.map((bp, bpIdx) => {
+                    const items = getHeroMediaItems(bp);
+                    const cover = items[0];
+                    const author = getUserNameForPost(bp);
+                    const avatarUrl = getAvatarUrlForPost(bp);
+                    return (
+                      <SwiperSlide key={`bestcut-${bp.id}`}>
+                        <div
+                          className="relative h-[min(380px,54svh)] w-full max-h-[58vh] bg-zinc-950 sm:h-[380px] sm:max-h-none"
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              navigate(`/post/${bp.id}`, { state: { post: bp, allPosts } });
+                            }
+                          }}
+                          onPointerDown={onHeroCardPointerDown}
+                          onPointerUp={(e) => {
+                            if (e.target.closest?.('button') || e.target.closest?.('.swiper-pagination')) return;
+                            const d = Math.hypot(e.clientX - cardTapRef.current.x, e.clientY - cardTapRef.current.y);
+                            if (d < 14) navigate(`/post/${bp.id}`, { state: { post: bp, allPosts } });
+                          }}
+                          aria-label={`베스트 컷 ${bpIdx + 1} / ${bestCutPosts.length} · 탭하면 게시물로 이동`}
+                        >
+                          {!cover ? (
+                            <div className="h-full w-full bg-zinc-700" />
+                          ) : cover.type === 'video' ? (
+                            <video
+                              src={getDisplayImageUrl(cover.uri)}
+                              className="h-full w-full object-cover [transform:translateZ(0)]"
+                              muted
+                              playsInline
+                              preload="metadata"
+                              autoPlay={bpIdx === bestCutIdx}
+                              loop
                             />
                           ) : (
-                            <div className="flex size-9 items-center justify-center rounded-full border-2 border-white bg-zinc-900 font-manrope text-sm font-extrabold text-white shadow-md ring-1 ring-black/20">
-                              {getUserNameForPost(heroPost).slice(0, 1)}
-                            </div>
+                            <img
+                              src={getDisplayImageUrl(cover.uri, { hero: true })}
+                              alt=""
+                              className="h-full w-full object-cover [transform:translateZ(0)]"
+                              loading={bpIdx === 0 ? 'eager' : 'lazy'}
+                              decoding="async"
+                              fetchPriority={bpIdx < SCREEN_IMAGE_HIGH_PRIORITY_COUNT ? 'high' : 'auto'}
+                              sizes="100vw"
+                            />
                           )}
-                        </div>
-                        <div className="min-w-0 flex-1 pb-0.5">
-                          <div className="flex flex-wrap items-center gap-x-1 gap-y-0 leading-tight">
-                            <span className="font-inter text-[13px] font-extrabold tracking-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.75)]">
-                              {getUserNameForPost(heroPost)}
-                            </span>
-                            <span className="material-symbols-outlined text-[15px] text-white/65" aria-hidden>
-                              explore
-                            </span>
-                            <span className="font-inter text-[11px] font-semibold text-white/90">
-                              {heroTrustMeta.regionLabel}
-                              {profileLine1Suffix ? ` ${profileLine1Suffix}` : ''}
-                            </span>
+
+                          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/8 via-transparent to-black/30" />
+
+                          <div className="pointer-events-none absolute left-3 top-3 z-10 sm:left-4 sm:top-4">
+                            <div
+                              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-inter text-[10px] font-extrabold tracking-wide text-white shadow-md"
+                              style={{
+                                background: `linear-gradient(135deg, ${HOTPLACE_PRIMARY} 0%, #0c3a9e 100%)`,
+                                boxShadow: '0 4px 14px rgba(19, 83, 216, 0.4)',
+                              }}
+                            >
+                              <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: '"FILL" 1' }}>
+                                workspace_premium
+                              </span>
+                              베스트 {bpIdx + 1}
+                            </div>
                           </div>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-x-1 text-[10px] leading-tight text-sky-100/95">
-                            {heroLiveSync != null ? (
-                              <span className="font-inter font-bold">라이브 싱크 {heroLiveSync}%</span>
-                            ) : (
-                              <span className="font-inter font-semibold text-white/55">라이브 싱크 —</span>
-                            )}
-                            <span className="material-symbols-outlined text-[13px] text-sky-200/85" aria-hidden>
-                              explore
-                            </span>
-                            <span className="font-inter font-bold">현장 일치도</span>
+
+                          {items.length > 1 ? (
+                            <div className="pointer-events-none absolute right-3 top-3 z-10 sm:right-4 sm:top-4">
+                              <div className="inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 font-inter text-[10px] font-bold text-white backdrop-blur-sm">
+                                <span className="material-symbols-outlined text-[12px]">photo_library</span>
+                                {items.length}
+                              </div>
+                            </div>
+                          ) : null}
+
+                          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/95 via-black/45 to-transparent px-3 pb-2.5 pt-8 sm:px-4 sm:pb-3 sm:pt-9">
+                            <div className="pointer-events-none flex items-end gap-2 sm:gap-2.5">
+                              <div className="flex shrink-0 flex-col items-center gap-1">
+                                <p className="whitespace-nowrap font-manrope text-[9px] font-extrabold uppercase tracking-[0.1em] text-white/75 drop-shadow-sm">
+                                  베스트 작가
+                                </p>
+                                {avatarUrl ? (
+                                  <img
+                                    src={avatarUrl}
+                                    alt=""
+                                    className="size-9 rounded-full border-2 border-white object-cover shadow-md ring-1 ring-black/15"
+                                  />
+                                ) : (
+                                  <div className="flex size-9 items-center justify-center rounded-full border-2 border-white bg-zinc-900 font-manrope text-sm font-extrabold text-white shadow-md ring-1 ring-black/20">
+                                    {author.slice(0, 1)}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1 pb-0.5">
+                                <div className="flex flex-wrap items-center gap-x-1 gap-y-0 leading-tight">
+                                  <span className="font-inter text-[13px] font-extrabold tracking-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.75)]">
+                                    {author}
+                                  </span>
+                                </div>
+                                <div className="mt-0.5 flex flex-wrap items-center gap-x-1 text-[10px] leading-tight text-sky-100/95">
+                                  <span className="material-symbols-outlined text-[12px] text-sky-200/85" aria-hidden>
+                                    favorite
+                                  </span>
+                                  <span className="font-inter font-bold">{getLikeCount(bp)}</span>
+                                  <span className="material-symbols-outlined ml-1 text-[12px] text-sky-200/85" aria-hidden>
+                                    chat_bubble
+                                  </span>
+                                  <span className="font-inter font-bold">{getCommentCount(bp)}</span>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                      </SwiperSlide>
+                    );
+                  })}
+                </Swiper>
               </div>
+
+              {/* 베스트컷 페이지 인디케이터 — 5개 이하일 때만 점 */}
+              {bestCutPosts.length > 1 && bestCutPosts.length <= 5 ? (
+                <div className="mt-2 flex justify-center gap-1.5">
+                  {bestCutPosts.map((_, idx) => (
+                    <button
+                      key={`bcdot-${idx}`}
+                      type="button"
+                      aria-label={`베스트 ${idx + 1} 으로 이동`}
+                      onClick={() => bestCutSwiperRef.current?.slideTo(idx)}
+                      className={`h-1.5 cursor-pointer rounded-full border-0 transition-all ${
+                        idx === bestCutIdx ? 'w-5 bg-zinc-900 dark:bg-white' : 'w-1.5 bg-zinc-300 dark:bg-zinc-600'
+                      }`}
+                    />
+                  ))}
+                </div>
+              ) : null}
             </section>
           ) : null}
 
