@@ -43,6 +43,9 @@ const hotplaceSituationDescStyle = {
   WebkitLineClamp: 1,
 };
 import { normalizePlaceIdentityKey } from '../utils/placeKeyNormalize';
+import { supabase } from '../utils/supabaseClient';
+import { mapSupabasePostRowToPost } from '../api/postsSupabase';
+import { logger } from '../utils/logger';
 import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 
 const HOTPLACE_PRIMARY = '#1353d8';
@@ -119,14 +122,59 @@ export default function HotplaceLiveFeedScreen() {
 
   const allPosts = (loc.state?.allPosts && Array.isArray(loc.state.allPosts)) ? loc.state.allPosts : [];
 
+  // 이 장소에 매칭되는 게시물을 Supabase 에서 한 번 더 끌어와, 전달받은 allPosts 와 합쳐
+  // 베스트컷 캐러셀이 진짜 "이 장소의 모든 게시물"을 보여주도록 한다.
+  const [remotePosts, setRemotePosts] = useState([]);
+  useEffect(() => {
+    const key = String(loc.state?.placeKey || placeKey || '').trim();
+    if (!key) {
+      setRemotePosts([]);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        // place_name 정확 매칭 우선, 같은 키 ilike 폴백 (표기 차이 흡수)
+        const escaped = key.replace(/([%_])/g, '\\$1');
+        const { data, error } = await supabase
+          .from('posts')
+          .select('*')
+          .or(`place_name.eq.${key},place_name.ilike.${escaped},location.eq.${key},detailed_location.eq.${key}`)
+          .order('created_at', { ascending: false })
+          .limit(300);
+        if (cancelled) return;
+        if (error) {
+          logger.warn('핫플 게시물 조회 실패', error?.message || error);
+          setRemotePosts([]);
+          return;
+        }
+        const mapped = (data || []).map((row) => mapSupabasePostRowToPost(row)).filter(Boolean);
+        setRemotePosts(mapped);
+      } catch (e) {
+        if (!cancelled) {
+          logger.warn('핫플 게시물 조회 예외', e?.message || e);
+          setRemotePosts([]);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [loc.state?.placeKey, placeKey]);
+
   const postsForPlace = useMemo(() => {
     const key = String(loc.state?.placeKey || placeKey || '').trim();
     if (!key) return [];
     const keyNorm = normalizePlaceIdentityKey(key);
-    return allPosts
-      .filter((p) => p && normalizePlaceIdentityKey(getPlaceKeyForPost(p)) === keyNorm)
-      .sort((a, b) => getPostTimeMs(b) - getPostTimeMs(a));
-  }, [allPosts, loc.state?.placeKey, placeKey]);
+    // 1) 로컬(allPosts) + 2) 원격(remotePosts) 합치고 id 로 중복 제거
+    const merged = new Map();
+    for (const p of [...allPosts, ...remotePosts]) {
+      if (!p) continue;
+      if (normalizePlaceIdentityKey(getPlaceKeyForPost(p)) !== keyNorm) continue;
+      const id = String(p.id ?? p.post_id ?? '');
+      if (!id) continue;
+      if (!merged.has(id)) merged.set(id, p);
+    }
+    return Array.from(merged.values()).sort((a, b) => getPostTimeMs(b) - getPostTimeMs(a));
+  }, [allPosts, remotePosts, loc.state?.placeKey, placeKey]);
 
   const now = Date.now();
 
