@@ -16,6 +16,7 @@ import {
   IconUsers,
   IconMoon,
   IconBuildingStore,
+  IconMapPin,
 } from '@tabler/icons-react';
 import { supabase } from '../utils/supabaseClient';
 import { getDisplayImageUrl } from '../api/upload';
@@ -26,11 +27,21 @@ import { fetchProfileByIdSupabase } from '../api/profilesSupabase';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
 
+// 작성자명이 "표시용 닉네임"이 아니라 시스템 식별자/임시값으로 보이면 true
 const isAnonymousName = (v) => {
   const s = String(v ?? '').trim();
   if (!s) return true;
   if (s === '익명' || s === '익명사용자') return true;
+  if (/^익명[\s_-]?\d*$/i.test(s)) return true;
   if (/^anonymous$/i.test(s)) return true;
+  // 이메일 형태(user@host) — 닉네임이 아님
+  if (/@/.test(s)) return true;
+  // UUID
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) return true;
+  // user_xxx / user-xxx / User123
+  if (/^user[-_]?\w*$/i.test(s)) return true;
+  // 라이브저니 자동 부여 패턴 (예: "사용자123", "유저123")
+  if (/^(사용자|유저)\s*\d+$/.test(s)) return true;
   return false;
 };
 
@@ -436,65 +447,68 @@ function PostPinPreview({
 
           {/* 정보 */}
           <div className="p-3 px-3.5">
-            <div className="flex items-start gap-2.5 mb-2.5">
+            {/* 프로필 섹션 */}
+            <div className="flex items-center gap-2.5 mb-3">
               <AuthorAvatar
                 name={bundle.author_name}
                 color={bundle.author_avatar_color}
                 onClick={onAuthorClick}
               />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap" style={{ lineHeight: 1.2 }}>
-                  <button
-                    type="button"
-                    onClick={onAuthorClick}
-                    className="text-[14px] font-bold text-[#1F1F1F]"
-                    style={{ padding: 0, lineHeight: 1.2, background: 'none', border: 'none' }}
-                  >
-                    {bundle.author_name || '이름 없음'}
-                  </button>
-                  {bundle.is_author_on_site && (
-                    <div
-                      className="flex items-center gap-0.5 px-1.5 py-0.5 rounded"
-                      style={{ background: KEY_LIGHT }}
-                    >
-                      <div
-                        className="w-1 h-1 rounded-full"
-                        style={{ background: KEY }}
-                      />
-                      <span
-                        className="text-[9px] font-semibold"
-                        style={{ color: KEY_DARK }}
-                      >
-                        지금 현장
-                      </span>
-                    </div>
-                  )}
-                </div>
+              <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap" style={{ lineHeight: 1.2 }}>
                 <button
                   type="button"
-                  onClick={onLocationClick}
-                  className="block text-left w-full"
-                  style={{
-                    padding: 0,
-                    marginTop: 4,
-                    background: 'none',
-                    border: 'none',
-                  }}
+                  onClick={onAuthorClick}
+                  className="text-[14px] font-bold text-[#1F1F1F]"
+                  style={{ padding: 0, lineHeight: 1.2, background: 'none', border: 'none' }}
                 >
-                  <span
-                    className="block text-[13px] font-semibold text-[#1F1F1F]"
-                    style={{ lineHeight: 1.3, wordBreak: 'keep-all' }}
-                  >
-                    {bundle.place_name || '위치 정보 없음'}
-                  </span>
-                  <span
-                    className="block text-[11px] text-[#6B6B6B]"
-                    style={{ lineHeight: 1.3, marginTop: 2 }}
-                  >
-                    {formatHoursLeft(bundle.primary_taken_at)}
-                  </span>
+                  {bundle.author_name || '이름 없음'}
                 </button>
+                {bundle.is_author_on_site && (
+                  <div
+                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded"
+                    style={{ background: KEY_LIGHT }}
+                  >
+                    <div
+                      className="w-1 h-1 rounded-full"
+                      style={{ background: KEY }}
+                    />
+                    <span
+                      className="text-[9px] font-semibold"
+                      style={{ color: KEY_DARK }}
+                    >
+                      지금 현장
+                    </span>
+                  </div>
+                )}
               </div>
+            </div>
+
+            {/* 장소 섹션 — 프로필과 분리, 남은시간은 우측 정렬 */}
+            <div className="flex items-center gap-2 mb-3">
+              <IconMapPin size={14} color={KEY} stroke={2} className="flex-shrink-0" />
+              <button
+                type="button"
+                onClick={onLocationClick}
+                className="flex-1 min-w-0 text-left text-[13px] font-semibold text-[#1F1F1F]"
+                style={{
+                  padding: 0,
+                  background: 'none',
+                  border: 'none',
+                  lineHeight: 1.3,
+                  wordBreak: 'keep-all',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {bundle.place_name || '위치 정보 없음'}
+              </button>
+              <span
+                className="flex-shrink-0 text-[11px] font-semibold"
+                style={{ color: KEY_DARK, whiteSpace: 'nowrap' }}
+              >
+                {formatHoursLeft(bundle.primary_taken_at)}
+              </span>
             </div>
 
             {bundle.body ? (
@@ -554,54 +568,63 @@ function BundlePinPreview({ bundle, photos, onViewDetail, onAuthorClick }) {
           }}
         >
           <div className="p-3 px-3.5 pb-0">
-            {/* 작성자 */}
-            <div className="flex items-start gap-2.5 mb-3">
+            {/* 프로필 섹션 */}
+            <div className="flex items-center gap-2.5 mb-3">
               <AuthorAvatar
                 name={bundle.author_name}
                 color={bundle.author_avatar_color}
                 onClick={onAuthorClick}
               />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap" style={{ lineHeight: 1.2 }}>
-                  <button
-                    type="button"
-                    onClick={onAuthorClick}
-                    className="text-[14px] font-bold text-[#1F1F1F]"
-                    style={{ padding: 0, lineHeight: 1.2, background: 'none', border: 'none' }}
+              <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap" style={{ lineHeight: 1.2 }}>
+                <button
+                  type="button"
+                  onClick={onAuthorClick}
+                  className="text-[14px] font-bold text-[#1F1F1F]"
+                  style={{ padding: 0, lineHeight: 1.2, background: 'none', border: 'none' }}
+                >
+                  {bundle.author_name || '이름 없음'}
+                </button>
+                {bundle.is_author_on_site && (
+                  <div
+                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded"
+                    style={{ background: KEY_LIGHT }}
                   >
-                    {bundle.author_name || '이름 없음'}
-                  </button>
-                  {bundle.is_author_on_site && (
                     <div
-                      className="flex items-center gap-0.5 px-1.5 py-0.5 rounded"
-                      style={{ background: KEY_LIGHT }}
+                      className="w-1 h-1 rounded-full"
+                      style={{ background: KEY }}
+                    />
+                    <span
+                      className="text-[9px] font-semibold"
+                      style={{ color: KEY_DARK }}
                     >
-                      <div
-                        className="w-1 h-1 rounded-full"
-                        style={{ background: KEY }}
-                      />
-                      <span
-                        className="text-[9px] font-semibold"
-                        style={{ color: KEY_DARK }}
-                      >
-                        지금 현장
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <p
-                  className="text-[13px] font-semibold text-[#1F1F1F] m-0"
-                  style={{ marginTop: 4, lineHeight: 1.3, wordBreak: 'keep-all' }}
-                >
-                  {bundle.place_name || '위치 정보 없음'}
-                </p>
-                <p
-                  className="text-[11px] text-[#6B6B6B] m-0"
-                  style={{ marginTop: 2, lineHeight: 1.3 }}
-                >
-                  1시간 동안 {total}장
-                </p>
+                      지금 현장
+                    </span>
+                  </div>
+                )}
               </div>
+            </div>
+
+            {/* 장소 섹션 — 분리, 우측에 묶음 개수 */}
+            <div className="flex items-center gap-2 mb-3">
+              <IconMapPin size={14} color={KEY} stroke={2} className="flex-shrink-0" />
+              <p
+                className="flex-1 min-w-0 text-[13px] font-semibold text-[#1F1F1F] m-0"
+                style={{
+                  lineHeight: 1.3,
+                  wordBreak: 'keep-all',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {bundle.place_name || '위치 정보 없음'}
+              </p>
+              <span
+                className="flex-shrink-0 text-[11px] font-semibold"
+                style={{ color: KEY_DARK, whiteSpace: 'nowrap' }}
+              >
+                1시간 · {total}장
+              </span>
             </div>
 
             {/* 사진 그리드 */}
@@ -1153,6 +1176,8 @@ const MapScreen = () => {
             averageCenter: true,
             minLevel: 6,
             gridSize: 60,
+            // 단일 마커도 카카오 기본 핀이 아니라 우리 네모 카운트 박스로 보이게
+            minClusterSize: 1,
             disableClickZoom: true, // 직접 줌 처리 (더 세부적으로 분할)
             styles: [
               {
