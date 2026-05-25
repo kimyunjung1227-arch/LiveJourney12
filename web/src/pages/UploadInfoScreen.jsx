@@ -55,6 +55,10 @@ function UploadInfoScreen() {
   const { question: answerQuestion } = useQuestionBrief(answerTo);
   const isAnswerMode = !!answerTo;
 
+  // 업로드 성공 후엔 media 가 비워져도 카메라로 되돌아가지 않도록 잠근다.
+  // (resetUploadStore 로 media=null 이 되면 아래 redirect useEffect 가 /camera 로 덮어쓰는 레이스 방지)
+  const uploadCompletedRef = useRef(false);
+
   const [category, setCategory] = useState(null);
   const [body, setBody] = useState('');
   // 화면에 표시할 장소명. 좌표 변경 시 항상 재지오코딩해 최신값을 보여준다.
@@ -155,6 +159,7 @@ function UploadInfoScreen() {
 
   // 미디어가 없는 상태로 직접 진입하면 카메라로 유도 (답변 모드면 answerTo 유지)
   useEffect(() => {
+    if (uploadCompletedRef.current) return; // 업로드 완료 후 reset 으로 media 가 비는 건 정상 — 카메라로 보내지 않음
     if (!media || !media.url) {
       const t = setTimeout(
         () =>
@@ -199,6 +204,11 @@ function UploadInfoScreen() {
       const finalPlace = isAnswerMode
         ? answerQuestion?.place_name || editedLoc?.placeName || resolvedPlace || media.placeName || null
         : editedLoc?.placeName || resolvedPlace || media.placeName || null;
+      // 지역명(예: "칠곡시") — 완료 화면에서 "칠곡시 갤러리안나" 형태로 함께 노출
+      const finalRegion =
+        (editedLoc && typeof editedLoc.region === 'string' ? editedLoc.region : '') ||
+        resolvedRegion ||
+        null;
       const postId = await upload({
         files: filesArr,
         category,
@@ -207,11 +217,15 @@ function UploadInfoScreen() {
         lat: finalLat,
         lng: finalLng,
         placeName: finalPlace,
+        region: finalRegion,
         source: media.source,
         mode: media.mode,
         accuracy: media.accuracy ?? null,
         exif: media.exif ?? null,
       });
+
+      // 업로드 성공 — 이후 store 가 비워져도 카메라 redirect 가 끼어들지 못하게 잠근다.
+      uploadCompletedRef.current = true;
 
       // 답변 모드: 질문 상세로 이동
       if (isAnswerMode && answerTo) {

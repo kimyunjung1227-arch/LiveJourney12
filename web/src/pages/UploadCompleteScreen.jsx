@@ -23,7 +23,7 @@ function UploadCompleteScreen() {
     (async () => {
       const { data } = await supabase
         .from('posts')
-        .select('id, place_name, location, captured_at, category, content')
+        .select('id, place_name, location, region, captured_at, category, content')
         .eq('id', postId)
         .maybeSingle();
       if (!cancelled && data) setPost(data);
@@ -33,7 +33,13 @@ function UploadCompleteScreen() {
     };
   }, [postId]);
 
-  const placeName = post?.place_name || post?.location || '여기';
+  const rawPlaceName = post?.place_name || post?.location || '여기';
+  // 지역명이 있으면 "칠곡시 갤러리안나" 처럼 지역 + 장소를 함께 노출 (장소명에 이미 지역이 포함됐으면 중복 방지)
+  const regionName = (post?.region || '').trim();
+  const placeName =
+    regionName && !rawPlaceName.startsWith(regionName)
+      ? `${regionName} ${rawPlaceName}`
+      : rawPlaceName;
   const captured = post?.captured_at ? new Date(post.captured_at) : null;
   const capturedAgo = captured ? formatTimeAgo(captured) : '방금';
 
