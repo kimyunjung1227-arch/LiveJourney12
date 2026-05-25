@@ -45,8 +45,6 @@ const CATEGORIES = [
   { id: 'business', label: '영업·운영', Icon: IconBuildingStore },
 ];
 
-const MAX_BODY = 100;
-
 function UploadInfoScreen() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -258,7 +256,7 @@ function UploadInfoScreen() {
       const v = validations[firstFail];
       alert(
         v.reason === 'too_old'
-          ? '추가한 사진 중 1시간이 지난 것이 있어요.'
+          ? '추가한 사진 중 8시간이 지난 것이 있어요.'
           : 'EXIF 가 없는 사진은 추가할 수 없어요.',
       );
       return;
@@ -899,7 +897,7 @@ function UploadInfoScreen() {
         <div style={{ position: 'relative' }}>
           <textarea
             value={body}
-            onChange={(e) => setBody(e.target.value.slice(0, MAX_BODY))}
+            onChange={(e) => setBody(e.target.value)}
             placeholder={
               isAnswerMode
                 ? '예: 윤중로 끝쪽 100% 만개예요, 사람 적어요'
@@ -920,17 +918,6 @@ function UploadInfoScreen() {
               lineHeight: 1.5,
             }}
           />
-          <span
-            style={{
-              position: 'absolute',
-              right: 12,
-              bottom: 8,
-              fontSize: 10,
-              color: LJ.textTertiary,
-            }}
-          >
-            {body.length}/{MAX_BODY}
-          </span>
         </div>
       </section>
 
