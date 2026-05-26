@@ -105,14 +105,31 @@ function ProfileScreen() {
               }}
             >
               <svg
-                width="18"
-                height="18"
+                width="20"
+                height="20"
                 viewBox="0 0 24 24"
-                fill="#000000"
+                xmlns="http://www.w3.org/2000/svg"
                 style={{ position: 'absolute', left: 16 }}
                 aria-hidden="true"
+                role="img"
               >
-                <path d="M12 3c5.799 0 10.5 3.664 10.5 8.185 0 4.52-4.701 8.184-10.5 8.184a13.5 13.5 0 0 1-1.727-.11l-4.408 2.883c-.501.265-.678.236-.472-.413l.892-3.678c-2.88-1.46-4.785-3.99-4.785-6.866C1.5 6.665 6.201 3 12 3z" />
+                {/* 검정 말풍선 배경 */}
+                <path
+                  d="M12 3C7.029 3 3 6.582 3 10.95c0 3.133 2.01 5.867 5 7.516v3.234c0 .276.224.5.5.5.132 0 .26-.053.354-.146L10.5 18.4c.94.134 1.924.2 2.923.2 4.971 0 9-3.582 9-7.95S16.971 3 12 3z"
+                  fill="#000000"
+                />
+                {/* TALK 텍스트 */}
+                <text
+                  x="12"
+                  y="14"
+                  textAnchor="middle"
+                  fontSize="7"
+                  fontWeight="700"
+                  fill="#FEE500"
+                  fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+                >
+                  TALK
+                </text>
               </svg>
               카카오로 시작하기
             </button>
