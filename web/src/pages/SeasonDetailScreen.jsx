@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   IconArrowLeft,
-  IconBookmark,
+  IconShare3,
   IconCalendarTime,
   IconChevronRight,
   IconClock,
@@ -171,7 +171,31 @@ function SeasonHero({ season }) {
         </button>
         <button
           type="button"
-          aria-label="북마크"
+          onClick={async () => {
+            const url = typeof window !== 'undefined' ? window.location.href : '';
+            const shareData = {
+              title: `${season?.title || '매거진'} | 라이브저니`,
+              text: season?.curation_body || season?.period_label || '',
+              url,
+            };
+            try {
+              if (navigator.share) {
+                await navigator.share(shareData);
+                return;
+              }
+              if (navigator.clipboard && url) {
+                await navigator.clipboard.writeText(url);
+                // eslint-disable-next-line no-alert
+                window.alert('매거진 링크를 복사했어요');
+                return;
+              }
+              // eslint-disable-next-line no-alert
+              window.prompt('이 링크를 복사해서 공유하세요', url);
+            } catch (e) {
+              logger.warn('매거진 공유 실패', e?.message || e);
+            }
+          }}
+          aria-label="공유하기"
           className="flex items-center justify-center"
           style={{
             width: 36,
@@ -185,7 +209,7 @@ function SeasonHero({ season }) {
             cursor: 'pointer',
           }}
         >
-          <IconBookmark size={18} color="white" />
+          <IconShare3 size={18} color="white" />
         </button>
       </div>
 
