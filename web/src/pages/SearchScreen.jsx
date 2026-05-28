@@ -286,7 +286,6 @@ function SeasonalCards({ cards }) {
           const cover = card.cover_image_url
             ? getDisplayImageUrl(card.cover_image_url)
             : '';
-          const subLabel = card.subtitle || card.region || '';
           return (
             <button
               key={card.id}
@@ -324,16 +323,6 @@ function SeasonalCards({ cards }) {
                       'linear-gradient(180deg, rgba(0,0,0,0.06) 30%, rgba(0,0,0,0.55) 100%)',
                   }}
                 />
-                {subLabel && (
-                  <div
-                    className="absolute top-2 left-2 px-2 py-0.5"
-                    style={{ background: 'rgba(0,0,0,0.55)', borderRadius: 5 }}
-                  >
-                    <span style={{ fontSize: 9, color: 'white', fontWeight: 700 }}>
-                      {subLabel}
-                    </span>
-                  </div>
-                )}
                 <div className="absolute bottom-2 left-2 right-2 text-left">
                   <p
                     className="m-0"
