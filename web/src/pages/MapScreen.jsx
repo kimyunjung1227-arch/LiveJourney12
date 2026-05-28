@@ -407,7 +407,7 @@ function PostPinPreview({
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      className="absolute top-[120px] left-3.5 right-3.5 z-20"
+      className="absolute top-[150px] left-3.5 right-3.5 z-20"
     >
       <div className="relative max-w-[414px] mx-auto">
         <CardArrowTail />
@@ -556,7 +556,7 @@ function BundlePinPreview({ bundle, photos, onViewDetail, onAuthorClick }) {
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      className="absolute top-[120px] left-3.5 right-3.5 z-20"
+      className="absolute top-[150px] left-3.5 right-3.5 z-20"
     >
       <div className="relative max-w-[414px] mx-auto">
         <CardArrowTail />
