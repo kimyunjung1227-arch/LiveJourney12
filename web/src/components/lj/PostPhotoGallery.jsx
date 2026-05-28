@@ -3,7 +3,7 @@ import { LJ } from './tokens';
 
 /**
  * 게시물 상세 사진 갤러리 — 사진 개수별 적응형 레이아웃.
- *  1장: 단일 큰 사진 (4:5)
+ *  1장: 단일 사진 (4:3, 50vh 캡 — 한 화면에 댓글까지 보이게)
  *  2장: 정사각형 2개 가로
  *  3장: 정사각형 3개 가로
  *  4장: 2x2 정사각형
@@ -45,13 +45,18 @@ export function PostPhotoGallery({ photos = [], onPhotoClick, onShowAll }) {
     />
   );
 
-  // 1장: 4:5 단일
+  // 1장: 4:3 단일 + 50vh 캡 (세로 긴 사진도 한 화면에 댓글까지 노출되게)
   if (photos.length === 1) {
     return (
       <button
         type="button"
         onClick={handleClick(0)}
-        style={{ ...cellBase, width: '100%', aspectRatio: '4 / 5' }}
+        style={{
+          ...cellBase,
+          width: '100%',
+          aspectRatio: '4 / 3',
+          maxHeight: '50vh',
+        }}
         aria-label="사진 크게 보기"
       >
         {img(photos[0])}
