@@ -14,6 +14,7 @@ import BadgesBox from '../components/profile/BadgesBox';
 import BestCutCarousel from '../components/profile/BestCutCarousel';
 import ProfileTabs from '../components/profile/ProfileTabs';
 import PhotoTimeline from '../components/profile/PhotoTimeline';
+import TravelMapView from '../components/profile/TravelMapView';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
 import { logger } from '../utils/logger';
@@ -182,12 +183,16 @@ function UserProfileScreen() {
           </div>
 
           <div style={{ padding: '0 18px' }}>
-            <PhotoTimeline
-              mode={tab === 'city' ? 'city' : 'all'}
-              livePosts={data?.live_posts}
-              archivePosts={data?.archive_posts}
-              byCity={data?.by_city}
-            />
+            {tab === 'map' ? (
+              <TravelMapView userId={userId} />
+            ) : (
+              <PhotoTimeline
+                mode={tab === 'city' ? 'city' : 'all'}
+                livePosts={data?.live_posts}
+                archivePosts={data?.archive_posts}
+                byCity={data?.by_city}
+              />
+            )}
           </div>
         </>
       )}
