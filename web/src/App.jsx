@@ -316,7 +316,7 @@ function App() {
                   }
                 />
                 <Route
-                  path="/admin/magazines"
+                  path="/admin/seasonal-highlights"
                   element={
                     <ProtectedRoute>
                       <AdminRoute>

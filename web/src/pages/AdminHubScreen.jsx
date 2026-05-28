@@ -17,11 +17,11 @@ const tiles = [
     path: '/admin/posts',
   },
   {
-    id: 'magazines',
-    title: '매거진 (검색 시즌) 관리',
-    desc: '검색화면 매거진 카드 등록/수정/삭제',
+    id: 'seasonal-highlights',
+    title: '검색 매거진 카드 관리',
+    desc: '검색화면 시즌 카드(seasonal_highlights) 등록/수정/삭제',
     icon: 'collections_bookmark',
-    path: '/admin/magazines',
+    path: '/admin/seasonal-highlights',
   },
   {
     id: 'curated-magazines',
