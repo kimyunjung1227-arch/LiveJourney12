@@ -24,6 +24,13 @@ const tiles = [
     path: '/admin/magazines',
   },
   {
+    id: 'curated-magazines',
+    title: '큐레이션 매거진 발행',
+    desc: '여행지 추천 매거진 글 발행 (커버 + 본문 블록)',
+    icon: 'auto_stories',
+    path: '/admin/curated-magazines',
+  },
+  {
     id: 'magazine-publish',
     title: '매거진 발행',
     desc: '발행 매거진 생성/수정',

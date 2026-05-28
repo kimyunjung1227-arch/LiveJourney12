@@ -165,6 +165,8 @@ const AdminHubScreen = lazyWithRecover(() => import('./pages/AdminHubScreen'))
 const AdminPostsScreen = lazyWithRecover(() => import('./pages/AdminPostsScreen'))
 const AdminNoticesScreen = lazyWithRecover(() => import('./pages/AdminNoticesScreen'))
 const AdminMagazinesScreen = lazyWithRecover(() => import('./pages/AdminMagazinesScreen'))
+const AdminCuratedMagazinesScreen = lazyWithRecover(() => import('./pages/AdminCuratedMagazinesScreen'))
+const AdminCuratedMagazineEditorScreen = lazyWithRecover(() => import('./pages/AdminCuratedMagazineEditorScreen'))
 const AdminPublishedMagazinesScreen = lazyWithRecover(() => import('./pages/AdminPublishedMagazinesScreen'))
 const AdminRafflesScreen = lazyWithRecover(() => import('./pages/AdminRafflesScreen'))
 const AdminRaffleDetailScreen = lazyWithRecover(() => import('./pages/AdminRaffleDetailScreen'))
@@ -319,6 +321,36 @@ function App() {
                     <ProtectedRoute>
                       <AdminRoute>
                         <AdminMagazinesScreen />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/curated-magazines"
+                  element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminCuratedMagazinesScreen />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/curated-magazines/new"
+                  element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminCuratedMagazineEditorScreen />
+                      </AdminRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/curated-magazines/:id"
+                  element={
+                    <ProtectedRoute>
+                      <AdminRoute>
+                        <AdminCuratedMagazineEditorScreen />
                       </AdminRoute>
                     </ProtectedRoute>
                   }
