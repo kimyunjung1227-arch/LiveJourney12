@@ -17,32 +17,11 @@ const tiles = [
     path: '/admin/posts',
   },
   {
-    id: 'seasonal-highlights',
-    title: '검색 매거진 카드 관리',
-    desc: '검색화면 시즌 카드(seasonal_highlights) 등록/수정/삭제',
-    icon: 'collections_bookmark',
-    path: '/admin/seasonal-highlights',
-  },
-  {
     id: 'curated-magazines',
     title: '큐레이션 매거진 발행',
     desc: '여행지 추천 매거진 글 발행 (커버 + 본문 블록)',
     icon: 'auto_stories',
     path: '/admin/curated-magazines',
-  },
-  {
-    id: 'magazine-publish',
-    title: '매거진 발행',
-    desc: '발행 매거진 생성/수정',
-    icon: 'auto_stories',
-    path: '/admin/magazine/publish',
-  },
-  {
-    id: 'magazine-manage',
-    title: '발행 매거진 관리',
-    desc: '발행된 매거진 확인 및 삭제',
-    icon: 'library_books',
-    path: '/admin/magazine/manage',
   },
   {
     id: 'raffles',
