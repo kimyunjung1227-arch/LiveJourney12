@@ -167,6 +167,7 @@ const AdminNoticesScreen = lazyWithRecover(() => import('./pages/AdminNoticesScr
 const AdminMagazinesScreen = lazyWithRecover(() => import('./pages/AdminMagazinesScreen'))
 const AdminCuratedMagazinesScreen = lazyWithRecover(() => import('./pages/AdminCuratedMagazinesScreen'))
 const AdminCuratedMagazineEditorScreen = lazyWithRecover(() => import('./pages/AdminCuratedMagazineEditorScreen'))
+const LiveMagazineScreen = lazyWithRecover(() => import('./pages/LiveMagazineScreen'))
 const AdminPublishedMagazinesScreen = lazyWithRecover(() => import('./pages/AdminPublishedMagazinesScreen'))
 const AdminRafflesScreen = lazyWithRecover(() => import('./pages/AdminRafflesScreen'))
 const AdminRaffleDetailScreen = lazyWithRecover(() => import('./pages/AdminRaffleDetailScreen'))
@@ -217,6 +218,7 @@ function App() {
                   }
                 />
                 <Route path="/magazine/:id" element={<MagazineDetailScreen />} />
+                <Route path="/live-magazine/:id" element={<LiveMagazineScreen />} />
                 <Route path="/realtime-feed" element={<RealtimeFeedScreen />} />
                 <Route path="/crowded-place" element={<HotplaceScreen />} />
                 <Route path="/hotplace/:placeKey" element={<HotplaceLiveFeedScreen />} />
