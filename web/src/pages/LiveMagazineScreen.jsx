@@ -267,6 +267,14 @@ export default function LiveMagazineScreen() {
         </div>
       )}
 
+      {/* 캐러셀 아래로 스크롤 시 — 현재 페이지 장소의 실시간 사진 */}
+      {placePages.length > 0 && placePages[pageIdx] && (
+        <LivePhotosSection
+          key={placePages[pageIdx].name || pageIdx}
+          placeName={placePages[pageIdx].name}
+        />
+      )}
+
       <BottomNavigation />
     </div>
   );
@@ -292,10 +300,10 @@ function NavArrow({ side, disabled, onClick }) {
       aria-label={side === 'left' ? '이전 장소' : '다음 장소'}
       style={{
         position: 'absolute',
-        top: 130,
+        top: 180,
         [side]: 6,
-        width: 34,
-        height: 34,
+        width: 36,
+        height: 36,
         borderRadius: 999,
         background: 'rgba(255,255,255,0.92)',
         border: `1px solid ${BORDER_LIGHT}`,
@@ -371,7 +379,7 @@ function PlaceCard({ place, index }) {
           style={{
             position: 'relative',
             width: '100%',
-            aspectRatio: '16 / 9',
+            aspectRatio: '4 / 3',
             background: SURFACE,
           }}
         >
@@ -386,7 +394,7 @@ function PlaceCard({ place, index }) {
         <div
           style={{
             width: '100%',
-            aspectRatio: '16 / 9',
+            aspectRatio: '4 / 3',
             background: SURFACE,
             display: 'flex',
             alignItems: 'center',
@@ -399,17 +407,17 @@ function PlaceCard({ place, index }) {
         </div>
       )}
 
-      {/* 본문 — 컴팩트 */}
-      <div style={{ padding: '12px 14px 12px' }}>
+      {/* 본문 */}
+      <div style={{ padding: '14px 14px 14px' }}>
         <p
           className="m-0"
           style={{
-            fontSize: 12.5,
-            lineHeight: 1.6,
+            fontSize: 13,
+            lineHeight: 1.65,
             color: TEXT_PRIMARY,
             whiteSpace: 'pre-wrap',
             display: '-webkit-box',
-            WebkitLineClamp: 4,
+            WebkitLineClamp: 6,
             WebkitBoxOrient: 'vertical',
             overflow: 'hidden',
           }}
@@ -528,6 +536,132 @@ function AskQuestionCTA({ placeName, compact = false }) {
 /**
  * place_name 매칭 lj_posts 최근 게시물에서 가장 최근 사진의 시간만 띄움.
  */
+/**
+ * 캐러셀 아래에 표시되는 현재 장소의 실시간 사진 그리드.
+ * - lj_posts.place_name 매칭, 최근 48h, 최대 6장
+ * - 비어있으면 안내 문구
+ */
+function LivePhotosSection({ placeName }) {
+  const navigate = useNavigate();
+  const [photos, setPhotos] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!placeName) {
+      setPhotos([]);
+      return undefined;
+    }
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+        const { data, error } = await supabase
+          .from('lj_posts')
+          .select('id, photo_url, exif_taken_at')
+          .eq('place_name', placeName)
+          .gt('exif_taken_at', cutoff)
+          .order('exif_taken_at', { ascending: false })
+          .limit(6);
+        if (cancelled) return;
+        if (error) {
+          logger.warn('live photos fetch 실패', error.message || error);
+          setPhotos([]);
+        } else {
+          setPhotos(Array.isArray(data) ? data : []);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [placeName]);
+
+  return (
+    <section style={{ padding: '20px 18px 24px' }}>
+      <div className="flex items-baseline justify-between" style={{ marginBottom: 12 }}>
+        <p
+          className="m-0"
+          style={{ fontSize: 14, fontWeight: 800, color: TEXT_PRIMARY }}
+        >
+          {placeName ? `${placeName} 실시간 사진` : '실시간 사진'}
+        </p>
+        {photos.length > 0 && placeName && (
+          <button
+            type="button"
+            onClick={() => navigate(`/region/${encodeURIComponent(placeName)}`)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              fontSize: 11,
+              fontWeight: 700,
+              color: KEY,
+            }}
+          >
+            전체보기
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <p
+          className="text-center"
+          style={{ fontSize: 12, color: TEXT_SECONDARY, padding: '20px 0' }}
+        >
+          불러오는 중...
+        </p>
+      ) : photos.length === 0 ? (
+        <p style={{ fontSize: 12, color: TEXT_TERTIARY, padding: '8px 0 14px' }}>
+          이 장소와 맞는 사진이 아직 없어요.
+        </p>
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+            gap: 6,
+          }}
+        >
+          {photos.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => navigate(`/post/${encodeURIComponent(p.id)}`)}
+              style={{
+                aspectRatio: '1 / 1',
+                borderRadius: 8,
+                overflow: 'hidden',
+                background: SURFACE,
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+              }}
+            >
+              {p.photo_url && (
+                <img
+                  src={getDisplayImageUrl(p.photo_url)}
+                  alt=""
+                  loading="lazy"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    display: 'block',
+                  }}
+                />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function PlaceLiveBadge({ placeName }) {
   const [latestAt, setLatestAt] = useState(null);
   useEffect(() => {
