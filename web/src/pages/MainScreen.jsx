@@ -1,9 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { IconSearch, IconBell, IconCamera } from '@tabler/icons-react';
 import BottomNavigation from '../components/BottomNavigation';
 import { LJ } from '../components/lj/tokens';
-import CategoryFilter from '../components/lj/CategoryFilter';
 import PostCard from '../components/lj/PostCard';
 import { useHomeFeed } from '../hooks/useHomeFeed';
 import { useReactions } from '../hooks/useReactions';
@@ -11,13 +10,12 @@ import { useNotifications } from '../hooks/useNotifications';
 
 /**
  * HomeScreen (라우트: /, /main).
- * - 헤더 + 카테고리 필터 + 무한 스크롤 피드.
- * - 라이브 카운트 박스는 사용자 요청으로 제거.
+ * - 헤더 + 무한 스크롤 피드.
+ * - 카테고리 필터는 검색 화면으로 이동.
  */
 function MainScreen() {
   const navigate = useNavigate();
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const { posts, loading, loadingMore, hasMore, loadMore } = useHomeFeed(selectedCategory);
+  const { posts, loading, loadingMore, hasMore, loadMore } = useHomeFeed('all');
   const { state, toggleLike, toggleSave } = useReactions(posts);
   const { notifications } = useNotifications({ limit: 30 });
   const unreadCount = notifications.filter((n) => !n.is_read).length;
@@ -150,11 +148,6 @@ function MainScreen() {
           </button>
         </div>
       </header>
-
-      {/* 카테고리 필터 */}
-      <div style={{ background: '#fff' }}>
-        <CategoryFilter selected={selectedCategory} onChange={setSelectedCategory} />
-      </div>
 
       {/* 피드 */}
       {loading && posts.length === 0 ? (
