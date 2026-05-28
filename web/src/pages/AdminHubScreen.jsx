@@ -17,6 +17,13 @@ const tiles = [
     path: '/admin/posts',
   },
   {
+    id: 'magazines',
+    title: '매거진 (검색 시즌) 관리',
+    desc: '검색화면 매거진 카드 등록/수정/삭제',
+    icon: 'collections_bookmark',
+    path: '/admin/magazines',
+  },
+  {
     id: 'magazine-publish',
     title: '매거진 발행',
     desc: '발행 매거진 생성/수정',
