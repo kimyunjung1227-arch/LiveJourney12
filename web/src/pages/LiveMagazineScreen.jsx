@@ -264,27 +264,6 @@ export default function LiveMagazineScreen() {
             </>
           )}
 
-          {/* 페이지 도트 (클릭 가능) */}
-          <div className="flex items-center justify-center gap-1.5" style={{ padding: '14px 0 8px' }}>
-            {placePages.map((_, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => scrollToPage(idx)}
-                aria-label={`${idx + 1}번째 장소 보기`}
-                style={{
-                  width: idx === pageIdx ? 18 : 6,
-                  height: 6,
-                  borderRadius: 999,
-                  background: idx === pageIdx ? KEY : '#E5E7EB',
-                  border: 'none',
-                  padding: 0,
-                  cursor: 'pointer',
-                  transition: 'width 0.2s ease, background 0.2s ease',
-                }}
-              />
-            ))}
-          </div>
         </div>
       )}
 
