@@ -226,6 +226,51 @@ export const BADGE_GROUP_ORDER = [
 ];
 
 /**
+ * 성장형 그룹의 단계 순서 (낮음 → 높음).
+ * 이 그룹의 뱃지는 상세화면에서 "현재 단계 + 다음 단계" 카드로 노출되고,
+ * BadgesBox 에서는 가장 높은 단계 1개만 노출된다.
+ */
+export const GROWTH_CHAINS = {
+  영예: ['honor_bronze', 'honor_gold'],
+  '베스트 컷 작가': ['crown_1', 'crown_5', 'crown_10'],
+  '도움 마일스톤': ['flame_100', 'flame_300', 'flame_500'],
+};
+
+export function isGrowthGroup(group) {
+  return Object.prototype.hasOwnProperty.call(GROWTH_CHAINS, group);
+}
+
+export function getChainForBadge(key) {
+  const meta = BADGE_CATALOG[key];
+  if (!meta) return null;
+  return GROWTH_CHAINS[meta.group] || null;
+}
+
+/**
+ * 체인 내에서 earnedKeys 안에 포함된 가장 높은 단계 키. 없으면 null.
+ */
+export function highestEarnedInChain(chain, earnedKeys) {
+  if (!Array.isArray(chain) || !Array.isArray(earnedKeys)) return null;
+  const set = new Set(earnedKeys);
+  for (let i = chain.length - 1; i >= 0; i -= 1) {
+    if (set.has(chain[i])) return chain[i];
+  }
+  return null;
+}
+
+/**
+ * 체인에서 currentKey 의 다음 단계 키. currentKey 가 null 이면 첫 단계.
+ * 마지막 단계면 null.
+ */
+export function nextInChain(chain, currentKey) {
+  if (!Array.isArray(chain) || chain.length === 0) return null;
+  if (!currentKey) return chain[0];
+  const idx = chain.indexOf(currentKey);
+  if (idx < 0 || idx >= chain.length - 1) return null;
+  return chain[idx + 1];
+}
+
+/**
  * profiles.earned_badges 배열을 메타데이터 목록으로 변환.
  */
 export function resolveEarnedBadges(keys) {

@@ -6,6 +6,9 @@ import {
   BADGE_CATALOG,
   resolveEarnedBadges,
   getPillColors,
+  isGrowthGroup,
+  GROWTH_CHAINS,
+  highestEarnedInChain,
 } from './badgeData';
 
 const KEY_DARK = '#1A6EA8';
@@ -21,7 +24,7 @@ export default function BadgesBox({ user }) {
   if (!user) return null;
 
   const earnedKeys = Array.isArray(user.earned_badges) ? user.earned_badges : [];
-  const earned = resolveEarnedBadges(earnedKeys);
+  const earned = collapseGrowthGroups(resolveEarnedBadges(earnedKeys), earnedKeys);
 
   return (
     <div style={{ padding: '0 18px', marginBottom: 16 }}>
@@ -78,6 +81,29 @@ export default function BadgesBox({ user }) {
       )}
     </div>
   );
+}
+
+/**
+ * 성장형 그룹은 최고 단계 1개만 남기고, 비성장형은 그대로 유지.
+ * - 같은 성장형 그룹 안의 다른 단계 뱃지는 제거 (중복 노출 방지)
+ * - 카탈로그 등록 순서를 유지하되 성장형 대표 뱃지는 그 그룹의 첫 등장 자리에 배치
+ */
+function collapseGrowthGroups(earnedMetas, earnedKeys) {
+  const seenGrowthGroups = new Set();
+  const result = [];
+  for (const meta of earnedMetas) {
+    if (isGrowthGroup(meta.group)) {
+      if (seenGrowthGroups.has(meta.group)) continue;
+      seenGrowthGroups.add(meta.group);
+      const chain = GROWTH_CHAINS[meta.group];
+      const topKey = highestEarnedInChain(chain, earnedKeys);
+      const topMeta = topKey ? BADGE_CATALOG[topKey] : meta;
+      result.push(topMeta);
+    } else {
+      result.push(meta);
+    }
+  }
+  return result;
 }
 
 /**
