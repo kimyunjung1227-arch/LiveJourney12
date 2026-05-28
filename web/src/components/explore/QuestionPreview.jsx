@@ -6,6 +6,7 @@ import {
   IconPhoto,
   IconClock,
 } from '@tabler/icons-react';
+import { getDisplayImageUrl } from '../../api/upload';
 
 const KEY = '#4DB8E8';
 const KEY_DARK = '#1A6EA8';
@@ -77,7 +78,7 @@ export default function QuestionPreview({ title, questions, onSeeAll }) {
       >
         <div className="flex items-start gap-2.5">
           <div
-            className="flex items-center justify-center flex-shrink-0 text-white font-semibold rounded-full"
+            className="flex items-center justify-center flex-shrink-0 overflow-hidden text-white font-semibold rounded-full"
             style={{
               width: 28,
               height: 28,
@@ -85,7 +86,17 @@ export default function QuestionPreview({ title, questions, onSeeAll }) {
               fontSize: 11,
             }}
           >
-            {initial}
+            {q?.author?.avatar_url ? (
+              <img
+                src={getDisplayImageUrl(q.author.avatar_url)}
+                alt=""
+                referrerPolicy="no-referrer"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+            ) : (
+              initial
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5" style={{ marginBottom: 4 }}>
