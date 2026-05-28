@@ -939,6 +939,7 @@ const MapScreen = () => {
   const clustererRef = useRef(null);
   const idleListenerRef = useRef(null);
   const clickListenerRef = useRef(null);
+  const didInitialCenterRef = useRef(false); // 첫 진입 시 1회만 내 위치로 이동
 
   const [sdkReady, setSdkReady] = useState(false);
   const [sdkError, setSdkError] = useState('');
@@ -1268,6 +1269,31 @@ const MapScreen = () => {
       /* ignore */
     }
   }, [bundles, selectedBundleId, mapLevel]);
+
+  // 3-2) 진입 시 첫 GPS 수신되면 지도를 거기로 1회만 이동
+  //   - 사용자가 지도를 직접 옮긴 뒤 GPS 가 다시 갱신돼도 끌려가지 않게 ref 가드.
+  //   - GPS 거부/실패로 DEFAULT_CENTER 가 들어와도 그대로 두면 됨 (이미 그 위치).
+  useEffect(() => {
+    const map = kakaoMapRef.current;
+    if (!map || !window.kakao?.maps || !myLocation) return;
+    if (didInitialCenterRef.current) return;
+    // 폴백 좌표면 그대로 둠 (서울 시청)
+    if (
+      myLocation.lat === DEFAULT_CENTER.lat &&
+      myLocation.lng === DEFAULT_CENTER.lng
+    ) {
+      didInitialCenterRef.current = true;
+      return;
+    }
+    try {
+      map.setCenter(
+        new window.kakao.maps.LatLng(myLocation.lat, myLocation.lng),
+      );
+      didInitialCenterRef.current = true;
+    } catch {
+      /* ignore */
+    }
+  }, [myLocation, sdkReady]);
 
   // 4) 내 위치 마커
   useEffect(() => {
