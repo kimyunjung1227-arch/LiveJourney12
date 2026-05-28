@@ -5,6 +5,9 @@ import { logger } from '../utils/logger';
 /**
  * 영예 중심 프로필 데이터 훅.
  *
+ * - get_profile RPC 로 메인 프로필을 가져오고
+ * - profiles.earned_badges 를 직접 조회해서 user 객체에 병합
+ *
  * @param {string|null} userId 조회할 사용자 UUID (없으면 비활성)
  * @returns {{ data: object|null, loading: boolean, refresh: () => void }}
  */
@@ -25,15 +28,30 @@ export function useProfile(userId) {
     setLoading(true);
     (async () => {
       try {
-        const { data: result, error } = await supabase.rpc('get_profile', {
-          p_user_id: userId,
-        });
+        const [profileResp, badgesResp] = await Promise.all([
+          supabase.rpc('get_profile', { p_user_id: userId }),
+          supabase.from('profiles').select('earned_badges').eq('id', userId).maybeSingle(),
+        ]);
         if (cancelled) return;
-        if (error) {
-          logger.warn('get_profile 실패', error?.message || error);
+
+        if (profileResp.error) {
+          logger.warn('get_profile 실패', profileResp.error?.message || profileResp.error);
           setData(null);
+          return;
+        }
+
+        const result = profileResp.data || null;
+        const earnedBadges = Array.isArray(badgesResp?.data?.earned_badges)
+          ? badgesResp.data.earned_badges
+          : [];
+
+        if (result && result.user) {
+          setData({
+            ...result,
+            user: { ...result.user, earned_badges: earnedBadges },
+          });
         } else {
-          setData(result || null);
+          setData(result);
         }
       } finally {
         if (!cancelled) setLoading(false);

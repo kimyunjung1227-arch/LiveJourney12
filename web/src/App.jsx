@@ -128,6 +128,7 @@ const AskSituationDetailScreen = lazyWithRecover(() => import('./pages/AskSituat
 const AskSituationEditScreen = lazyWithRecover(() => import('./pages/AskSituationEditScreen'))
 const ProfileScreen = lazyWithRecover(() => import('./pages/ProfileScreen'))
 const BadgesScreen = lazyWithRecover(() => import('./pages/BadgesScreen'))
+const BadgeDetailScreen = lazyWithRecover(() => import('./pages/BadgeDetailScreen'))
 const UserProfileScreen = lazyWithRecover(() => import('./pages/UserProfileScreen'))
 const EditProfileScreen = lazyWithRecover(() => import('./pages/EditProfileScreen'))
 const PersonalInfoEditScreen = lazyWithRecover(() => import('./pages/PersonalInfoEditScreen'))
@@ -246,6 +247,7 @@ function App() {
                 <Route path="/map/photos" element={<MapPhotoGridScreen />} />
                 <Route path="/profile" element={<ProfileScreen />} />
                 <Route path="/profile/badges" element={<BadgesScreen />} />
+                <Route path="/profile/badges/:badgeId" element={<BadgeDetailScreen />} />
                 <Route
                   path="/profile/follows"
                   element={

@@ -2,49 +2,37 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { IconAward, IconChevronRight } from '@tabler/icons-react';
 
-import { buildBadgeGroups } from './badgeData';
+import {
+  BADGE_CATALOG,
+  resolveEarnedBadges,
+  getPillColors,
+} from './badgeData';
 
 const KEY_DARK = '#1A6EA8';
 const TEXT_SECONDARY = '#6B6B6B';
-const SECTION_LABEL = '#4A7DA8';
 
 /**
- * 라이브저니 뱃지 박스 (프로필 메인).
- * - 섹션 별 헤더 + 보유한 뱃지를 강조해서 노출
- * - 우상단 "전체보기" → /profile/badges
+ * 프로필 메인의 뱃지 박스.
+ * - 획득한 뱃지만 표시 (아이콘 + pill 라벨)
+ * - 클릭 시 /profile/badges/:badgeKey 로 이동
  */
 export default function BadgesBox({ user }) {
   const navigate = useNavigate();
   if (!user) return null;
 
-  const groups = buildBadgeGroups(user);
-  const totalEarned = groups.reduce(
-    (acc, g) => acc + g.items.filter((i) => i.earned).length,
-    0,
-  );
-  const totalAll = groups.reduce((acc, g) => acc + g.items.length, 0);
+  const earnedKeys = Array.isArray(user.earned_badges) ? user.earned_badges : [];
+  const earned = resolveEarnedBadges(earnedKeys);
 
   return (
-    <div
-      style={{
-        margin: '0 18px 14px',
-        padding: 16,
-        borderRadius: 13,
-        background: 'linear-gradient(135deg, #F0F9FE, #FBFDFF)',
-        border: '1px solid rgba(77, 184, 232, 0.18)',
-      }}
-    >
+    <div style={{ padding: '0 18px', marginBottom: 16 }}>
       <div
         className="flex items-center"
-        style={{ marginBottom: 14, justifyContent: 'space-between' }}
+        style={{ marginBottom: 12, justifyContent: 'space-between' }}
       >
         <div className="flex items-center gap-1.5">
-          <IconAward size={13} color={KEY_DARK} stroke={2.2} />
-          <span style={{ fontSize: 12, fontWeight: 700, color: KEY_DARK, letterSpacing: 0.2 }}>
+          <IconAward size={14} color="#1F1F1F" stroke={2.2} />
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#1F1F1F' }}>
             뱃지
-          </span>
-          <span style={{ fontSize: 11, color: TEXT_SECONDARY, marginLeft: 2 }}>
-            {totalEarned}/{totalAll}
           </span>
         </div>
         <button
@@ -67,80 +55,93 @@ export default function BadgesBox({ user }) {
         </button>
       </div>
 
-      {groups.map((group, idx) => (
-        <BadgeSection
-          key={group.label}
-          label={group.label}
-          items={group.items}
-          isLast={idx === groups.length - 1}
-        />
-      ))}
-    </div>
-  );
-}
-
-function BadgeSection({ label, items, isLast = false }) {
-  return (
-    <div style={{ marginBottom: isLast ? 0 : 14 }}>
-      <p
-        className="m-0"
-        style={{
-          fontSize: 10,
-          fontWeight: 700,
-          color: SECTION_LABEL,
-          letterSpacing: 0.4,
-          marginBottom: 10,
-        }}
-      >
-        {label}
-      </p>
-      <div className="flex flex-wrap" style={{ gap: 12 }}>
-        {items.map((item) => (
-          <BadgeChip key={item.name} item={item} />
-        ))}
-      </div>
+      {earned.length === 0 ? (
+        <div
+          style={{
+            fontSize: 12,
+            color: TEXT_SECONDARY,
+            padding: '8px 0',
+          }}
+        >
+          아직 획득한 뱃지가 없어요. 활동을 쌓으면 자동으로 부여됩니다.
+        </div>
+      ) : (
+        <div className="flex flex-wrap" style={{ gap: 14 }}>
+          {earned.map((meta) => (
+            <EarnedBadge
+              key={meta.key}
+              meta={meta}
+              onClick={() => navigate(`/profile/badges/${meta.key}`)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 /**
- * 강조된 뱃지 칩 — 동그란 하이라이트 배경 + 그림자 + 미획득 처리.
+ * 획득 뱃지 — 아이콘 (테두리 없음) + pill 라벨.
  */
-export function BadgeChip({ item, size = 56 }) {
-  const { img, name, earned } = item;
-  const ringSize = size;
-  const imgSize = Math.round(size * 0.78);
-
+function EarnedBadge({ meta, onClick }) {
+  const pill = getPillColors(meta.tier);
   return (
-    <div
-      aria-label={`${name}${earned ? '' : ' (미획득)'}`}
-      title={name}
-      className="flex items-center justify-center"
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={meta.name}
+      className="flex flex-col items-center"
       style={{
-        width: ringSize,
-        height: ringSize,
-        borderRadius: '50%',
-        background: earned
-          ? 'radial-gradient(circle at 30% 25%, #FFFFFF 0%, #DCEEFB 70%, #C0DFF5 100%)'
-          : '#F1F2F4',
-        border: earned ? '1.5px solid rgba(77, 184, 232, 0.55)' : '1px solid #E5E7EB',
-        boxShadow: earned
-          ? '0 4px 10px rgba(77, 184, 232, 0.22), inset 0 1px 2px rgba(255,255,255,0.9)'
-          : 'none',
-        opacity: earned ? 1 : 0.55,
-        flexShrink: 0,
+        background: 'transparent',
+        border: 'none',
+        padding: 0,
+        cursor: 'pointer',
+        gap: 6,
       }}
     >
       <img
-        src={img}
+        src={meta.img}
         alt=""
         style={{
-          width: imgSize,
-          height: imgSize,
+          width: 60,
+          height: 60,
           objectFit: 'contain',
-          filter: earned ? 'none' : 'grayscale(1)',
         }}
       />
-    </div>
+      <span
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          color: pill.text,
+          background: pill.bg,
+          border: `1px solid ${pill.border}`,
+          padding: '4px 10px',
+          borderRadius: 999,
+          whiteSpace: 'nowrap',
+          lineHeight: 1.2,
+        }}
+      >
+        {meta.name}
+      </span>
+    </button>
+  );
+}
+
+/**
+ * 전체보기 화면에서 사용하는 큰 뱃지 칩 — 외부 export 유지 (BadgesScreen 호환).
+ */
+export function BadgeChip({ item, size = 60 }) {
+  return (
+    <img
+      src={item.img}
+      alt=""
+      style={{
+        width: size,
+        height: size,
+        objectFit: 'contain',
+        filter: item.earned ? 'none' : 'grayscale(1)',
+        opacity: item.earned ? 1 : 0.45,
+      }}
+    />
   );
 }

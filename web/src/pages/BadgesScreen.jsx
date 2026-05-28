@@ -5,8 +5,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
-import { BadgeChip } from '../components/profile/BadgesBox';
-import { buildBadgeGroups } from '../components/profile/badgeData';
+import {
+  getCatalogByGroup,
+  getPillColors,
+  resolveEarnedBadges,
+} from '../components/profile/badgeData';
 
 const TEXT_PRIMARY = '#1F1F1F';
 const TEXT_SECONDARY = '#6B6B6B';
@@ -15,21 +18,22 @@ const KEY_DARK = '#1A6EA8';
 const SECTION_LABEL = '#4A7DA8';
 
 /**
- * 뱃지 전체보기 화면.
- * - 섹션 별로 모든 뱃지를 나열, 보유 여부와 달성 조건을 함께 표시
+ * 뱃지 전체보기 — 전체 카탈로그를 그룹별로 노출, 보유 여부 표시.
  */
 export default function BadgesScreen() {
   const navigate = useNavigate();
-  const { user, isAuthenticated, authLoading } = useAuth();
+  const { user } = useAuth();
   const userId = user?.id || null;
   const { data, loading } = useProfile(userId);
 
   const profileUser = data?.user;
-  const groups = buildBadgeGroups(profileUser || {});
-  const totalEarned = groups.reduce(
-    (acc, g) => acc + g.items.filter((i) => i.earned).length,
-    0,
-  );
+  const earnedKeys = Array.isArray(profileUser?.earned_badges)
+    ? profileUser.earned_badges
+    : [];
+  const earnedSet = new Set(earnedKeys);
+
+  const groups = getCatalogByGroup();
+  const totalEarned = resolveEarnedBadges(earnedKeys).length;
   const totalAll = groups.reduce((acc, g) => acc + g.items.length, 0);
 
   return (
@@ -49,32 +53,20 @@ export default function BadgesScreen() {
         >
           뱃지
         </h1>
-        <p
-          className="m-0"
-          style={{
-            marginTop: 4,
-            fontSize: 12,
-            color: TEXT_SECONDARY,
-          }}
-        >
+        <p className="m-0" style={{ marginTop: 4, fontSize: 12, color: TEXT_SECONDARY }}>
           라이브저니에서 활동하며 얻을 수 있는 모든 뱃지
         </p>
-        {!authLoading && isAuthenticated && profileUser && (
+        {profileUser && (
           <p
             className="m-0"
-            style={{
-              marginTop: 6,
-              fontSize: 12,
-              fontWeight: 700,
-              color: KEY_DARK,
-            }}
+            style={{ marginTop: 6, fontSize: 12, fontWeight: 700, color: KEY_DARK }}
           >
             획득 {totalEarned} / {totalAll}
           </p>
         )}
       </div>
 
-      {(authLoading || loading) && (
+      {loading && (
         <div className="text-center" style={{ padding: 40, color: TEXT_SECONDARY, fontSize: 13 }}>
           불러오는 중...
         </div>
@@ -82,7 +74,12 @@ export default function BadgesScreen() {
 
       <div style={{ padding: '12px 18px 0' }}>
         {groups.map((group) => (
-          <Section key={group.label} group={group} />
+          <Section
+            key={group.label}
+            group={group}
+            earnedSet={earnedSet}
+            onPick={(badge) => navigate(`/profile/badges/${badge.key}`)}
+          />
         ))}
       </div>
     </div>
@@ -132,13 +129,13 @@ function Header({ onBack }) {
   );
 }
 
-function Section({ group }) {
+function Section({ group, earnedSet, onPick }) {
   return (
     <div style={{ marginBottom: 24 }}>
       <div
         className="flex items-baseline"
         style={{
-          marginBottom: 12,
+          marginBottom: 14,
           gap: 8,
           borderBottom: `1px solid ${BORDER_LIGHT}`,
           paddingBottom: 8,
@@ -146,16 +143,10 @@ function Section({ group }) {
       >
         <h2
           className="m-0"
-          style={{
-            fontSize: 14,
-            fontWeight: 700,
-            color: SECTION_LABEL,
-            letterSpacing: 0.2,
-          }}
+          style={{ fontSize: 14, fontWeight: 700, color: SECTION_LABEL, letterSpacing: 0.2 }}
         >
           {group.label}
         </h2>
-        <span style={{ fontSize: 11, color: TEXT_SECONDARY }}>{group.description}</span>
       </div>
 
       <div
@@ -165,68 +156,72 @@ function Section({ group }) {
           gap: 14,
         }}
       >
-        {group.items.map((item) => (
-          <BadgeCard key={item.name} item={item} />
-        ))}
+        {group.items.map((item) => {
+          const earned = earnedSet.has(item.key);
+          return (
+            <BadgeCard
+              key={item.key}
+              meta={item}
+              earned={earned}
+              onClick={() => onPick(item)}
+            />
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function BadgeCard({ item }) {
-  const earned = item.earned;
+function BadgeCard({ meta, earned, onClick }) {
+  const pill = getPillColors(meta.tier);
   return (
-    <div
+    <button
+      type="button"
+      onClick={onClick}
       className="flex flex-col items-center text-center"
       style={{
-        padding: '14px 8px',
-        borderRadius: 12,
-        background: earned
-          ? 'linear-gradient(180deg, #F5FBFF, #FFFFFF)'
-          : '#FAFAFB',
-        border: earned
-          ? '1px solid rgba(77, 184, 232, 0.35)'
-          : '1px solid #EDEEF1',
-        boxShadow: earned ? '0 2px 8px rgba(77, 184, 232, 0.12)' : 'none',
+        background: 'transparent',
+        border: 'none',
+        cursor: 'pointer',
+        padding: '6px 4px',
       }}
     >
-      <BadgeChip item={item} size={72} />
-      <p
-        className="m-0"
+      <img
+        src={meta.img}
+        alt=""
         style={{
-          marginTop: 10,
-          fontSize: 12,
-          fontWeight: 700,
-          color: earned ? TEXT_PRIMARY : TEXT_SECONDARY,
-          lineHeight: 1.3,
+          width: 64,
+          height: 64,
+          objectFit: 'contain',
+          filter: earned ? 'none' : 'grayscale(1)',
+          opacity: earned ? 1 : 0.45,
         }}
-      >
-        {item.name}
-      </p>
-      <p
-        className="m-0"
-        style={{
-          marginTop: 4,
-          fontSize: 10.5,
-          color: TEXT_SECONDARY,
-          lineHeight: 1.4,
-        }}
-      >
-        {item.requirement || item.desc}
-      </p>
+      />
       <span
         style={{
           marginTop: 8,
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: 700,
-          color: earned ? '#1A8754' : item.upcoming ? '#A07D2A' : TEXT_SECONDARY,
-          padding: '2px 8px',
+          color: earned ? pill.text : TEXT_SECONDARY,
+          background: earned ? pill.bg : '#F1F2F4',
+          border: earned ? `1px solid ${pill.border}` : '1px solid #E5E7EB',
+          padding: '3px 10px',
           borderRadius: 999,
-          background: earned ? '#E6F4EB' : item.upcoming ? '#FBF3E0' : '#F0F1F3',
+          lineHeight: 1.2,
+          whiteSpace: 'nowrap',
         }}
       >
-        {earned ? '획득' : item.upcoming ? '출시 예정' : '미획득'}
+        {meta.name}
       </span>
-    </div>
+      <span
+        style={{
+          marginTop: 6,
+          fontSize: 10,
+          color: earned ? '#1A8754' : meta.upcoming ? '#A07D2A' : TEXT_SECONDARY,
+        }}
+      >
+        {earned ? '획득' : meta.upcoming ? '출시 예정' : '미획득'}
+      </span>
+    </button>
   );
 }
