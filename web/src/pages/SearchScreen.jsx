@@ -278,7 +278,7 @@ function SeasonalCards({ cards }) {
       <SectionHeader
         icon={IconCalendarTime}
         title="매거진"
-        action={{ label: '시즌 캘린더', onClick: () => navigate('/season') }}
+        action={{ label: '매거진 전체보기', onClick: () => navigate('/season') }}
       />
       <div
         onMouseDown={handleDragStart}
