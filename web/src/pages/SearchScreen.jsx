@@ -363,7 +363,7 @@ function QuestionCard({ question, onClick, compact = false }) {
     >
       <div className="flex items-start gap-2.5">
         <div
-          className="rounded-full text-white font-semibold flex items-center justify-center flex-shrink-0"
+          className="rounded-full overflow-hidden text-white font-semibold flex items-center justify-center flex-shrink-0"
           style={{
             width: avatarSize,
             height: avatarSize,
@@ -371,7 +371,17 @@ function QuestionCard({ question, onClick, compact = false }) {
             background: question?.author?.avatar_color || KEY,
           }}
         >
-          {initial}
+          {question?.author?.avatar_url ? (
+            <img
+              src={getDisplayImageUrl(question.author.avatar_url)}
+              alt=""
+              referrerPolicy="no-referrer"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          ) : (
+            initial
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-1">
