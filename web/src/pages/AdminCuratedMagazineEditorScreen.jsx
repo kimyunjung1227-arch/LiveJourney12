@@ -7,6 +7,7 @@ import {
 } from '../api/curatedMagazinesSupabase';
 import { uploadImage } from '../api/upload';
 import { logger } from '../utils/logger';
+import { parseCuratedMagazinePaste } from '../utils/parseCuratedMagazinePaste';
 
 const emptyForm = {
   title: '',
@@ -61,6 +62,7 @@ export default function AdminCuratedMagazineEditorScreen() {
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(isEdit);
   const [busy, setBusy] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
 
   useEffect(() => {
     if (!isEdit) return;
@@ -113,6 +115,33 @@ export default function AdminCuratedMagazineEditorScreen() {
       [next[idx], next[ni]] = [next[ni], next[idx]];
       return { ...s, blocks: next };
     });
+
+  const applyPaste = (raw, mode = 'replace') => {
+    const parsed = parseCuratedMagazinePaste(raw);
+    if (!parsed) {
+      // eslint-disable-next-line no-alert
+      window.alert('붙여넣은 내용에서 정보를 찾지 못했어요.');
+      return;
+    }
+    setForm((s) => {
+      const next = { ...s };
+      if (mode === 'replace') {
+        if (parsed.title) next.title = parsed.title;
+        if (parsed.subtitle) next.subtitle = parsed.subtitle;
+        if (parsed.region) next.region = parsed.region;
+        if (parsed.intro_body) next.intro_body = parsed.intro_body;
+        next.blocks = withKeys(parsed.blocks);
+      } else {
+        if (!s.title && parsed.title) next.title = parsed.title;
+        if (!s.subtitle && parsed.subtitle) next.subtitle = parsed.subtitle;
+        if (!s.region && parsed.region) next.region = parsed.region;
+        if (!s.intro_body && parsed.intro_body) next.intro_body = parsed.intro_body;
+        next.blocks = [...s.blocks, ...withKeys(parsed.blocks)];
+      }
+      return next;
+    });
+    setPasteOpen(false);
+  };
 
   const save = async (status) => {
     if (!form.title.trim()) {
@@ -170,6 +199,14 @@ export default function AdminCuratedMagazineEditorScreen() {
         <div className="flex gap-2">
           <button
             type="button"
+            onClick={() => setPasteOpen(true)}
+            className="px-3 h-9 rounded-lg border border-gray-300 dark:border-gray-600 text-[12px] font-bold text-gray-800 dark:text-gray-100"
+            title="다른 글을 통째로 붙여넣으면 자동으로 분류해서 채워줍니다"
+          >
+            📋 일괄 붙여넣기
+          </button>
+          <button
+            type="button"
             onClick={() => save('draft')}
             disabled={busy}
             className="px-3 h-9 rounded-lg border border-gray-300 dark:border-gray-600 text-[12px] font-bold text-gray-800 dark:text-gray-100 disabled:opacity-60"
@@ -186,6 +223,14 @@ export default function AdminCuratedMagazineEditorScreen() {
           </button>
         </div>
       </header>
+
+      {pasteOpen && (
+        <PasteModal
+          onClose={() => setPasteOpen(false)}
+          onApply={applyPaste}
+          hasExisting={!!form.title || form.blocks.length > 0}
+        />
+      )}
 
       <main className="p-4 pb-24 space-y-5">
         <CoverImagePicker
@@ -260,6 +305,113 @@ export default function AdminCuratedMagazineEditorScreen() {
           </div>
         </section>
       </main>
+    </div>
+  );
+}
+
+function PasteModal({ onClose, onApply, hasExisting }) {
+  const [text, setText] = useState('');
+  const taRef = useRef(null);
+  useEffect(() => {
+    taRef.current?.focus();
+  }, []);
+  return (
+    <div
+      className="fixed inset-0 z-40 bg-black/50 flex items-end sm:items-center justify-center sm:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-gray-800 w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-bold text-gray-900 dark:text-white">
+            글 통째로 붙여넣기
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-100"
+            aria-label="닫기"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        <details className="mb-3">
+          <summary className="text-[12px] font-bold text-gray-600 dark:text-gray-300 cursor-pointer">
+            분류 가이드 (선택) — 라벨로 정확히 분류하려면 여기 참고
+          </summary>
+          <pre className="mt-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-900 text-[11px] leading-relaxed whitespace-pre-wrap text-gray-700 dark:text-gray-200">
+{`[제목]
+제주에서 5월 끝까지 즐기는 수국 산책
+
+[부제]
+3곳의 라이브 현장에서 만나는 진짜 색
+
+[지역]
+제주
+
+[인트로]
+5월 말부터 제주의 길은 한 주 단위로 색이 바뀝니다…
+
+[본문]
+첫 번째 단락. 빈 줄로 단락이 나뉘면 자동으로 분리됩니다.
+
+두 번째 단락.
+
+[장소: 혼인지]
+주소: 제주특별자치도 서귀포시 표선면
+설명: 6월 초 만개 / 산책로 자체가 곱고…
+팁: 평일 오전 추천
+
+[장소: 카멜리아힐]
+주소: 제주특별자치도 서귀포시 안덕면
+설명: 정원이 넓어 여유 있는 동선…
+팁: 입장료 있음 / 우천 시에도 운영`}
+          </pre>
+          <p className="text-[10.5px] text-gray-500 mt-2">
+            라벨이 하나도 없으면 첫 줄을 제목, 두 번째 줄(80자 이하)을 부제, 그 다음 단락을 인트로로 자동 추정합니다.
+          </p>
+        </details>
+
+        <textarea
+          ref={taRef}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={14}
+          placeholder="여기에 글을 통째로 붙여넣으세요"
+          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm font-mono"
+        />
+
+        <div className="flex gap-2 mt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 h-11 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-bold"
+          >
+            취소
+          </button>
+          {hasExisting && (
+            <button
+              type="button"
+              onClick={() => onApply(text, 'append')}
+              disabled={!text.trim()}
+              className="flex-1 h-11 rounded-lg border border-primary text-primary text-sm font-bold disabled:opacity-50"
+            >
+              이어 붙이기
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onApply(text, 'replace')}
+            disabled={!text.trim()}
+            className="flex-1 h-11 rounded-lg bg-primary text-white text-sm font-bold disabled:opacity-50"
+          >
+            {hasExisting ? '덮어쓰기' : '자동 분류'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
