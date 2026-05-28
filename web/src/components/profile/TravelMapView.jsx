@@ -8,7 +8,8 @@ import { logger } from '../../utils/logger';
 
 const KEY = '#4DB8E8';
 const TEXT_SECONDARY = '#6B6B6B';
-const DEFAULT_CENTER = { lat: 36.5, lng: 127.8 }; // 한국 중부 (전국 보이게)
+const DEFAULT_CENTER = { lat: 36.0, lng: 127.8 }; // 한국 중앙 (전국이 화면에 들어오게)
+const DEFAULT_LEVEL = 13; // 카카오 level 13 ≈ 대한민국 전체
 
 // ── Kakao SDK 로더 (MapScreen 과 동일 패턴) ────────────────
 const getKakaoAppKey = () =>
@@ -197,7 +198,7 @@ export default function TravelMapView({ userId }) {
     const kakao = window.kakao;
     mapRef.current = new kakao.maps.Map(el, {
       center: new kakao.maps.LatLng(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng),
-      level: 12,
+      level: DEFAULT_LEVEL,
     });
   }, [sdkReady]);
 
@@ -219,10 +220,9 @@ export default function TravelMapView({ userId }) {
 
     if (pins.length === 0) return;
 
-    const bounds = new kakao.maps.LatLngBounds();
+    // 핀은 표시하되 setBounds 는 호출하지 않는다 — 항상 전국 뷰를 유지하기 위해.
     pins.forEach((p) => {
       const pos = new kakao.maps.LatLng(p.lat, p.lng);
-      bounds.extend(pos);
       const wrap = document.createElement('div');
       wrap.innerHTML = buildThumbPinHTML(p.thumb);
       wrap.firstChild.addEventListener('click', (e) => {
@@ -239,12 +239,6 @@ export default function TravelMapView({ userId }) {
       overlay.setMap(map);
       overlayMapRef.current.set(p.post_id, overlay);
     });
-
-    try {
-      map.setBounds(bounds, 24, 24, 24, 24);
-    } catch {
-      /* ignore */
-    }
   }, [pins, navigate]);
 
   return (

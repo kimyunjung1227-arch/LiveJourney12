@@ -7,7 +7,6 @@ const BORDER_LIGHT = '#E8E8E8';
 
 const TABS = [
   { id: 'all', label: '전체 활동' },
-  { id: 'city', label: '지역별' },
   { id: 'map', label: '여행 지도' },
 ];
 
