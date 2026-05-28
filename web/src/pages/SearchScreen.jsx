@@ -21,6 +21,7 @@ import {
 } from '@tabler/icons-react';
 import { supabase } from '../utils/supabaseClient';
 import { getDisplayImageUrl } from '../api/upload';
+import { fetchPublishedMagazines } from '../api/curatedMagazinesSupabase';
 import { logger } from '../utils/logger';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import BottomNavigation from '../components/BottomNavigation';
@@ -259,14 +260,14 @@ function SeasonalCards({ cards }) {
         <div
           className="flex items-center justify-center"
           style={{
-            height: 110,
+            height: 130,
             borderRadius: 11,
             background: SURFACE,
             border: `1px dashed ${BORDER_LIGHT}`,
           }}
         >
           <span style={{ fontSize: 12, color: TEXT_SECONDARY }}>
-            아직 등록된 시즌이 없어요
+            아직 발행된 매거진이 없어요
           </span>
         </div>
       </div>
@@ -275,70 +276,86 @@ function SeasonalCards({ cards }) {
 
   return (
     <div className="mb-[22px]">
-      <SectionHeader
-        icon={IconCalendarTime}
-        title="매거진"
-        action={{ label: '매거진 전체보기', onClick: () => navigate('/season') }}
-      />
+      <SectionHeader icon={IconCalendarTime} title="매거진" />
       <div
         onMouseDown={handleDragStart}
-        className="flex gap-2 overflow-x-auto scrollbar-hide cursor-grab active:cursor-grabbing"
+        className="flex gap-2.5 overflow-x-auto scrollbar-hide cursor-grab active:cursor-grabbing"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
-        {cards.map((card) => (
-          <button
-            key={card.id}
-            type="button"
-            onClick={guardedClick(() => navigate(`/season/${encodeURIComponent(card.id)}`))}
-            className="flex-shrink-0"
-            style={{
-              width: 130,
-              padding: 0,
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-            }}
-          >
-            <div
-              className="relative overflow-hidden"
+        {cards.map((card) => {
+          const cover = card.cover_image_url
+            ? getDisplayImageUrl(card.cover_image_url)
+            : '';
+          const subLabel = card.subtitle || card.region || '';
+          return (
+            <button
+              key={card.id}
+              type="button"
+              onClick={guardedClick(() =>
+                navigate(`/live-magazine/${encodeURIComponent(card.id)}`),
+              )}
+              className="flex-shrink-0"
               style={{
-                height: 110,
-                borderRadius: 11,
-                background: `linear-gradient(135deg, ${
-                  card.cover_color_start || '#87CEEB'
-                }, ${card.cover_color_end || '#4DB8E8'})`,
+                width: 168,
+                padding: 0,
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
               }}
             >
               <div
-                className="absolute top-2 left-2 px-2 py-0.5"
-                style={{ background: 'rgba(0,0,0,0.65)', borderRadius: 5 }}
+                className="relative overflow-hidden"
+                style={{
+                  height: 130,
+                  borderRadius: 12,
+                  backgroundImage: cover ? `url(${cover})` : undefined,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  background: cover
+                    ? undefined
+                    : 'linear-gradient(135deg, #87CEEB, #1A6EA8)',
+                }}
               >
-                <span style={{ fontSize: 9, color: 'white', fontWeight: 700 }}>
-                  {card.period_label}
-                </span>
-              </div>
-              <div className="absolute bottom-2 left-2 right-2 text-left">
-                <p className="m-0 mb-0.5" style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>
-                  {card.title}
-                </p>
-                <div className="flex items-center gap-1">
+                {/* 가독성을 위한 어두운 오버레이 */}
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background:
+                      'linear-gradient(180deg, rgba(0,0,0,0.06) 30%, rgba(0,0,0,0.55) 100%)',
+                  }}
+                />
+                {subLabel && (
                   <div
+                    className="absolute top-2 left-2 px-2 py-0.5"
+                    style={{ background: 'rgba(0,0,0,0.55)', borderRadius: 5 }}
+                  >
+                    <span style={{ fontSize: 9, color: 'white', fontWeight: 700 }}>
+                      {subLabel}
+                    </span>
+                  </div>
+                )}
+                <div className="absolute bottom-2 left-2 right-2 text-left">
+                  <p
+                    className="m-0"
                     style={{
-                      width: 4,
-                      height: 4,
-                      background: KEY,
-                      borderRadius: '50%',
-                      boxShadow: '0 0 0 2px rgba(77, 184, 232, 0.4)',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      color: 'white',
+                      lineHeight: 1.3,
+                      textShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
                     }}
-                  />
-                  <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.9)' }}>
-                    {card.is_upcoming ? '곧 시작' : `실시간 ${card.live_count || 0}장`}
-                  </span>
+                  >
+                    {card.title}
+                  </p>
                 </div>
               </div>
-            </div>
-          </button>
-        ))}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -591,6 +608,17 @@ function CategoryGrid({ categories }) {
 
 function SearchHub() {
   const { data, loading } = useSearchHub();
+  const [magazines, setMagazines] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const list = await fetchPublishedMagazines({ limit: 20 });
+      if (!cancelled) setMagazines(Array.isArray(list) ? list : []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -609,7 +637,7 @@ function SearchHub() {
 
   return (
     <div className="p-[18px]">
-      <SeasonalCards cards={data.seasonal || []} />
+      <SeasonalCards cards={magazines} />
       <QuestionsSection questions={data.questions || []} showAllAction />
       <CityGrid cities={data.cities || []} />
       <CategoryGrid categories={data.categories || []} />
