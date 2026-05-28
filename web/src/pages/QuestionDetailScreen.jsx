@@ -134,7 +134,7 @@ function QuestionBody({ question }) {
     <div>
       <div className="flex items-start gap-2.5" style={{ marginBottom: 14 }}>
         <div
-          className="rounded-full text-white font-semibold flex items-center justify-center flex-shrink-0"
+          className="rounded-full overflow-hidden text-white font-semibold flex items-center justify-center flex-shrink-0"
           style={{
             width: 38,
             height: 38,
@@ -142,7 +142,17 @@ function QuestionBody({ question }) {
             background: question?.author?.avatar_color || KEY,
           }}
         >
-          {initial}
+          {question?.author?.avatar_url ? (
+            <img
+              src={getDisplayImageUrl(question.author.avatar_url)}
+              alt=""
+              referrerPolicy="no-referrer"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          ) : (
+            initial
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5" style={{ marginBottom: 2 }}>
@@ -231,7 +241,7 @@ function AnswerAuthor({ answer }) {
   return (
     <div className="flex items-center gap-2.5" style={{ marginBottom: 10 }}>
       <div
-        className="rounded-full text-white font-semibold flex items-center justify-center flex-shrink-0"
+        className="rounded-full overflow-hidden text-white font-semibold flex items-center justify-center flex-shrink-0"
         style={{
           width: 28,
           height: 28,
@@ -239,7 +249,17 @@ function AnswerAuthor({ answer }) {
           background: answer?.author?.avatar_color || KEY,
         }}
       >
-        {initial}
+        {answer?.author?.avatar_url ? (
+          <img
+            src={getDisplayImageUrl(answer.author.avatar_url)}
+            alt=""
+            referrerPolicy="no-referrer"
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
+        ) : (
+          initial
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">

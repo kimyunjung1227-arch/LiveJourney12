@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { IconClock, IconMapPin, IconPhoto } from '@tabler/icons-react';
+import { getDisplayImageUrl } from '../../api/upload';
 
 const KEY = '#4DB8E8';
 const KEY_LIGHT = '#E8F4FB';
@@ -41,7 +42,7 @@ export default function QuestionListCard({ question }) {
     >
       <div className="flex items-start gap-2.5">
         <div
-          className="rounded-full text-white font-semibold flex items-center justify-center flex-shrink-0"
+          className="rounded-full overflow-hidden text-white font-semibold flex items-center justify-center flex-shrink-0"
           style={{
             width: 30,
             height: 30,
@@ -49,7 +50,17 @@ export default function QuestionListCard({ question }) {
             background: question?.author?.avatar_color || KEY,
           }}
         >
-          {initial}
+          {question?.author?.avatar_url ? (
+            <img
+              src={getDisplayImageUrl(question.author.avatar_url)}
+              alt=""
+              referrerPolicy="no-referrer"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          ) : (
+            initial
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5" style={{ marginBottom: 4 }}>

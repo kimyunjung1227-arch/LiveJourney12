@@ -255,7 +255,7 @@ function SeasonalCards({ cards }) {
   if (isEmpty) {
     return (
       <div className="mb-[22px]">
-        <SectionHeader icon={IconCalendarTime} title="지금 뭐가 한창?" />
+        <SectionHeader icon={IconCalendarTime} title="매거진" />
         <div
           className="flex items-center justify-center"
           style={{
@@ -277,7 +277,7 @@ function SeasonalCards({ cards }) {
     <div className="mb-[22px]">
       <SectionHeader
         icon={IconCalendarTime}
-        title="지금 뭐가 한창?"
+        title="매거진"
         action={{ label: '시즌 캘린더', onClick: () => navigate('/season') }}
       />
       <div
@@ -450,7 +450,7 @@ function QuestionsSection({ questions, showAllAction = true }) {
     <div className="mb-[22px]">
       <SectionHeader
         icon={IconHelpCircle}
-        title="지금 답이 필요한 질문"
+        title="실시간 Q&A"
         action={
           showAllAction
             ? { label: '전체 보기', onClick: () => navigate('/questions') }

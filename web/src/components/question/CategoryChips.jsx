@@ -7,6 +7,7 @@ import {
   IconMoon,
   IconBuildingStore,
 } from '@tabler/icons-react';
+import { useHorizontalDragScroll } from '../../hooks/useHorizontalDragScroll';
 
 export const QUESTION_CATEGORIES = [
   { id: 'all', label: '전체', Icon: null },
@@ -20,9 +21,21 @@ export const QUESTION_CATEGORIES = [
 
 export default function CategoryChips({ selected, onChange, hideAll = false, bleed = 18 }) {
   const items = hideAll ? QUESTION_CATEGORIES.filter((c) => c.id !== 'all') : QUESTION_CATEGORIES;
+  const { handleDragStart, hasMovedRef } = useHorizontalDragScroll();
+
+  // 드래그 직후 칩 클릭으로 잘못 발화되는 걸 막는 가드
+  const guardedClick = (id) => (e) => {
+    if (hasMovedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    onChange(id);
+  };
 
   return (
     <div
+      onMouseDown={handleDragStart}
       style={{
         // 부모 좌우 패딩을 벗어나 화면 끝까지 스크롤되게 (bleed = 부모 padding 값)
         marginLeft: -bleed,
@@ -40,6 +53,7 @@ export default function CategoryChips({ selected, onChange, hideAll = false, ble
         // 스크롤바 시각적 숨김 (Webkit + Firefox)
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
+        cursor: 'grab',
       }}
       className="hide-scrollbar"
     >
@@ -50,7 +64,7 @@ export default function CategoryChips({ selected, onChange, hideAll = false, ble
           <button
             key={cat.id}
             type="button"
-            onClick={() => onChange(cat.id)}
+            onClick={guardedClick(cat.id)}
             style={{
               flex: '0 0 auto',
               whiteSpace: 'nowrap',
