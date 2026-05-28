@@ -11,7 +11,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import { useFollow } from '../hooks/useFollow';
 import ProfileHeader from '../components/profile/ProfileHeader';
-import HonorBox from '../components/profile/HonorBox';
 import BestCutCarousel from '../components/profile/BestCutCarousel';
 import ProfileTabs from '../components/profile/ProfileTabs';
 import PhotoTimeline from '../components/profile/PhotoTimeline';
@@ -134,7 +133,6 @@ function UserProfileScreen() {
       ) : (
         <>
           <ProfileHeader user={profileUser} />
-          <HonorBox user={profileUser} />
 
           {!isMe && (
             <div className="flex items-center gap-2" style={{ padding: '0 18px 18px' }}>
