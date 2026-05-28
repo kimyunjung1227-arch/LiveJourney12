@@ -24,6 +24,17 @@ const TEXT_TERTIARY = '#B8B8B8';
 const SURFACE = '#F5F7FA';
 const BORDER_LIGHT = '#E8E8E8';
 
+// 글 길이에 따라 한 줄로 들어갈 폰트 사이즈 자동 산정
+function autoTitleSize(text) {
+  const len = String(text || '').length;
+  if (len <= 14) return 22;
+  if (len <= 20) return 20;
+  if (len <= 26) return 18;
+  if (len <= 34) return 16;
+  if (len <= 42) return 14;
+  return 12;
+}
+
 function timeAgo(iso) {
   if (!iso) return '';
   const ms = Date.now() - new Date(iso).getTime();
@@ -163,37 +174,37 @@ export default function LiveMagazineScreen() {
         <span style={{ fontSize: 16, fontWeight: 700, color: TEXT_PRIMARY }}>라이브매거진</span>
       </div>
 
-      {/* 큰 타이틀 */}
-      <div style={{ padding: '20px 18px 14px' }}>
+      {/* 큰 타이틀 — 한 줄 + 글 길이에 따라 자동 축소 */}
+      <div style={{ padding: '16px 18px 10px' }}>
         <h1
           className="m-0"
           style={{
-            fontSize: 22,
+            fontSize: autoTitleSize(magazine.title || ''),
             fontWeight: 800,
             color: TEXT_PRIMARY,
-            lineHeight: 1.35,
+            lineHeight: 1.2,
             letterSpacing: -0.4,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
           }}
+          title={magazine.title}
         >
           {magazine.title}
         </h1>
-        {magazine.subtitle && (
-          <p
-            className="m-0"
-            style={{ marginTop: 6, fontSize: 13, color: TEXT_SECONDARY, lineHeight: 1.5 }}
-          >
-            {magazine.subtitle}
-          </p>
-        )}
         {magazine.intro_body && (
           <p
             className="m-0"
             style={{
-              marginTop: 12,
-              fontSize: 13,
-              color: TEXT_PRIMARY,
-              lineHeight: 1.7,
+              marginTop: 8,
+              fontSize: 12.5,
+              color: TEXT_SECONDARY,
+              lineHeight: 1.55,
               whiteSpace: 'pre-wrap',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
             }}
           >
             {magazine.intro_body}
@@ -302,10 +313,10 @@ function NavArrow({ side, disabled, onClick }) {
       aria-label={side === 'left' ? '이전 장소' : '다음 장소'}
       style={{
         position: 'absolute',
-        top: 220,
-        [side]: 8,
-        width: 36,
-        height: 36,
+        top: 130,
+        [side]: 6,
+        width: 34,
+        height: 34,
         borderRadius: 999,
         background: 'rgba(255,255,255,0.92)',
         border: `1px solid ${BORDER_LIGHT}`,
@@ -327,67 +338,66 @@ function NavArrow({ side, disabled, onClick }) {
   );
 }
 
-function PlaceCard({ place, index, total }) {
+function PlaceCard({ place, index }) {
+  const placeImageUrl = useFallbackPlaceImage(place);
+
   return (
     <div
       style={{
-        marginTop: 4,
-        marginBottom: 8,
+        marginTop: 2,
+        marginBottom: 4,
         border: `1px solid ${BORDER_LIGHT}`,
-        borderRadius: 16,
+        borderRadius: 14,
         overflow: 'hidden',
         background: '#fff',
         boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
       }}
     >
-      {/* 헤더 영역 (장소 N + 제목 + 위치 정보) */}
-      <div style={{ padding: '18px 18px 12px' }}>
+      {/* 헤더 영역 */}
+      <div style={{ padding: '12px 14px 8px' }}>
         <p
           className="m-0"
-          style={{ fontSize: 12, fontWeight: 700, color: KEY, marginBottom: 6 }}
+          style={{ fontSize: 11, fontWeight: 700, color: KEY, marginBottom: 4 }}
         >
           장소 {index}
-          {typeof total === 'number' ? ` / ${total}` : ''}
         </p>
-        <h2
+        <p
           className="m-0"
-          style={{
-            fontSize: 17,
-            fontWeight: 800,
-            color: TEXT_PRIMARY,
-            lineHeight: 1.35,
-            letterSpacing: -0.3,
-          }}
+          style={{ fontSize: 15, fontWeight: 800, color: TEXT_PRIMARY, lineHeight: 1.3 }}
         >
-          {place.description?.split('\n')[0] || place.name}
-        </h2>
-
-        <div style={{ marginTop: 14 }}>
-          <p className="m-0" style={{ fontSize: 11, color: TEXT_SECONDARY, marginBottom: 2 }}>
-            위치이름
-          </p>
-          <p className="m-0" style={{ fontSize: 14, fontWeight: 700, color: TEXT_PRIMARY }}>
-            {place.name || '이름 없음'}
-          </p>
-        </div>
-
+          {place.name || '이름 없음'}
+        </p>
         {place.address && (
-          <div style={{ marginTop: 10 }}>
-            <p className="m-0" style={{ fontSize: 11, color: TEXT_SECONDARY, marginBottom: 2 }}>
-              위치정보
-            </p>
-            <p className="m-0" style={{ fontSize: 13, color: TEXT_PRIMARY, lineHeight: 1.5 }}>
-              {place.address}
-            </p>
-          </div>
+          <p
+            className="m-0"
+            style={{
+              marginTop: 2,
+              fontSize: 11,
+              color: TEXT_SECONDARY,
+              lineHeight: 1.45,
+              display: '-webkit-box',
+              WebkitLineClamp: 1,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {place.address}
+          </p>
         )}
       </div>
 
-      {/* 큰 이미지 */}
-      {place.image_url ? (
-        <div style={{ position: 'relative', width: '100%', aspectRatio: '4 / 3', background: SURFACE }}>
+      {/* 이미지 (place.image_url 있으면 그것, 없으면 lj_posts 매칭 자동 fallback) */}
+      {placeImageUrl ? (
+        <div
+          style={{
+            position: 'relative',
+            width: '100%',
+            aspectRatio: '16 / 9',
+            background: SURFACE,
+          }}
+        >
           <img
-            src={getDisplayImageUrl(place.image_url)}
+            src={placeImageUrl}
             alt=""
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
@@ -397,91 +407,119 @@ function PlaceCard({ place, index, total }) {
         <div
           style={{
             width: '100%',
-            aspectRatio: '4 / 3',
+            aspectRatio: '16 / 9',
             background: SURFACE,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: TEXT_TERTIARY,
-            fontSize: 12,
+            fontSize: 11,
           }}
         >
-          사진 없음
+          아직 등록된 사진이 없어요
         </div>
       )}
 
-      {/* 본문 */}
-      <div style={{ padding: '18px 18px 8px' }}>
-        <p
-          className="m-0"
-          style={{ fontSize: 14, fontWeight: 700, color: TEXT_PRIMARY, marginBottom: 10 }}
-        >
-          장소설명
-        </p>
+      {/* 본문 — 컴팩트 */}
+      <div style={{ padding: '12px 14px 12px' }}>
         <p
           className="m-0"
           style={{
-            fontSize: 13,
-            lineHeight: 1.75,
+            fontSize: 12.5,
+            lineHeight: 1.6,
             color: TEXT_PRIMARY,
             whiteSpace: 'pre-wrap',
+            display: '-webkit-box',
+            WebkitLineClamp: 4,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
           }}
         >
           {place.description || '설명이 없습니다.'}
         </p>
 
-        <div style={{ borderTop: `1px solid ${BORDER_LIGHT}`, margin: '18px 0 14px' }} />
+        {place.tip && (
+          <div
+            className="flex items-start gap-1.5"
+            style={{
+              marginTop: 10,
+              padding: '8px 10px',
+              borderRadius: 10,
+              background: KEY_LIGHT,
+            }}
+          >
+            <IconBulb size={13} color={KEY_DARK} stroke={2} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span style={{ fontSize: 11.5, color: KEY_DARK, lineHeight: 1.5 }}>
+              {place.tip}
+            </span>
+          </div>
+        )}
 
-        <div className="flex items-center gap-1.5" style={{ marginBottom: 10 }}>
-          <IconBulb size={14} color={KEY} stroke={2} />
-          <span style={{ fontSize: 13, fontWeight: 700, color: TEXT_PRIMARY }}>실시간 여행팁</span>
-        </div>
-        <TipPill tip={place.tip} />
-
-        <AskQuestionCTA placeName={place.name} />
-
-        <div style={{ borderTop: `1px solid ${BORDER_LIGHT}`, margin: '18px 0 14px' }} />
-
-        <LivePhotosSection placeName={place.name} />
+        <AskQuestionCTA placeName={place.name} compact />
       </div>
     </div>
   );
 }
 
-function TipPill({ tip }) {
-  if (!tip) {
-    return (
-      <div
-        style={{
-          padding: '12px 14px',
-          borderRadius: 999,
-          border: `1px solid ${BORDER_LIGHT}`,
-          background: '#fff',
-          color: TEXT_TERTIARY,
-          fontSize: 12,
-        }}
-      >
-        아직 공유된 실시간 팁이 없어요. 첫 번째 한마디를 남겨보세요!
-      </div>
-    );
-  }
-  return (
-    <div
-      style={{
-        padding: '12px 14px',
-        borderRadius: 12,
-        background: KEY_LIGHT,
-        color: KEY_DARK,
-        fontSize: 13,
-        lineHeight: 1.6,
-      }}
-    >
-      {tip}
-    </div>
-  );
+/**
+ * place.image_url 이 있으면 그대로, 없으면 lj_posts 또는 posts 에서
+ * place_name 매칭되는 가장 최근 사진을 가져온다.
+ */
+function useFallbackPlaceImage(place) {
+  const [url, setUrl] = useState(place?.image_url ? getDisplayImageUrl(place.image_url) : '');
+  useEffect(() => {
+    if (place?.image_url) {
+      setUrl(getDisplayImageUrl(place.image_url));
+      return undefined;
+    }
+    if (!place?.name) {
+      setUrl('');
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        // 1) lj_posts 우선
+        const { data: ljRow } = await supabase
+          .from('lj_posts')
+          .select('photo_url')
+          .eq('place_name', place.name)
+          .order('exif_taken_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (cancelled) return;
+        if (ljRow?.photo_url) {
+          setUrl(getDisplayImageUrl(ljRow.photo_url));
+          return;
+        }
+        // 2) posts 폴백 (images jsonb 첫 번째 또는 photo_url)
+        const { data: pRow } = await supabase
+          .from('posts')
+          .select('photo_url, images')
+          .eq('place_name', place.name)
+          .order('captured_at', { ascending: false, nullsFirst: false })
+          .limit(1)
+          .maybeSingle();
+        if (cancelled) return;
+        const raw =
+          pRow?.photo_url ||
+          (Array.isArray(pRow?.images) && typeof pRow.images[0] === 'string'
+            ? pRow.images[0]
+            : '');
+        setUrl(raw ? getDisplayImageUrl(raw) : '');
+      } catch (e) {
+        logger.warn('place image fallback 실패', e?.message || e);
+        if (!cancelled) setUrl('');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [place?.image_url, place?.name]);
+  return url;
 }
 
-function AskQuestionCTA({ placeName }) {
+function AskQuestionCTA({ placeName, compact = false }) {
   const navigate = useNavigate();
   return (
     <button
@@ -489,27 +527,21 @@ function AskQuestionCTA({ placeName }) {
       onClick={() =>
         navigate(`/question/new${placeName ? `?place=${encodeURIComponent(placeName)}` : ''}`)
       }
-      className="w-full flex items-center justify-center gap-2"
+      className="w-full flex items-center justify-center gap-1.5"
       style={{
-        marginTop: 14,
-        height: 52,
+        marginTop: compact ? 10 : 14,
+        height: compact ? 38 : 52,
         background: KEY_LIGHT,
         color: KEY_DARK,
-        borderRadius: 14,
+        borderRadius: 999,
         border: 'none',
         cursor: 'pointer',
-        fontSize: 13,
+        fontSize: compact ? 12 : 13,
         fontWeight: 700,
-        textAlign: 'center',
-        lineHeight: 1.4,
       }}
     >
-      <IconMessage size={16} stroke={2} color={KEY_DARK} />
-      <span>
-        가장 많이 묻는 실시간 질문
-        <br />
-        바로 물어보기
-      </span>
+      <IconMessage size={compact ? 13 : 16} stroke={2} color={KEY_DARK} />
+      <span>이 장소에 실시간 질문하기</span>
     </button>
   );
 }
@@ -562,112 +594,3 @@ function PlaceLiveBadge({ placeName }) {
   );
 }
 
-/**
- * 해당 장소(place_name) 에 매칭되는 실시간 사진 그리드 (최근 48시간 + 5장).
- */
-function LivePhotosSection({ placeName }) {
-  const navigate = useNavigate();
-  const [photos, setPhotos] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!placeName) return undefined;
-    let cancelled = false;
-    setLoading(true);
-    (async () => {
-      try {
-        const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-        const { data, error } = await supabase
-          .from('lj_posts')
-          .select('id, photo_url, exif_taken_at')
-          .eq('place_name', placeName)
-          .gt('exif_taken_at', cutoff)
-          .order('exif_taken_at', { ascending: false })
-          .limit(6);
-        if (cancelled) return;
-        if (error) {
-          logger.warn('live photos fetch 실패', error.message || error);
-          setPhotos([]);
-        } else {
-          setPhotos(Array.isArray(data) ? data : []);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [placeName]);
-
-  return (
-    <div>
-      <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: TEXT_PRIMARY }}>
-          실시간으로 올라오는 사진
-        </span>
-        {photos.length > 0 && (
-          <button
-            type="button"
-            onClick={() => navigate(`/region/${encodeURIComponent(placeName || '')}`)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              padding: 0,
-              cursor: 'pointer',
-              fontSize: 11,
-              fontWeight: 700,
-              color: KEY,
-            }}
-          >
-            전체보기
-          </button>
-        )}
-      </div>
-
-      {loading ? (
-        <p className="text-center" style={{ fontSize: 12, color: TEXT_SECONDARY, padding: '12px 0' }}>
-          불러오는 중...
-        </p>
-      ) : photos.length === 0 ? (
-        <p style={{ fontSize: 12, color: TEXT_TERTIARY, padding: '12px 0' }}>
-          이 장소와 맞는 사진이 아직 없어요.
-        </p>
-      ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-            gap: 6,
-          }}
-        >
-          {photos.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => navigate(`/post/${encodeURIComponent(p.id)}`)}
-              style={{
-                aspectRatio: '1 / 1',
-                borderRadius: 8,
-                overflow: 'hidden',
-                background: SURFACE,
-                border: 'none',
-                padding: 0,
-                cursor: 'pointer',
-              }}
-            >
-              {p.photo_url && (
-                <img
-                  src={getDisplayImageUrl(p.photo_url)}
-                  alt=""
-                  loading="lazy"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                />
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
