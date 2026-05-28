@@ -10,6 +10,7 @@ const KEY = '#4DB8E8';
 const TEXT_SECONDARY = '#6B6B6B';
 const DEFAULT_CENTER = { lat: 36.0, lng: 127.8 }; // 한국 중앙 (전국이 화면에 들어오게)
 const DEFAULT_LEVEL = 13; // 카카오 level 13 ≈ 대한민국 전체
+const CLUSTER_MIN_LEVEL = 6; // 이 레벨 이상에서 클러스터링 (전국~광역)
 
 // ── Kakao SDK 로더 (MapScreen 과 동일 패턴) ────────────────
 const getKakaoAppKey = () =>
@@ -75,7 +76,7 @@ function buildThumbPinHTML(thumbUrl) {
   const bg = thumbUrl
     ? `background-image:url('${thumbUrl}');background-size:cover;background-position:center;`
     : 'background:linear-gradient(135deg,#e0f7fa,#b2ebf2);';
-  return `<div style="width:34px;height:34px;border-radius:8px;border:2px solid white;box-shadow:0 4px 10px rgba(0,0,0,0.18);${bg}cursor:pointer;"></div>`;
+  return `<div style="width:50px;height:50px;border-radius:11px;border:2.5px solid white;box-shadow:0 5px 14px rgba(0,0,0,0.24);background-color:#f3f4f6;${bg}cursor:pointer;"></div>`;
 }
 
 /**
@@ -92,10 +93,13 @@ export default function TravelMapView({ userId }) {
   const mapEl = useRef(null);
   const mapRef = useRef(null);
   const overlayMapRef = useRef(new Map()); // post_id -> overlay
+  const clustererRef = useRef(null);
+  const idleListenerRef = useRef(null);
   const [sdkReady, setSdkReady] = useState(false);
   const [sdkError, setSdkError] = useState('');
   const [pins, setPins] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [mapLevel, setMapLevel] = useState(DEFAULT_LEVEL);
 
   // 1) Kakao SDK 로드
   useEffect(() => {
@@ -190,25 +194,61 @@ export default function TravelMapView({ userId }) {
     };
   }, [userId]);
 
-  // 3) 지도 인스턴스 생성 (SDK 준비 후 1회)
+  // 3) 지도 인스턴스 생성 (SDK 준비 후 1회) + level 추적
   useEffect(() => {
-    if (!sdkReady) return;
+    if (!sdkReady) return undefined;
     const el = mapEl.current;
-    if (!el || mapRef.current) return;
+    if (!el || mapRef.current) return undefined;
     const kakao = window.kakao;
-    mapRef.current = new kakao.maps.Map(el, {
+    const map = new kakao.maps.Map(el, {
       center: new kakao.maps.LatLng(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng),
       level: DEFAULT_LEVEL,
     });
+    mapRef.current = map;
+    setMapLevel(map.getLevel());
+
+    const onIdle = () => setMapLevel(map.getLevel());
+    kakao.maps.event.addListener(map, 'idle', onIdle);
+    idleListenerRef.current = { map, onIdle };
+
+    return () => {
+      const il = idleListenerRef.current;
+      if (il?.map && window.kakao?.maps?.event) {
+        try {
+          window.kakao.maps.event.removeListener(il.map, 'idle', il.onIdle);
+        } catch {
+          /* ignore */
+        }
+      }
+      idleListenerRef.current = null;
+      for (const ov of overlayMapRef.current.values()) {
+        try {
+          ov.setMap(null);
+        } catch {
+          /* ignore */
+        }
+      }
+      overlayMapRef.current.clear();
+      try {
+        clustererRef.current?.clear();
+      } catch {
+        /* ignore */
+      }
+      clustererRef.current = null;
+      mapRef.current = null;
+    };
   }, [sdkReady]);
 
-  // 4) 핀 갱신 + bounds fit
+  // 4) 핀 + 클러스터러 갱신
+  //    - level ≥ CLUSTER_MIN_LEVEL: 클러스터링 활성, 사진 핀 숨김 (display:none)
+  //    - level <  CLUSTER_MIN_LEVEL: 사진 핀 표시
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !window.kakao?.maps) return;
     const kakao = window.kakao;
+    const useClustering = mapLevel >= CLUSTER_MIN_LEVEL;
 
-    // 기존 핀 모두 제거 (단순화 — 적은 양이라 성능 OK)
+    // 기존 핀 제거 (단순화)
     for (const ov of overlayMapRef.current.values()) {
       try {
         ov.setMap(null);
@@ -218,12 +258,20 @@ export default function TravelMapView({ userId }) {
     }
     overlayMapRef.current.clear();
 
-    if (pins.length === 0) return;
+    if (pins.length === 0) {
+      try {
+        clustererRef.current?.clear();
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
 
-    // 핀은 표시하되 setBounds 는 호출하지 않는다 — 항상 전국 뷰를 유지하기 위해.
+    // 사진 핀 CustomOverlay
     pins.forEach((p) => {
       const pos = new kakao.maps.LatLng(p.lat, p.lng);
       const wrap = document.createElement('div');
+      wrap.style.display = useClustering ? 'none' : '';
       wrap.innerHTML = buildThumbPinHTML(p.thumb);
       wrap.firstChild.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -239,7 +287,113 @@ export default function TravelMapView({ userId }) {
       overlay.setMap(map);
       overlayMapRef.current.set(p.post_id, overlay);
     });
-  }, [pins, navigate]);
+
+    // 클러스터러 (활동 많으면 숫자로 묶음, 클릭 시 줌인)
+    try {
+      const Clusterer = window.kakao?.maps?.MarkerClusterer;
+      if (!Clusterer) return;
+      if (!clustererRef.current) {
+        clustererRef.current = new Clusterer({
+          map,
+          averageCenter: true,
+          minLevel: CLUSTER_MIN_LEVEL,
+          gridSize: 60,
+          minClusterSize: 1,
+          disableClickZoom: true, // 직접 줌인 처리
+          styles: [
+            {
+              // 1~9장
+              width: '38px',
+              height: '38px',
+              background: '#ffffff',
+              border: `2px solid ${KEY}`,
+              borderRadius: '10px',
+              color: '#1F1F1F',
+              textAlign: 'center',
+              fontWeight: '800',
+              fontSize: '13px',
+              lineHeight: '34px',
+              boxShadow: '0 3px 10px rgba(0,0,0,0.16)',
+            },
+            {
+              // 10~49장
+              width: '46px',
+              height: '46px',
+              background: '#ffffff',
+              border: `2px solid ${KEY}`,
+              borderRadius: '10px',
+              color: '#1F1F1F',
+              textAlign: 'center',
+              fontWeight: '800',
+              fontSize: '14px',
+              lineHeight: '42px',
+              boxShadow: '0 3px 12px rgba(0,0,0,0.18)',
+            },
+            {
+              // 50장+
+              width: '56px',
+              height: '56px',
+              background: KEY,
+              border: '2px solid #ffffff',
+              borderRadius: '12px',
+              color: '#ffffff',
+              textAlign: 'center',
+              fontWeight: '800',
+              fontSize: '15px',
+              lineHeight: '52px',
+              boxShadow: '0 4px 14px rgba(77,184,232,0.45)',
+            },
+          ],
+          calculator: [10, 50],
+        });
+
+        // 클러스터 클릭 → 한 번에 줌인해서 사진 핀이 풀리도록
+        kakao.maps.event.addListener(
+          clustererRef.current,
+          'clusterclick',
+          (cluster) => {
+            const curLevel =
+              typeof map.getLevel === 'function' ? map.getLevel() : DEFAULT_LEVEL;
+            // 항상 CLUSTER_MIN_LEVEL 아래로 내려가 사진이 보이게 + 점진적 줌인 한도
+            const nextLevel = Math.max(
+              3,
+              Math.min(curLevel - 3, CLUSTER_MIN_LEVEL - 1),
+            );
+            try {
+              map.setLevel(nextLevel, {
+                anchor: cluster.getCenter(),
+                animate: true,
+              });
+            } catch {
+              try {
+                map.setLevel(nextLevel);
+              } catch {
+                /* ignore */
+              }
+              try {
+                map.panTo(cluster.getCenter());
+              } catch {
+                /* ignore */
+              }
+            }
+          },
+        );
+      }
+
+      clustererRef.current.clear();
+      if (useClustering) {
+        const markers = pins.map(
+          (p) =>
+            new kakao.maps.Marker({
+              position: new kakao.maps.LatLng(p.lat, p.lng),
+            }),
+        );
+        clustererRef.current.addMarkers(markers);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [pins, mapLevel, navigate]);
 
   return (
     <div style={{ position: 'relative', marginBottom: 16 }}>
