@@ -5,17 +5,18 @@ import {
   IconDots,
   IconUserPlus,
   IconUserCheck,
-  IconMessageCircle,
 } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import { useFollow } from '../hooks/useFollow';
 import ProfileHeader from '../components/profile/ProfileHeader';
+import BadgesBox from '../components/profile/BadgesBox';
 import BestCutCarousel from '../components/profile/BestCutCarousel';
 import ProfileTabs from '../components/profile/ProfileTabs';
 import PhotoTimeline from '../components/profile/PhotoTimeline';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
+import { logger } from '../utils/logger';
 
 const KEY = '#4DB8E8';
 const TEXT_PRIMARY = '#1F1F1F';
@@ -44,6 +45,31 @@ function UserProfileScreen() {
       navigate('/profile', { replace: true });
     }
   }, [isMe, navigate]);
+
+  const handleShareProfile = async () => {
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    const shareData = {
+      title: `${profileUser?.name || '프로필'} | 라이브저니`,
+      text: `${profileUser?.name || '이 사용자'}의 라이브저니 프로필을 확인해보세요.`,
+      url,
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        return;
+      }
+      if (navigator.clipboard && url) {
+        await navigator.clipboard.writeText(url);
+        // eslint-disable-next-line no-alert
+        window.alert('프로필 링크를 복사했어요');
+        return;
+      }
+      // eslint-disable-next-line no-alert
+      window.prompt('이 링크를 복사해서 공유하세요', url);
+    } catch (e) {
+      logger.warn('프로필 공유 실패', e?.message || e);
+    }
+  };
 
   return (
     <div style={{ background: '#fff', minHeight: '100vh', paddingBottom: 24 }}>
@@ -101,7 +127,8 @@ function UserProfileScreen() {
         </span>
         <button
           type="button"
-          aria-label="더보기"
+          onClick={handleShareProfile}
+          aria-label="프로필 공유"
           style={{
             position: 'absolute',
             right: 12,
@@ -132,59 +159,21 @@ function UserProfileScreen() {
         </div>
       ) : (
         <>
-          <ProfileHeader user={profileUser} />
+          <ProfileHeader
+            user={profileUser}
+            trailingSlot={
+              !isMe ? (
+                <FollowChip
+                  isFollowing={isFollowing}
+                  pending={pending}
+                  canFollow={canFollow}
+                  onClick={toggleFollow}
+                />
+              ) : null
+            }
+          />
 
-          {!isMe && (
-            <div className="flex items-center gap-2" style={{ padding: '0 18px 18px' }}>
-              <button
-                type="button"
-                onClick={toggleFollow}
-                disabled={pending || !canFollow}
-                className="flex-1 flex items-center justify-center gap-1.5"
-                style={{
-                  height: 42,
-                  borderRadius: 11,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: pending || !canFollow ? 'not-allowed' : 'pointer',
-                  border: isFollowing ? `1px solid ${BORDER_LIGHT}` : 'none',
-                  background: isFollowing ? '#fff' : KEY,
-                  color: isFollowing ? TEXT_PRIMARY : '#fff',
-                  opacity: !canFollow ? 0.5 : 1,
-                }}
-              >
-                {isFollowing ? (
-                  <>
-                    <IconUserCheck size={15} stroke={2} />
-                    팔로잉
-                  </>
-                ) : (
-                  <>
-                    <IconUserPlus size={15} stroke={2} />
-                    팔로우
-                  </>
-                )}
-              </button>
-              <button
-                type="button"
-                className="flex items-center justify-center gap-1.5"
-                style={{
-                  height: 42,
-                  padding: '0 18px',
-                  borderRadius: 11,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  border: `1px solid ${BORDER_LIGHT}`,
-                  background: '#fff',
-                  color: TEXT_PRIMARY,
-                }}
-              >
-                <IconMessageCircle size={15} stroke={2} />
-                메시지
-              </button>
-            </div>
-          )}
+          <BadgesBox user={profileUser} />
 
           <BestCutCarousel bestCuts={data?.best_cuts} />
 
@@ -203,6 +192,47 @@ function UserProfileScreen() {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * 이름 우측에 들어가는 가벼운 팔로우 칩.
+ */
+function FollowChip({ isFollowing, pending, canFollow, onClick }) {
+  const disabled = pending || !canFollow;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={isFollowing ? '팔로잉' : '팔로우'}
+      className="flex items-center justify-center gap-1"
+      style={{
+        height: 28,
+        padding: '0 12px',
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 700,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        border: isFollowing ? `1px solid ${BORDER_LIGHT}` : 'none',
+        background: isFollowing ? '#fff' : KEY,
+        color: isFollowing ? TEXT_PRIMARY : '#fff',
+        opacity: disabled ? 0.6 : 1,
+        flexShrink: 0,
+      }}
+    >
+      {isFollowing ? (
+        <>
+          <IconUserCheck size={13} stroke={2.2} />
+          팔로잉
+        </>
+      ) : (
+        <>
+          <IconUserPlus size={13} stroke={2.2} />
+          팔로우
+        </>
+      )}
+    </button>
   );
 }
 

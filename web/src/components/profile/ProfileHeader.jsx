@@ -16,7 +16,7 @@ const GRADIENT = 'linear-gradient(135deg, #4DB8E8, #1A6EA8)';
  * @param {object} props.user
  * @param {boolean} [props.isMe] /profile 컨텍스트면 true → 팔로워/팔로잉 클릭 시 /profile/follows
  */
-export default function ProfileHeader({ user, isMe = false }) {
+export default function ProfileHeader({ user, isMe = false, trailingSlot = null }) {
   const navigate = useNavigate();
   if (!user) return null;
 
@@ -93,7 +93,7 @@ export default function ProfileHeader({ user, isMe = false }) {
                 </span>
               </div>
             )}
-            {isMe && (
+            {isMe ? (
               <button
                 type="button"
                 onClick={() => navigate('/profile/edit')}
@@ -112,7 +112,9 @@ export default function ProfileHeader({ user, isMe = false }) {
               >
                 <IconPencil size={16} color={TEXT_SECONDARY} stroke={1.8} />
               </button>
-            )}
+            ) : trailingSlot ? (
+              <div style={{ marginLeft: 'auto' }}>{trailingSlot}</div>
+            ) : null}
           </div>
 
           {user.bio ? (
