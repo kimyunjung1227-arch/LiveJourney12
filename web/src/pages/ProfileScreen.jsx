@@ -7,7 +7,6 @@ import BottomNavigation from '../components/BottomNavigation';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
 import ProfileHeader from '../components/profile/ProfileHeader';
-import HonorBox from '../components/profile/HonorBox';
 import BadgesBox from '../components/profile/BadgesBox';
 import BestCutCarousel from '../components/profile/BestCutCarousel';
 import ProfileTabs from '../components/profile/ProfileTabs';
@@ -215,7 +214,6 @@ function ProfileScreen() {
 
       <ProfileHeader user={profileUser} isMe />
       <BadgesBox user={profileUser} />
-      <HonorBox user={profileUser} />
 
       <BestCutCarousel bestCuts={data?.best_cuts} />
 
