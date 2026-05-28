@@ -71,6 +71,32 @@ const ensureKakaoMapsReady = async () => {
   });
 };
 
+// ── 부드러운 단계적 줌인 ────────────────────────────────
+// 카카오 setLevel({animate:true}) 한 번에 큰 단계로 점프하면 줌이 빠름.
+// 한 단계씩 setTimeout 으로 호출해 "서서히 확대" 효과.
+function smoothZoom(map, targetLevel, anchor) {
+  const STEP_MS = 240; // setLevel animate 한 사이클과 비슷
+  const step = () => {
+    if (!map || typeof map.getLevel !== 'function') return;
+    const cur = map.getLevel();
+    if (cur <= targetLevel) return;
+    const next = Math.max(targetLevel, cur - 1);
+    try {
+      map.setLevel(next, { anchor, animate: true });
+    } catch {
+      try {
+        map.setLevel(next);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (next > targetLevel) {
+      window.setTimeout(step, STEP_MS);
+    }
+  };
+  step();
+}
+
 // ── 핀 HTML ────────────────────────────────────────────
 function buildThumbPinHTML(thumbUrl) {
   const bg = thumbUrl
@@ -347,35 +373,25 @@ export default function TravelMapView({ userId }) {
           calculator: [10, 50],
         });
 
-        // 클러스터 클릭 → 한 번에 줌인해서 사진 핀이 풀리도록
+        // 클러스터 클릭 → 부드럽게 줌인. 10장 이하면 충분히 줌인해 사진 핀이 바로 풀리게.
         kakao.maps.event.addListener(
           clustererRef.current,
           'clusterclick',
           (cluster) => {
             const curLevel =
               typeof map.getLevel === 'function' ? map.getLevel() : DEFAULT_LEVEL;
-            // 항상 CLUSTER_MIN_LEVEL 아래로 내려가 사진이 보이게 + 점진적 줌인 한도
-            const nextLevel = Math.max(
-              3,
-              Math.min(curLevel - 3, CLUSTER_MIN_LEVEL - 1),
-            );
-            try {
-              map.setLevel(nextLevel, {
-                anchor: cluster.getCenter(),
-                animate: true,
-              });
-            } catch {
-              try {
-                map.setLevel(nextLevel);
-              } catch {
-                /* ignore */
-              }
-              try {
-                map.panTo(cluster.getCenter());
-              } catch {
-                /* ignore */
-              }
-            }
+            const anchor = cluster.getCenter();
+            const markerCount =
+              typeof cluster.getMarkers === 'function'
+                ? cluster.getMarkers().length
+                : 0;
+            // 10장 이하 → CLUSTER_MIN_LEVEL 아래(=5)까지 한 번에 풀리도록
+            // 10장 초과 → 한 번에 3단계 정도만 점진적
+            const targetLevel =
+              markerCount > 0 && markerCount <= 10
+                ? Math.max(3, CLUSTER_MIN_LEVEL - 1)
+                : Math.max(3, Math.min(curLevel - 3, CLUSTER_MIN_LEVEL - 1));
+            smoothZoom(map, targetLevel, anchor);
           },
         );
       }
