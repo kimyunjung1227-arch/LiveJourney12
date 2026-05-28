@@ -1,6 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { IconArrowLeft, IconBulb, IconMessage } from '@tabler/icons-react';
+import {
+  IconArrowLeft,
+  IconBulb,
+  IconMessage,
+  IconChevronLeft,
+  IconChevronRight,
+} from '@tabler/icons-react';
 import { fetchMagazineById } from '../api/curatedMagazinesSupabase';
 import { supabase } from '../utils/supabaseClient';
 import { getDisplayImageUrl } from '../api/upload';
@@ -78,6 +84,15 @@ export default function LiveMagazineScreen() {
     if (w <= 0) return;
     const next = Math.round(el.scrollLeft / w);
     setPageIdx((cur) => (cur === next ? cur : next));
+  }, []);
+
+  // 페이지 인덱스로 부드럽게 스크롤
+  const scrollToPage = useCallback((idx) => {
+    const el = carouselRef.current;
+    if (!el) return;
+    const w = el.clientWidth;
+    if (w <= 0) return;
+    el.scrollTo({ left: idx * w, behavior: 'smooth' });
   }, []);
 
   if (loading) {
@@ -190,7 +205,7 @@ export default function LiveMagazineScreen() {
       {placePages.length === 0 ? (
         <EmptyPlaces />
       ) : (
-        <>
+        <div style={{ position: 'relative' }}>
           <div
             ref={carouselRef}
             onScroll={onScroll}
@@ -215,27 +230,51 @@ export default function LiveMagazineScreen() {
                   padding: '0 18px',
                 }}
               >
-                <PlaceCard place={p} index={idx + 1} />
+                <PlaceCard place={p} index={idx + 1} total={placePages.length} />
               </div>
             ))}
           </div>
 
-          {/* 페이지 도트 */}
+          {/* 좌/우 네비게이션 화살표 (페이지 ≥ 2일 때) */}
+          {placePages.length > 1 && (
+            <>
+              <NavArrow
+                side="left"
+                disabled={pageIdx <= 0}
+                onClick={() => scrollToPage(Math.max(0, pageIdx - 1))}
+              />
+              <NavArrow
+                side="right"
+                disabled={pageIdx >= placePages.length - 1}
+                onClick={() =>
+                  scrollToPage(Math.min(placePages.length - 1, pageIdx + 1))
+                }
+              />
+            </>
+          )}
+
+          {/* 페이지 도트 (클릭 가능) */}
           <div className="flex items-center justify-center gap-1.5" style={{ padding: '14px 0 8px' }}>
             {placePages.map((_, idx) => (
-              <span
+              <button
                 key={idx}
+                type="button"
+                onClick={() => scrollToPage(idx)}
+                aria-label={`${idx + 1}번째 장소 보기`}
                 style={{
                   width: idx === pageIdx ? 18 : 6,
                   height: 6,
                   borderRadius: 999,
                   background: idx === pageIdx ? KEY : '#E5E7EB',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
                   transition: 'width 0.2s ease, background 0.2s ease',
                 }}
               />
             ))}
           </div>
-        </>
+        </div>
       )}
 
       <BottomNavigation />
@@ -254,7 +293,41 @@ function EmptyPlaces() {
   );
 }
 
-function PlaceCard({ place, index }) {
+function NavArrow({ side, disabled, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={side === 'left' ? '이전 장소' : '다음 장소'}
+      style={{
+        position: 'absolute',
+        top: 220,
+        [side]: 8,
+        width: 36,
+        height: 36,
+        borderRadius: 999,
+        background: 'rgba(255,255,255,0.92)',
+        border: `1px solid ${BORDER_LIGHT}`,
+        boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+        display: disabled ? 'none' : 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        padding: 0,
+        zIndex: 5,
+      }}
+    >
+      {side === 'left' ? (
+        <IconChevronLeft size={20} color={KEY_DARK} stroke={2.2} />
+      ) : (
+        <IconChevronRight size={20} color={KEY_DARK} stroke={2.2} />
+      )}
+    </button>
+  );
+}
+
+function PlaceCard({ place, index, total }) {
   return (
     <div
       style={{
@@ -274,6 +347,7 @@ function PlaceCard({ place, index }) {
           style={{ fontSize: 12, fontWeight: 700, color: KEY, marginBottom: 6 }}
         >
           장소 {index}
+          {typeof total === 'number' ? ` / ${total}` : ''}
         </p>
         <h2
           className="m-0"
