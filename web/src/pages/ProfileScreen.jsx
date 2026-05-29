@@ -12,6 +12,7 @@ import BestCutCarousel from '../components/profile/BestCutCarousel';
 import ProfileTabs from '../components/profile/ProfileTabs';
 import PhotoTimeline from '../components/profile/PhotoTimeline';
 import TravelMapView from '../components/profile/TravelMapView';
+import SavedPlacesView from '../components/profile/SavedPlacesView';
 import { logger } from '../utils/logger';
 import { supabase } from '../utils/supabaseClient';
 
@@ -225,6 +226,8 @@ function ProfileScreen() {
       <div style={{ padding: '0 18px' }}>
         {tab === 'map' ? (
           <TravelMapView userId={userId} />
+        ) : tab === 'saved' ? (
+          <SavedPlacesView userId={userId} />
         ) : (
           <PhotoTimeline
             mode={tab === 'city' ? 'city' : 'all'}

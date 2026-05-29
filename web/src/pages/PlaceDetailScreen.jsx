@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { IconArrowLeft, IconBookmark, IconBookmarkFilled, IconShare3 } from '@tabler/icons-react';
 import { LJ } from '../components/lj/tokens';
@@ -7,6 +7,8 @@ import PlacePhotoGrid from '../components/lj/PlacePhotoGrid';
 import PlaceCTA from '../components/lj/PlaceCTA';
 import { usePlaceDetail } from '../hooks/usePlaceDetail';
 import { bestCutScore } from '../hooks/ljPostsMapping';
+import { useAuth } from '../contexts/AuthContext';
+import { isPlaceSaved, toggleSavedPlace } from '../api/savedPlacesSupabase';
 
 const BEST_CUT_LIMIT = 10;
 
@@ -18,8 +20,59 @@ const BEST_CUT_LIMIT = 10;
 function PlaceDetailScreen() {
   const { placeId } = useParams();
   const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
   const { place, posts, loading } = usePlaceDetail(placeId);
   const [bookmarked, setBookmarked] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState('');
+
+  const placeName = place?.name || '';
+
+  // 진입 시 저장 여부 동기화
+  useEffect(() => {
+    let alive = true;
+    if (!isAuthenticated || !user?.id || !placeName) {
+      setBookmarked(false);
+      return;
+    }
+    isPlaceSaved(user.id, placeName).then((saved) => {
+      if (alive) setBookmarked(saved);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [isAuthenticated, user?.id, placeName]);
+
+  // 토스트 자동 숨김
+  useEffect(() => {
+    if (!toast) return undefined;
+    const t = setTimeout(() => setToast(''), 2000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const handleToggleSave = async () => {
+    if (!isAuthenticated || !user?.id) {
+      setToast('로그인 후 저장할 수 있어요');
+      return;
+    }
+    if (!placeName || saving) return;
+    const next = !bookmarked;
+    setSaving(true);
+    setBookmarked(next); // 낙관적 업데이트
+    const res = await toggleSavedPlace({
+      userId: user.id,
+      placeName,
+      region: place?.region || '',
+      savedBefore: bookmarked,
+    });
+    setSaving(false);
+    if (!res.success) {
+      setBookmarked(!next); // 실패 시 롤백
+      setToast('잠시 후 다시 시도해 주세요');
+      return;
+    }
+    setToast(res.saved ? '저장했어요 · 프로필에서 볼 수 있어요' : '저장을 해제했어요');
+  };
 
   // 베스트 컷 캐러셀에 보일 상위 후보들 (점수 내림차순)
   const bestCuts = useMemo(() => {
@@ -124,8 +177,10 @@ function PlaceDetailScreen() {
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
             <button
               type="button"
-              onClick={() => setBookmarked((v) => !v)}
-              aria-label="북마크"
+              onClick={handleToggleSave}
+              disabled={saving}
+              aria-label={bookmarked ? '저장 해제' : '저장하기'}
+              aria-pressed={bookmarked}
               style={{
                 width: 32,
                 height: 32,
@@ -133,7 +188,7 @@ function PlaceDetailScreen() {
                 background: 'transparent',
                 border: 'none',
                 borderRadius: 8,
-                cursor: 'pointer',
+                cursor: saving ? 'wait' : 'pointer',
                 color: bookmarked ? LJ.key : LJ.textSecondary,
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -193,6 +248,33 @@ function PlaceDetailScreen() {
 
       {/* CTA */}
       <PlaceCTA onClick={() => navigate('/upload')} />
+
+      {/* 저장 토스트 */}
+      {toast && (
+        <div
+          role="status"
+          style={{
+            position: 'fixed',
+            left: '50%',
+            bottom: 28,
+            transform: 'translateX(-50%)',
+            zIndex: 60,
+            maxWidth: 'calc(100% - 48px)',
+            padding: '10px 16px',
+            background: 'rgba(31,31,31,0.92)',
+            color: '#fff',
+            fontSize: 13,
+            fontWeight: 600,
+            borderRadius: 999,
+            boxShadow: '0 6px 20px rgba(0,0,0,0.18)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

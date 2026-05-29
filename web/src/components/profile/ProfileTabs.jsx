@@ -7,6 +7,7 @@ const BORDER_LIGHT = '#E8E8E8';
 
 const TABS = [
   { id: 'all', label: '전체 활동' },
+  { id: 'saved', label: '저장한 장소' },
   { id: 'map', label: '여행 지도' },
 ];
 
