@@ -1,15 +1,24 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { savePlace, unsavePlace, fetchSavedPlaces } from '../api/savedPlacesSupabase';
+import { makePlaceId } from './ljPostsMapping';
 
 /**
  * 좋아요/저장 낙관적 업데이트.
  * - 좋아요: 기존 post_likes 테이블 (user_id, post_id)
- * - 저장: 현재 DB 스키마에 미지원 → 로컬 토글만 (UI 표시용)
+ * - 저장: 게시물의 장소를 interest_places 에 저장 (프로필 "저장한 장소" 탭과 연동).
+ *   같은 장소를 가진 게시물은 함께 토글된다. 비로그인/장소명 없음은 로컬 토글만.
  */
 export function useReactions(initialPosts = []) {
   const { user } = useAuth();
   const [state, setState] = useState(() => buildInitial(initialPosts));
+
+  // toggleSave 에서 postId 로 장소명/지역을 역참조하기 위한 최신 posts 스냅샷
+  const postsRef = useRef(initialPosts);
+  useEffect(() => {
+    postsRef.current = initialPosts;
+  }, [initialPosts]);
 
   useEffect(() => {
     setState((prev) => {
@@ -38,6 +47,31 @@ export function useReactions(initialPosts = []) {
         const next = { ...prev };
         data.forEach(({ post_id }) => {
           if (next[post_id]) next[post_id] = { ...next[post_id], liked: true };
+        });
+        return next;
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, initialPosts]);
+
+  // 내가 저장한 장소 hydrate — 저장된 장소를 가진 게시물의 북마크를 채움
+  useEffect(() => {
+    if (!user || initialPosts.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const saved = await fetchSavedPlaces(user.id);
+      if (cancelled || !saved || saved.length === 0) return;
+      const savedKeys = new Set(saved.map((s) => makePlaceId(s.name)).filter(Boolean));
+      setState((prev) => {
+        const next = { ...prev };
+        initialPosts.forEach((p) => {
+          const key = makePlaceId(p.place_name);
+          // 사용자가 직접 토글하지 않은 항목만 갱신 (낙관 업데이트 보호)
+          if (key && savedKeys.has(key) && next[p.id] && !next[p.id].touched) {
+            next[p.id] = { ...next[p.id], saved: true };
+          }
         });
         return next;
       });
@@ -146,22 +180,66 @@ export function useReactions(initialPosts = []) {
     [user]
   );
 
-  // 저장은 DB 스키마 미지원 — UI 토글만 수행
-  const toggleSave = useCallback((postId) => {
-    if (!postId) return;
-    setState((prev) => {
-      const cur = prev[postId] || { liked: false, saved: false, likeCount: 0, saveCount: 0 };
-      return {
-        ...prev,
-        [postId]: {
-          ...cur,
-          touched: true,
-          saved: !cur.saved,
-          saveCount: Math.max(0, cur.saveCount + (cur.saved ? -1 : 1)),
-        },
-      };
-    });
-  }, []);
+  // 저장: 게시물의 장소를 interest_places 에 저장/해제 (낙관 업데이트 + 실패 롤백)
+  const toggleSave = useCallback(
+    async (postId) => {
+      if (!postId) return;
+      const post = postsRef.current.find((p) => p.id === postId);
+      const placeName = String(post?.place_name || '').trim();
+      const region = post?.region || '';
+      const placeKey = makePlaceId(placeName);
+
+      // 같은 장소를 가진 게시물은 함께 토글 (북마크 상태 일관성)
+      const affectedIds = placeKey
+        ? postsRef.current
+            .filter((p) => makePlaceId(p.place_name) === placeKey)
+            .map((p) => p.id)
+        : [postId];
+
+      let wasSaved = false;
+      setState((prev) => {
+        const cur = prev[postId] || { liked: false, saved: false, likeCount: 0, saveCount: 0 };
+        wasSaved = cur.saved;
+        const next = { ...prev };
+        affectedIds.forEach((id) => {
+          const c = next[id];
+          if (!c) return;
+          next[id] = {
+            ...c,
+            touched: true,
+            saved: !wasSaved,
+            saveCount: Math.max(0, c.saveCount + (wasSaved ? -1 : 1)),
+          };
+        });
+        return next;
+      });
+
+      // 비로그인이거나 장소명이 없으면 로컬 토글만 (DB 미반영)
+      if (!user || !placeName) return;
+
+      const res = wasSaved
+        ? await unsavePlace(user.id, placeName)
+        : await savePlace(user.id, placeName, region);
+
+      if (!res.success) {
+        // 롤백
+        setState((prev) => {
+          const next = { ...prev };
+          affectedIds.forEach((id) => {
+            const c = next[id];
+            if (!c) return;
+            next[id] = {
+              ...c,
+              saved: wasSaved,
+              saveCount: Math.max(0, c.saveCount + (wasSaved ? 1 : -1)),
+            };
+          });
+          return next;
+        });
+      }
+    },
+    [user]
+  );
 
   return { state, toggleLike, toggleSave };
 }
