@@ -392,7 +392,7 @@ const CrowdedPlaceScreen = () => {
                         userCaptions: [],
                         cacheSalt: norm,
                     });
-                    const normalized = toHotplaceDescPreview(desc, { maxChars: 220, maxSentences: 2 });
+                    const normalized = toHotplaceDescPreview(desc, { maxChars: 58, maxSentences: 2 });
                     return normalized ? [key, normalized] : null;
                 })
             );
@@ -564,11 +564,15 @@ const CrowdedPlaceScreen = () => {
                                         .slice(0, 1);
                                     const placeKey = String(place.key || '').trim();
                                     const aiDesc = placeKey ? String(placeDescMap?.[placeKey] || '').trim() : '';
-                                    const aiBlurb = aiDesc || generatePlaceAiBlurb(place.key, {
-                                        tags: hotTagChips,
-                                        cityDong: place.cityDong || '',
-                                        tier: cardProps?.hotReasonLabel || '',
-                                    });
+                                    // 2줄 안에서 "…" 없이 완결된 문장으로 끝나도록 정제 (설명/폴백 공통)
+                                    const aiBlurb = toHotplaceDescPreview(
+                                        aiDesc || generatePlaceAiBlurb(place.key, {
+                                            tags: hotTagChips,
+                                            cityDong: place.cityDong || '',
+                                            tier: cardProps?.hotReasonLabel || '',
+                                        }),
+                                        { maxChars: 58, maxSentences: 2 }
+                                    );
 
                                     const goToHotplaceDetail = () => {
                                         const pk = String(place.key || '').trim();
