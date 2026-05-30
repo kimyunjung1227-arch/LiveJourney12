@@ -292,6 +292,132 @@ export function getCatalogByGroup() {
   return Array.from(buckets.entries()).map(([label, items]) => ({ label, items }));
 }
 
+// ── 활동 기반 뱃지 획득 ────────────────────────────────────────────
+// 미리보기/목업이 아니라, 사용자가 실제로 활동(제보·좋아요·베스트컷)을
+// 쌓을수록 아래 기준에 따라 자동으로 부여된다.
+
+// 게시물 텍스트에서 전문 분야를 추정하는 매처 (뱃지 키 → 정규식)
+const CATEGORY_MATCHERS = [
+  ['cherry', /(꽃|벚꽃|개화|매화|진달래|철쭉|튤립|유채|수국|코스모스|해바라기|단풍|bloom)/i],
+  ['sunset', /(노을|일몰|석양|해질|골든아워|매직아워|야경|밤하늘|sunset)/i],
+  ['weather', /(날씨|체감|기온|비\b|눈\b|맑음|흐림|미세먼지|황사|weather)/i],
+  ['festival', /(축제|페스티벌|불꽃|행사|이벤트|마켓|플리마켓|festival)/i],
+  ['crowd', /(인파|혼잡|대기|웨이팅|줄서|번호표|만석|붐비|대기줄|queue|waiting)/i],
+  ['store', /(영업|운영|오픈|마감|브레이크타임|품절|재고|단골|store)/i],
+];
+
+// 주 지역 뱃지 (뱃지 키 → 정규식). 출시 예정 지역은 BADGE_CATALOG.upcoming 으로 제외.
+const REGION_MATCHERS = [
+  ['seoul', /(서울|seoul)/i],
+  ['jeju', /(제주|jeju)/i],
+  ['busan', /(부산|busan)/i],
+];
+
+const CATEGORY_BADGE_TARGET = 10; // 분야별 제보 10회 → 전문성 뱃지
+const REGION_BADGE_TARGET = 3; // 주 지역 최소 게시물 수
+
+function postSearchText(p) {
+  return [
+    p?.category,
+    p?.categoryName,
+    p?.category_name,
+    p?.note,
+    p?.content,
+    Array.isArray(p?.tags) ? p.tags.join(' ') : '',
+    p?.placeName,
+    p?.place_name,
+    p?.region,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
+/**
+ * 실제 활동에서 보유 뱃지 키와 진행 통계를 계산한다.
+ * @param {object} user  프로필 user (is_best_cut_artist 등)
+ * @param {Array}  posts 내 게시물 목록 (likeCount/category/region 포함)
+ * @returns {{ earnedKeys: string[], stats: object }}
+ */
+export function analyzeBadgeActivity(user, posts = []) {
+  const list = Array.isArray(posts) ? posts : [];
+
+  // 받은 좋아요 합계 = "도움 N명" 지표 (내 제보로 도움받은 사람)
+  const helped = list.reduce(
+    (sum, p) => sum + (Number(p?.likeCount ?? p?.likes ?? p?.likes_count) || 0),
+    0
+  );
+  // 베스트컷 횟수 (카운트가 없으면 작가 여부로 최소 1회 인정)
+  const bestCut = Number(user?.best_cut_count) || (user?.is_best_cut_artist ? 1 : 0);
+
+  const catCount = {};
+  const regionCount = {};
+  for (const p of list) {
+    const text = postSearchText(p);
+    for (const [key, re] of CATEGORY_MATCHERS) {
+      if (re.test(text)) catCount[key] = (catCount[key] || 0) + 1;
+    }
+    const region = String(p?.region || '').toLowerCase();
+    if (region) {
+      for (const [key, re] of REGION_MATCHERS) {
+        if (re.test(region)) regionCount[key] = (regionCount[key] || 0) + 1;
+      }
+    }
+  }
+
+  // 주 지역 = 가장 많이 게시한 지역
+  let topRegionKey = null;
+  let topRegionCnt = 0;
+  for (const [key, cnt] of Object.entries(regionCount)) {
+    if (cnt > topRegionCnt) {
+      topRegionCnt = cnt;
+      topRegionKey = key;
+    }
+  }
+
+  const earned = new Set();
+
+  // 베스트 컷 작가
+  if (bestCut >= 1) earned.add('crown_1');
+  if (bestCut >= 5) earned.add('crown_5');
+  if (bestCut >= 10) earned.add('crown_10');
+
+  // 도움 마일스톤
+  if (helped >= 100) earned.add('flame_100');
+  if (helped >= 300) earned.add('flame_300');
+  if (helped >= 500) earned.add('flame_500');
+
+  // 영예
+  if (helped >= 100 || bestCut >= 1) earned.add('honor_bronze');
+  if (helped >= 500 && bestCut >= 10) earned.add('honor_gold');
+
+  // 카테고리 전문성
+  for (const [key, cnt] of Object.entries(catCount)) {
+    if (cnt >= CATEGORY_BADGE_TARGET) earned.add(key);
+  }
+
+  // 지역 전문성 (출시 예정 제외)
+  if (
+    topRegionKey &&
+    topRegionCnt >= REGION_BADGE_TARGET &&
+    !BADGE_CATALOG[topRegionKey]?.upcoming
+  ) {
+    earned.add(topRegionKey);
+  }
+
+  return {
+    earnedKeys: Array.from(earned),
+    stats: {
+      helped_count: helped,
+      best_cut_count: bestCut,
+      category_counts: catCount,
+      region_counts: regionCount,
+      top_region: topRegionKey,
+      post_count: list.length,
+    },
+  };
+}
+
 /**
  * pill 색조 (tier 별).
  */

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { IconArrowLeft, IconLock } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
+import { useEarnedBadges } from '../hooks/useEarnedBadges';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
 import {
@@ -29,32 +30,34 @@ export default function BadgeDetailScreen() {
   const { badgeId } = useParams();
   const { user } = useAuth();
   const { data, loading } = useProfile(user?.id || null);
+  const profileUser = data?.user;
+
+  // 실제 활동 기반 보유 뱃지 + 진행 통계 (helped_count / best_cut_count 등)
+  const { earnedKeys, stats, loading: badgesLoading } = useEarnedBadges(profileUser);
+  const userWithStats = profileUser ? { ...profileUser, ...stats } : profileUser;
 
   const meta = BADGE_CATALOG[badgeId];
-  const profileUser = data?.user;
-  const earnedKeys = Array.isArray(profileUser?.earned_badges)
-    ? profileUser.earned_badges
-    : [];
+  const isLoading = loading || badgesLoading;
 
   return (
     <div style={{ background: '#fff', minHeight: '100vh', paddingBottom: 40 }}>
       <PageSeo {...PAGE_SEO.profile} />
       <Header onBack={() => navigate(-1)} />
 
-      {loading && (
+      {isLoading && (
         <div className="text-center" style={{ padding: 40, color: TEXT_SECONDARY, fontSize: 13 }}>
           불러오는 중...
         </div>
       )}
 
-      {!loading && !meta && (
+      {!isLoading && !meta && (
         <div className="text-center" style={{ padding: 40, color: TEXT_SECONDARY, fontSize: 13 }}>
           뱃지를 찾을 수 없어요
         </div>
       )}
 
-      {meta && !loading && (
-        <DetailBody meta={meta} user={profileUser} earnedKeys={earnedKeys} />
+      {meta && !isLoading && (
+        <DetailBody meta={meta} user={userWithStats} earnedKeys={earnedKeys} />
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconAward, IconChevronRight } from '@tabler/icons-react';
+import { IconAward } from '@tabler/icons-react';
 
 import {
   BADGE_CATALOG,
@@ -10,52 +10,31 @@ import {
   GROWTH_CHAINS,
   highestEarnedInChain,
 } from './badgeData';
+import { useEarnedBadges } from '../../hooks/useEarnedBadges';
 
-const KEY_DARK = '#1A6EA8';
 const TEXT_SECONDARY = '#6B6B6B';
 
 /**
  * 프로필 메인의 뱃지 박스.
- * - 획득한 뱃지만 표시 (아이콘 + pill 라벨)
+ * - 실제 활동(제보·좋아요·베스트컷)으로 획득한 뱃지만 표시 (아이콘 + pill 라벨)
  * - 클릭 시 /profile/badges/:badgeKey 로 이동
  */
 export default function BadgesBox({ user }) {
   const navigate = useNavigate();
+  const { earnedKeys, loading } = useEarnedBadges(user);
   if (!user) return null;
 
-  const earnedKeys = Array.isArray(user.earned_badges) ? user.earned_badges : [];
   const earned = collapseGrowthGroups(resolveEarnedBadges(earnedKeys), earnedKeys);
 
   return (
     <div style={{ padding: '0 18px', marginBottom: 16 }}>
-      <div
-        className="flex items-center"
-        style={{ marginBottom: 12, justifyContent: 'space-between' }}
-      >
+      <div className="flex items-center" style={{ marginBottom: 12 }}>
         <div className="flex items-center gap-1.5">
           <IconAward size={14} color="#1F1F1F" stroke={2.2} />
           <span style={{ fontSize: 14, fontWeight: 700, color: '#1F1F1F' }}>
             뱃지
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => navigate('/profile/badges')}
-          className="flex items-center"
-          style={{
-            background: 'transparent',
-            border: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            color: KEY_DARK,
-            fontSize: 11,
-            fontWeight: 700,
-            gap: 2,
-          }}
-        >
-          전체보기
-          <IconChevronRight size={13} stroke={2.2} />
-        </button>
       </div>
 
       {earned.length === 0 ? (
@@ -66,7 +45,9 @@ export default function BadgesBox({ user }) {
             padding: '8px 0',
           }}
         >
-          아직 획득한 뱃지가 없어요. 활동을 쌓으면 자동으로 부여됩니다.
+          {loading
+            ? '활동 내역을 불러오는 중...'
+            : '아직 획득한 뱃지가 없어요. 활동을 쌓으면 자동으로 부여됩니다.'}
         </div>
       ) : (
         <div className="flex flex-wrap" style={{ gap: 14 }}>
