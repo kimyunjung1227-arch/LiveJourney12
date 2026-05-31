@@ -190,8 +190,8 @@ function BadgeCard({ meta, earned, onClick }) {
         src={meta.img}
         alt=""
         style={{
-          width: 64,
-          height: 64,
+          width: 64 * (meta.iconScale || 1),
+          height: 64 * (meta.iconScale || 1),
           objectFit: 'contain',
           filter: earned ? 'none' : 'grayscale(1)',
           opacity: earned ? 1 : 0.45,

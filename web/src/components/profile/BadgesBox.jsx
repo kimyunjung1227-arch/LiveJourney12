@@ -110,8 +110,8 @@ function EarnedBadge({ meta, onClick }) {
         src={meta.img}
         alt=""
         style={{
-          width: 60,
-          height: 60,
+          width: 60 * (meta.iconScale || 1),
+          height: 60 * (meta.iconScale || 1),
           objectFit: 'contain',
         }}
       />
@@ -138,13 +138,14 @@ function EarnedBadge({ meta, onClick }) {
  * 전체보기 화면에서 사용하는 큰 뱃지 칩 — 외부 export 유지 (BadgesScreen 호환).
  */
 export function BadgeChip({ item, size = 60 }) {
+  const scaled = size * (item.iconScale || 1);
   return (
     <img
       src={item.img}
       alt=""
       style={{
-        width: size,
-        height: size,
+        width: scaled,
+        height: scaled,
         objectFit: 'contain',
         filter: item.earned ? 'none' : 'grayscale(1)',
         opacity: item.earned ? 1 : 0.45,

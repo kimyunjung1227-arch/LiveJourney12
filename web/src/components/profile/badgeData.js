@@ -84,7 +84,8 @@ export const BADGE_CATALOG = {
   flame_100: {
     key: 'flame_100',
     name: '도움 100명',
-    img: flame300,
+    img: flame100,
+    iconScale: 0.78,
     group: '도움 마일스톤',
     description: '100명에게 실시간 정보로 도움을 준 인장입니다.',
     requirement: '도움 100명 달성',
@@ -96,7 +97,7 @@ export const BADGE_CATALOG = {
   flame_300: {
     key: 'flame_300',
     name: '도움 300명',
-    img: flame100,
+    img: flame300,
     group: '도움 마일스톤',
     description: '300명에게 도움을 준 활발한 기여자의 인장입니다.',
     requirement: '도움 300명 달성',

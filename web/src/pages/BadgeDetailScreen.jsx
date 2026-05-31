@@ -199,8 +199,8 @@ function CurrentBadgeCard({ meta, earned }) {
           src={meta.img}
           alt=""
           style={{
-            width: 96,
-            height: 96,
+            width: 96 * (meta.iconScale || 1),
+            height: 96 * (meta.iconScale || 1),
             objectFit: 'contain',
             filter: earned ? 'none' : 'grayscale(1)',
             opacity: earned ? 1 : 0.5,
@@ -266,8 +266,8 @@ function UnearnedCurrentCard({ meta, chain }) {
           src={firstMeta.img}
           alt=""
           style={{
-            width: 96,
-            height: 96,
+            width: 96 * (firstMeta.iconScale || 1),
+            height: 96 * (firstMeta.iconScale || 1),
             objectFit: 'contain',
             filter: 'grayscale(1)',
             opacity: 0.45,
@@ -346,7 +346,7 @@ function NextBadgeCard({ meta, user, progressFn, target }) {
         <img
           src={meta.img}
           alt=""
-          style={{ width: 60, height: 60, objectFit: 'contain', flexShrink: 0 }}
+          style={{ width: 60 * (meta.iconScale || 1), height: 60 * (meta.iconScale || 1), objectFit: 'contain', flexShrink: 0 }}
         />
       </div>
 

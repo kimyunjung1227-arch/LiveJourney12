@@ -141,7 +141,7 @@ function BadgeCard({ meta }) {
       <img
         src={meta.img}
         alt=""
-        style={{ width: 52, height: 52, objectFit: 'contain', flexShrink: 0 }}
+        style={{ width: 52 * (meta.iconScale || 1), height: 52 * (meta.iconScale || 1), objectFit: 'contain', flexShrink: 0 }}
       />
       <div style={{ minWidth: 0, flex: 1 }}>
         <div className="flex items-center" style={{ gap: 6, flexWrap: 'wrap' }}>
