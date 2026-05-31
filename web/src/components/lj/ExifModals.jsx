@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconShield, IconShieldX, IconShieldCheck, IconMapPin, IconX } from '@tabler/icons-react';
+import { IconShieldX, IconShieldCheck, IconMapPin, IconX } from '@tabler/icons-react';
 import { LJ } from './tokens';
 import { formatTimeAgo } from '../../lib/exif/formatTimeAgo';
 
@@ -86,29 +86,6 @@ export function EXIFRejectModal({ open, reason, minutesAgo = 0, onRetake, onPick
         <p style={{ margin: '10px 0 0', fontSize: 12.5, color: LJ.textSecondary, lineHeight: 1.6 }}>
           {subText}
         </p>
-      </div>
-
-      {/* 본질 학습 박스 */}
-      <div style={{ padding: '0 18px' }}>
-        <div
-          style={{
-            display: 'flex',
-            gap: 10,
-            padding: 14,
-            background: LJ.bgSurface,
-            borderRadius: 10,
-          }}
-        >
-          <IconShield size={18} stroke={1.8} color={LJ.key} style={{ flexShrink: 0, marginTop: 1 }} />
-          <div>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: LJ.textPrimary }}>
-              지금 거기 있는 사람만 찍을 수 있어요
-            </div>
-            <div style={{ fontSize: 11, color: LJ.textSecondary, marginTop: 3, lineHeight: 1.5 }}>
-              조작 없는 진짜 정보를 위한 라이브저니의 약속이에요
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* CTA */}
