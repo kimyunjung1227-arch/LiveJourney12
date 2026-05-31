@@ -460,25 +460,6 @@ function UploadInfoScreen() {
               {isAnswerMode ? '답변 작성' : '정보 입력'}
             </span>
           </div>
-          <button
-            type="button"
-            onClick={handleUpload}
-            disabled={!canUpload}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              padding: '6px 4px',
-              color: canUpload ? LJ.key : LJ.textTertiary,
-              fontFamily: LJ.fontStack,
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: canUpload ? 'pointer' : 'not-allowed',
-            }}
-          >
-            {isUploading
-              ? (isAnswerMode ? '올리는 중...' : '업로드 중...')
-              : (isAnswerMode ? '답변 올리기' : '업로드')}
-          </button>
         </div>
       </header>
 
@@ -1007,6 +988,31 @@ function UploadInfoScreen() {
           </div>
         </section>
       )}
+
+      {/* 업로드 버튼 — 화면 하단 고정 */}
+      <div style={{ padding: '16px 18px 0' }}>
+        <button
+          type="button"
+          onClick={handleUpload}
+          disabled={!canUpload}
+          style={{
+            width: '100%',
+            padding: 15,
+            background: canUpload ? LJ.key : LJ.bgSurface,
+            color: canUpload ? '#fff' : LJ.textTertiary,
+            border: 'none',
+            borderRadius: 12,
+            fontFamily: LJ.fontStack,
+            fontSize: 15,
+            fontWeight: 700,
+            cursor: canUpload ? 'pointer' : 'not-allowed',
+          }}
+        >
+          {isUploading
+            ? (isAnswerMode ? '올리는 중...' : '업로드 중...')
+            : (isAnswerMode ? '답변 올리기' : '업로드')}
+        </button>
+      </div>
     </div>
   );
 }
