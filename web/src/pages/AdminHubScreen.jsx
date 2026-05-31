@@ -30,6 +30,13 @@ const tiles = [
     icon: 'redeem',
     path: '/admin/raffles',
   },
+  {
+    id: 'badges',
+    title: '뱃지 모아보기',
+    desc: '전체 뱃지 카탈로그 + 획득 조건 확인',
+    icon: 'workspace_premium',
+    path: '/admin/badges',
+  },
 ];
 
 const AdminHubScreen = () => {
