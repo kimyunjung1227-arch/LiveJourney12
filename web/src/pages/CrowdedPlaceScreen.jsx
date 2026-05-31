@@ -392,7 +392,7 @@ const CrowdedPlaceScreen = () => {
                         userCaptions: [],
                         cacheSalt: norm,
                     });
-                    const normalized = toHotplaceDescPreview(desc, { maxChars: 58, maxSentences: 2 });
+                    const normalized = toHotplaceDescPreview(desc, { maxChars: 96, maxSentences: 3 });
                     return normalized ? [key, normalized] : null;
                 })
             );
@@ -564,14 +564,14 @@ const CrowdedPlaceScreen = () => {
                                         .slice(0, 1);
                                     const placeKey = String(place.key || '').trim();
                                     const aiDesc = placeKey ? String(placeDescMap?.[placeKey] || '').trim() : '';
-                                    // 2줄 안에서 "…" 없이 완결된 문장으로 끝나도록 정제 (설명/폴백 공통)
+                                    // 3줄 안에서 "…" 없이 완결된 문장으로 끝나도록 정제 (설명/폴백 공통)
                                     const aiBlurb = toHotplaceDescPreview(
                                         aiDesc || generatePlaceAiBlurb(place.key, {
                                             tags: hotTagChips,
                                             cityDong: place.cityDong || '',
                                             tier: cardProps?.hotReasonLabel || '',
                                         }),
-                                        { maxChars: 58, maxSentences: 2 }
+                                        { maxChars: 96, maxSentences: 3 }
                                     );
 
                                     const goToHotplaceDetail = () => {
@@ -671,7 +671,7 @@ const CrowdedPlaceScreen = () => {
                                                             {String(place.key).trim()}
                                                         </h4>
                                                         {aiBlurb ? (
-                                                            <p className="mt-0.5 line-clamp-2 text-[12px] font-normal leading-snug text-zinc-700 dark:text-zinc-300">
+                                                            <p className="mt-0.5 line-clamp-3 text-[12px] font-normal leading-snug text-zinc-700 dark:text-zinc-300">
                                                                 {aiBlurb}
                                                             </p>
                                                         ) : null}
