@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { IconArrowLeft } from '@tabler/icons-react';
 import { getCatalogByGroup, getPillColors } from '../components/profile/badgeData';
+import BadgeIcon from '../components/badges/BadgeIcon';
 
 const TEXT_PRIMARY = '#1F1F1F';
 const TEXT_SECONDARY = '#6B6B6B';
@@ -138,11 +139,9 @@ function BadgeCard({ meta }) {
         alignItems: 'flex-start',
       }}
     >
-      <img
-        src={meta.img}
-        alt=""
-        style={{ width: 52 * (meta.iconScale || 1), height: 52 * (meta.iconScale || 1), objectFit: 'contain', flexShrink: 0 }}
-      />
+      <div style={{ flexShrink: 0 }}>
+        <BadgeIcon motif={meta.motif} level={meta.level} size={52} />
+      </div>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div className="flex items-center" style={{ gap: 6, flexWrap: 'wrap' }}>
           <span

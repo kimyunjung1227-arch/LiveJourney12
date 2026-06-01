@@ -12,8 +12,9 @@ import {
   getChainForBadge,
   highestEarnedInChain,
   nextInChain,
-  isGrowthGroup,
+  isGrowthBadge,
 } from '../components/profile/badgeData';
+import BadgeIcon from '../components/badges/BadgeIcon';
 
 const TEXT_PRIMARY = '#1F1F1F';
 const TEXT_SECONDARY = '#6B6B6B';
@@ -111,7 +112,7 @@ function Header({ onBack }) {
  */
 function DetailBody({ meta, user, earnedKeys }) {
   const chain = getChainForBadge(meta.key);
-  const growth = isGrowthGroup(meta.group);
+  const growth = isGrowthBadge(meta.key);
 
   if (growth && chain) {
     const currentKey = highestEarnedInChain(chain, earnedKeys);
@@ -195,17 +196,7 @@ function CurrentBadgeCard({ meta, earned }) {
       <FieldLabel>{earned ? '현재 획득한 뱃지' : '이 뱃지'}</FieldLabel>
 
       <div className="flex flex-col items-center" style={{ padding: '8px 0 4px' }}>
-        <img
-          src={meta.img}
-          alt=""
-          style={{
-            width: 96 * (meta.iconScale || 1),
-            height: 96 * (meta.iconScale || 1),
-            objectFit: 'contain',
-            filter: earned ? 'none' : 'grayscale(1)',
-            opacity: earned ? 1 : 0.5,
-          }}
-        />
+        <BadgeIcon motif={meta.motif} level={meta.level} size={104} earned={earned} />
         <p
           className="m-0"
           style={{ marginTop: 10, fontSize: 16, fontWeight: 700, color: TEXT_PRIMARY }}
@@ -262,17 +253,7 @@ function UnearnedCurrentCard({ meta, chain }) {
       <FieldLabel>현재 단계</FieldLabel>
 
       <div className="flex flex-col items-center" style={{ padding: '8px 0 4px' }}>
-        <img
-          src={firstMeta.img}
-          alt=""
-          style={{
-            width: 96 * (firstMeta.iconScale || 1),
-            height: 96 * (firstMeta.iconScale || 1),
-            objectFit: 'contain',
-            filter: 'grayscale(1)',
-            opacity: 0.45,
-          }}
-        />
+        <BadgeIcon motif={firstMeta.motif} level={firstMeta.level} size={96} earned={false} />
         <p
           className="m-0"
           style={{ marginTop: 10, fontSize: 16, fontWeight: 700, color: TEXT_SECONDARY }}
@@ -343,11 +324,9 @@ function NextBadgeCard({ meta, user, progressFn, target }) {
           </div>
         </div>
 
-        <img
-          src={meta.img}
-          alt=""
-          style={{ width: 60 * (meta.iconScale || 1), height: 60 * (meta.iconScale || 1), objectFit: 'contain', flexShrink: 0 }}
-        />
+        <div style={{ flexShrink: 0 }}>
+          <BadgeIcon motif={meta.motif} level={meta.level} size={60} />
+        </div>
       </div>
 
       <div style={{ marginTop: 16 }}>

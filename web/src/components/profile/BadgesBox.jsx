@@ -6,17 +6,18 @@ import {
   BADGE_CATALOG,
   resolveEarnedBadges,
   getPillColors,
-  isGrowthGroup,
-  GROWTH_CHAINS,
+  isGrowthBadge,
+  getChainForBadge,
   highestEarnedInChain,
 } from './badgeData';
+import BadgeIcon from '../badges/BadgeIcon';
 import { useEarnedBadges } from '../../hooks/useEarnedBadges';
 
 const TEXT_SECONDARY = '#6B6B6B';
 
 /**
  * 프로필 메인의 뱃지 박스.
- * - 실제 활동(제보·좋아요·베스트컷)으로 획득한 뱃지만 표시 (아이콘 + pill 라벨)
+ * - 실제 활동(제보·좋아요·베스트컷)으로 획득한 뱃지만 표시 (SVG 문장 + pill 라벨)
  * - 클릭 시 /profile/badges/:badgeKey 로 이동
  */
 export default function BadgesBox({ user }) {
@@ -65,18 +66,18 @@ export default function BadgesBox({ user }) {
 }
 
 /**
- * 성장형 그룹은 최고 단계 1개만 남기고, 비성장형은 그대로 유지.
- * - 같은 성장형 그룹 안의 다른 단계 뱃지는 제거 (중복 노출 방지)
- * - 카탈로그 등록 순서를 유지하되 성장형 대표 뱃지는 그 그룹의 첫 등장 자리에 배치
+ * 성장형 체인은 최고 단계 1개만 남기고, 비성장형은 그대로 유지.
+ * - 같은 체인(chainId)의 다른 단계 뱃지는 제거 (중복 노출 방지)
+ * - 지역 체인도 각 지역별로 1개씩 노출된다.
  */
 function collapseGrowthGroups(earnedMetas, earnedKeys) {
-  const seenGrowthGroups = new Set();
+  const seenChains = new Set();
   const result = [];
   for (const meta of earnedMetas) {
-    if (isGrowthGroup(meta.group)) {
-      if (seenGrowthGroups.has(meta.group)) continue;
-      seenGrowthGroups.add(meta.group);
-      const chain = GROWTH_CHAINS[meta.group];
+    if (isGrowthBadge(meta)) {
+      if (seenChains.has(meta.chainId)) continue;
+      seenChains.add(meta.chainId);
+      const chain = getChainForBadge(meta.key);
       const topKey = highestEarnedInChain(chain, earnedKeys);
       const topMeta = topKey ? BADGE_CATALOG[topKey] : meta;
       result.push(topMeta);
@@ -88,7 +89,7 @@ function collapseGrowthGroups(earnedMetas, earnedKeys) {
 }
 
 /**
- * 획득 뱃지 — 아이콘 (테두리 없음) + pill 라벨.
+ * 획득 뱃지 — SVG 문장 + pill 라벨.
  */
 function EarnedBadge({ meta, onClick }) {
   const pill = getPillColors(meta.tier);
@@ -106,15 +107,7 @@ function EarnedBadge({ meta, onClick }) {
         gap: 6,
       }}
     >
-      <img
-        src={meta.img}
-        alt=""
-        style={{
-          width: 60 * (meta.iconScale || 1),
-          height: 60 * (meta.iconScale || 1),
-          objectFit: 'contain',
-        }}
-      />
+      <BadgeIcon motif={meta.motif} level={meta.level} size={60} />
       <span
         style={{
           fontSize: 11,
@@ -138,18 +131,7 @@ function EarnedBadge({ meta, onClick }) {
  * 전체보기 화면에서 사용하는 큰 뱃지 칩 — 외부 export 유지 (BadgesScreen 호환).
  */
 export function BadgeChip({ item, size = 60 }) {
-  const scaled = size * (item.iconScale || 1);
   return (
-    <img
-      src={item.img}
-      alt=""
-      style={{
-        width: scaled,
-        height: scaled,
-        objectFit: 'contain',
-        filter: item.earned ? 'none' : 'grayscale(1)',
-        opacity: item.earned ? 1 : 0.45,
-      }}
-    />
+    <BadgeIcon motif={item.motif} level={item.level} size={size} earned={item.earned !== false} />
   );
 }

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { IconArrowLeft } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
+import { useEarnedBadges } from '../hooks/useEarnedBadges';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
 import {
@@ -10,6 +11,7 @@ import {
   getPillColors,
   resolveEarnedBadges,
 } from '../components/profile/badgeData';
+import BadgeIcon from '../components/badges/BadgeIcon';
 
 const TEXT_PRIMARY = '#1F1F1F';
 const TEXT_SECONDARY = '#6B6B6B';
@@ -27,9 +29,8 @@ export default function BadgesScreen() {
   const { data, loading } = useProfile(userId);
 
   const profileUser = data?.user;
-  const earnedKeys = Array.isArray(profileUser?.earned_badges)
-    ? profileUser.earned_badges
-    : [];
+  // 활동 기반 보유 뱃지 (지역/카테고리 포함)
+  const { earnedKeys, loading: badgesLoading } = useEarnedBadges(profileUser);
   const earnedSet = new Set(earnedKeys);
 
   const groups = getCatalogByGroup();
@@ -66,7 +67,7 @@ export default function BadgesScreen() {
         )}
       </div>
 
-      {loading && (
+      {(loading || badgesLoading) && (
         <div className="text-center" style={{ padding: 40, color: TEXT_SECONDARY, fontSize: 13 }}>
           불러오는 중...
         </div>
@@ -186,17 +187,7 @@ function BadgeCard({ meta, earned, onClick }) {
         padding: '6px 4px',
       }}
     >
-      <img
-        src={meta.img}
-        alt=""
-        style={{
-          width: 64 * (meta.iconScale || 1),
-          height: 64 * (meta.iconScale || 1),
-          objectFit: 'contain',
-          filter: earned ? 'none' : 'grayscale(1)',
-          opacity: earned ? 1 : 0.45,
-        }}
-      />
+      <BadgeIcon motif={meta.motif} level={meta.level} size={64} earned={earned} />
       <span
         style={{
           marginTop: 8,
@@ -217,10 +208,10 @@ function BadgeCard({ meta, earned, onClick }) {
         style={{
           marginTop: 6,
           fontSize: 10,
-          color: earned ? '#1A8754' : meta.upcoming ? '#A07D2A' : TEXT_SECONDARY,
+          color: earned ? '#1A8754' : TEXT_SECONDARY,
         }}
       >
-        {earned ? '획득' : meta.upcoming ? '출시 예정' : '미획득'}
+        {earned ? '획득' : '미획득'}
       </span>
     </button>
   );
