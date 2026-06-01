@@ -107,7 +107,7 @@ function EarnedBadge({ meta, onClick }) {
         gap: 6,
       }}
     >
-      <BadgeIcon motif={meta.motif} level={meta.level} size={60} />
+      <BadgeIcon motif={meta.motif} level={meta.level} size={66} growth={!!meta.chainId} />
       <span
         style={{
           fontSize: 11,
@@ -130,8 +130,14 @@ function EarnedBadge({ meta, onClick }) {
 /**
  * 전체보기 화면에서 사용하는 큰 뱃지 칩 — 외부 export 유지 (BadgesScreen 호환).
  */
-export function BadgeChip({ item, size = 60 }) {
+export function BadgeChip({ item, size = 66 }) {
   return (
-    <BadgeIcon motif={item.motif} level={item.level} size={size} earned={item.earned !== false} />
+    <BadgeIcon
+      motif={item.motif}
+      level={item.level}
+      size={size}
+      earned={item.earned !== false}
+      growth={!!item.chainId}
+    />
   );
 }

@@ -187,7 +187,7 @@ function BadgeCard({ meta, earned, onClick }) {
         padding: '6px 4px',
       }}
     >
-      <BadgeIcon motif={meta.motif} level={meta.level} size={64} earned={earned} />
+      <BadgeIcon motif={meta.motif} level={meta.level} size={72} earned={earned} growth={!!meta.chainId} />
       <span
         style={{
           marginTop: 8,

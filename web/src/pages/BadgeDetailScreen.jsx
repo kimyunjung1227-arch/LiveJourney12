@@ -196,7 +196,7 @@ function CurrentBadgeCard({ meta, earned }) {
       <FieldLabel>{earned ? '현재 획득한 뱃지' : '이 뱃지'}</FieldLabel>
 
       <div className="flex flex-col items-center" style={{ padding: '8px 0 4px' }}>
-        <BadgeIcon motif={meta.motif} level={meta.level} size={104} earned={earned} />
+        <BadgeIcon motif={meta.motif} level={meta.level} size={120} earned={earned} growth={!!meta.chainId} />
         <p
           className="m-0"
           style={{ marginTop: 10, fontSize: 16, fontWeight: 700, color: TEXT_PRIMARY }}
@@ -253,7 +253,7 @@ function UnearnedCurrentCard({ meta, chain }) {
       <FieldLabel>현재 단계</FieldLabel>
 
       <div className="flex flex-col items-center" style={{ padding: '8px 0 4px' }}>
-        <BadgeIcon motif={firstMeta.motif} level={firstMeta.level} size={96} earned={false} />
+        <BadgeIcon motif={firstMeta.motif} level={firstMeta.level} size={112} earned={false} growth={!!firstMeta.chainId} />
         <p
           className="m-0"
           style={{ marginTop: 10, fontSize: 16, fontWeight: 700, color: TEXT_SECONDARY }}
@@ -325,7 +325,7 @@ function NextBadgeCard({ meta, user, progressFn, target }) {
         </div>
 
         <div style={{ flexShrink: 0 }}>
-          <BadgeIcon motif={meta.motif} level={meta.level} size={60} />
+          <BadgeIcon motif={meta.motif} level={meta.level} size={68} growth={!!meta.chainId} />
         </div>
       </div>
 

@@ -140,7 +140,7 @@ function BadgeCard({ meta }) {
       }}
     >
       <div style={{ flexShrink: 0 }}>
-        <BadgeIcon motif={meta.motif} level={meta.level} size={52} />
+        <BadgeIcon motif={meta.motif} level={meta.level} size={60} growth={!!meta.chainId} />
       </div>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div className="flex items-center" style={{ gap: 6, flexWrap: 'wrap' }}>
