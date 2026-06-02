@@ -5,12 +5,11 @@ import { IconAward } from '@tabler/icons-react';
 import {
   BADGE_CATALOG,
   resolveEarnedBadges,
-  getPillColors,
   isGrowthBadge,
   getChainForBadge,
   highestEarnedInChain,
 } from './badgeData';
-import BadgeIcon from '../badges/BadgeIcon';
+import BadgeChip from '../badges/BadgeChip';
 import { useEarnedBadges } from '../../hooks/useEarnedBadges';
 
 const TEXT_SECONDARY = '#6B6B6B';
@@ -51,11 +50,12 @@ export default function BadgesBox({ user }) {
             : '아직 획득한 뱃지가 없어요. 활동을 쌓으면 자동으로 부여됩니다.'}
         </div>
       ) : (
-        <div className="flex flex-wrap" style={{ gap: 14 }}>
+        <div className="flex flex-wrap" style={{ gap: 8 }}>
           {earned.map((meta) => (
-            <EarnedBadge
+            <BadgeChip
               key={meta.key}
               meta={meta}
+              size="md"
               onClick={() => navigate(`/profile/badges/${meta.key}`)}
             />
           ))}
@@ -88,56 +88,3 @@ function collapseGrowthGroups(earnedMetas, earnedKeys) {
   return result;
 }
 
-/**
- * 획득 뱃지 — SVG 문장 + pill 라벨.
- */
-function EarnedBadge({ meta, onClick }) {
-  const pill = getPillColors(meta.tier);
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={meta.name}
-      className="flex flex-col items-center"
-      style={{
-        background: 'transparent',
-        border: 'none',
-        padding: 0,
-        cursor: 'pointer',
-        gap: 6,
-      }}
-    >
-      <BadgeIcon motif={meta.motif} level={meta.level} size={66} growth={!!meta.chainId} />
-      <span
-        style={{
-          fontSize: 11,
-          fontWeight: 700,
-          color: pill.text,
-          background: pill.bg,
-          border: `1px solid ${pill.border}`,
-          padding: '4px 10px',
-          borderRadius: 999,
-          whiteSpace: 'nowrap',
-          lineHeight: 1.2,
-        }}
-      >
-        {meta.name}
-      </span>
-    </button>
-  );
-}
-
-/**
- * 전체보기 화면에서 사용하는 큰 뱃지 칩 — 외부 export 유지 (BadgesScreen 호환).
- */
-export function BadgeChip({ item, size = 66 }) {
-  return (
-    <BadgeIcon
-      motif={item.motif}
-      level={item.level}
-      size={size}
-      earned={item.earned !== false}
-      growth={!!item.chainId}
-    />
-  );
-}

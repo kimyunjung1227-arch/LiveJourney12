@@ -14,9 +14,11 @@ import { MOTIFS } from './badgeMotifs';
  *
  * props: motif / level(1|2|3) / size / earned / growth(성장형 여부)
  */
-export default function BadgeIcon({ motif, level = 1, size = 64, earned = true, growth = true, style }) {
+export default function BadgeIcon({ motif, level = 1, size = 64, earned = true, growth = true, palette, style }) {
   const lv = Math.max(1, Math.min(3, level | 0));
-  const t = TIERS[growth ? lv : 2];
+  const base = TIERS[growth ? lv : 2];
+  // palette 가 주어지면(예: 마스터 솔리드 칩 위) 그 색으로, 아니면 단계 팔레트로.
+  const t = palette || { key: base.key, sub: base.sub, accent: ACCENT };
   const draw = MOTIFS[motif] || MOTIFS.honor;
   const isMaster = growth && lv >= 3;
 
@@ -36,10 +38,10 @@ export default function BadgeIcon({ motif, level = 1, size = 64, earned = true, 
       }}
     >
       {/* 듀오톤 글리프 (배경/테두리 없음) */}
-      <g>{draw({ key: t.key, sub: t.sub, accent: ACCENT })}</g>
+      <g>{draw({ key: t.key, sub: t.sub, accent: t.accent || ACCENT })}</g>
 
       {/* 마스터 표식 — 우상단 작은 스파클 */}
-      {isMaster && <path d={starPath(80, 22, 7.5, 2.9, 4)} fill={ACCENT} />}
+      {isMaster && <path d={starPath(80, 22, 7.5, 2.9, 4)} fill={t.accent || ACCENT} />}
     </svg>
   );
 }

@@ -8,10 +8,9 @@ import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
 import {
   getCatalogByGroup,
-  getPillColors,
   resolveEarnedBadges,
 } from '../components/profile/badgeData';
-import BadgeIcon from '../components/badges/BadgeIcon';
+import BadgeChip from '../components/badges/BadgeChip';
 
 const TEXT_PRIMARY = '#1F1F1F';
 const TEXT_SECONDARY = '#6B6B6B';
@@ -150,19 +149,14 @@ function Section({ group, earnedSet, onPick }) {
         </h2>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-          gap: 14,
-        }}
-      >
+      <div className="flex flex-wrap" style={{ gap: 8 }}>
         {group.items.map((item) => {
           const earned = earnedSet.has(item.key);
           return (
-            <BadgeCard
+            <BadgeChip
               key={item.key}
               meta={item}
+              size="md"
               earned={earned}
               onClick={() => onPick(item)}
             />
@@ -170,49 +164,5 @@ function Section({ group, earnedSet, onPick }) {
         })}
       </div>
     </div>
-  );
-}
-
-function BadgeCard({ meta, earned, onClick }) {
-  const pill = getPillColors(meta.tier);
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex flex-col items-center text-center"
-      style={{
-        background: 'transparent',
-        border: 'none',
-        cursor: 'pointer',
-        padding: '6px 4px',
-      }}
-    >
-      <BadgeIcon motif={meta.motif} level={meta.level} size={72} earned={earned} growth={!!meta.chainId} />
-      <span
-        style={{
-          marginTop: 8,
-          fontSize: 11,
-          fontWeight: 700,
-          color: earned ? pill.text : TEXT_SECONDARY,
-          background: earned ? pill.bg : '#F1F2F4',
-          border: earned ? `1px solid ${pill.border}` : '1px solid #E5E7EB',
-          padding: '3px 10px',
-          borderRadius: 999,
-          lineHeight: 1.2,
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {meta.name}
-      </span>
-      <span
-        style={{
-          marginTop: 6,
-          fontSize: 10,
-          color: earned ? '#1A8754' : TEXT_SECONDARY,
-        }}
-      >
-        {earned ? '획득' : '미획득'}
-      </span>
-    </button>
   );
 }
