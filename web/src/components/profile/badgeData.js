@@ -509,16 +509,20 @@ export function analyzeBadgeActivity(user, posts = []) {
   };
 }
 
-/** pill 색조 (tier 별). */
+/**
+ * pill 색조 (tier 별) — 테두리 없는 하늘색 톤.
+ * - 마스터(high)는 솔리드 하늘색으로 신뢰/최상위를 강조.
+ * - 그 외는 옅은 하늘 배경 + 하늘색 텍스트. (border 는 투명 = 테두리 없음)
+ */
 export function getPillColors(tier) {
   switch (tier) {
     case 'high':
-      return { bg: '#FFF2D6', text: '#A67419', border: '#F5D89B' };
+      return { bg: '#2BA0DC', text: '#FFFFFF', border: 'transparent' };
     case 'mid':
-      return { bg: '#E5F4FB', text: '#1A6EA8', border: '#BFE0F0' };
+      return { bg: '#E3F3FB', text: '#1577B5', border: 'transparent' };
     case 'low':
     default:
-      return { bg: '#EEF5FA', text: '#4A7DA8', border: '#D5E5F0' };
+      return { bg: '#EEF6FB', text: '#4E83AC', border: 'transparent' };
   }
 }
 
