@@ -130,6 +130,7 @@ const ProfileScreen = lazyWithRecover(() => import('./pages/ProfileScreen'))
 const BadgesScreen = lazyWithRecover(() => import('./pages/BadgesScreen'))
 const BadgeDetailScreen = lazyWithRecover(() => import('./pages/BadgeDetailScreen'))
 const UserProfileScreen = lazyWithRecover(() => import('./pages/UserProfileScreen'))
+const UserPostsScreen = lazyWithRecover(() => import('./pages/UserPostsScreen'))
 const EditProfileScreen = lazyWithRecover(() => import('./pages/EditProfileScreen'))
 const PersonalInfoEditScreen = lazyWithRecover(() => import('./pages/PersonalInfoEditScreen'))
 const PasswordChangeScreen = lazyWithRecover(() => import('./pages/PasswordChangeScreen'))
@@ -252,6 +253,7 @@ function App() {
                 <Route path="/ask-situation/:id/edit" element={<AskSituationEditScreen />} />
                 <Route path="/map/photos" element={<MapPhotoGridScreen />} />
                 <Route path="/profile" element={<ProfileScreen />} />
+                <Route path="/profile/posts" element={<ProtectedRoute><UserPostsScreen /></ProtectedRoute>} />
                 <Route path="/profile/badges" element={<BadgesScreen />} />
                 <Route path="/profile/badges/:badgeId" element={<BadgeDetailScreen />} />
                 <Route
@@ -263,6 +265,7 @@ function App() {
                   }
                 />
                 <Route path="/user/:userId" element={<UserProfileScreen />} />
+                <Route path="/user/:userId/posts" element={<UserPostsScreen />} />
                 <Route path="/user/:userId/follows" element={<FollowListScreen mode="user" />} />
                 <Route path="/coupons" element={<MyCouponsScreen />} />
                 {RAFFLE_UI_ENABLED ? (

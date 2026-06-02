@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   IconArrowLeft,
@@ -12,9 +12,9 @@ import { useFollow } from '../hooks/useFollow';
 import ProfileHeader from '../components/profile/ProfileHeader';
 import BadgesBox from '../components/profile/BadgesBox';
 import BestCutCarousel from '../components/profile/BestCutCarousel';
-import ProfileTabs from '../components/profile/ProfileTabs';
-import PhotoTimeline from '../components/profile/PhotoTimeline';
+import ProfilePostsSection from '../components/profile/ProfilePostsSection';
 import TravelMapView from '../components/profile/TravelMapView';
+import ProfileSectionHeading from '../components/profile/ProfileSectionHeading';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
 import { logger } from '../utils/logger';
@@ -29,7 +29,6 @@ function UserProfileScreen() {
   const { userId } = useParams();
   const { user: me } = useAuth();
   const { data, loading } = useProfile(userId);
-  const [tab, setTab] = useState('all');
 
   const profileUser = data?.user;
   const isMe = profileUser?.is_me;
@@ -179,20 +178,17 @@ function UserProfileScreen() {
           <BestCutCarousel bestCuts={data?.best_cuts} />
 
           <div style={{ padding: '0 18px' }}>
-            <ProfileTabs value={tab} onChange={setTab} />
-          </div>
+            {/* 게시물 — 최신 3개 미리보기 + 전체보기 */}
+            <ProfilePostsSection userId={userId} seeAllTo={`/user/${userId}/posts`} />
 
-          <div style={{ padding: '0 18px' }}>
-            {tab === 'map' ? (
-              <TravelMapView userId={userId} />
-            ) : (
-              <PhotoTimeline
-                mode={tab === 'city' ? 'city' : 'all'}
-                livePosts={data?.live_posts}
-                archivePosts={data?.archive_posts}
-                byCity={data?.by_city}
+            {/* 여행 지도 */}
+            <section style={{ marginBottom: 8 }}>
+              <ProfileSectionHeading
+                title="여행 지도"
+                subtitle="어떤 여행을 즐겼고, 어디를 다녀왔는지 한눈에"
               />
-            )}
+              <TravelMapView userId={userId} />
+            </section>
           </div>
         </>
       )}
