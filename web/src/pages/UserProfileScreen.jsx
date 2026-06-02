@@ -183,10 +183,7 @@ function UserProfileScreen() {
 
             {/* 여행 지도 */}
             <section style={{ marginBottom: 8 }}>
-              <ProfileSectionHeading
-                title="여행 지도"
-                subtitle="어떤 여행을 즐겼고, 어디를 다녀왔는지 한눈에"
-              />
+              <ProfileSectionHeading title="여행 지도" />
               <TravelMapView userId={userId} />
             </section>
           </div>
