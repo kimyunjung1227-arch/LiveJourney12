@@ -526,4 +526,39 @@ export function getPillColors(tier) {
   }
 }
 
+// ── 단계별 자기 진행도 (메달리온 진행 링/카운트용) ─────────────
+const REGION_TARGET_BY_LEVEL = { 1: 3, 2: 10, 3: 25 };
+const HELP_TARGET = { flame_100: 100, flame_300: 300, flame_500: 500 };
+const BESTCUT_TARGET = { crown_1: 1, crown_5: 5, crown_10: 10 };
+const HONOR_TARGET = { honor_bronze: 100, honor_gold: 500 };
+
+/**
+ * 해당 뱃지 자체를 얻기 위한 진행도. { current, target, unit } 또는 null.
+ * (catalog 의 progressOf 는 "다음 단계" 기준이라, 여기선 단계 자기 기준으로 계산)
+ */
+export function getBadgeProgress(meta, stats) {
+  if (!meta) return null;
+  const s = stats || {};
+  if (meta.regionKey) {
+    return {
+      current: s.region_counts?.[meta.regionKey] || 0,
+      target: REGION_TARGET_BY_LEVEL[meta.level] || 0,
+      unit: '회',
+    };
+  }
+  if (meta.chainId === 'help') {
+    return { current: s.helped_count || 0, target: HELP_TARGET[meta.key] || 0, unit: '명' };
+  }
+  if (meta.chainId === 'bestcut') {
+    return { current: s.best_cut_count || 0, target: BESTCUT_TARGET[meta.key] || 0, unit: '회' };
+  }
+  if (meta.chainId === 'honor') {
+    return { current: s.helped_count || 0, target: HONOR_TARGET[meta.key] || 0, unit: '명' };
+  }
+  if (meta.group === '카테고리 전문성') {
+    return { current: s.category_counts?.[meta.key] || 0, target: 10, unit: '회' };
+  }
+  return null;
+}
+
 export { REGIONS, REGION_THRESHOLDS };

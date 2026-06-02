@@ -9,10 +9,11 @@ import {
   getChainForBadge,
   highestEarnedInChain,
 } from './badgeData';
-import BadgeChip from '../badges/BadgeChip';
+import BadgeMedallion from '../badges/BadgeMedallion';
 import { useEarnedBadges } from '../../hooks/useEarnedBadges';
 
 const TEXT_SECONDARY = '#6B6B6B';
+const TEXT_PRIMARY = '#1F1F1F';
 
 /**
  * 프로필 메인의 뱃지 박스.
@@ -50,14 +51,31 @@ export default function BadgesBox({ user }) {
             : '아직 획득한 뱃지가 없어요. 활동을 쌓으면 자동으로 부여됩니다.'}
         </div>
       ) : (
-        <div className="flex flex-wrap" style={{ gap: 8 }}>
+        <div className="flex flex-wrap" style={{ gap: 16, rowGap: 14 }}>
           {earned.map((meta) => (
-            <BadgeChip
+            <button
               key={meta.key}
-              meta={meta}
-              size="md"
+              type="button"
               onClick={() => navigate(`/profile/badges/${meta.key}`)}
-            />
+              aria-label={meta.name}
+              className="flex flex-col items-center"
+              style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', width: 64 }}
+            >
+              <BadgeMedallion meta={meta} state="earned" size={58} />
+              <span
+                style={{
+                  marginTop: 7,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: TEXT_PRIMARY,
+                  lineHeight: 1.2,
+                  textAlign: 'center',
+                  wordBreak: 'keep-all',
+                }}
+              >
+                {meta.name}
+              </span>
+            </button>
           ))}
         </div>
       )}

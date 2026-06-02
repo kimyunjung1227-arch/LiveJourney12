@@ -14,7 +14,7 @@ import {
   nextInChain,
   isGrowthBadge,
 } from '../components/profile/badgeData';
-import BadgeIcon from '../components/badges/BadgeIcon';
+import BadgeMedallion from '../components/badges/BadgeMedallion';
 
 const TEXT_PRIMARY = '#1F1F1F';
 const TEXT_SECONDARY = '#6B6B6B';
@@ -196,7 +196,7 @@ function CurrentBadgeCard({ meta, earned }) {
       <FieldLabel>{earned ? '현재 획득한 뱃지' : '이 뱃지'}</FieldLabel>
 
       <div className="flex flex-col items-center" style={{ padding: '8px 0 4px' }}>
-        <BadgeIcon motif={meta.motif} level={meta.level} size={120} earned={earned} growth={!!meta.chainId} />
+        <BadgeMedallion meta={meta} state={earned ? 'earned' : 'locked'} size={120} />
         <p
           className="m-0"
           style={{ marginTop: 10, fontSize: 16, fontWeight: 700, color: TEXT_PRIMARY }}
@@ -253,7 +253,7 @@ function UnearnedCurrentCard({ meta, chain }) {
       <FieldLabel>현재 단계</FieldLabel>
 
       <div className="flex flex-col items-center" style={{ padding: '8px 0 4px' }}>
-        <BadgeIcon motif={firstMeta.motif} level={firstMeta.level} size={112} earned={false} growth={!!firstMeta.chainId} />
+        <BadgeMedallion meta={firstMeta} state="locked" size={112} />
         <p
           className="m-0"
           style={{ marginTop: 10, fontSize: 16, fontWeight: 700, color: TEXT_SECONDARY }}
@@ -325,7 +325,7 @@ function NextBadgeCard({ meta, user, progressFn, target }) {
         </div>
 
         <div style={{ flexShrink: 0 }}>
-          <BadgeIcon motif={meta.motif} level={meta.level} size={68} growth={!!meta.chainId} />
+          <BadgeMedallion meta={meta} state="progress" pct={ratio} size={68} />
         </div>
       </div>
 
