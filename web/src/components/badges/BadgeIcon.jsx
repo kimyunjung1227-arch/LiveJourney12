@@ -46,11 +46,11 @@ export default function BadgeIcon({ motif, level = 1, size = 64, earned = true, 
   );
 }
 
-/* 단계 팔레트 — 하늘색 명도 램프(키컬러) + 옅은 하늘(서브1) */
+/* 단계 팔레트 — 하늘색 명도 램프(키컬러). sub 은 흰 카드 위 컷아웃이라 흰색. */
 const TIERS = {
-  1: { key: '#74C4EA', sub: '#CFEAFB' },
-  2: { key: '#2BA0DC', sub: '#C2E6F8' },
-  3: { key: '#1379B7', sub: '#A6D7F1' },
+  1: { key: '#74C4EA', sub: '#FFFFFF' },
+  2: { key: '#2BA0DC', sub: '#FFFFFF' },
+  3: { key: '#1379B7', sub: '#FFFFFF' },
 };
 
 /* 서브2 — 따뜻한 앰버 포인트 (해·별·보석·마스터 표식에만 절제 사용) */
