@@ -1,25 +1,27 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { IconCheck, IconLock } from '@tabler/icons-react';
 import { ICONS } from './badgeIcons';
 import { getBadgeTheme, STATE_COLORS } from './badgeTheme';
 
 /**
  * 뱃지 메달리온 — 진행 링 + 파스텔 안쪽 원 + 아이콘 + 상태 오버레이.
+ * 라이브저니 브랜드(하늘색) 톤으로 통일.
  *
  * 상태(state)
  *  - 'earned'  : 달성 → 초록 풀링 + 체크
- *  - 'progress': 진행중 → 부분 호(최상위 단계=골드, 그 외=테마색), 자물쇠 없음
+ *  - 'progress': 진행중 → 부분 호(마스터=브랜드 그라데이션, 그 외=브랜드 하늘색)
  *  - 'locked'  : 잠금 → 회색 풀링 + 자물쇠
  *
- * props: meta / state / pct(0~1, progress용) / size
+ * props: meta / state / pct(0~1) / size
  */
 export default function BadgeMedallion({ meta, state = 'locked', pct = 0, size = 76 }) {
+  const gid = `ljgrad-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const theme = getBadgeTheme(meta);
   const Cmp = ICONS[meta?.motif] || ICONS.honor;
   const earned = state === 'earned';
   const locked = state === 'locked';
-  // 성장 체인의 최상위(마스터) 단계만 골드 진행 링, 그 외는 테마색
-  const isTop = !!meta?.chainId && (meta?.level || 0) >= 3;
+  // 성장 체인의 최상위(마스터) 단계만 브랜드 그라데이션 진행 링
+  const isMaster = !!meta?.chainId && (meta?.level || 0) >= 3;
 
   let ringColor;
   let ringPct;
@@ -30,7 +32,7 @@ export default function BadgeMedallion({ meta, state = 'locked', pct = 0, size =
     ringColor = STATE_COLORS.lockedRing;
     ringPct = 1;
   } else {
-    ringColor = isTop ? STATE_COLORS.gold : theme.icon;
+    ringColor = isMaster ? `url(#${gid})` : STATE_COLORS.brand;
     ringPct = Math.max(0.06, Math.min(1, pct || 0));
   }
 
@@ -46,6 +48,12 @@ export default function BadgeMedallion({ meta, state = 'locked', pct = 0, size =
   return (
     <div style={{ position: 'relative', width: size, height: size }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display: 'block' }} aria-hidden>
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={STATE_COLORS.gradFrom} />
+            <stop offset="100%" stopColor={STATE_COLORS.gradTo} />
+          </linearGradient>
+        </defs>
         {/* 트랙 */}
         <circle cx={cx} cy={cx} r={r} fill="none" stroke={STATE_COLORS.track} strokeWidth={stroke} />
         {/* 진행/풀 링 */}

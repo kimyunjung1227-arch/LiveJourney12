@@ -22,10 +22,10 @@ import {
   IconCrown,
   IconHeartHandshake,
   IconFlower,
-  IconSunset2,
+  IconMoon,
   IconCloud,
-  IconConfetti,
-  IconUsersGroup,
+  IconCalendarEvent,
+  IconUsers,
   IconBuildingStore,
 } from '@tabler/icons-react';
 
@@ -57,14 +57,14 @@ export const ICONS = {
   gyeongnam: IconSailboat,
   jeju: IconBeach,
 
-  // 카테고리 / 공통
+  // 카테고리 / 공통 — 앱 카테고리 아이콘(LJ_CATEGORIES)과 일치
   honor: IconRosette, // 영예
   crown: IconCrown, // 베스트 컷
   flame: IconHeartHandshake, // 도움
-  cherry: IconFlower, // 벚꽃
-  sunset: IconSunset2, // 노을
-  weather: IconCloud, // 날씨
-  festival: IconConfetti, // 축제
-  crowd: IconUsersGroup, // 인파
-  store: IconBuildingStore, // 단골
+  cherry: IconFlower, // 개화·자연
+  sunset: IconMoon, // 노을·야경
+  weather: IconCloud, // 날씨·체감
+  festival: IconCalendarEvent, // 이벤트·축제
+  crowd: IconUsers, // 혼잡도·대기
+  store: IconBuildingStore, // 영업·운영
 };
