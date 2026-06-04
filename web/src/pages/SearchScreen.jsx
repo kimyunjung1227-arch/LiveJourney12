@@ -177,7 +177,7 @@ function SectionHeader({ icon: Icon, title, action }) {
   );
 }
 
-function SearchHeader({ query, onChange, onClear, onSubmit }) {
+function SearchHeader({ query, onChange, onClear }) {
   const navigate = useNavigate();
   const isActive = query.length > 0;
 
@@ -210,14 +210,7 @@ function SearchHeader({ query, onChange, onClear, onSubmit }) {
           type="text"
           value={query}
           onChange={(e) => onChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              onSubmit?.();
-            }
-          }}
           placeholder="지금 어디 갈까?"
-          enterKeyHint="search"
           autoFocus
           className="flex-1 bg-transparent outline-none"
           style={{
@@ -858,157 +851,12 @@ function SearchResults({ query, results, loading }) {
 }
 
 // ────────────────────────────────────────────────
-// 자동완성 — 입력 중 가벼운 넛지
-// ────────────────────────────────────────────────
-function highlightMatch(text, query) {
-  const t = String(text || '');
-  const q = String(query || '').trim();
-  if (!q) return t;
-  const idx = t.toLowerCase().indexOf(q.toLowerCase());
-  if (idx < 0) return t;
-  return (
-    <>
-      {t.slice(0, idx)}
-      <span style={{ color: KEY_DARK, fontWeight: 700 }}>{t.slice(idx, idx + q.length)}</span>
-      {t.slice(idx + q.length)}
-    </>
-  );
-}
-
-function SuggestionRow({ icon: Icon, label, sub, query, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-3 text-left w-full"
-      style={{
-        background: 'transparent',
-        border: 'none',
-        padding: '11px 18px',
-        cursor: 'pointer',
-      }}
-    >
-      <Icon size={17} color={TEXT_TERTIARY} className="flex-shrink-0" />
-      <span className="flex-1 min-w-0 truncate" style={{ fontSize: 13.5, color: TEXT_PRIMARY }}>
-        {highlightMatch(label, query)}
-      </span>
-      {sub && (
-        <span className="flex-shrink-0" style={{ fontSize: 10.5, color: TEXT_SECONDARY }}>
-          {sub}
-        </span>
-      )}
-    </button>
-  );
-}
-
-/**
- * 입력 중 자동완성 — 무거운 전체 결과 대신 가벼운 추천 목록.
- * search_all 결과를 재활용해 장소/지역/질문에서 후보를 뽑는다.
- */
-function SearchSuggestions({ query, results, loading, onPickTerm, onPickPlace }) {
-  const q = query.trim();
-
-  const places = Array.isArray(results?.places) ? results.places : [];
-  const questions = Array.isArray(results?.questions) ? results.questions : [];
-
-  // 지역명 후보 (장소들의 city 중 query를 포함하는 것)
-  const regionTerms = Array.from(
-    new Set(
-      places
-        .map((p) => p.city)
-        .filter((c) => c && c.toLowerCase().includes(q.toLowerCase())),
-    ),
-  ).slice(0, 3);
-
-  const hasAny = places.length > 0 || regionTerms.length > 0 || questions.length > 0;
-
-  return (
-    <div>
-      {/* 맨 위: 입력어 그대로 검색 실행 */}
-      <SuggestionRow
-        icon={IconSearch}
-        label={q}
-        sub="검색"
-        query={q}
-        onClick={() => onPickTerm(q)}
-      />
-      <div style={{ height: 1, background: '#F0F0F0', margin: '0 18px' }} />
-
-      {loading && !results ? (
-        <p className="px-[18px] py-3" style={{ fontSize: 12, color: TEXT_TERTIARY }}>
-          추천을 불러오는 중...
-        </p>
-      ) : !hasAny ? (
-        <p className="px-[18px] py-3" style={{ fontSize: 12, color: TEXT_TERTIARY }}>
-          엔터를 눌러 ‘{q}’ 검색하기
-        </p>
-      ) : (
-        <>
-          {regionTerms.map((term) => (
-            <SuggestionRow
-              key={`region-${term}`}
-              icon={IconMap2}
-              label={term}
-              sub="지역"
-              query={q}
-              onClick={() => onPickTerm(term)}
-            />
-          ))}
-          {places.slice(0, 6).map((p) => (
-            <SuggestionRow
-              key={`place-${p.id || p.name}`}
-              icon={IconMapPin}
-              label={p.name}
-              sub={`${p.live_count || 0}장 라이브`}
-              query={q}
-              onClick={() => onPickPlace(p)}
-            />
-          ))}
-          {places.length === 0 &&
-            questions.slice(0, 4).map((qq) => (
-              <SuggestionRow
-                key={`q-${qq.id}`}
-                icon={IconHelpCircle}
-                label={qq.body}
-                query={q}
-                onClick={() => onPickTerm(q)}
-              />
-            ))}
-        </>
-      )}
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────
 // SearchScreen
 // ────────────────────────────────────────────────
 const SearchScreen = () => {
-  const navigate = useNavigate();
   const [query, setQuery] = useState('');
-  const [submitted, setSubmitted] = useState(false);
   const { results, loading } = useSearch(query);
-
-  const handleChange = (v) => {
-    setQuery(v);
-    setSubmitted(false); // 다시 타이핑하면 자동완성(넛지)으로 복귀
-  };
-  const handleClear = () => {
-    setQuery('');
-    setSubmitted(false);
-  };
-  const submit = () => {
-    if (query.trim().length > 0) setSubmitted(true);
-  };
-  const pickTerm = (term) => {
-    setQuery(term);
-    setSubmitted(true);
-  };
-  const pickPlace = (place) => {
-    navigate(`/place/${encodeURIComponent(place.id || place.name)}`);
-  };
-
-  const hasQuery = query.trim().length > 0;
+  const isSearching = query.trim().length > 0;
 
   return (
     <div
@@ -1019,24 +867,11 @@ const SearchScreen = () => {
         paddingBottom: 80,
       }}
     >
-      <SearchHeader
-        query={query}
-        onChange={handleChange}
-        onClear={handleClear}
-        onSubmit={submit}
-      />
-      {!hasQuery ? (
-        <SearchHub />
-      ) : submitted ? (
+      <SearchHeader query={query} onChange={setQuery} onClear={() => setQuery('')} />
+      {isSearching ? (
         <SearchResults query={query} results={results} loading={loading} />
       ) : (
-        <SearchSuggestions
-          query={query}
-          results={results}
-          loading={loading}
-          onPickTerm={pickTerm}
-          onPickPlace={pickPlace}
-        />
+        <SearchHub />
       )}
       <BottomNavigation />
     </div>
