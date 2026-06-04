@@ -47,48 +47,6 @@ const CATEGORY_META = {
   business: { Icon: IconBuildingStore, label: '영업·운영' },
 };
 
-// 카테고리 → 자연스러운 단일 검색 키워드 (라벨이 아니라 실제로 매칭될 단어)
-const CATEGORY_SEARCH_TERMS = {
-  nature: '개화',
-  weather: '날씨',
-  event: '축제',
-  crowd: '혼잡도',
-  sunset: '야경',
-  business: '맛집',
-};
-
-// 데이터가 적을 때 채울 에버그린 추천어
-const EVERGREEN_KEYWORDS = ['벚꽃', '야경', '바다', '카페', '단풍', '일출'];
-
-/**
- * 추천 검색어 — 실제 허브 데이터에서 자연스럽게 추출.
- * 1) 라이브가 많은 도시  2) 활성 카테고리  3) 모자라면 에버그린
- */
-function buildRecommendedKeywords(data, max = 10) {
-  const out = [];
-  const seen = new Set();
-  const push = (kw) => {
-    const t = String(kw || '').trim();
-    if (!t || seen.has(t)) return;
-    seen.add(t);
-    out.push(t);
-  };
-
-  (data?.cities || [])
-    .slice()
-    .sort((a, b) => (b.live_count || 0) - (a.live_count || 0))
-    .slice(0, 4)
-    .forEach((c) => push(c.city));
-
-  (data?.categories || [])
-    .filter((c) => (c.live_count || 0) > 0)
-    .forEach((c) => push(CATEGORY_SEARCH_TERMS[c.category]));
-
-  EVERGREEN_KEYWORDS.forEach(push);
-
-  return out.slice(0, max);
-}
-
 const CITY_GRADIENTS = {
   서울: ['#FFB6C1', '#FF8FAB'],
   부산: ['#87CEEB', '#4DB8E8'],
@@ -219,7 +177,7 @@ function SectionHeader({ icon: Icon, title, action }) {
   );
 }
 
-function SearchHeader({ query, onChange, onClear }) {
+function SearchHeader({ query, onChange, onClear, onSubmit }) {
   const navigate = useNavigate();
   const isActive = query.length > 0;
 
@@ -252,7 +210,14 @@ function SearchHeader({ query, onChange, onClear }) {
           type="text"
           value={query}
           onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              onSubmit?.();
+            }
+          }}
           placeholder="지금 어디 갈까?"
+          enterKeyHint="search"
           autoFocus
           className="flex-1 bg-transparent outline-none"
           style={{
@@ -637,39 +602,7 @@ function CategoryGrid({ categories }) {
   );
 }
 
-function RecommendedKeywords({ keywords, onPick }) {
-  if (!keywords || keywords.length === 0) return null;
-  return (
-    <div className="mb-[22px]">
-      <SectionHeader icon={IconSearch} title="추천 검색어" />
-      <div className="flex flex-wrap gap-2">
-        {keywords.map((kw) => (
-          <button
-            key={kw}
-            type="button"
-            onClick={() => onPick(kw)}
-            className="inline-flex items-center gap-1"
-            style={{
-              background: KEY_LIGHT,
-              color: KEY_DARK,
-              border: 'none',
-              borderRadius: 999,
-              padding: '7px 13px',
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            <IconSearch size={12} color={KEY} />
-            {kw}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SearchHub({ onPickKeyword }) {
+function SearchHub() {
   const { data, loading } = useSearchHub();
   const [magazines, setMagazines] = useState([]);
   useEffect(() => {
@@ -700,10 +633,6 @@ function SearchHub({ onPickKeyword }) {
 
   return (
     <div className="p-[18px]">
-      <RecommendedKeywords
-        keywords={buildRecommendedKeywords(data)}
-        onPick={onPickKeyword}
-      />
       <SeasonalCards cards={magazines} />
       <QuestionsSection questions={data.questions || []} showAllAction />
       <CityGrid cities={data.cities || []} />
@@ -929,12 +858,157 @@ function SearchResults({ query, results, loading }) {
 }
 
 // ────────────────────────────────────────────────
+// 자동완성 — 입력 중 가벼운 넛지
+// ────────────────────────────────────────────────
+function highlightMatch(text, query) {
+  const t = String(text || '');
+  const q = String(query || '').trim();
+  if (!q) return t;
+  const idx = t.toLowerCase().indexOf(q.toLowerCase());
+  if (idx < 0) return t;
+  return (
+    <>
+      {t.slice(0, idx)}
+      <span style={{ color: KEY_DARK, fontWeight: 700 }}>{t.slice(idx, idx + q.length)}</span>
+      {t.slice(idx + q.length)}
+    </>
+  );
+}
+
+function SuggestionRow({ icon: Icon, label, sub, query, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-3 text-left w-full"
+      style={{
+        background: 'transparent',
+        border: 'none',
+        padding: '11px 18px',
+        cursor: 'pointer',
+      }}
+    >
+      <Icon size={17} color={TEXT_TERTIARY} className="flex-shrink-0" />
+      <span className="flex-1 min-w-0 truncate" style={{ fontSize: 13.5, color: TEXT_PRIMARY }}>
+        {highlightMatch(label, query)}
+      </span>
+      {sub && (
+        <span className="flex-shrink-0" style={{ fontSize: 10.5, color: TEXT_SECONDARY }}>
+          {sub}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/**
+ * 입력 중 자동완성 — 무거운 전체 결과 대신 가벼운 추천 목록.
+ * search_all 결과를 재활용해 장소/지역/질문에서 후보를 뽑는다.
+ */
+function SearchSuggestions({ query, results, loading, onPickTerm, onPickPlace }) {
+  const q = query.trim();
+
+  const places = Array.isArray(results?.places) ? results.places : [];
+  const questions = Array.isArray(results?.questions) ? results.questions : [];
+
+  // 지역명 후보 (장소들의 city 중 query를 포함하는 것)
+  const regionTerms = Array.from(
+    new Set(
+      places
+        .map((p) => p.city)
+        .filter((c) => c && c.toLowerCase().includes(q.toLowerCase())),
+    ),
+  ).slice(0, 3);
+
+  const hasAny = places.length > 0 || regionTerms.length > 0 || questions.length > 0;
+
+  return (
+    <div>
+      {/* 맨 위: 입력어 그대로 검색 실행 */}
+      <SuggestionRow
+        icon={IconSearch}
+        label={q}
+        sub="검색"
+        query={q}
+        onClick={() => onPickTerm(q)}
+      />
+      <div style={{ height: 1, background: '#F0F0F0', margin: '0 18px' }} />
+
+      {loading && !results ? (
+        <p className="px-[18px] py-3" style={{ fontSize: 12, color: TEXT_TERTIARY }}>
+          추천을 불러오는 중...
+        </p>
+      ) : !hasAny ? (
+        <p className="px-[18px] py-3" style={{ fontSize: 12, color: TEXT_TERTIARY }}>
+          엔터를 눌러 ‘{q}’ 검색하기
+        </p>
+      ) : (
+        <>
+          {regionTerms.map((term) => (
+            <SuggestionRow
+              key={`region-${term}`}
+              icon={IconMap2}
+              label={term}
+              sub="지역"
+              query={q}
+              onClick={() => onPickTerm(term)}
+            />
+          ))}
+          {places.slice(0, 6).map((p) => (
+            <SuggestionRow
+              key={`place-${p.id || p.name}`}
+              icon={IconMapPin}
+              label={p.name}
+              sub={`${p.live_count || 0}장 라이브`}
+              query={q}
+              onClick={() => onPickPlace(p)}
+            />
+          ))}
+          {places.length === 0 &&
+            questions.slice(0, 4).map((qq) => (
+              <SuggestionRow
+                key={`q-${qq.id}`}
+                icon={IconHelpCircle}
+                label={qq.body}
+                query={q}
+                onClick={() => onPickTerm(q)}
+              />
+            ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────
 // SearchScreen
 // ────────────────────────────────────────────────
 const SearchScreen = () => {
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
+  const [submitted, setSubmitted] = useState(false);
   const { results, loading } = useSearch(query);
-  const isSearching = query.trim().length > 0;
+
+  const handleChange = (v) => {
+    setQuery(v);
+    setSubmitted(false); // 다시 타이핑하면 자동완성(넛지)으로 복귀
+  };
+  const handleClear = () => {
+    setQuery('');
+    setSubmitted(false);
+  };
+  const submit = () => {
+    if (query.trim().length > 0) setSubmitted(true);
+  };
+  const pickTerm = (term) => {
+    setQuery(term);
+    setSubmitted(true);
+  };
+  const pickPlace = (place) => {
+    navigate(`/place/${encodeURIComponent(place.id || place.name)}`);
+  };
+
+  const hasQuery = query.trim().length > 0;
 
   return (
     <div
@@ -945,11 +1019,24 @@ const SearchScreen = () => {
         paddingBottom: 80,
       }}
     >
-      <SearchHeader query={query} onChange={setQuery} onClear={() => setQuery('')} />
-      {isSearching ? (
+      <SearchHeader
+        query={query}
+        onChange={handleChange}
+        onClear={handleClear}
+        onSubmit={submit}
+      />
+      {!hasQuery ? (
+        <SearchHub />
+      ) : submitted ? (
         <SearchResults query={query} results={results} loading={loading} />
       ) : (
-        <SearchHub onPickKeyword={setQuery} />
+        <SearchSuggestions
+          query={query}
+          results={results}
+          loading={loading}
+          onPickTerm={pickTerm}
+          onPickPlace={pickPlace}
+        />
       )}
       <BottomNavigation />
     </div>
