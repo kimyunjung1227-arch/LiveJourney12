@@ -63,7 +63,7 @@ export function useUserPosts(userId, limit) {
         const { data, error } = await supabase
           .from('posts')
           .select(
-            'id, place_name, region, body, images, photo_url, captured_at, created_at',
+            'id, place_name, region, content, images, photo_url, captured_at, created_at',
           )
           .eq('user_id', userId)
           .order('captured_at', { ascending: false, nullsFirst: false })
@@ -96,7 +96,7 @@ function PostRow({ post }) {
   const navigate = useNavigate();
   const thumb = postThumb(post);
   const place = post.place_name || post.region || '';
-  const body = (post.body || '').trim();
+  const body = (post.content || post.body || '').trim();
   const date = formatDate(post.captured_at || post.created_at);
 
   return (
