@@ -47,6 +47,48 @@ const CATEGORY_META = {
   business: { Icon: IconBuildingStore, label: '영업·운영' },
 };
 
+// 카테고리 → 자연스러운 단일 검색 키워드 (라벨이 아니라 실제로 매칭될 단어)
+const CATEGORY_SEARCH_TERMS = {
+  nature: '개화',
+  weather: '날씨',
+  event: '축제',
+  crowd: '혼잡도',
+  sunset: '야경',
+  business: '맛집',
+};
+
+// 데이터가 적을 때 채울 에버그린 추천어
+const EVERGREEN_KEYWORDS = ['벚꽃', '야경', '바다', '카페', '단풍', '일출'];
+
+/**
+ * 추천 검색어 — 실제 허브 데이터에서 자연스럽게 추출.
+ * 1) 라이브가 많은 도시  2) 활성 카테고리  3) 모자라면 에버그린
+ */
+function buildRecommendedKeywords(data, max = 10) {
+  const out = [];
+  const seen = new Set();
+  const push = (kw) => {
+    const t = String(kw || '').trim();
+    if (!t || seen.has(t)) return;
+    seen.add(t);
+    out.push(t);
+  };
+
+  (data?.cities || [])
+    .slice()
+    .sort((a, b) => (b.live_count || 0) - (a.live_count || 0))
+    .slice(0, 4)
+    .forEach((c) => push(c.city));
+
+  (data?.categories || [])
+    .filter((c) => (c.live_count || 0) > 0)
+    .forEach((c) => push(CATEGORY_SEARCH_TERMS[c.category]));
+
+  EVERGREEN_KEYWORDS.forEach(push);
+
+  return out.slice(0, max);
+}
+
 const CITY_GRADIENTS = {
   서울: ['#FFB6C1', '#FF8FAB'],
   부산: ['#87CEEB', '#4DB8E8'],
@@ -595,7 +637,39 @@ function CategoryGrid({ categories }) {
   );
 }
 
-function SearchHub() {
+function RecommendedKeywords({ keywords, onPick }) {
+  if (!keywords || keywords.length === 0) return null;
+  return (
+    <div className="mb-[22px]">
+      <SectionHeader icon={IconSearch} title="추천 검색어" />
+      <div className="flex flex-wrap gap-2">
+        {keywords.map((kw) => (
+          <button
+            key={kw}
+            type="button"
+            onClick={() => onPick(kw)}
+            className="inline-flex items-center gap-1"
+            style={{
+              background: KEY_LIGHT,
+              color: KEY_DARK,
+              border: 'none',
+              borderRadius: 999,
+              padding: '7px 13px',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <IconSearch size={12} color={KEY} />
+            {kw}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SearchHub({ onPickKeyword }) {
   const { data, loading } = useSearchHub();
   const [magazines, setMagazines] = useState([]);
   useEffect(() => {
@@ -626,6 +700,10 @@ function SearchHub() {
 
   return (
     <div className="p-[18px]">
+      <RecommendedKeywords
+        keywords={buildRecommendedKeywords(data)}
+        onPick={onPickKeyword}
+      />
       <SeasonalCards cards={magazines} />
       <QuestionsSection questions={data.questions || []} showAllAction />
       <CityGrid cities={data.cities || []} />
@@ -871,7 +949,7 @@ const SearchScreen = () => {
       {isSearching ? (
         <SearchResults query={query} results={results} loading={loading} />
       ) : (
-        <SearchHub />
+        <SearchHub onPickKeyword={setQuery} />
       )}
       <BottomNavigation />
     </div>
