@@ -11,6 +11,8 @@ const SELECT_COLUMNS = `
 
 const RECENT_HOURS = 6;
 const FETCH_LIMIT = 300; // 집계 대상 풀
+// 실시간 핫플도 홈 피드와 동일한 48시간 시스템 — 업로드 48시간 지난 글은 집계 제외
+const WINDOW_HOURS = 48;
 // 동네(local) 필터 반경 (km)
 const LOCAL_RADIUS_KM = 5;
 
@@ -74,9 +76,15 @@ export function useHotplaceRanking({
       setLoading(true);
       setError(null);
       try {
+        // 업로드 48시간 이내 게시물만 집계 — 시차 없는 실시간 핫플
+        const windowStart = new Date(
+          Date.now() - WINDOW_HOURS * 60 * 60 * 1000,
+        ).toISOString();
+
         const { data, error: queryError } = await supabase
           .from('posts')
           .select(SELECT_COLUMNS)
+          .gte('created_at', windowStart) // 48시간 지난 글은 핫플 집계에서 제외
           .order('created_at', { ascending: false })
           .limit(FETCH_LIMIT);
         if (cancelled) return;
