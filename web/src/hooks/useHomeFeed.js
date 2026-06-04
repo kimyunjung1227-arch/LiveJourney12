@@ -4,6 +4,10 @@ import { normalizePostRow, mapCategoryToLj } from './ljPostsMapping';
 
 const PAGE_SIZE = 20;
 
+// 실시간성이 핵심 가치 — 업로드 후 48시간이 지난 게시물은 피드에서 내린다.
+// (created_at desc 정렬이라 커서가 cutoff 이전으로 내려가면 자연히 멈춘다)
+const FEED_WINDOW_HOURS = 48;
+
 const SELECT_COLUMNS = `
   id,
   user_id,
@@ -53,10 +57,16 @@ export function useHomeFeed(selectedCategory = 'all') {
       setError(null);
 
       try {
+        // 48시간 이내 게시물만 — 시차 없는 실시간 피드
+        const windowStart = new Date(
+          Date.now() - FEED_WINDOW_HOURS * 60 * 60 * 1000,
+        ).toISOString();
+
         // posts.category가 자유 텍스트/혼합 언어라 서버 필터 대신 클라이언트에서 매핑/필터
         let query = supabase
           .from('posts')
           .select(SELECT_COLUMNS)
+          .gte('created_at', windowStart) // 업로드 48시간 지난 글은 노출 X
           .order('created_at', { ascending: false })
           .limit(PAGE_SIZE);
         if (cursorRef.current) {
