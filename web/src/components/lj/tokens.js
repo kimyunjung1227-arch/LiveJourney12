@@ -133,3 +133,39 @@ export function formatRelative(iso) {
 export function categoryLabel(id) {
   return LJ_CATEGORIES.find((c) => c.id === id)?.label ?? id;
 }
+
+/**
+ * 업로드 시각 기준 노출 파워 등급 (실시간성 가이드라인).
+ *  - 'live'  (0~8h)   : LIVE 초신선 정보 — 파워 100%
+ *  - 'today' (8~24h)  : 오늘의 현장 정보 — 파워 60%
+ *  - 'ref'   (24~48h) : 어제의 참고 정보 — 파워 20%
+ *  - null    (48h+)   : 자동 아웃 (피드 미노출)
+ * 시간 기준은 홈 피드 48시간 시스템과 동일하게 created_at(업로드 시각).
+ */
+export function getFreshnessTier(iso) {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return null;
+  const h = (Date.now() - t) / (60 * 60 * 1000);
+  if (h < 8) return 'live';
+  if (h < 24) return 'today';
+  if (h < 48) return 'ref';
+  return null;
+}
+
+/**
+ * 등급별 시간 배지 라벨.
+ *  - live  : "LIVE"
+ *  - today : "N시간 전" (오늘 현장)
+ *  - ref   : "어제 상황"
+ */
+export function freshnessBadgeLabel(iso, tier) {
+  const t = tier ?? getFreshnessTier(iso);
+  if (t === 'live') return 'LIVE';
+  if (t === 'ref') return '어제 상황';
+  if (t === 'today') {
+    const hour = Math.floor((Date.now() - new Date(iso).getTime()) / (60 * 60 * 1000));
+    return hour <= 0 ? '방금 전' : `${hour}시간 전`;
+  }
+  return '';
+}

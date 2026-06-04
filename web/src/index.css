@@ -90,6 +90,16 @@ input, textarea, select, button {
   transform-origin: center;
 }
 
+/* LIVE 뱃지 도트 — 초신선(0~8h) 글의 반짝이는 펄스 */
+@keyframes lj-live-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); opacity: 1; }
+  70%  { box-shadow: 0 0 0 5px rgba(255, 255, 255, 0); opacity: 0.85; }
+  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); opacity: 1; }
+}
+.lj-live-dot {
+  animation: lj-live-pulse 1.6s ease-out infinite;
+}
+
 /* 앱 컨테이너 - 가운데 정렬, 모바일 크기 제한 */
 .app-container {
   width: 100%;

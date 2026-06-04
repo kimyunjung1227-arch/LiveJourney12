@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { normalizePostRow, mapCategoryToLj } from './ljPostsMapping';
+import { getFreshnessTier } from '../components/lj/tokens';
 
 const PAGE_SIZE = 20;
 
@@ -20,6 +21,13 @@ function computeHotScore(post, nowMs) {
   const ageHours = Math.max(0, (nowMs - created) / 3_600_000);
   const popularity = (post.like_count ?? 0) + (post.comment_count ?? 0) * COMMENT_WEIGHT;
   return (popularity + 1) / Math.pow(ageHours + 2, HOT_GRAVITY);
+}
+
+// 노출 파워 등급 우선순위 — LIVE(0~8h) 최상단 고정, 어제 참고(24~48h)는 하단.
+// 같은 등급 안에서는 핫스코어(인기+신선도)로 정렬.
+const TIER_RANK = { live: 0, today: 1, ref: 2 };
+function tierRank(post) {
+  return TIER_RANK[getFreshnessTier(post.created_at)] ?? 3;
 }
 
 const SELECT_COLUMNS = `
@@ -108,10 +116,13 @@ export function useHomeFeed(selectedCategory = 'all') {
         const nowMs = Date.now();
         const scored = filtered.map((p) => ({ ...p, hot_score: computeHotScore(p, nowMs) }));
 
-        // 1차: 즉시 렌더 (사진 빨리 띄움) — 누적 목록을 핫스코어 내림차순으로 정렬
+        // 1차: 즉시 렌더 (사진 빨리 띄움)
+        // 정렬: 노출 파워 등급(LIVE→오늘→어제) 우선, 같은 등급 안에서 핫스코어 내림차순
         setPosts((prev) => {
           const merged = reset ? scored : [...prev, ...scored];
-          return merged.slice().sort((a, b) => b.hot_score - a.hot_score);
+          return merged
+            .slice()
+            .sort((a, b) => tierRank(a) - tierRank(b) || b.hot_score - a.hot_score);
         });
 
         // 첫 페이지가 채워졌으니 스켈레톤 종료

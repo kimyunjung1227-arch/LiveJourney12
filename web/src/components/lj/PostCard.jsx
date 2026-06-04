@@ -16,6 +16,8 @@ import {
   formatExifStamp,
   formatRemaining,
   pickWeatherDisplay,
+  getFreshnessTier,
+  freshnessBadgeLabel,
 } from './tokens';
 import MoreMenuDropdown from './MoreMenuDropdown';
 import PhotoCarousel from './PhotoCarousel';
@@ -194,7 +196,7 @@ export function PostCard({
           <span style={{ color: LJ.textTertiary }}>·</span>
           <span>{formatRemaining(post.expires_at)}</span>
         </div>
-        {post.is_on_site && <OnSiteBadge />}
+        <PowerBadge createdAt={post.created_at} isOnSite={post.is_on_site} />
       </div>
 
       {/* 위치명 (좌) + 기온 (우) */}
@@ -536,32 +538,99 @@ function WeatherInlineChip({ weather }) {
   );
 }
 
-function OnSiteBadge() {
+/**
+ * 노출 파워 등급 뱃지 — 업로드 시각 기준 시간대별 신선도를 표시.
+ *  - live  (0~8h)  : 강렬한 스카이블루 'LIVE' 배지 + 반짝이는 도트 (초신선)
+ *  - today (8~24h) : 투명한 'N시간 전' 시간 배지 (오늘의 현장)
+ *  - ref   (24~48h): 톤다운된 '어제 상황' 참고 배지
+ * 48h 초과(null)는 피드에서 미노출되므로 표시할 일이 없다.
+ */
+function PowerBadge({ createdAt, isOnSite }) {
+  const tier = getFreshnessTier(createdAt);
+  if (!tier) return null;
+  const label = freshnessBadgeLabel(createdAt, tier);
+
+  // LIVE — 초신선: 채워진 스카이블루 + 흰색 반짝 도트
+  if (tier === 'live') {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 5,
+          padding: '3px 9px',
+          background: LJ.key,
+          borderRadius: 6,
+          fontSize: 11,
+          fontWeight: 800,
+          letterSpacing: 0.4,
+          color: '#fff',
+          flexShrink: 0,
+        }}
+      >
+        <span
+          className="lj-live-dot"
+          style={{
+            width: 5,
+            height: 5,
+            background: '#fff',
+            borderRadius: '50%',
+            display: 'inline-block',
+          }}
+        />
+        {isOnSite ? '지금 LIVE' : label}
+      </span>
+    );
+  }
+
+  // 오늘의 현장 — 투명 배경의 직관적 시간 배지
+  if (tier === 'today') {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          padding: '3px 8px',
+          background: 'transparent',
+          border: `1px solid ${LJ.borderLight}`,
+          borderRadius: 6,
+          fontSize: 11,
+          fontWeight: 600,
+          color: LJ.textSecondary,
+          flexShrink: 0,
+        }}
+      >
+        <span
+          style={{
+            width: 5,
+            height: 5,
+            background: LJ.key,
+            borderRadius: '50%',
+            display: 'inline-block',
+          }}
+        />
+        {label}
+      </span>
+    );
+  }
+
+  // 어제의 참고 — 톤다운된 회색 배지
   return (
     <span
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 4,
         padding: '3px 8px',
-        background: LJ.keyBgLight,
+        background: LJ.bgSurface,
         borderRadius: 6,
         fontSize: 11,
         fontWeight: 600,
-        color: LJ.keyTextDark,
+        color: LJ.textTertiary,
         flexShrink: 0,
       }}
     >
-      <span
-        style={{
-          width: 5,
-          height: 5,
-          background: LJ.key,
-          borderRadius: '50%',
-          display: 'inline-block',
-        }}
-      />
-      지금 현장
+      {label}
     </span>
   );
 }
