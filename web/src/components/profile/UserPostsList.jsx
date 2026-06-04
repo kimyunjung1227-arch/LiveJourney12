@@ -11,11 +11,19 @@ const TEXT_TERTIARY = '#B8B8B8';
 const SURFACE = '#F5F7FA';
 const KEY = '#4DB8E8';
 
+/** images 항목(문자열 또는 {url,src,public_url,publicUrl} 객체)에서 URL 추출 */
+function extractImageUrl(item) {
+  if (!item) return '';
+  if (typeof item === 'string') return item;
+  if (typeof item === 'object') {
+    return item.url || item.src || item.public_url || item.publicUrl || '';
+  }
+  return '';
+}
+
 function postThumb(p) {
-  const raw =
-    (Array.isArray(p.images) && typeof p.images[0] === 'string' ? p.images[0] : '') ||
-    p.photo_url ||
-    '';
+  const fromImages = Array.isArray(p.images) ? extractImageUrl(p.images[0]) : extractImageUrl(p.images);
+  const raw = fromImages || p.photo_url || '';
   return raw ? getDisplayImageUrl(raw) : '';
 }
 
