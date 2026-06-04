@@ -5,8 +5,22 @@ import { normalizePostRow, mapCategoryToLj } from './ljPostsMapping';
 const PAGE_SIZE = 20;
 
 // 실시간성이 핵심 가치 — 업로드 후 48시간이 지난 게시물은 피드에서 내린다.
-// (created_at desc 정렬이라 커서가 cutoff 이전으로 내려가면 자연히 멈춘다)
+// (created_at desc 로 가져온 뒤 핫스코어로 정렬, 커서가 cutoff 이전이면 페이징 종료)
 const FEED_WINDOW_HOURS = 48;
+
+// 핫스코어 = (인기 + 1) / (경과시간 + 2)^중력
+// - 인기(좋아요 + 댓글*2)가 높을수록 위로
+// - 시간이 흐를수록 분모가 커져 점수가 떨어지고 자연히 아래로 가라앉는다
+// - 중력 1.5: 신선도를 기본 축으로 두되 인기가 의미 있게 가산되는 균형
+const HOT_GRAVITY = 1.5;
+const COMMENT_WEIGHT = 2;
+
+function computeHotScore(post, nowMs) {
+  const created = post.created_at ? new Date(post.created_at).getTime() : nowMs;
+  const ageHours = Math.max(0, (nowMs - created) / 3_600_000);
+  const popularity = (post.like_count ?? 0) + (post.comment_count ?? 0) * COMMENT_WEIGHT;
+  return (popularity + 1) / Math.pow(ageHours + 2, HOT_GRAVITY);
+}
 
 const SELECT_COLUMNS = `
   id,
@@ -90,8 +104,15 @@ export function useHomeFeed(selectedCategory = 'all') {
             ? normalized
             : normalized.filter((p) => p.category === selectedCategory);
 
-        // 1차: 즉시 렌더 (사진 빨리 띄움) — author.post_count는 일단 0
-        setPosts((prev) => (reset ? filtered : [...prev, ...filtered]));
+        // 핫스코어 부여 (fetch 시점 기준으로 1회 계산 — 세션 중 순서 안정)
+        const nowMs = Date.now();
+        const scored = filtered.map((p) => ({ ...p, hot_score: computeHotScore(p, nowMs) }));
+
+        // 1차: 즉시 렌더 (사진 빨리 띄움) — 누적 목록을 핫스코어 내림차순으로 정렬
+        setPosts((prev) => {
+          const merged = reset ? scored : [...prev, ...scored];
+          return merged.slice().sort((a, b) => b.hot_score - a.hot_score);
+        });
 
         // 첫 페이지가 채워졌으니 스켈레톤 종료
         if (reset) setLoading(false);
