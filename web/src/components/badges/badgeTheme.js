@@ -40,6 +40,17 @@ export function getBadgeTheme(meta) {
   return GROUP_THEME[meta.group] || DEFAULT_THEME;
 }
 
+// 라인 아이콘 등급색 (탐험가 → 톡파원 → 마스터)
+export const LINE_TIERS = { 1: '#8FCBE8', 2: '#2BA0DC', 3: '#1E7FB5' };
+export const LOCK_LINE = '#C5CDD5'; // 잠금 라인
+export const MASTER_SPARK = '#FFC24D'; // 마스터 골드 반짝이
+
+/** 레벨(1~3) → 라인 등급색. */
+export function lineColorForLevel(level) {
+  const lv = Math.max(1, Math.min(3, level | 0 || 2));
+  return LINE_TIERS[lv];
+}
+
 // 상태 색
 export const STATE_COLORS = {
   green: '#22C55E', // 달성

@@ -1,84 +1,83 @@
 import React from 'react';
 import { IconCheck, IconLock } from '@tabler/icons-react';
 import { ICONS } from './badgeIcons';
-import { getBadgeTheme, STATE_COLORS } from './badgeTheme';
+import { lineColorForLevel, LOCK_LINE, MASTER_SPARK, STATE_COLORS } from './badgeTheme';
 
 /**
- * 뱃지 메달리온 — 진행 링 + 파스텔 안쪽 원 + 아이콘 + 상태 오버레이.
+ * 뱃지 메달리온 — 흰 배경 + 라인 아이콘 + 상태/등급 표현.
  *
- * 상태(state)
- *  - 'earned'  : 달성 → 초록 풀링 + 체크
- *  - 'progress': 진행중 → 부분 호(최상위 단계=골드, 그 외=테마색), 자물쇠 없음
- *  - 'locked'  : 잠금 → 회색 풀링 + 자물쇠
+ * 디자인 (v7)
+ * - 배경 흰색(컨테이너/링/파스텔 원 없음). 아이콘만 등급색 라인으로.
+ * - 등급 = 라인 색 농도: 탐험가(연하늘) → 톡파원(브랜드) → 마스터(딥).
+ * - 마스터(최상위 단계 달성)는 골드 반짝이 ✦ + 은은한 후광.
+ * - 상태 표식은 코너 배지로만: 달성=초록 체크 / 잠금=회색 자물쇠.
  *
- * props: meta / state / pct(0~1, progress용) / size
+ * props: meta / state('earned'|'progress'|'locked') / pct(미사용·호환) / size
  */
-export default function BadgeMedallion({ meta, state = 'locked', pct = 0, size = 76 }) {
-  const theme = getBadgeTheme(meta);
+export default function BadgeMedallion({ meta, state = 'locked', size = 76 }) {
   const Cmp = ICONS[meta?.motif] || ICONS.honor;
   const earned = state === 'earned';
   const locked = state === 'locked';
-  // 성장 체인의 최상위(마스터) 단계만 골드 진행 링, 그 외는 테마색
-  const isTop = !!meta?.chainId && (meta?.level || 0) >= 3;
+  const level = meta?.level || 2;
+  const growth = !!meta?.chainId;
+  const isMaster = earned && growth && level >= 3;
 
-  let ringColor;
-  let ringPct;
-  if (earned) {
-    ringColor = STATE_COLORS.green;
-    ringPct = 1;
-  } else if (locked) {
-    ringColor = STATE_COLORS.lockedRing;
-    ringPct = 1;
-  } else {
-    ringColor = isTop ? STATE_COLORS.gold : theme.icon;
-    ringPct = Math.max(0.06, Math.min(1, pct || 0));
-  }
-
-  const iconColor = locked ? STATE_COLORS.lockedIcon : theme.icon;
-  const innerColor = locked ? STATE_COLORS.lockedInner : theme.inner;
-
-  const stroke = Math.max(4, size * 0.072);
-  const r = (size - stroke) / 2;
-  const cx = size / 2;
-  const circ = 2 * Math.PI * r;
-  const innerR = r - stroke * 0.85;
+  const color = locked ? LOCK_LINE : lineColorForLevel(level);
+  const iconSize = Math.round(size * 0.6);
+  const stroke = size >= 100 ? 1.6 : 1.8;
 
   return (
-    <div style={{ position: 'relative', width: size, height: size }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display: 'block' }} aria-hidden>
-        {/* 트랙 */}
-        <circle cx={cx} cy={cx} r={r} fill="none" stroke={STATE_COLORS.track} strokeWidth={stroke} />
-        {/* 진행/풀 링 */}
-        <circle
-          cx={cx}
-          cy={cx}
-          r={r}
-          fill="none"
-          stroke={ringColor}
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={circ}
-          strokeDashoffset={circ * (1 - ringPct)}
-          transform={`rotate(-90 ${cx} ${cx})`}
+    <div
+      style={{
+        position: 'relative',
+        width: size,
+        height: size,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {/* 마스터 후광 */}
+      {isMaster && (
+        <span
+          style={{
+            position: 'absolute',
+            inset: size * 0.06,
+            borderRadius: '50%',
+            background:
+              'radial-gradient(circle at 50% 45%, rgba(255,194,77,0.30), rgba(80,170,235,0.12) 55%, transparent 72%)',
+          }}
         />
-        {/* 안쪽 파스텔 원 */}
-        <circle cx={cx} cy={cx} r={innerR} fill={innerColor} />
-      </svg>
+      )}
 
-      {/* 가운데 아이콘 */}
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Cmp size={Math.round(size * 0.42)} color={iconColor} stroke={2} aria-hidden style={{ display: 'block' }} />
-      </div>
+      <Cmp size={iconSize} color={color} stroke={stroke} style={{ position: 'relative', display: 'block' }} />
 
-      {/* 상태 오버레이 */}
+      {/* 마스터 반짝이 */}
+      {isMaster && (
+        <span
+          style={{
+            position: 'absolute',
+            top: size * 0.04,
+            right: size * 0.14,
+            color: MASTER_SPARK,
+            fontSize: Math.max(11, Math.round(size * 0.2)),
+            lineHeight: 1,
+            textShadow: '0 0 4px rgba(255,194,77,0.55)',
+          }}
+        >
+          ✦
+        </span>
+      )}
+
+      {/* 상태 코너 표식 */}
       {earned && (
         <Corner pos="br" bg={STATE_COLORS.green} size={size}>
-          <IconCheck size={Math.round(size * 0.21)} color="#FFFFFF" stroke={3.2} />
+          <IconCheck size={Math.round(size * 0.2)} color="#FFFFFF" stroke={3.2} />
         </Corner>
       )}
       {locked && (
         <Corner pos="tr" bg={STATE_COLORS.lockBadge} size={size}>
-          <IconLock size={Math.round(size * 0.2)} color="#FFFFFF" stroke={2.6} />
+          <IconLock size={Math.round(size * 0.19)} color="#FFFFFF" stroke={2.6} />
         </Corner>
       )}
     </div>
@@ -86,7 +85,7 @@ export default function BadgeMedallion({ meta, state = 'locked', pct = 0, size =
 }
 
 function Corner({ pos, bg, size, children }) {
-  const d = Math.round(size * 0.34);
+  const d = Math.round(size * 0.32);
   const style = {
     position: 'absolute',
     width: d,
@@ -100,11 +99,11 @@ function Corner({ pos, bg, size, children }) {
     boxShadow: '0 1px 2px rgba(15,23,42,0.12)',
   };
   if (pos === 'br') {
-    style.right = -d * 0.12;
-    style.bottom = -d * 0.12;
+    style.right = -d * 0.1;
+    style.bottom = -d * 0.1;
   } else {
-    style.right = -d * 0.12;
-    style.top = -d * 0.12;
+    style.right = -d * 0.1;
+    style.top = -d * 0.1;
   }
   return <div style={style}>{children}</div>;
 }
