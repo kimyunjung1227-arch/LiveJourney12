@@ -18,6 +18,7 @@ import {
   IconBuildingStore,
   IconMapPin,
   IconX,
+  IconMap,
 } from '@tabler/icons-react';
 import { supabase } from '../utils/supabaseClient';
 import { getDisplayImageUrl } from '../api/upload';
@@ -25,6 +26,7 @@ import { logger } from '../utils/logger';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import { searchPlaceWithKakaoFirst } from '../utils/kakaoPlacesGeocode';
 import { useKakaoPlaceSearch } from '../hooks/useKakaoPlaceSearch';
+import { searchRegions, loadRegionRings } from '../utils/regionBoundary';
 import { fetchProfileByIdSupabase } from '../api/profilesSupabase';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
@@ -266,20 +268,29 @@ function MapSearchHeader({
   query,
   onQueryChange,
   results,
+  regions,
   loading,
   showResults,
   onFocus,
   onSelect,
+  onSelectRegion,
   onClear,
 }) {
   const navigate = useNavigate();
   const inputRef = useRef(null);
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && results.length > 0) {
-      e.preventDefault();
-      onSelect(results[0]);
-      inputRef.current?.blur();
+    if (e.key === 'Enter') {
+      // 지역 매치가 있으면 지역 우선 (날씨 등 지역 단위 검색이 흔한 패턴)
+      if (regions.length > 0) {
+        e.preventDefault();
+        onSelectRegion(regions[0]);
+        inputRef.current?.blur();
+      } else if (results.length > 0) {
+        e.preventDefault();
+        onSelect(results[0]);
+        inputRef.current?.blur();
+      }
     }
     if (e.key === 'Escape') {
       onClear();
@@ -341,10 +352,43 @@ function MapSearchHeader({
             overflowY: 'auto',
           }}
         >
+          {/* 지역(행정구역) 결과 — 선택 시 지역 전체가 테두리로 표시됨 */}
+          {regions.map((region) => (
+            <button
+              key={`region-${region.code}`}
+              type="button"
+              onClick={() => onSelectRegion(region)}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left border-b border-[#F5F7FA] active:bg-[#F5F7FA]"
+              style={{ background: 'none' }}
+            >
+              <div
+                className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center"
+                style={{ background: KEY }}
+              >
+                <IconMap size={15} color="#ffffff" stroke={2} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-semibold text-[#1F1F1F] truncate m-0">
+                  {region.name}
+                </p>
+                <p className="text-[11px] text-[#6B6B6B] truncate m-0">
+                  {region.province
+                    ? `${region.province} · 지역 전체 보기`
+                    : '지역 전체 보기'}
+                </p>
+              </div>
+              <span
+                className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                style={{ background: KEY_LIGHT, color: KEY_DARK }}
+              >
+                지역
+              </span>
+            </button>
+          ))}
           {loading && (
             <div className="px-4 py-3 text-[12px] text-[#6B6B6B]">검색 중…</div>
           )}
-          {!loading && results.length === 0 && (
+          {!loading && results.length === 0 && regions.length === 0 && (
             <div className="px-4 py-3 text-[12px] text-[#6B6B6B]">
               검색 결과가 없어요
             </div>
@@ -811,7 +855,13 @@ function BundlePinPreview({ bundle, photos, onViewDetail, onAuthorClick }) {
 }
 
 // 8-10. SearchedPlaceCard — 검색한 장소 정보 카드 (지도 하단)
-function SearchedPlaceCard({ place, liveCount, onClose, onViewPlace }) {
+function SearchedPlaceCard({
+  place,
+  liveCount,
+  onClose,
+  onViewPlace,
+  scopeLabel = '이 주변',
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -872,8 +922,8 @@ function SearchedPlaceCard({ place, liveCount, onClose, onViewPlace }) {
             />
             <span className="text-[12px] text-[#6B6B6B]">
               {liveCount > 0
-                ? `최근 48시간 이 주변 라이브 ${liveCount}장`
-                : '아직 이 주변 라이브 사진이 없어요'}
+                ? `최근 48시간 ${scopeLabel} 라이브 ${liveCount}장`
+                : `아직 ${scopeLabel} 라이브 사진이 없어요`}
             </span>
           </div>
         </div>
@@ -1142,6 +1192,7 @@ const MapScreen = () => {
   const overlayMapRef = useRef(new Map()); // bundle_id -> { overlay, wrap }
   const myLocationOverlayRef = useRef(null);
   const searchPinOverlayRef = useRef(null);
+  const regionPolygonsRef = useRef([]);
   const clustererRef = useRef(null);
   const idleListenerRef = useRef(null);
   const clickListenerRef = useRef(null);
@@ -1158,11 +1209,18 @@ const MapScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchedPlace, setSearchedPlace] = useState(null);
+  const [searchedRegion, setSearchedRegion] = useState(null);
   const {
     results: placeResults,
     loading: placeLoading,
     search: searchPlaces,
   } = useKakaoPlaceSearch();
+
+  // 행정구역(시·도/시·군·구) 매치 — 로컬 인덱스라 동기 계산
+  const regionMatches = useMemo(
+    () => (searchFocused ? searchRegions(searchQuery) : []),
+    [searchQuery, searchFocused],
+  );
 
   const { coords: myLocation, requestLocation } = useGeolocation();
   const { bundles: rpcBundles } = useMapBundles(bounds, selectedCategory);
@@ -1581,6 +1639,75 @@ const MapScreen = () => {
     };
   }, [searchedPlace, sdkReady]);
 
+  // 6) 검색한 지역(행정구역) 경계 폴리곤 — 지역 전체 테두리 + 지도 맞춤
+  useEffect(() => {
+    const map = kakaoMapRef.current;
+    if (!map || !window.kakao?.maps) return undefined;
+
+    // 기존 경계 제거
+    for (const poly of regionPolygonsRef.current) {
+      try {
+        poly.setMap(null);
+      } catch {
+        /* ignore */
+      }
+    }
+    regionPolygonsRef.current = [];
+    if (!searchedRegion) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      const rings = await loadRegionRings(searchedRegion);
+      if (cancelled || !rings) return;
+      const kakao = window.kakao;
+      const map2 = kakaoMapRef.current;
+      if (!map2 || !kakao?.maps) return;
+
+      const fitBounds = new kakao.maps.LatLngBounds();
+      for (const ring of rings) {
+        const path = ring.map((pt) => {
+          const ll = new kakao.maps.LatLng(pt.lat, pt.lng);
+          fitBounds.extend(ll);
+          return ll;
+        });
+        const polygon = new kakao.maps.Polygon({
+          map: map2,
+          path,
+          strokeWeight: 3,
+          strokeColor: KEY,
+          strokeOpacity: 0.95,
+          strokeStyle: 'solid',
+          fillColor: KEY,
+          fillOpacity: 0.08,
+          zIndex: 2,
+        });
+        regionPolygonsRef.current.push(polygon);
+      }
+      // 지역 전체가 화면에 들어오게 (상단 헤더/하단 카드 여백 고려)
+      try {
+        map2.setBounds(fitBounds, 120, 36, 200, 36);
+      } catch {
+        try {
+          map2.setBounds(fitBounds);
+        } catch {
+          /* ignore */
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      for (const poly of regionPolygonsRef.current) {
+        try {
+          poly.setMap(null);
+        } catch {
+          /* ignore */
+        }
+      }
+      regionPolygonsRef.current = [];
+    };
+  }, [searchedRegion, sdkReady]);
+
   // 검색 입력 → 카카오 장소 자동완성
   const handleSearchChange = useCallback(
     (v) => {
@@ -1595,12 +1722,14 @@ const MapScreen = () => {
     setSearchQuery('');
     setSearchFocused(false);
     setSearchedPlace(null);
+    setSearchedRegion(null);
     searchPlaces('');
   }, [searchPlaces]);
 
   // 검색 결과 선택 → 지도 이동 + 장소 카드 표시 (화면 전환 없음)
   const handleSelectPlace = useCallback((place) => {
     setSearchedPlace(place);
+    setSearchedRegion(null);
     setSearchQuery(place.name);
     setSearchFocused(false);
     setSelectedBundleId(null);
@@ -1615,8 +1744,27 @@ const MapScreen = () => {
     }
   }, []);
 
+  // 지역(행정구역) 선택 → 경계 그리기는 위 effect가 담당
+  const handleSelectRegion = useCallback(
+    (region) => {
+      setSearchedRegion(region);
+      setSearchedPlace(null);
+      setSearchQuery(region.name);
+      setSearchFocused(false);
+      setSelectedBundleId(null);
+      searchPlaces('');
+    },
+    [searchPlaces],
+  );
+
   // 검색 장소 반경 500m 내 라이브 사진 수 (현재 뷰포트 묶음 기준)
+  // 지역 검색일 때는 뷰포트(≈지역 전체)의 라이브 수 합산
   const liveNearCount = useMemo(() => {
+    if (searchedRegion) {
+      let total = 0;
+      for (const b of bundles) total += Math.max(1, Number(b.bundle_count) || 1);
+      return total;
+    }
     if (!searchedPlace) return 0;
     let total = 0;
     for (const b of bundles) {
@@ -1630,7 +1778,7 @@ const MapScreen = () => {
       if (d <= 500) total += Math.max(1, Number(b.bundle_count) || 1);
     }
     return total;
-  }, [bundles, searchedPlace]);
+  }, [bundles, searchedPlace, searchedRegion]);
 
   // 내 위치 버튼
   const handleMyLocation = useCallback(() => {
@@ -1669,10 +1817,12 @@ const MapScreen = () => {
         query={searchQuery}
         onQueryChange={handleSearchChange}
         results={placeResults}
+        regions={regionMatches}
         loading={placeLoading}
         showResults={searchFocused && !!searchQuery.trim()}
         onFocus={() => setSearchFocused(true)}
         onSelect={handleSelectPlace}
+        onSelectRegion={handleSelectRegion}
         onClear={handleSearchClear}
       />
       <MapCategoryFilter
@@ -1681,7 +1831,7 @@ const MapScreen = () => {
       />
       <MyLocationButton
         onClick={handleMyLocation}
-        raised={!!searchedPlace && !selectedBundleId}
+        raised={!!(searchedPlace || searchedRegion) && !selectedBundleId}
       />
 
       <AnimatePresence>
@@ -1693,6 +1843,22 @@ const MapScreen = () => {
             onClose={handleSearchClear}
             onViewPlace={() =>
               navigate(`/region/${encodeURIComponent(searchedPlace.name)}`)
+            }
+          />
+        )}
+        {searchedRegion && !selectedBundleId && (
+          <SearchedPlaceCard
+            key={`region-${searchedRegion.code}`}
+            place={{
+              name: searchedRegion.name,
+              address: searchedRegion.province || '대한민국',
+              category: '지역 전체',
+            }}
+            scopeLabel="지역 내"
+            liveCount={liveNearCount}
+            onClose={handleSearchClear}
+            onViewPlace={() =>
+              navigate(`/region/${encodeURIComponent(searchedRegion.name)}`)
             }
           />
         )}
