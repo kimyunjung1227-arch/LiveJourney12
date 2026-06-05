@@ -334,7 +334,17 @@ function MapSearchHeader({
                 inputRef.current?.focus();
               }}
               aria-label="검색어 지우기"
-              className="flex-shrink-0 w-[18px] h-[18px] rounded-full bg-[#E8E8E8] flex items-center justify-center"
+              className="flex-shrink-0 flex items-center justify-center"
+              style={{
+                width: 20,
+                height: 20,
+                minWidth: 20,
+                minHeight: 20,
+                borderRadius: '50%',
+                background: '#E8E8E8',
+                border: 'none',
+                padding: 0,
+              }}
             >
               <IconX size={11} color="#6B6B6B" stroke={2.5} />
             </button>
@@ -345,8 +355,9 @@ function MapSearchHeader({
       {/* 검색 결과 드롭다운 (지도 위 오버레이) */}
       {showResults && (
         <div
-          className="mt-2 ml-[52px] bg-white rounded-xl overflow-hidden"
+          className="mt-2 ml-[52px] bg-white overflow-hidden"
           style={{
+            borderRadius: 8,
             boxShadow: '0 8px 28px rgba(0,0,0,0.16)',
             maxHeight: 320,
             overflowY: 'auto',
@@ -369,7 +380,7 @@ function MapSearchHeader({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-semibold text-[#1F1F1F] truncate m-0">
-                  {region.name}
+                  {region.displayName || region.name}
                 </p>
                 <p className="text-[11px] text-[#6B6B6B] truncate m-0">
                   {region.province
@@ -877,7 +888,17 @@ function SearchedPlaceCard({
           type="button"
           onClick={onClose}
           aria-label="닫기"
-          className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-[#F5F7FA] flex items-center justify-center"
+          className="absolute top-2.5 right-2.5 flex items-center justify-center"
+          style={{
+            width: 28,
+            height: 28,
+            minWidth: 28,
+            minHeight: 28,
+            borderRadius: '50%',
+            background: '#F5F7FA',
+            border: 'none',
+            padding: 0,
+          }}
         >
           <IconX size={14} color="#6B6B6B" stroke={2.2} />
         </button>
@@ -1749,7 +1770,7 @@ const MapScreen = () => {
     (region) => {
       setSearchedRegion(region);
       setSearchedPlace(null);
-      setSearchQuery(region.name);
+      setSearchQuery(region.displayName || region.name);
       setSearchFocused(false);
       setSelectedBundleId(null);
       searchPlaces('');
@@ -1850,7 +1871,7 @@ const MapScreen = () => {
           <SearchedPlaceCard
             key={`region-${searchedRegion.code}`}
             place={{
-              name: searchedRegion.name,
+              name: searchedRegion.displayName || searchedRegion.name,
               address: searchedRegion.province || '대한민국',
               category: '지역 전체',
             }}
@@ -1858,7 +1879,11 @@ const MapScreen = () => {
             liveCount={liveNearCount}
             onClose={handleSearchClear}
             onViewPlace={() =>
-              navigate(`/region/${encodeURIComponent(searchedRegion.name)}`)
+              navigate(
+                `/region/${encodeURIComponent(
+                  searchedRegion.displayName || searchedRegion.name,
+                )}`,
+              )
             }
           />
         )}

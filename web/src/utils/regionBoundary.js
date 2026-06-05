@@ -28,6 +28,15 @@ function shortName(name) {
 const TYPE_BY_KEY = { p: 'province', c: 'city', m: 'municipality' };
 const TYPE_RANK = { p: 0, c: 1, m: 2 };
 
+// 화면 표시용 짧은 지역명: "부산광역시"→"부산", "충청북도"→"충북", "김천시"→"김천"
+// 복합명("수원시 장안구")은 그대로 둔다.
+export function regionDisplayName(full) {
+  const s = String(full || '');
+  if (PROVINCE_ALIASES[s]) return PROVINCE_ALIASES[s][0];
+  if (s.includes(' ')) return s;
+  return shortName(s);
+}
+
 /**
  * 지역명 검색. "김천"→김천시, "서울"→서울특별시, "수원"→수원시(구 전체) 등.
  * @returns [{ name, code, type: 'province'|'city'|'municipality', province }]
@@ -57,6 +66,7 @@ export function searchRegions(query, limit = 3) {
 
     scored.push({
       name: full,
+      displayName: regionDisplayName(full),
       code: r.c,
       type: TYPE_BY_KEY[r.t] || 'municipality',
       province: r.p || '',
