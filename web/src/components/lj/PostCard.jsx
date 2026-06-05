@@ -14,7 +14,6 @@ import {
   categoryLabel,
   formatExifTime,
   formatExifStamp,
-  formatRemaining,
   pickWeatherDisplay,
   getFreshnessTier,
   freshnessBadgeLabel,
@@ -27,7 +26,7 @@ const BODY_PREVIEW_LINES = 4;
 
 /**
  * 홈 피드 게시물 카드.
- * 구조: 사진(크게) → 아바타+이름(글수)+남은시간 → 위치명(타이틀) → 본문(4줄) → 반응
+ * 구조: 사진(크게) → 아바타+이름(글수) → 위치명(타이틀) → 본문(4줄) → 반응
  * - 사진과 반응 사이 구분선 없음
  * - 위치명은 헤드라인처럼 굵게/크게
  * - 댓글 아이콘은 꼬리가 우측으로 가도록 좌우 반전
@@ -160,7 +159,7 @@ export function PostCard({
         </div>
       </div>
 
-      {/* 작성자 행: 아바타 | 이름(N) · 남은시간 | 지금 현장 — 카드 상단으로 이동 */}
+      {/* 작성자 행: 아바타 | 이름(N) | 지금 현장 — 카드 상단으로 이동 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 8px' }}>
         <Avatar nickname={author.nickname} avatarUrl={author.avatar_url} size={28} onClick={goAuthor} />
         <div
@@ -193,8 +192,6 @@ export function PostCard({
           {typeof author.post_count === 'number' && author.post_count > 0 && (
             <span style={{ fontSize: 12, color: LJ.textTertiary }}>({author.post_count})</span>
           )}
-          <span style={{ color: LJ.textTertiary }}>·</span>
-          <span>{formatRemaining(post.expires_at)}</span>
         </div>
         <PowerBadge createdAt={post.created_at} isOnSite={post.is_on_site} />
       </div>
