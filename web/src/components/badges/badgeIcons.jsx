@@ -8,11 +8,11 @@ import {
   IconAtom2,
   IconBuildingFactory2,
   IconBuildingBank,
-  IconBuildingCastle,
+  IconBuildingFortress,
   IconMountain,
   IconRipple,
-  IconSun,
-  IconBuildingCottage,
+  IconSunrise,
+  IconBuildingPavilion,
   IconShip,
   IconBuildingArch,
   IconSailboat,
@@ -22,10 +22,10 @@ import {
   IconCrown,
   IconHeartHandshake,
   IconFlower,
-  IconMoon,
+  IconSunset2,
   IconCloud,
-  IconCalendarEvent,
-  IconUsers,
+  IconConfetti,
+  IconUsersGroup,
   IconBuildingStore,
 } from '@tabler/icons-react';
 
@@ -34,8 +34,8 @@ import {
  * - 손으로 그린 SVG 대신 일관·깔끔한 전문 아이콘 세트 사용.
  * - 지역 랜드마크는 의미가 가장 가까운 범용 아이콘으로 대체.
  *   (서울=고층, 부산=대교, 대구=관측탑, 인천=공항, 광주=기념물, 대전=과학,
- *    울산=산업, 세종=행정, 경기=수원화성, 강원=산, 충북=호수, 충남=일출,
- *    전북=한옥, 전남=다도해, 경북=석조유적, 경남=돛단배, 제주=바다)
+ *    울산=산업, 세종=행정, 경기=수원화성 성곽, 강원=산, 충북=호수, 충남=서해 일출,
+ *    전북=한옥마을(정자), 전남=다도해, 경북=석조유적, 경남=돛단배, 제주=바다)
  */
 export const ICONS = {
   // 지역 (17개 시·도)
@@ -47,24 +47,24 @@ export const ICONS = {
   daejeon: IconAtom2,
   ulsan: IconBuildingFactory2,
   sejong: IconBuildingBank,
-  gyeonggi: IconBuildingCastle,
+  gyeonggi: IconBuildingFortress, // 수원화성 성곽
   gangwon: IconMountain,
   chungbuk: IconRipple,
-  chungnam: IconSun,
-  jeonbuk: IconBuildingCottage,
+  chungnam: IconSunrise, // 서해 일출
+  jeonbuk: IconBuildingPavilion, // 전주 한옥마을(정자·누각)
   jeonnam: IconShip,
   gyeongbuk: IconBuildingArch,
   gyeongnam: IconSailboat,
   jeju: IconBeach,
 
-  // 카테고리 / 공통 — 앱 카테고리 아이콘(LJ_CATEGORIES)과 일치
+  // 카테고리 / 공통
   honor: IconRosette, // 영예
   crown: IconCrown, // 베스트 컷
   flame: IconHeartHandshake, // 도움
-  cherry: IconFlower, // 개화·자연
-  sunset: IconMoon, // 노을·야경
-  weather: IconCloud, // 날씨·체감
-  festival: IconCalendarEvent, // 이벤트·축제
-  crowd: IconUsers, // 혼잡도·대기
-  store: IconBuildingStore, // 영업·운영
+  cherry: IconFlower, // 벚꽃
+  sunset: IconSunset2, // 노을
+  weather: IconCloud, // 날씨
+  festival: IconConfetti, // 축제
+  crowd: IconUsersGroup, // 인파
+  store: IconBuildingStore, // 단골
 };

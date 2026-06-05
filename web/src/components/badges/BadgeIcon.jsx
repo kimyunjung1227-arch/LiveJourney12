@@ -64,11 +64,11 @@ export default function BadgeIcon({ motif, level = 1, size = 64, earned = true, 
   );
 }
 
-/* 단계별 키컬러(브랜드 하늘색 #4DB8E8) 농도 + 선 굵기 */
+/* 단계별 키컬러(하늘색) 농도 + 선 굵기 */
 const TIERS = {
-  1: { color: '#7FCFEF', stroke: 1.7 },
-  2: { color: '#4DB8E8', stroke: 2.0 },
-  3: { color: '#1A6EA8', stroke: 2.4 },
+  1: { color: '#5FB6E4', stroke: 1.7 },
+  2: { color: '#2BA0DC', stroke: 2.0 },
+  3: { color: '#1379B7', stroke: 2.4 },
 };
 
 const MARK = '#FFC24D'; // 등급 표식(골드 포인트)
