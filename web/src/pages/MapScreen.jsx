@@ -17,12 +17,14 @@ import {
   IconMoon,
   IconBuildingStore,
   IconMapPin,
+  IconX,
 } from '@tabler/icons-react';
 import { supabase } from '../utils/supabaseClient';
 import { getDisplayImageUrl } from '../api/upload';
 import { logger } from '../utils/logger';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import { searchPlaceWithKakaoFirst } from '../utils/kakaoPlacesGeocode';
+import { useKakaoPlaceSearch } from '../hooks/useKakaoPlaceSearch';
 import { fetchProfileByIdSupabase } from '../api/profilesSupabase';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
@@ -107,6 +109,18 @@ function formatHoursLeft(iso) {
   const hour = Math.floor(ms / 3600000);
   if (hour < 1) return `${Math.max(1, Math.floor(ms / 60000))}분 남음`;
   return `${hour}시간 남음`;
+}
+
+// 두 좌표 사이 거리 (m) — 검색 장소 주변 라이브 집계용
+function distMeters(a, b) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
 }
 
 const esc = (v) =>
@@ -234,35 +248,139 @@ function buildMyLocationHTML() {
   return `<div style="width:16px;height:16px;background:${KEY};border-radius:50%;border:3px solid white;box-shadow:0 0 0 6px rgba(77,184,232,0.2), 0 0 0 12px rgba(77,184,232,0.1);"></div>`;
 }
 
+// 검색한 장소 핀 (키컬러 티어드롭, 플랫)
+function buildSearchPinHTML() {
+  return `<div style="display:flex;flex-direction:column;align-items:center;pointer-events:none;">
+    <div style="width:36px;height:36px;background:${KEY};border:3px solid white;border-radius:50% 50% 50% 6px;transform:rotate(-45deg);box-shadow:0 6px 18px rgba(77,184,232,0.5);display:flex;align-items:center;justify-content:center;">
+      <div style="width:11px;height:11px;background:white;border-radius:50%;transform:rotate(45deg);"></div>
+    </div>
+  </div>`;
+}
+
 // ────────────────────────────────────────────────
 // 하위 컴포넌트들 (스펙 §8)
 // ────────────────────────────────────────────────
 
-// 8-1. MapHeader
-function MapHeader() {
+// 8-1. MapSearchHeader — 지도 화면 내 장소 검색 (화면 이동 없이 바로 결과 표시)
+function MapSearchHeader({
+  query,
+  onQueryChange,
+  results,
+  loading,
+  showResults,
+  onFocus,
+  onSelect,
+  onClear,
+}) {
   const navigate = useNavigate();
+  const inputRef = useRef(null);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && results.length > 0) {
+      e.preventDefault();
+      onSelect(results[0]);
+      inputRef.current?.blur();
+    }
+    if (e.key === 'Escape') {
+      onClear();
+      inputRef.current?.blur();
+    }
+  };
+
   return (
-    <div className="absolute top-3.5 left-3.5 right-3.5 z-10 flex items-center gap-2.5">
-      <button
-        type="button"
-        onClick={() => navigate(-1)}
-        className="bg-white w-[42px] h-[42px] rounded-xl flex items-center justify-center flex-shrink-0"
-        style={{ boxShadow: '0 2px 10px rgba(0,0,0,0.12)' }}
-        aria-label="뒤로가기"
-      >
-        <IconArrowLeft size={20} color="#1F1F1F" />
-      </button>
-      <button
-        type="button"
-        onClick={() => navigate('/search?context=map')}
-        className="flex-1 bg-white h-[42px] rounded-xl flex items-center px-3.5 gap-2.5"
-        style={{ boxShadow: '0 2px 10px rgba(0,0,0,0.12)' }}
-      >
-        <IconSearch size={18} color="#6B6B6B" />
-        <span className="text-[13px] text-[#B8B8B8] flex-1 text-left">
-          장소 또는 지역 검색
-        </span>
-      </button>
+    <div className="absolute top-3.5 left-3.5 right-3.5 z-30">
+      <div className="flex items-center gap-2.5">
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="bg-white w-[42px] h-[42px] rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ boxShadow: '0 2px 10px rgba(0,0,0,0.12)' }}
+          aria-label="뒤로가기"
+        >
+          <IconArrowLeft size={20} color="#1F1F1F" />
+        </button>
+        <div
+          className="flex-1 bg-white h-[42px] rounded-xl flex items-center px-3.5 gap-2.5"
+          style={{ boxShadow: '0 2px 10px rgba(0,0,0,0.12)' }}
+        >
+          <IconSearch size={18} color="#6B6B6B" className="flex-shrink-0" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+            onFocus={onFocus}
+            onKeyDown={handleKeyDown}
+            placeholder="장소 또는 지역 검색"
+            className="flex-1 min-w-0 bg-transparent text-[13px] text-[#1F1F1F] placeholder-[#B8B8B8]"
+            style={{ border: 'none', outline: 'none', padding: 0 }}
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => {
+                onClear();
+                inputRef.current?.focus();
+              }}
+              aria-label="검색어 지우기"
+              className="flex-shrink-0 w-[18px] h-[18px] rounded-full bg-[#E8E8E8] flex items-center justify-center"
+            >
+              <IconX size={11} color="#6B6B6B" stroke={2.5} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 검색 결과 드롭다운 (지도 위 오버레이) */}
+      {showResults && (
+        <div
+          className="mt-2 ml-[52px] bg-white rounded-xl overflow-hidden"
+          style={{
+            boxShadow: '0 8px 28px rgba(0,0,0,0.16)',
+            maxHeight: 320,
+            overflowY: 'auto',
+          }}
+        >
+          {loading && (
+            <div className="px-4 py-3 text-[12px] text-[#6B6B6B]">검색 중…</div>
+          )}
+          {!loading && results.length === 0 && (
+            <div className="px-4 py-3 text-[12px] text-[#6B6B6B]">
+              검색 결과가 없어요
+            </div>
+          )}
+          {!loading &&
+            results.slice(0, 8).map((place) => (
+              <button
+                key={place.kakao_id}
+                type="button"
+                onClick={() => onSelect(place)}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left border-b border-[#F5F7FA] last:border-b-0 active:bg-[#F5F7FA]"
+                style={{ background: 'none' }}
+              >
+                <div
+                  className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center"
+                  style={{ background: KEY_LIGHT }}
+                >
+                  <IconMapPin size={15} color={KEY_DARK} stroke={2} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold text-[#1F1F1F] truncate m-0">
+                    {place.name}
+                  </p>
+                  <p className="text-[11px] text-[#6B6B6B] truncate m-0">
+                    {place.address}
+                  </p>
+                </div>
+                {place.category && (
+                  <span className="flex-shrink-0 text-[10px] text-[#B8B8B8]">
+                    {place.category}
+                  </span>
+                )}
+              </button>
+            ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -335,14 +453,19 @@ function MapCategoryFilter({ selected, onChange }) {
 }
 
 // 8-3. MyLocationButton (하단 우측, 단순한 흰 원형 + 키컬러 아이콘)
-function MyLocationButton({ onClick }) {
+//   - raised: 하단에 검색 장소 카드가 떠 있을 때 카드 위로 올라감
+function MyLocationButton({ onClick, raised }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label="내 위치"
-      className="absolute right-[18px] bottom-[24px] z-10 bg-white w-[44px] h-[44px] rounded-full flex items-center justify-center"
-      style={{ boxShadow: '0 4px 14px rgba(0,0,0,0.18)' }}
+      className="absolute right-[18px] z-10 bg-white w-[44px] h-[44px] rounded-full flex items-center justify-center"
+      style={{
+        boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
+        bottom: raised ? 196 : 24,
+        transition: 'bottom 0.2s ease',
+      }}
     >
       <IconCurrentLocation size={20} color={KEY} strokeWidth={2} />
     </button>
@@ -687,6 +810,88 @@ function BundlePinPreview({ bundle, photos, onViewDetail, onAuthorClick }) {
   );
 }
 
+// 8-10. SearchedPlaceCard — 검색한 장소 정보 카드 (지도 하단)
+function SearchedPlaceCard({ place, liveCount, onClose, onViewPlace }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 20 }}
+      className="absolute left-3.5 right-3.5 bottom-[24px] z-20"
+    >
+      <div
+        className="relative max-w-[414px] mx-auto bg-white overflow-hidden"
+        style={{ borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="닫기"
+          className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-[#F5F7FA] flex items-center justify-center"
+        >
+          <IconX size={14} color="#6B6B6B" stroke={2.2} />
+        </button>
+
+        <div className="p-4 pb-3">
+          <div className="flex items-start gap-2.5 pr-8">
+            <div
+              className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center"
+              style={{ background: KEY_LIGHT }}
+            >
+              <IconMapPin size={18} color={KEY_DARK} stroke={2} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p
+                  className="text-[15px] font-bold text-[#1F1F1F] m-0"
+                  style={{ lineHeight: 1.3, wordBreak: 'keep-all' }}
+                >
+                  {place.name}
+                </p>
+                {place.category && (
+                  <span
+                    className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                    style={{ background: KEY_LIGHT, color: KEY_DARK }}
+                  >
+                    {place.category}
+                  </span>
+                )}
+              </div>
+              {place.address && (
+                <p className="text-[11px] text-[#6B6B6B] m-0 mt-0.5 truncate">
+                  {place.address}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 mt-3 pt-2.5 border-t border-[#F5F7FA]">
+            <div
+              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+              style={{ background: liveCount > 0 ? KEY : '#D8D8D8' }}
+            />
+            <span className="text-[12px] text-[#6B6B6B]">
+              {liveCount > 0
+                ? `최근 48시간 이 주변 라이브 ${liveCount}장`
+                : '아직 이 주변 라이브 사진이 없어요'}
+            </span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onViewPlace}
+          className="w-full text-white py-2.5 text-[13px] font-semibold flex items-center justify-center gap-1.5"
+          style={{ background: KEY }}
+        >
+          이 장소 페이지 보기
+          <IconArrowRight size={14} />
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
 // ────────────────────────────────────────────────
 // 훅 (스펙 §9)
 // ────────────────────────────────────────────────
@@ -936,6 +1141,7 @@ const MapScreen = () => {
   const kakaoMapRef = useRef(null);
   const overlayMapRef = useRef(new Map()); // bundle_id -> { overlay, wrap }
   const myLocationOverlayRef = useRef(null);
+  const searchPinOverlayRef = useRef(null);
   const clustererRef = useRef(null);
   const idleListenerRef = useRef(null);
   const clickListenerRef = useRef(null);
@@ -947,6 +1153,16 @@ const MapScreen = () => {
   const [mapLevel, setMapLevel] = useState(5);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedBundleId, setSelectedBundleId] = useState(null);
+
+  // 지도 내 장소 검색 상태
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [searchedPlace, setSearchedPlace] = useState(null);
+  const {
+    results: placeResults,
+    loading: placeLoading,
+    search: searchPlaces,
+  } = useKakaoPlaceSearch();
 
   const { coords: myLocation, requestLocation } = useGeolocation();
   const { bundles: rpcBundles } = useMapBundles(bounds, selectedCategory);
@@ -1031,7 +1247,10 @@ const MapScreen = () => {
     idleListenerRef.current = { map, onIdle };
     onIdle();
 
-    const onClick = () => setSelectedBundleId(null);
+    const onClick = () => {
+      setSelectedBundleId(null);
+      setSearchFocused(false);
+    };
     kakao.maps.event.addListener(map, 'click', onClick);
     clickListenerRef.current = { map, onClick };
 
@@ -1327,6 +1546,92 @@ const MapScreen = () => {
     };
   }, [myLocation]);
 
+  // 5) 검색한 장소 핀 오버레이
+  useEffect(() => {
+    const map = kakaoMapRef.current;
+    if (!map || !window.kakao?.maps) return undefined;
+    if (searchPinOverlayRef.current) {
+      try {
+        searchPinOverlayRef.current.setMap(null);
+      } catch {
+        /* ignore */
+      }
+      searchPinOverlayRef.current = null;
+    }
+    if (!searchedPlace) return undefined;
+    const kakao = window.kakao;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = buildSearchPinHTML();
+    const overlay = new kakao.maps.CustomOverlay({
+      position: new kakao.maps.LatLng(searchedPlace.lat, searchedPlace.lng),
+      content: wrap,
+      yAnchor: 1,
+      xAnchor: 0.5,
+      zIndex: 6,
+    });
+    overlay.setMap(map);
+    searchPinOverlayRef.current = overlay;
+    return () => {
+      try {
+        overlay.setMap(null);
+      } catch {
+        /* ignore */
+      }
+      searchPinOverlayRef.current = null;
+    };
+  }, [searchedPlace, sdkReady]);
+
+  // 검색 입력 → 카카오 장소 자동완성
+  const handleSearchChange = useCallback(
+    (v) => {
+      setSearchQuery(v);
+      setSearchFocused(true);
+      searchPlaces(v);
+    },
+    [searchPlaces],
+  );
+
+  const handleSearchClear = useCallback(() => {
+    setSearchQuery('');
+    setSearchFocused(false);
+    setSearchedPlace(null);
+    searchPlaces('');
+  }, [searchPlaces]);
+
+  // 검색 결과 선택 → 지도 이동 + 장소 카드 표시 (화면 전환 없음)
+  const handleSelectPlace = useCallback((place) => {
+    setSearchedPlace(place);
+    setSearchQuery(place.name);
+    setSearchFocused(false);
+    setSelectedBundleId(null);
+    const map = kakaoMapRef.current;
+    if (map && window.kakao?.maps) {
+      try {
+        if (map.getLevel() > 4) map.setLevel(4);
+        map.setCenter(new window.kakao.maps.LatLng(place.lat, place.lng));
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
+  // 검색 장소 반경 500m 내 라이브 사진 수 (현재 뷰포트 묶음 기준)
+  const liveNearCount = useMemo(() => {
+    if (!searchedPlace) return 0;
+    let total = 0;
+    for (const b of bundles) {
+      if (!Number.isFinite(b.primary_lat) || !Number.isFinite(b.primary_lng)) {
+        continue;
+      }
+      const d = distMeters(searchedPlace, {
+        lat: b.primary_lat,
+        lng: b.primary_lng,
+      });
+      if (d <= 500) total += Math.max(1, Number(b.bundle_count) || 1);
+    }
+    return total;
+  }, [bundles, searchedPlace]);
+
   // 내 위치 버튼
   const handleMyLocation = useCallback(() => {
     requestLocation();
@@ -1360,14 +1665,37 @@ const MapScreen = () => {
         </div>
       )}
 
-      <MapHeader />
+      <MapSearchHeader
+        query={searchQuery}
+        onQueryChange={handleSearchChange}
+        results={placeResults}
+        loading={placeLoading}
+        showResults={searchFocused && !!searchQuery.trim()}
+        onFocus={() => setSearchFocused(true)}
+        onSelect={handleSelectPlace}
+        onClear={handleSearchClear}
+      />
       <MapCategoryFilter
         selected={selectedCategory}
         onChange={setSelectedCategory}
       />
-      <MyLocationButton onClick={handleMyLocation} />
+      <MyLocationButton
+        onClick={handleMyLocation}
+        raised={!!searchedPlace && !selectedBundleId}
+      />
 
       <AnimatePresence>
+        {searchedPlace && !selectedBundleId && (
+          <SearchedPlaceCard
+            key={`search-${searchedPlace.kakao_id}`}
+            place={searchedPlace}
+            liveCount={liveNearCount}
+            onClose={handleSearchClear}
+            onViewPlace={() =>
+              navigate(`/region/${encodeURIComponent(searchedPlace.name)}`)
+            }
+          />
+        )}
         {selectedBundle && !selectedBundle.is_bundle && (
           <PostPinPreview
             key={`single-${selectedBundleId}`}
