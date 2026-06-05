@@ -39,11 +39,9 @@ export default function BadgeChip({ meta, size = 'md', earned = true, onClick })
     >
       <BadgeIcon
         motif={meta.motif}
-        level={meta.level}
         size={dims.icon}
-        growth={!!meta.chainId}
         earned={earned}
-        palette={tone.iconPalette}
+        mono={tone.iconMono}
         style={{ flexShrink: 0 }}
       />
       <span
@@ -69,14 +67,14 @@ const SIZES = {
 };
 
 /* 칩 톤 — 키컬러 하늘색 패밀리. 마스터만 솔리드.
- * 솔리드 아이콘이므로 sub(내부 컷아웃)는 칩 배경색과 동일 → 진짜 구멍처럼 뚫림. */
+ * 칩 사이즈에선 아이콘을 단색(mono)으로 렌더 — 컷아웃(fg 안 구멍)은 칩 배경색. */
 export function getChipTone(tier, earned = true) {
   if (!earned) {
     return {
       bg: '#F1F3F5',
       text: '#9AA3AB',
       shadow: 'none',
-      iconPalette: { key: '#BCC3CA', sub: '#F1F3F5', accent: '#BCC3CA' },
+      iconMono: { fg: '#BCC3CA', bg: '#F1F3F5' },
     };
   }
   switch (tier) {
@@ -85,14 +83,14 @@ export function getChipTone(tier, earned = true) {
         bg: '#2BA0DC',
         text: '#FFFFFF',
         shadow: '0 2px 6px rgba(43,160,220,0.32)',
-        iconPalette: { key: '#FFFFFF', sub: '#2BA0DC', accent: '#FFE08A' },
+        iconMono: { fg: '#FFFFFF', bg: '#2BA0DC' },
       };
     case 'mid': // 톡파원/카테고리 — 옅은 하늘 + 하늘색
       return {
         bg: '#E3F3FB',
         text: '#1577B5',
         shadow: 'none',
-        iconPalette: { key: '#2BA0DC', sub: '#E3F3FB', accent: '#2BA0DC' },
+        iconMono: { fg: '#2BA0DC', bg: '#E3F3FB' },
       };
     case 'low': // 탐험가 — 더 옅은 하늘
     default:
@@ -100,7 +98,7 @@ export function getChipTone(tier, earned = true) {
         bg: '#EEF6FB',
         text: '#4E83AC',
         shadow: 'none',
-        iconPalette: { key: '#5FB6E4', sub: '#EEF6FB', accent: '#5FB6E4' },
+        iconMono: { fg: '#5FB6E4', bg: '#EEF6FB' },
       };
   }
 }

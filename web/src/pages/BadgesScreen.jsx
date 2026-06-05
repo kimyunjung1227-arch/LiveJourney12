@@ -141,8 +141,8 @@ function GroupSection({ group, stats, earnedSet, onPick }) {
         </span>
       </div>
 
-      {/* 카드 */}
-      <div style={{ background: '#F7F8FA', borderRadius: 18, padding: '18px 14px' }}>
+      {/* 카드 — 흰 배경 + 옅은 보더 (파스텔 스쿼클이 대비되도록) */}
+      <div style={{ background: '#fff', border: '1px solid #EFF1F4', borderRadius: 18, padding: '18px 14px' }}>
         {rows.map((row, ri) => (
           <div
             key={ri}

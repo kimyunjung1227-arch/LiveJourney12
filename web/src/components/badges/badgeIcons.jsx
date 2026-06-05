@@ -1,80 +1,201 @@
 import React from 'react';
 
 /**
- * 뱃지 모티프 → 커스텀 라인 아이콘.
- * - Tabler/외부 의존 없이 직접 그린 아웃라인 SVG (흰 배경 위 라인 톤).
- * - 색은 stroke={color} 로 주입 → 등급색이 자동 적용된다(currentColor 대용).
- * - 각 컴포넌트 시그니처: { size, color, stroke, style } (Tabler 아이콘과 호환)
- * - 지역은 대표 랜드마크/상징을 라인으로 단순화:
+ * 뱃지 모티프 → 플랫 듀오톤 면(fill) 아이콘.
+ *
+ * 디자인 (v8 — 당근/Lyft 활동배지 스타일)
+ * - 라인이 아니라 단색 "면"으로 그린 플랫 도형. 그라디언트/질감 없음.
+ * - 전 뱃지가 같은 팔레트를 공유: 메인 하늘(M) + 딥 하늘(D) + 서브 앰버(A)·코랄(C) + 흰 컷아웃(W).
+ * - 색 토큰(__M__ 등)을 렌더 시 palette 로 치환 → 회색(미획득)/모노(칩) 변형이 자동.
+ * - 각 컴포넌트 시그니처: { size, palette, style }
+ * - 지역은 대표 랜드마크/상징을 면으로 단순화:
  *     서울=마천루, 부산=광안대교, 대구=83타워, 인천=공항, 광주=기념탑, 대전=과학(원자),
- *     울산=산업, 세종=정부청사, 경기=수원화성 성곽, 강원=설악산, 충북=내륙 호수,
+ *     울산=조선소 배, 세종=정부청사, 경기=수원화성 성문, 강원=설악산, 충북=내륙 호수,
  *     충남=서해 일출, 전북=한옥, 전남=다도해, 경북=경주 석탑, 경남=돛단배, 제주=한라산
  */
 
-// 모티프별 아웃라인 path 묶음 (viewBox 0 0 24 24, stroke 상속)
+// 모티프별 면 도형 묶음 (viewBox 0 0 48 48, __M__/__D__/__A__/__C__/__W__ 토큰)
 const PATHS = {
   // ── 지역 (17개 시·도) ──
   seoul:
-    '<rect x="3" y="12" width="4.5" height="9"/><rect x="9" y="6" width="4" height="15"/><rect x="14.5" y="9.5" width="4.5" height="11.5"/><path d="M11 6V3.5"/><path d="M2 21h20"/>',
+    '<circle cx="39" cy="9" r="4.5" fill="__A__"/>' +
+    '<rect x="5" y="24" width="9" height="19" rx="2" fill="__D__"/>' +
+    '<rect x="16" y="11" width="11" height="32" rx="2" fill="__M__"/>' +
+    '<rect x="29" y="20" width="9" height="23" rx="2" fill="__D__"/>' +
+    '<rect x="19" y="16" width="5" height="4" rx="1" fill="__W__"/>' +
+    '<rect x="19" y="23" width="5" height="4" rx="1" fill="__W__"/>',
   busan:
-    '<path d="M2 17h20"/><path d="M6.5 17V6"/><path d="M17.5 17V6"/><path d="M6.5 6c4 4 7 4 11 0"/><path d="M9 17v-7M12 17V9M15 17v-7"/><path d="M18.5 4.5q1 1 2.2 0"/>',
+    '<circle cx="40" cy="9" r="4" fill="__A__"/>' +
+    '<rect x="13" y="11" width="3.5" height="19" rx="1.75" fill="__D__"/>' +
+    '<rect x="31.5" y="11" width="3.5" height="19" rx="1.75" fill="__D__"/>' +
+    '<path d="M14.8 13.5q9.2 11 18.4 0" stroke="__M__" stroke-width="3" fill="none"/>' +
+    '<rect x="4" y="29" width="40" height="4.5" rx="2.25" fill="__M__"/>' +
+    '<path d="M10 41.5q4.7-4 9.3 0t9.3 0t9.3 0" stroke="__D__" stroke-width="3" fill="none"/>',
   daegu:
-    '<path d="M12 21V4"/><path d="M8.5 9.5c0-2 1.5-3.2 3.5-3.2s3.5 1.2 3.5 3.2"/><path d="M8.5 9.5h7"/><path d="M9 21l3-6 3 6"/>',
+    '<circle cx="24" cy="5.5" r="2.5" fill="__A__"/>' +
+    '<rect x="22.8" y="7" width="2.4" height="6" rx="1.2" fill="__D__"/>' +
+    '<ellipse cx="24" cy="16" rx="9" ry="4.5" fill="__D__"/>' +
+    '<path d="M20.5 19l-3.5 21h14l-3.5-21z" fill="__M__"/>' +
+    '<rect x="12" y="40" width="24" height="3.5" rx="1.75" fill="__D__"/>',
   incheon:
-    '<path d="M21 11l-7.5-1V4.5a1.5 1.5 0 0 0-3 0V10L3 11v2l7.5-1.2v4.2l-2 1.5V19l3.5-1 3.5 1v-1.5l-2-1.5v-4.2L21 13z"/>',
+    '<circle cx="40" cy="9" r="3.5" fill="__A__"/>' +
+    '<path d="M24 4c1.6 0 2.6 1.3 2.6 3.2v9.3L42 25v4.8l-15.4-4.6v8.6l4.8 3.8V41l-7.4-2.2L16.6 41v-3.4l4.8-3.8v-8.6L6 29.8V25l15.4-8.5V7.2C21.4 5.3 22.4 4 24 4z" fill="__M__"/>' +
+    '<circle cx="24" cy="9.5" r="1.7" fill="__W__"/>',
   gwangju:
-    '<path d="M10.6 17l1-13h.8l1 13"/><path d="M8.6 17h6.8"/><path d="M7.6 19h8.8"/><path d="M7 21h10"/>',
+    '<rect x="17.5" y="6" width="4.5" height="34" rx="2.2" fill="__M__"/>' +
+    '<rect x="26" y="6" width="4.5" height="34" rx="2.2" fill="__D__"/>' +
+    '<circle cx="24" cy="22" r="3.2" fill="__A__"/>' +
+    '<rect x="11" y="40" width="26" height="3.5" rx="1.75" fill="__D__"/>',
   daejeon:
-    '<circle cx="12" cy="12" r="1.6"/><ellipse cx="12" cy="12" rx="9" ry="3.4"/><ellipse cx="12" cy="12" rx="9" ry="3.4" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="3.4" transform="rotate(120 12 12)"/>',
+    '<ellipse cx="24" cy="24" rx="17" ry="7" fill="none" stroke="__M__" stroke-width="3"/>' +
+    '<ellipse cx="24" cy="24" rx="17" ry="7" fill="none" stroke="__D__" stroke-width="3" transform="rotate(60 24 24)"/>' +
+    '<ellipse cx="24" cy="24" rx="17" ry="7" fill="none" stroke="__M__" stroke-width="3" transform="rotate(120 24 24)"/>' +
+    '<circle cx="24" cy="24" r="4.5" fill="__A__"/>' +
+    '<circle cx="38" cy="17.5" r="2.5" fill="__C__"/>',
   ulsan:
-    '<path d="M3 21V12l5 3v-3l5 3V9h6v12z"/><path d="M17 9V5h1.6v4"/><path d="M6 18h1.5M10.5 18H12M15 18h1.5"/>',
+    '<rect x="13" y="21" width="7" height="8" rx="1.2" fill="__A__"/>' +
+    '<rect x="21.5" y="21" width="7" height="8" rx="1.2" fill="__C__"/>' +
+    '<rect x="30" y="13" width="7" height="16" rx="1.2" fill="__D__"/>' +
+    '<rect x="31.8" y="16" width="3.4" height="2.8" rx="0.8" fill="__W__"/>' +
+    '<path d="M5 29h38l-5.5 9H10.5z" fill="__M__"/>' +
+    '<rect x="9" y="41.5" width="11" height="3" rx="1.5" fill="__D__"/>' +
+    '<rect x="27" y="41.5" width="11" height="3" rx="1.5" fill="__D__"/>',
   sejong:
-    '<path d="M12 3.5 3 8h18z"/><path d="M4 8v11M20 8v11"/><path d="M7 11v6M11 11v6M13 11v6M17 11v6"/><path d="M3 19h18"/>',
+    '<path d="M24 4L42 13H6z" fill="__D__"/>' +
+    '<circle cx="24" cy="9.2" r="1.8" fill="__A__"/>' +
+    '<rect x="7" y="14" width="34" height="28" rx="3" fill="__M__"/>' +
+    '<rect x="12" y="19" width="3.5" height="16" rx="1.75" fill="__W__"/>' +
+    '<rect x="19" y="19" width="3.5" height="16" rx="1.75" fill="__W__"/>' +
+    '<rect x="25.5" y="19" width="3.5" height="16" rx="1.75" fill="__W__"/>' +
+    '<rect x="32.5" y="19" width="3.5" height="16" rx="1.75" fill="__W__"/>' +
+    '<rect x="20.5" y="35" width="7" height="7" rx="1.5" fill="__D__"/>',
   gyeonggi:
-    '<path d="M3 21V11h2V9h2v2h3V9h2v2h3V9h2v2h2v10"/><path d="M2.5 21h19"/><path d="M10 21v-4a2 2 0 0 1 4 0v4"/>',
-  gangwon: '<path d="M2 20l7-13 4 7 2-3 7 9z"/><path d="M7.2 10.6q1.8-1.6 3.6 0"/>',
+    '<circle cx="24" cy="11" r="2" fill="__A__"/>' +
+    '<path d="M7 19c6-7 28-7 34 0l-2.5 4H9.5z" fill="__C__"/>' +
+    '<rect x="8" y="23" width="32" height="19" rx="2" fill="__M__"/>' +
+    '<path d="M17 42v-7.5a7 7 0 0 1 14 0V42z" fill="__W__"/>',
+  gangwon:
+    '<circle cx="39" cy="11" r="4.5" fill="__A__"/>' +
+    '<path d="M21 41l10.5-17L44 41z" fill="__D__"/>' +
+    '<path d="M4 41L17 15l13 26z" fill="__M__"/>' +
+    '<path d="M17 15l4.6 9.2-2.3-1.6-2.3 2.4-2.3-2.4-2.3 1.6z" fill="__W__"/>',
   chungbuk:
-    '<path d="M2 9c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/><path d="M2 13c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/><path d="M2 17c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/>',
+    '<circle cx="24" cy="13" r="5.5" fill="__A__"/>' +
+    '<path d="M5 26q4.75-4.5 9.5 0t9.5 0t9.5 0t9.5 0" stroke="__M__" stroke-width="3.5" fill="none"/>' +
+    '<path d="M5 33.5q4.75-4.5 9.5 0t9.5 0t9.5 0t9.5 0" stroke="__D__" stroke-width="3.5" fill="none"/>' +
+    '<path d="M5 41q4.75-4.5 9.5 0t9.5 0t9.5 0t9.5 0" stroke="__M__" stroke-width="3.5" fill="none"/>',
   chungnam:
-    '<path d="M3 18h18"/><path d="M7.5 18a4.5 4.5 0 0 1 9 0"/><path d="M12 5v2.5M5.5 8.5l1.5 1.5M18.5 8.5l-1.5 1.5M2.5 14H5M19 14h2.5"/>',
+    '<path d="M24 8v5M11.5 13.5l3.5 3.5M36.5 13.5L33 17" stroke="__A__" stroke-width="3" fill="none"/>' +
+    '<path d="M13 29a11 11 0 0 1 22 0z" fill="__A__"/>' +
+    '<path d="M5 35q4.75-4 9.5 0t9.5 0t9.5 0t9.5 0" stroke="__M__" stroke-width="3.5" fill="none"/>' +
+    '<path d="M10 42q4.7-4 9.3 0t9.3 0t9.3 0" stroke="__D__" stroke-width="3.5" fill="none"/>',
   jeonbuk:
-    '<path d="M2 11c3-4 6-6 10-6s7 2 10 6"/><path d="M5 11c2-1 3 .4 3.6 1.3M19 11c-2-1-3 .4-3.6 1.3"/><path d="M6.5 12.5V20h11v-7.5"/><path d="M10.5 20v-4.5h3V20"/>',
+    '<path d="M5 20c6-9 32-9 38 0l-3 4H8z" fill="__D__"/>' +
+    '<rect x="10" y="24" width="28" height="18" rx="2" fill="__M__"/>' +
+    '<rect x="19.5" y="29" width="9" height="13" rx="1.5" fill="__W__"/>',
   jeonnam:
-    '<path d="M2 17c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0"/><path d="M5 14a3 3 0 0 1 6 0"/><path d="M13.5 13a3.5 3.5 0 0 1 7 0"/>',
+    '<circle cx="37" cy="10" r="4" fill="__A__"/>' +
+    '<path d="M7 31a7.75 7.75 0 0 1 15.5 0z" fill="__M__"/>' +
+    '<path d="M26 31a6.5 6.5 0 0 1 13 0z" fill="__D__"/>' +
+    '<path d="M5 38.5q4.75-4 9.5 0t9.5 0t9.5 0t9.5 0" stroke="__M__" stroke-width="3.5" fill="none"/>',
   gyeongbuk:
-    '<path d="M12 3.5 8.5 6h7z"/><path d="M9 6h6"/><path d="M7.5 9q4.5-2 9 0"/><path d="M8.5 9h7"/><path d="M6 12.5q6-2.2 12 0"/><path d="M7.5 15.5h9v3h-9z"/><path d="M5.5 20h13v-1.5h-13z"/><path d="M10.5 18.5v-3h3v3"/>',
+    '<circle cx="24" cy="6" r="2.5" fill="__A__"/>' +
+    '<rect x="16" y="9.5" width="16" height="4.5" rx="1.5" fill="__D__"/>' +
+    '<rect x="19.5" y="14" width="9" height="5" fill="__M__"/>' +
+    '<rect x="13" y="19" width="22" height="4.5" rx="1.5" fill="__D__"/>' +
+    '<rect x="17.5" y="23.5" width="13" height="6" fill="__M__"/>' +
+    '<rect x="10" y="29.5" width="28" height="4.5" rx="1.5" fill="__D__"/>' +
+    '<rect x="20" y="34" width="8" height="4" fill="__M__"/>' +
+    '<rect x="7" y="38" width="34" height="4" rx="2" fill="__M__"/>',
   gyeongnam:
-    '<path d="M11.6 4v10"/><path d="M11.6 6l5 8h-5z"/><path d="M11.6 7L8 14h3.6"/><path d="M4 16h16l-2.2 4H6.2z"/>',
-  jeju: '<path d="M3 20l6.5-12c.8-1.5 2.2-1.5 3 0L19 20z"/><path d="M9.5 8.5h5"/><path d="M3 20h16"/>',
+    '<path d="M21.5 5v20H7.5c3.5-9 8.5-15.5 14-20z" fill="__M__"/>' +
+    '<path d="M25.5 9v16h11c-2.5-7-6.5-12.5-11-16z" fill="__A__"/>' +
+    '<path d="M6 29h36l-5 8.5H11z" fill="__D__"/>' +
+    '<path d="M10 42.5q4.7-4 9.3 0t9.3 0t9.3 0" stroke="__M__" stroke-width="3" fill="none"/>',
+  jeju:
+    '<circle cx="40" cy="10" r="4" fill="__A__"/>' +
+    '<path d="M5 39L17.5 15h13L43 39z" fill="__M__"/>' +
+    '<path d="M20.5 15h7l-2.6 5h-1.8z" fill="__W__"/>',
 
   // ── 영예 / 베스트컷 / 이타심(불꽃) ──
   honor:
-    '<circle cx="12" cy="9" r="5.5"/><path d="M12 6.2l1 2 2.2.3-1.6 1.5.4 2.2L12 11.6l-2 1 .4-2.2-1.6-1.5 2.2-.3z"/><path d="M9 13.6l-1.2 6.4L12 18l4.2 2-1.2-6.4"/>',
-  crown: '<path d="M3 8.5l4 4 5-7 5 7 4-4-1.6 10.5H4.6z"/><path d="M4.6 19h14.8"/>',
+    '<path d="M14.5 4h8l3.5 10.5-8.5 4z" fill="__M__"/>' +
+    '<path d="M33.5 4h-8l-3.5 10.5 8.5 4z" fill="__D__"/>' +
+    '<circle cx="24" cy="29" r="12.5" fill="__A__"/>' +
+    '<path d="M24 22.6l2 4 4.4.6-3.2 3.1.8 4.4-4-2.1-4 2.1.8-4.4-3.2-3.1 4.4-.6z" fill="__W__"/>',
+  crown:
+    '<path d="M7 13.5l8.5 8L24 9.5l8.5 12 8.5-8L37.5 36h-27z" fill="__A__"/>' +
+    '<circle cx="24" cy="27" r="2.8" fill="__C__"/>' +
+    '<circle cx="15" cy="29.5" r="2" fill="__W__"/>' +
+    '<circle cx="33" cy="29.5" r="2" fill="__W__"/>',
   flame:
-    '<path d="M12 21c3.6 0 6.3-2.7 6.3-6.2 0-3-2-5-3.2-7.2-.4 1.4-1.3 2-2.3 2.6.2-2.8-1-5.4-3.4-7.2.4 3-1.7 4.6-3.2 6.6-1 1.4-1.6 3-1.6 5C6 18.3 8.6 21 12 21z"/><path d="M12 21c-2 0-3.4-1.5-3.4-3.4 0-1.7 1.2-2.7 2-4 .8 1.2 2 1.6 2.4 3 .5 1.7-1 4.4-1 4.4z"/>',
+    '<path d="M24 5c1.8 7 11 11.5 11 24.5a11 11 0 0 1-22 0c0-5.5 2-9.5 5-13.5.6 3.2 2.2 5 4.6 6.2C20.8 16 22.4 10 24 5z" fill="__C__"/>' +
+    '<path d="M24 25c3.2 4 4.8 7 4.8 10.5a4.8 4.8 0 0 1-9.6 0c0-3.5 1.6-6.5 4.8-10.5z" fill="__A__"/>',
 
   // ── 시즌 & 테마 ──
   cherry:
-    '<ellipse cx="12" cy="7" rx="2.2" ry="3.3"/><ellipse cx="12" cy="7" rx="2.2" ry="3.3" transform="rotate(72 12 12)"/><ellipse cx="12" cy="7" rx="2.2" ry="3.3" transform="rotate(144 12 12)"/><ellipse cx="12" cy="7" rx="2.2" ry="3.3" transform="rotate(216 12 12)"/><ellipse cx="12" cy="7" rx="2.2" ry="3.3" transform="rotate(288 12 12)"/><circle cx="12" cy="12" r="1.4"/>',
+    '<g fill="__C__">' +
+    '<ellipse cx="24" cy="13.5" rx="5" ry="7.5"/>' +
+    '<ellipse cx="24" cy="13.5" rx="5" ry="7.5" transform="rotate(72 24 24)"/>' +
+    '<ellipse cx="24" cy="13.5" rx="5" ry="7.5" transform="rotate(144 24 24)"/>' +
+    '<ellipse cx="24" cy="13.5" rx="5" ry="7.5" transform="rotate(216 24 24)"/>' +
+    '<ellipse cx="24" cy="13.5" rx="5" ry="7.5" transform="rotate(288 24 24)"/>' +
+    '</g>' +
+    '<circle cx="24" cy="24" r="4.5" fill="__A__"/>',
   sunset:
-    '<path d="M3 17h18"/><path d="M7.5 17a4.5 4.5 0 0 1 9 0"/><path d="M5 20h14"/><path d="M12 4v2M5 8l1.4 1.4M19 8l-1.4 1.4"/>',
+    '<path d="M24 6v5M9 12l3.5 3.5M39 12l-3.5 3.5" stroke="__A__" stroke-width="3.2" fill="none"/>' +
+    '<path d="M11.5 31a12.5 12.5 0 0 1 25 0z" fill="__A__"/>' +
+    '<rect x="5" y="31" width="38" height="4" rx="2" fill="__D__"/>' +
+    '<rect x="12" y="38.5" width="11" height="3.2" rx="1.6" fill="__M__"/>' +
+    '<rect x="26" y="38.5" width="8" height="3.2" rx="1.6" fill="__M__"/>',
   weather:
-    '<circle cx="17" cy="7" r="2.4"/><path d="M17 2.6v1.4M21.4 7H20M20.6 3.4l-1 1"/><path d="M7.5 19a4 4 0 0 1-.3-8 5 5 0 0 1 9.4 1.2A3.5 3.5 0 0 1 16.5 19z"/>',
+    '<path d="M33 2.5v3.2M44.5 14h-3.2M41.4 5.6l-2.3 2.3" stroke="__A__" stroke-width="2.8" fill="none"/>' +
+    '<circle cx="33" cy="14" r="7.5" fill="__A__"/>' +
+    '<path d="M14 41h17a7 7 0 0 0 1.8-13.8 10 10 0 0 0-19.4-1.7A7.5 7.5 0 0 0 14 41z" fill="__M__"/>',
   festival:
-    '<circle cx="12" cy="12" r="2.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/>',
+    '<path d="M24 5v7M24 36v7M5 24h7M36 24h7" stroke="__C__" stroke-width="3.2" fill="none"/>' +
+    '<path d="M10.6 10.6l5 5M32.4 32.4l5 5M37.4 10.6l-5 5M15.6 32.4l-5 5" stroke="__A__" stroke-width="3.2" fill="none"/>' +
+    '<circle cx="24" cy="24" r="5.5" fill="__M__"/>' +
+    '<circle cx="38" cy="7" r="2.2" fill="__M__"/>' +
+    '<circle cx="9" cy="39" r="2.2" fill="__M__"/>',
   crowd:
-    '<circle cx="8" cy="8" r="2.5"/><path d="M3.5 18v-1.5a4.5 4.5 0 0 1 9 0V18"/><circle cx="16" cy="8" r="2.5"/><path d="M14.2 11.3a4.5 4.5 0 0 1 6.3 4.2V18"/>',
+    '<circle cx="13" cy="17" r="5" fill="__D__"/>' +
+    '<path d="M4 35a9 9 0 0 1 18 0z" fill="__D__"/>' +
+    '<circle cx="35" cy="17" r="5" fill="__M__"/>' +
+    '<path d="M26 35a9 9 0 0 1 18 0z" fill="__M__"/>' +
+    '<circle cx="24" cy="21" r="6" fill="__A__"/>' +
+    '<path d="M12.5 43a11.5 11.5 0 0 1 23 0z" fill="__A__"/>',
   store:
-    '<path d="M4 10l1.5-4h13L20 10"/><path d="M4 10a2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0"/><path d="M5 11.5V20h14v-8.5"/><path d="M10 20v-5h4v5"/>',
+    '<rect x="8" y="20" width="32" height="22" rx="2.5" fill="__M__"/>' +
+    '<rect x="13" y="27" width="8.5" height="15" rx="1.5" fill="__W__"/>' +
+    '<rect x="25.5" y="27" width="9.5" height="8" rx="1.5" fill="__W__"/>' +
+    '<rect x="6" y="12" width="36" height="7" rx="2" fill="__C__"/>' +
+    '<path d="M6 19a3 3 0 0 0 6 0z" fill="__C__"/>' +
+    '<path d="M12 19a3 3 0 0 0 6 0z" fill="__W__"/>' +
+    '<path d="M18 19a3 3 0 0 0 6 0z" fill="__C__"/>' +
+    '<path d="M24 19a3 3 0 0 0 6 0z" fill="__W__"/>' +
+    '<path d="M30 19a3 3 0 0 0 6 0z" fill="__C__"/>' +
+    '<path d="M36 19a3 3 0 0 0 6 0z" fill="__W__"/>',
 };
 
-/** path 묶음 → 라인 아이콘 컴포넌트. (전체 <svg>를 주입해 브라우저 HTML 파서가 처리) */
+// 기본 팔레트 (badgeTheme.ICON_PALETTE 와 동일 — 순환 import 방지용 복제)
+const DEFAULT_PALETTE = {
+  M: '#2BA0DC',
+  D: '#1A6EA8',
+  A: '#FFB94E',
+  C: '#FF8A70',
+  W: '#FFFFFF',
+};
+
+/** 도형 묶음 → 플랫 아이콘 컴포넌트. 색 토큰을 palette 로 치환해 렌더. */
 function makeIcon(inner) {
-  return function Icon({ size = 24, color = '#2BA0DC', stroke = 1.8, style }) {
+  return function Icon({ size = 48, palette = DEFAULT_PALETTE, style }) {
+    const body = inner.replace(/__([MDACW])__/g, (_, k) => palette[k] || DEFAULT_PALETTE[k]);
     const html =
-      `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}"` +
-      ` stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+      `<svg width="${size}" height="${size}" viewBox="0 0 48 48" fill="none"` +
+      ' stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      body +
+      '</svg>';
     return (
       <span
         style={{ display: 'inline-flex', lineHeight: 0, ...style }}
