@@ -12,7 +12,7 @@ import { LJ } from './tokens';
  * @param {{ photos: string[], height?: number, onPhotoClick?: (i:number,e:any)=>void, alt?: string, priority?: boolean }} props
  *  priority=true면 첫 사진은 eager + fetchPriority=high (LCP 단축, 홈 첫 카드용).
  */
-export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '', priority = false }) {
+export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '', priority = false, radius = 14 }) {
   const [index, setIndex] = useState(0);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -100,7 +100,7 @@ export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '
         position: 'relative',
         width: '100%',
         height,
-        borderRadius: 14,
+        borderRadius: radius,
         overflow: 'hidden',
         background: LJ.bgSurface,
       }}

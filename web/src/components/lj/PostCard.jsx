@@ -13,10 +13,7 @@ import {
   LJ,
   categoryLabel,
   formatExifTime,
-  formatExifStamp,
   pickWeatherDisplay,
-  getFreshnessTier,
-  freshnessBadgeLabel,
 } from './tokens';
 import MoreMenuDropdown from './MoreMenuDropdown';
 import PhotoCarousel from './PhotoCarousel';
@@ -106,61 +103,8 @@ export function PostCard({
         color: LJ.textPrimary,
       }}
     >
-      {/* 사진 (더 크게 + 멀티 캐러셀) */}
-      <div style={{ position: 'relative' }}>
-        <PhotoCarousel
-          photos={photosList}
-          height={photoHeight}
-          alt={post.place_name}
-          priority={priority}
-          onPhotoClick={(i) => goPhoto(i)}
-        />
-        {/* 좌상단 EXIF 뱃지 (날씨는 위치명 옆에서만 노출) */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 10,
-            left: 10,
-            pointerEvents: 'none',
-          }}
-        >
-          <ExifBadge takenAt={post.exif_taken_at} />
-        </div>
-        {/* 우상단 카테고리 뱃지 */}
-        {(post.category_raw || post.category) && (
-          <div
-            style={{
-              position: 'absolute',
-              top: 10,
-              right: 10,
-              padding: '4px 9px',
-              background: '#fff',
-              borderRadius: 6,
-              fontSize: 11,
-              fontWeight: 600,
-              color: LJ.textPrimary,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-              pointerEvents: 'none',
-            }}
-          >
-            {post.category_raw || categoryLabel(post.category)}
-          </div>
-        )}
-        {/* 우하단 EXIF 촬영시각 — 가볍게 반투명 */}
-        <div
-          style={{
-            position: 'absolute',
-            right: 10,
-            bottom: 10,
-            pointerEvents: 'none',
-          }}
-        >
-          <ExifStampOverlay takenAt={post.exif_taken_at} />
-        </div>
-      </div>
-
-      {/* 작성자 행: 아바타 | 이름(N) | 지금 현장 — 카드 상단으로 이동 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 8px' }}>
+      {/* 작성자 행: 아바타 | 이름(N) | 카테고리 — 사진 위로 이동 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 0 10px' }}>
         <Avatar nickname={author.nickname} avatarUrl={author.avatar_url} size={28} onClick={goAuthor} />
         <div
           style={{
@@ -193,7 +137,44 @@ export function PostCard({
             <span style={{ fontSize: 12, color: LJ.textTertiary }}>({author.post_count})</span>
           )}
         </div>
-        <PowerBadge createdAt={post.created_at} isOnSite={post.is_on_site} />
+        {(post.category_raw || post.category) && (
+          <span
+            style={{
+              padding: '3px 9px',
+              background: LJ.bgSurface,
+              borderRadius: 6,
+              fontSize: 11,
+              fontWeight: 600,
+              color: LJ.textSecondary,
+              flexShrink: 0,
+            }}
+          >
+            {post.category_raw || categoryLabel(post.category)}
+          </span>
+        )}
+      </div>
+
+      {/* 사진 (더 크게 + 멀티 캐러셀) */}
+      <div style={{ position: 'relative' }}>
+        <PhotoCarousel
+          photos={photosList}
+          height={photoHeight}
+          alt={post.place_name}
+          priority={priority}
+          radius={4}
+          onPhotoClick={(i) => goPhoto(i)}
+        />
+        {/* 좌상단 EXIF 뱃지 (날씨는 위치명 옆에서만 노출) */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 10,
+            left: 10,
+            pointerEvents: 'none',
+          }}
+        >
+          <ExifBadge takenAt={post.exif_taken_at} />
+        </div>
       </div>
 
       {/* 위치명 (좌) + 기온 (우) */}
@@ -204,7 +185,7 @@ export function PostCard({
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 8,
-            margin: '0 0 6px',
+            margin: '12px 0 6px',
           }}
         >
           {post.place_name ? (
@@ -479,26 +460,6 @@ function ExifBadge({ takenAt }) {
   );
 }
 
-function ExifStampOverlay({ takenAt }) {
-  const stamp = formatExifStamp(takenAt);
-  if (!stamp) return null;
-  return (
-    <span
-      style={{
-        color: 'rgba(255,255,255,0.7)',
-        fontSize: 10,
-        fontWeight: 500,
-        fontVariantNumeric: 'tabular-nums',
-        letterSpacing: 0.1,
-        textShadow: '0 1px 3px rgba(0,0,0,0.55)',
-        lineHeight: 1,
-      }}
-    >
-      {stamp}
-    </span>
-  );
-}
-
 function WeatherInlineChip({ weather }) {
   const display = pickWeatherDisplay(weather);
   if (!display) return null;
@@ -531,103 +492,6 @@ function WeatherInlineChip({ weather }) {
       {display.condition && (
         <span style={{ color: LJ.textSecondary, fontWeight: 500 }}>{display.condition}</span>
       )}
-    </span>
-  );
-}
-
-/**
- * 노출 파워 등급 뱃지 — 업로드 시각 기준 시간대별 신선도를 표시.
- *  - live  (0~8h)  : 강렬한 스카이블루 'LIVE' 배지 + 반짝이는 도트 (초신선)
- *  - today (8~24h) : 투명한 'N시간 전' 시간 배지 (오늘의 현장)
- *  - ref   (24~48h): 톤다운된 '어제 상황' 참고 배지
- * 48h 초과(null)는 피드에서 미노출되므로 표시할 일이 없다.
- */
-function PowerBadge({ createdAt, isOnSite }) {
-  const tier = getFreshnessTier(createdAt);
-  if (!tier) return null;
-  const label = freshnessBadgeLabel(createdAt, tier);
-
-  // LIVE — 초신선: 채워진 스카이블루 + 흰색 반짝 도트
-  if (tier === 'live') {
-    return (
-      <span
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 5,
-          padding: '3px 9px',
-          background: LJ.key,
-          borderRadius: 6,
-          fontSize: 11,
-          fontWeight: 800,
-          letterSpacing: 0.4,
-          color: '#fff',
-          flexShrink: 0,
-        }}
-      >
-        <span
-          className="lj-live-dot"
-          style={{
-            width: 5,
-            height: 5,
-            background: '#fff',
-            borderRadius: '50%',
-            display: 'inline-block',
-          }}
-        />
-        {isOnSite ? '지금 LIVE' : label}
-      </span>
-    );
-  }
-
-  // 오늘의 현장 — 투명 배경의 직관적 시간 배지
-  if (tier === 'today') {
-    return (
-      <span
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 4,
-          padding: '3px 8px',
-          background: 'transparent',
-          border: `1px solid ${LJ.borderLight}`,
-          borderRadius: 6,
-          fontSize: 11,
-          fontWeight: 600,
-          color: LJ.textSecondary,
-          flexShrink: 0,
-        }}
-      >
-        <span
-          style={{
-            width: 5,
-            height: 5,
-            background: LJ.key,
-            borderRadius: '50%',
-            display: 'inline-block',
-          }}
-        />
-        {label}
-      </span>
-    );
-  }
-
-  // 어제의 참고 — 톤다운된 회색 배지
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        padding: '3px 8px',
-        background: LJ.bgSurface,
-        borderRadius: 6,
-        fontSize: 11,
-        fontWeight: 600,
-        color: LJ.textTertiary,
-        flexShrink: 0,
-      }}
-    >
-      {label}
     </span>
   );
 }
