@@ -15,7 +15,6 @@ import {
   categoryLabel,
   formatExifTime,
   formatExifStamp,
-  formatRemaining,
   pickWeatherDisplay,
 } from '../components/lj/tokens';
 import MoreMenuDropdown from '../components/lj/MoreMenuDropdown';
@@ -38,7 +37,8 @@ function PostDetailScreen() {
   const { id: postId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { post, comments, loading, addCommentLocal } = usePostDetail(postId);
+  const { post, comments, loading, addCommentLocal, updateCommentLocal, removeCommentLocal } =
+    usePostDetail(postId);
   const postArr = useMemo(() => (post ? [post] : []), [post]);
   const { state, toggleLike, toggleSave } = useReactions(postArr);
 
@@ -137,6 +137,37 @@ function PostDetailScreen() {
       });
     } catch (_) {
       // 실패해도 UI 유지 (개발 편의)
+    }
+  };
+
+  const handleEditComment = async (comment, nextBody) => {
+    const body = (nextBody || '').trim();
+    if (!body || body === comment.body) return;
+    updateCommentLocal(comment.id, body); // 낙관적
+    if (!user) return;
+    try {
+      await supabase
+        .from('post_comments')
+        .update({ content: body })
+        .eq('id', comment.id)
+        .eq('user_id', user.id);
+    } catch (_) {
+      // 실패해도 UI 유지
+    }
+  };
+
+  const handleDeleteComment = async (comment) => {
+    if (!window.confirm('이 댓글을 삭제할까요?')) return;
+    removeCommentLocal(comment.id); // 낙관적
+    if (!user) return;
+    try {
+      await supabase
+        .from('post_comments')
+        .delete()
+        .eq('id', comment.id)
+        .eq('user_id', user.id);
+    } catch (_) {
+      // 실패해도 UI 유지
     }
   };
 
@@ -382,11 +413,6 @@ function PostDetailScreen() {
               >
                 {author.nickname || '작성자'}
               </button>
-              {post.is_on_site && <OnSiteBadge />}
-              <span style={{ fontSize: 11, color: LJ.textTertiary }}>·</span>
-              <span style={{ fontSize: 11, color: LJ.textSecondary }}>
-                {formatRemaining(post.expires_at)}
-              </span>
             </div>
           </div>
           <FollowButton following={following} onClick={() => setFollowing((v) => !v)} />
@@ -435,7 +461,10 @@ function PostDetailScreen() {
         <CommentList
           comments={comments}
           postAuthorId={author.id || post.author_id}
+          currentUserId={user?.id}
           onReply={setReplyingTo}
+          onEditComment={handleEditComment}
+          onDeleteComment={handleDeleteComment}
         />
       </section>
 
@@ -568,48 +597,21 @@ function DetailReactionBtn({ active, iconOff, iconOn, count, onClick, ariaLabel 
   );
 }
 
-function OnSiteBadge() {
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 4,
-        padding: '3px 8px',
-        background: LJ.keyBgLight,
-        borderRadius: 6,
-        fontSize: 11,
-        fontWeight: 600,
-        color: LJ.keyTextDark,
-      }}
-    >
-      <span
-        style={{
-          width: 5,
-          height: 5,
-          background: LJ.key,
-          borderRadius: '50%',
-        }}
-      />
-      지금 현장
-    </span>
-  );
-}
-
 function FollowButton({ following, onClick }) {
   return (
     <button
       type="button"
       onClick={onClick}
       style={{
-        padding: '6px 14px',
-        borderRadius: 8,
+        padding: '3px 9px',
+        borderRadius: 6,
         border: following ? `1px solid ${LJ.borderLight}` : 'none',
         background: following ? '#fff' : LJ.key,
         color: following ? LJ.textSecondary : '#fff',
         fontFamily: LJ.fontStack,
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: 600,
+        lineHeight: 1.2,
         cursor: 'pointer',
         flexShrink: 0,
       }}

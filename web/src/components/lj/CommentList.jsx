@@ -7,7 +7,14 @@ import { LJ } from './tokens';
  * - root 댓글 + replies[]
  * - 좋아요는 로컬 상태로 시각만 토글 (백엔드 별도 필요시 확장)
  */
-export function CommentList({ comments = [], postAuthorId, onReply }) {
+export function CommentList({
+  comments = [],
+  postAuthorId,
+  currentUserId,
+  onReply,
+  onEditComment,
+  onDeleteComment,
+}) {
   const [likedMap, setLikedMap] = useState({});
   const toggleLike = (comment) => {
     setLikedMap((prev) => ({ ...prev, [comment.id]: !prev[comment.id] }));
@@ -38,8 +45,11 @@ export function CommentList({ comments = [], postAuthorId, onReply }) {
           <CommentItem
             comment={root}
             postAuthorId={postAuthorId}
+            currentUserId={currentUserId}
             onReply={onReply}
             onToggleLike={toggleLike}
+            onEdit={onEditComment}
+            onDelete={onDeleteComment}
             liked={!!likedMap[root.id]}
           />
           {(root.replies || []).map((reply) => (
@@ -48,8 +58,11 @@ export function CommentList({ comments = [], postAuthorId, onReply }) {
               comment={reply}
               isReply
               postAuthorId={postAuthorId}
+              currentUserId={currentUserId}
               onReply={onReply}
               onToggleLike={toggleLike}
+              onEdit={onEditComment}
+              onDelete={onDeleteComment}
               liked={!!likedMap[reply.id]}
             />
           ))}

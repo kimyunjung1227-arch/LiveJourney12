@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   IconArrowLeft,
@@ -11,10 +11,13 @@ import {
   IconHeart,
   IconHeartFilled,
   IconCamera,
+  IconEdit,
+  IconTrash,
 } from '@tabler/icons-react';
 import { supabase } from '../utils/supabaseClient';
 import { getDisplayImageUrl } from '../api/upload';
 import { logger } from '../utils/logger';
+import { useAuth } from '../contexts/AuthContext';
 
 // ────────────────────────────────────────────────
 // 디자인 토큰
@@ -121,13 +124,13 @@ function useQuestionDetail(questionId) {
     fetchData();
   }, [questionId, fetchData]);
 
-  return { data, loading, toggleHelpful, setBest };
+  return { data, loading, toggleHelpful, setBest, refresh: fetchData };
 }
 
 // ────────────────────────────────────────────────
 // 컴포넌트
 // ────────────────────────────────────────────────
-function QuestionBody({ question }) {
+function QuestionBody({ question, editing, draft, onDraftChange, onSave, onCancel }) {
   const initial = String(question?.author?.name || '?').trim().charAt(0).toUpperCase() || '·';
   const catLabel = CATEGORY_LABEL[question?.category];
   return (
@@ -192,18 +195,173 @@ function QuestionBody({ question }) {
         </div>
       </div>
 
-      <p
-        className="m-0"
+      {editing ? (
+        <div style={{ marginBottom: 16 }}>
+          <textarea
+            value={draft}
+            onChange={(e) => onDraftChange(e.target.value)}
+            rows={3}
+            autoFocus
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              resize: 'vertical',
+              border: `1px solid ${BORDER_LIGHT}`,
+              borderRadius: 10,
+              padding: '10px 12px',
+              fontSize: 15,
+              lineHeight: 1.6,
+              color: TEXT_PRIMARY,
+              outline: 'none',
+            }}
+          />
+          <div className="flex items-center gap-2" style={{ marginTop: 8 }}>
+            <button
+              type="button"
+              onClick={onSave}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 8,
+                border: 'none',
+                background: KEY,
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              저장
+            </button>
+            <button
+              type="button"
+              onClick={onCancel}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 8,
+                border: `1px solid ${BORDER_LIGHT}`,
+                background: '#fff',
+                color: TEXT_SECONDARY,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p
+          className="m-0"
+          style={{
+            fontSize: 16,
+            fontWeight: 500,
+            lineHeight: 1.6,
+            color: TEXT_PRIMARY,
+            marginBottom: 16,
+          }}
+        >
+          {question?.body}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function QuestionMenu({ onEdit, onDelete }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const pick = (fn) => {
+    setOpen(false);
+    fn?.();
+  };
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label="더보기"
         style={{
-          fontSize: 16,
-          fontWeight: 500,
-          lineHeight: 1.6,
-          color: TEXT_PRIMARY,
-          marginBottom: 16,
+          background: 'transparent',
+          border: 'none',
+          padding: 0,
+          cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
         }}
       >
-        {question?.body}
-      </p>
+        <IconDots size={20} color={TEXT_SECONDARY} />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          style={{
+            position: 'absolute',
+            top: '100%',
+            right: 0,
+            marginTop: 6,
+            minWidth: 120,
+            background: '#fff',
+            border: `1px solid ${BORDER_LIGHT}`,
+            borderRadius: 10,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
+            padding: 6,
+            zIndex: 20,
+          }}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => pick(onEdit)}
+            className="w-full flex items-center gap-2"
+            style={{
+              padding: '8px 10px',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 6,
+              color: TEXT_PRIMARY,
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+          >
+            <IconEdit size={15} stroke={1.8} />
+            수정
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => pick(onDelete)}
+            className="w-full flex items-center gap-2"
+            style={{
+              padding: '8px 10px',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 6,
+              color: '#D85050',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+          >
+            <IconTrash size={15} stroke={1.8} />
+            삭제
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -613,7 +771,54 @@ function AnswerButton({ onAnswer }) {
 const QuestionDetailScreen = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data, loading, toggleHelpful, setBest } = useQuestionDetail(id);
+  const { user } = useAuth();
+  const { data, loading, toggleHelpful, setBest, refresh } = useQuestionDetail(id);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const isMine = !!data?.question?.is_my_question;
+
+  const startEdit = () => {
+    setDraft(data?.question?.body || '');
+    setEditing(true);
+  };
+
+  const saveEdit = async () => {
+    const body = draft.trim();
+    if (!body || body === data?.question?.body) {
+      setEditing(false);
+      return;
+    }
+    try {
+      const { error } = await supabase
+        .from('questions')
+        .update({ body })
+        .eq('id', id)
+        .eq('user_id', user?.id);
+      if (error) throw error;
+      setEditing(false);
+      refresh();
+    } catch (e) {
+      logger.warn('질문 수정 실패', e?.message || e);
+      alert('질문 수정에 실패했어요. 다시 시도해주세요.');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('이 질문을 삭제할까요? 되돌릴 수 없어요.')) return;
+    try {
+      const { error } = await supabase
+        .from('questions')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user?.id);
+      if (error) throw error;
+      navigate(-1);
+    } catch (e) {
+      logger.warn('질문 삭제 실패', e?.message || e);
+      alert('질문 삭제에 실패했어요. 다시 시도해주세요.');
+    }
+  };
 
   if (loading) {
     return (
@@ -674,12 +879,23 @@ const QuestionDetailScreen = () => {
           </button>
           <span style={{ fontSize: 16, fontWeight: 600, color: TEXT_PRIMARY }}>질문</span>
         </div>
-        <IconDots size={20} color={TEXT_SECONDARY} />
+        {isMine ? (
+          <QuestionMenu onEdit={startEdit} onDelete={handleDelete} />
+        ) : (
+          <span style={{ width: 20 }} />
+        )}
       </div>
 
       {/* 본문 */}
       <div className="flex-1 p-[18px]" style={{ overflowY: 'auto' }}>
-        <QuestionBody question={question} />
+        <QuestionBody
+          question={question}
+          editing={editing}
+          draft={draft}
+          onDraftChange={setDraft}
+          onSave={saveEdit}
+          onCancel={() => setEditing(false)}
+        />
         <AutoMatchNotice placeName={placeName} hasAnswers={hasAnswers} />
 
         {hasAnswers ? (
