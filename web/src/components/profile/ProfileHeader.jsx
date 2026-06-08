@@ -25,18 +25,18 @@ export default function ProfileHeader({ user, isMe = false, trailingSlot = null 
   const isArtist = !!user.is_best_cut_artist;
 
   return (
-    <div style={{ padding: '20px 18px 14px' }}>
-      <div className="flex items-start gap-4">
+    <div style={{ padding: '14px 18px 10px' }}>
+      <div className="flex items-start gap-3">
         {/* 아바타 + 왕관 인디케이터 */}
-        <div className="relative flex-shrink-0" style={{ width: 72, height: 72 }}>
+        <div className="relative flex-shrink-0" style={{ width: 52, height: 52 }}>
           <div
             className="flex items-center justify-center rounded-full overflow-hidden"
             style={{
-              width: 72,
-              height: 72,
+              width: 52,
+              height: 52,
               background: user.avatar_color || KEY,
               color: 'white',
-              fontSize: 26,
+              fontSize: 19,
               fontWeight: 700,
             }}
           >
@@ -61,21 +61,21 @@ export default function ProfileHeader({ user, isMe = false, trailingSlot = null 
               style={{
                 right: -2,
                 bottom: -2,
-                width: 26,
-                height: 26,
+                width: 20,
+                height: 20,
                 borderRadius: 999,
                 background: GRADIENT,
-                border: '2.5px solid white',
+                border: '2px solid white',
               }}
             >
-              <IconCrown size={13} color="white" stroke={2.2} />
+              <IconCrown size={11} color="white" stroke={2.2} />
             </div>
           )}
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap" style={{ marginBottom: 6 }}>
-            <h2 className="m-0" style={{ fontSize: 19, fontWeight: 700, color: TEXT_PRIMARY, letterSpacing: -0.3 }}>
+          <div className="flex items-center gap-2 flex-wrap" style={{ marginBottom: 4 }}>
+            <h2 className="m-0" style={{ fontSize: 16, fontWeight: 700, color: TEXT_PRIMARY, letterSpacing: -0.3 }}>
               {user.name}
             </h2>
             {isArtist && (
@@ -101,8 +101,8 @@ export default function ProfileHeader({ user, isMe = false, trailingSlot = null 
                 className="flex items-center justify-center flex-shrink-0"
                 style={{
                   marginLeft: 'auto',
-                  width: 28,
-                  height: 28,
+                  width: 26,
+                  height: 26,
                   borderRadius: 999,
                   background: 'transparent',
                   border: 'none',
@@ -110,7 +110,7 @@ export default function ProfileHeader({ user, isMe = false, trailingSlot = null 
                   padding: 0,
                 }}
               >
-                <IconPencil size={16} color={TEXT_SECONDARY} stroke={1.8} />
+                <IconPencil size={15} color={TEXT_SECONDARY} stroke={1.8} />
               </button>
             ) : trailingSlot ? (
               <div style={{ marginLeft: 'auto' }}>{trailingSlot}</div>
@@ -121,12 +121,12 @@ export default function ProfileHeader({ user, isMe = false, trailingSlot = null 
             <p
               className="m-0"
               style={{
-                fontSize: 13,
-                lineHeight: 1.6,
+                fontSize: 12.5,
+                lineHeight: 1.5,
                 color: TEXT_PRIMARY,
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
-                marginBottom: 10,
+                marginBottom: 8,
               }}
             >
               {user.bio}
@@ -137,7 +137,7 @@ export default function ProfileHeader({ user, isMe = false, trailingSlot = null 
               style={{
                 fontSize: 12,
                 color: TEXT_SECONDARY,
-                marginBottom: 10,
+                marginBottom: 8,
               }}
             >
               지금, 당신의 여행을 실시간으로
@@ -145,7 +145,7 @@ export default function ProfileHeader({ user, isMe = false, trailingSlot = null 
           )}
 
           {/* 게시물/팔로워/팔로잉 — 정보 컬럼 안쪽(아바타 우측)에 배치 */}
-          <div className="flex items-baseline" style={{ gap: 16 }}>
+          <div className="flex items-baseline" style={{ gap: 14 }}>
             <InlineStat value={user.photo_count || 0} label="게시물" />
             <InlineStat
               value={user.follower_count || 0}
@@ -185,7 +185,7 @@ function InlineStat({ value, label, onClick }) {
         cursor: interactive ? 'pointer' : 'default',
       }}
     >
-      <span style={{ fontSize: 14, fontWeight: 700, color: TEXT_PRIMARY }}>{value}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: TEXT_PRIMARY }}>{value}</span>
       <span style={{ fontSize: 11, color: TEXT_SECONDARY }}>{label}</span>
     </Tag>
   );
