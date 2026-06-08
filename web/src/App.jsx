@@ -173,6 +173,7 @@ const AdminPublishedMagazinesScreen = lazyWithRecover(() => import('./pages/Admi
 const AdminRafflesScreen = lazyWithRecover(() => import('./pages/AdminRafflesScreen'))
 const AdminRaffleDetailScreen = lazyWithRecover(() => import('./pages/AdminRaffleDetailScreen'))
 const AdminBadgesScreen = lazyWithRecover(() => import('./pages/AdminBadgesScreen'))
+const ScreenShowcaseScreen = lazyWithRecover(() => import('./pages/ScreenShowcaseScreen'))
 
 function App() {
   // StatusBar 초기화 (앱 시작 시 한 번만)
@@ -197,6 +198,7 @@ function App() {
               <Routes>
                 {/* HomeScreen이 진입점 (스펙: / → HomeScreen) */}
                 <Route path="/" element={<MainScreen />} />
+                <Route path="/showcase" element={<ScreenShowcaseScreen />} />
                 <Route path="/welcome" element={<WelcomeScreen />} />
                 <Route path="/onboarding" element={<OnboardingScreen />} />
                 <Route path="/start" element={<StartScreen />} />
