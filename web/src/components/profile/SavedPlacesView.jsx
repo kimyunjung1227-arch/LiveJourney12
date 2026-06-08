@@ -36,7 +36,9 @@ export default function SavedPlacesView({ userId }) {
           lineHeight: 1.7,
         }}
       >
-        <IconBookmarkFilled size={28} color={BORDER_LIGHT} />
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <IconBookmarkFilled size={28} color={BORDER_LIGHT} />
+        </div>
         <p style={{ marginTop: 12, fontWeight: 600, color: TEXT_PRIMARY }}>저장한 장소가 없어요</p>
         <p style={{ marginTop: 4 }}>
           장소 페이지의 북마크 버튼을 누르면

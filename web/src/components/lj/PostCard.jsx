@@ -41,7 +41,6 @@ export function PostCard({
   const liked = !!reactionState?.liked;
   const saved = !!reactionState?.saved;
   const likeCount = reactionState?.likeCount ?? post.like_count ?? 0;
-  const saveCount = reactionState?.saveCount ?? post.save_count ?? 0;
   const commentCount = post.comment_count ?? 0;
 
   // 좋아요 클릭마다 펄스 재생 (key 증분으로 애니메이션 재시작)
@@ -84,10 +83,6 @@ export function PostCard({
   const goAuthor = (e) => {
     e.stopPropagation();
     navigate(`/user/${author.id || post.author_id}`);
-  };
-  const goPlace = (e) => {
-    e.stopPropagation();
-    if (post.place_id) navigate(`/place/${post.place_id}`);
   };
   const goPostDetail = (e) => {
     e.stopPropagation();
@@ -191,12 +186,12 @@ export function PostCard({
           {post.place_name ? (
             <button
               type="button"
-              onClick={goPlace}
+              onClick={goPostDetail}
               style={{
                 background: 'transparent',
                 border: 'none',
                 padding: 0,
-                cursor: post.place_id ? 'pointer' : 'default',
+                cursor: 'pointer',
                 fontFamily: LJ.fontStack,
                 fontSize: 17,
                 fontWeight: 700,
@@ -265,7 +260,7 @@ export function PostCard({
             active={saved}
             iconOff={<IconBookmarks size={19} stroke={1.8} />}
             iconOn={<IconBookmarksFilled size={19} />}
-            count={saveCount}
+            count={null}
             onClick={(e) => {
               e.stopPropagation();
               onToggleSave?.(post.id);
@@ -422,7 +417,7 @@ function ReactionButton({ active, iconOff, iconOn, count, onClick, ariaLabel }) 
       }}
     >
       {active ? iconOn : iconOff}
-      <span style={{ minWidth: 12 }}>{count}</span>
+      {count != null && <span style={{ minWidth: 12 }}>{count}</span>}
     </button>
   );
 }
