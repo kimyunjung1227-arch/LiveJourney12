@@ -1,11 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  IconArrowLeft,
-  IconDots,
-  IconUserPlus,
-  IconUserCheck,
-} from '@tabler/icons-react';
+import { IconArrowLeft, IconDots } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import { useFollow } from '../hooks/useFollow';
@@ -206,7 +201,7 @@ function FollowChip({ isFollowing, pending, canFollow, onClick }) {
       aria-label={isFollowing ? '팔로잉' : '팔로우'}
       className="flex items-center justify-center gap-1"
       style={{
-        padding: '3px 9px',
+        padding: '2px 8px',
         borderRadius: 6,
         fontSize: 11,
         fontWeight: 600,
@@ -218,17 +213,7 @@ function FollowChip({ isFollowing, pending, canFollow, onClick }) {
         flexShrink: 0,
       }}
     >
-      {isFollowing ? (
-        <>
-          <IconUserCheck size={13} stroke={2.2} />
-          팔로잉
-        </>
-      ) : (
-        <>
-          <IconUserPlus size={13} stroke={2.2} />
-          팔로우
-        </>
-      )}
+      {isFollowing ? '팔로잉' : '팔로우'}
     </button>
   );
 }

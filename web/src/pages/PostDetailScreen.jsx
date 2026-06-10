@@ -528,7 +528,7 @@ function FollowButton({ following, onClick }) {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '3px 9px',
+        padding: '2px 8px',
         borderRadius: 6,
         border: following ? `1px solid ${LJ.borderLight}` : 'none',
         background: following ? '#fff' : LJ.key,

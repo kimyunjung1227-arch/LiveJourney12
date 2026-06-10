@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { IconArrowLeft, IconUserPlus, IconUserCheck } from '@tabler/icons-react';
+import { IconArrowLeft } from '@tabler/icons-react';
 import { supabase } from '../utils/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useFollow } from '../hooks/useFollow';
@@ -259,7 +259,7 @@ function FollowRow({ user, onChange }) {
           disabled={pending}
           className="flex items-center justify-center gap-1"
           style={{
-            padding: '3px 9px',
+            padding: '2px 8px',
             borderRadius: 6,
             fontSize: 11,
             fontWeight: 600,
@@ -270,17 +270,7 @@ function FollowRow({ user, onChange }) {
             flexShrink: 0,
           }}
         >
-          {isFollowing ? (
-            <>
-              <IconUserCheck size={13} stroke={2} />
-              팔로잉
-            </>
-          ) : (
-            <>
-              <IconUserPlus size={13} stroke={2} />
-              팔로우
-            </>
-          )}
+          {isFollowing ? '팔로잉' : '팔로우'}
         </button>
       )}
     </div>
