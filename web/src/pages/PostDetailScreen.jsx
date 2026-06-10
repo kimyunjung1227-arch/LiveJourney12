@@ -525,7 +525,10 @@ function FollowButton({ following, onClick }) {
       type="button"
       onClick={onClick}
       style={{
-        padding: '1px 9px',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '3px 8px',
         borderRadius: 6,
         border: following ? `1px solid ${LJ.borderLight}` : 'none',
         background: following ? '#fff' : LJ.key,
@@ -533,7 +536,7 @@ function FollowButton({ following, onClick }) {
         fontFamily: LJ.fontStack,
         fontSize: 11,
         fontWeight: 600,
-        lineHeight: 1.2,
+        lineHeight: 1,
         cursor: 'pointer',
         flexShrink: 0,
       }}
