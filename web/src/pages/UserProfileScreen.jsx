@@ -206,9 +206,9 @@ function FollowChip({ isFollowing, pending, canFollow, onClick }) {
       aria-label={isFollowing ? '팔로잉' : '팔로우'}
       className="flex items-center justify-center gap-1"
       style={{
-        height: 28,
+        height: 32,
         padding: '0 12px',
-        borderRadius: 999,
+        borderRadius: 8,
         fontSize: 12,
         fontWeight: 700,
         cursor: disabled ? 'not-allowed' : 'pointer',
