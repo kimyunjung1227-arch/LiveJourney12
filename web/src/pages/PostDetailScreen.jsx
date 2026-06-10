@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   IconArrowLeft,
-  IconShieldCheck,
   IconMapPin,
   IconHeart,
   IconHeartFilled,
@@ -13,8 +12,6 @@ import {
 import {
   LJ,
   categoryLabel,
-  formatExifTime,
-  formatExifStamp,
   pickWeatherDisplay,
 } from '../components/lj/tokens';
 import MoreMenuDropdown from '../components/lj/MoreMenuDropdown';
@@ -273,28 +270,6 @@ function PostDetailScreen() {
               })
             }
           />
-          {/* 좌상단 EXIF 뱃지 — "N시간 전"만 또렷이 */}
-          <div
-            style={{
-              position: 'absolute',
-              top: 10,
-              left: 10,
-              pointerEvents: 'none',
-            }}
-          >
-            <DetailExifBadge takenAt={post.exif_taken_at} />
-          </div>
-          {/* 우하단 EXIF 촬영시각 — 가볍게 반투명 */}
-          <div
-            style={{
-              position: 'absolute',
-              right: 10,
-              bottom: 10,
-              pointerEvents: 'none',
-            }}
-          >
-            <DetailExifStampOverlay takenAt={post.exif_taken_at} />
-          </div>
         </div>
 
         {/* 위치명 (좌) + 기온 (우) */}
@@ -482,59 +457,6 @@ function PostDetailScreen() {
   );
 }
 
-function DetailExifBadge({ takenAt }) {
-  const relative = formatExifTime(takenAt);
-  if (!relative) return null;
-  return (
-    <div
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '7px 12px',
-        background: 'rgba(0,0,0,0.78)',
-        borderRadius: 999,
-        backdropFilter: 'blur(8px)',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
-      }}
-    >
-      <IconShieldCheck size={15} stroke={2.2} color={LJ.key} />
-      <span
-        style={{
-          color: '#fff',
-          fontSize: 13,
-          fontWeight: 800,
-          letterSpacing: 0.2,
-          fontVariantNumeric: 'tabular-nums',
-          lineHeight: 1,
-        }}
-      >
-        {relative}
-      </span>
-    </div>
-  );
-}
-
-function DetailExifStampOverlay({ takenAt }) {
-  const stamp = formatExifStamp(takenAt);
-  if (!stamp) return null;
-  return (
-    <span
-      style={{
-        color: 'rgba(255,255,255,0.7)',
-        fontSize: 10,
-        fontWeight: 500,
-        fontVariantNumeric: 'tabular-nums',
-        letterSpacing: 0.1,
-        textShadow: '0 1px 3px rgba(0,0,0,0.55)',
-        lineHeight: 1,
-      }}
-    >
-      {stamp}
-    </span>
-  );
-}
-
 function DetailWeatherInlineChip({ weather }) {
   const display = pickWeatherDisplay(weather);
   if (!display) return null;
@@ -603,7 +525,7 @@ function FollowButton({ following, onClick }) {
       type="button"
       onClick={onClick}
       style={{
-        padding: '3px 9px',
+        padding: '1px 9px',
         borderRadius: 6,
         border: following ? `1px solid ${LJ.borderLight}` : 'none',
         background: following ? '#fff' : LJ.key,
