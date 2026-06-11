@@ -20,29 +20,16 @@ const emptyForm = {
 };
 
 const newBlock = (type) => {
-  switch (type) {
-    case 'text':
-      return { _key: Math.random().toString(36).slice(2), type: 'text', body: '' };
-    case 'place':
-      return {
-        _key: Math.random().toString(36).slice(2),
-        type: 'place',
-        name: '',
-        address: '',
-        image_url: '',
-        description: '',
-        tip: '',
-      };
-    case 'image':
-      return {
-        _key: Math.random().toString(36).slice(2),
-        type: 'image',
-        image_url: '',
-        caption: '',
-      };
-    default:
-      return null;
-  }
+  if (type !== 'place') return null;
+  return {
+    _key: Math.random().toString(36).slice(2),
+    type: 'place',
+    name: '',
+    address: '',
+    image_url: '',
+    description: '',
+    nearby: [],
+  };
 };
 
 const withKeys = (blocks) =>
@@ -78,7 +65,8 @@ export default function AdminCuratedMagazineEditorScreen() {
           region: data.region || '',
           cover_image_url: data.cover_image_url || '',
           intro_body: data.intro_body || '',
-          blocks: withKeys(data.blocks),
+          // 장소 전용 구조 — place 블록만 유지
+          blocks: withKeys((Array.isArray(data.blocks) ? data.blocks : []).filter((b) => b?.type === 'place')),
           status: data.status || 'draft',
         });
       }
@@ -123,20 +111,17 @@ export default function AdminCuratedMagazineEditorScreen() {
       window.alert('붙여넣은 내용에서 정보를 찾지 못했어요.');
       return;
     }
+    const parsedPlaces = (Array.isArray(parsed.blocks) ? parsed.blocks : []).filter((b) => b?.type === 'place');
     setForm((s) => {
       const next = { ...s };
       if (mode === 'replace') {
         if (parsed.title) next.title = parsed.title;
         if (parsed.subtitle) next.subtitle = parsed.subtitle;
-        if (parsed.region) next.region = parsed.region;
-        if (parsed.intro_body) next.intro_body = parsed.intro_body;
-        next.blocks = withKeys(parsed.blocks);
+        next.blocks = withKeys(parsedPlaces);
       } else {
         if (!s.title && parsed.title) next.title = parsed.title;
         if (!s.subtitle && parsed.subtitle) next.subtitle = parsed.subtitle;
-        if (!s.region && parsed.region) next.region = parsed.region;
-        if (!s.intro_body && parsed.intro_body) next.intro_body = parsed.intro_body;
-        next.blocks = [...s.blocks, ...withKeys(parsed.blocks)];
+        next.blocks = [...s.blocks, ...withKeys(parsedPlaces)];
       }
       return next;
     });
@@ -248,7 +233,7 @@ export default function AdminCuratedMagazineEditorScreen() {
               className="w-full h-11 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-[15px]"
             />
           </Field>
-          <Field label="부제 (한 줄 요약)">
+          <Field label="부제목 (한 줄 요약)">
             <input
               type="text"
               value={form.subtitle}
@@ -257,37 +242,26 @@ export default function AdminCuratedMagazineEditorScreen() {
               className="w-full h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
             />
           </Field>
-          <Field label="대표 지역 (선택)">
-            <input
-              type="text"
-              value={form.region}
-              onChange={(e) => setField('region', e.target.value)}
-              placeholder="제주 / 서울 / 강릉 ..."
-              className="w-full h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
-            />
-          </Field>
-          <Field label="인트로 (커버 아래 첫 문단)">
-            <textarea
-              value={form.intro_body}
-              onChange={(e) => setField('intro_body', e.target.value)}
-              rows={4}
-              placeholder="이 매거진을 한 줄로 소개해 보세요"
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
-            />
-          </Field>
         </section>
 
         <section>
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-bold text-gray-800 dark:text-white">본문 블록</h2>
-            <span className="text-[11px] text-gray-500">{form.blocks.length} 개</span>
+            <h2 className="text-sm font-bold text-gray-800 dark:text-white">장소</h2>
+            <span className="text-[11px] text-gray-500">{form.blocks.length} 곳</span>
           </div>
+
+          {form.blocks.length === 0 && (
+            <p className="text-[12px] text-gray-500 dark:text-gray-400 mb-2 px-1">
+              아래 “+ 장소 추가”로 장소를 하나씩 넣어주세요. 각 장소마다 이름·위치·설명·주변장소를 입력합니다.
+            </p>
+          )}
 
           <div className="space-y-3">
             {form.blocks.map((b, idx) => (
-              <BlockEditor
+              <PlaceCard
                 key={b._key}
                 block={b}
+                number={idx + 1}
                 index={idx}
                 total={form.blocks.length}
                 onChange={(patch) => updateBlock(idx, patch)}
@@ -298,11 +272,14 @@ export default function AdminCuratedMagazineEditorScreen() {
             ))}
           </div>
 
-          <div className="grid grid-cols-3 gap-2 mt-3">
-            <AddButton label="텍스트" icon="text_fields" onClick={() => addBlock('text')} />
-            <AddButton label="여행지" icon="place" onClick={() => addBlock('place')} />
-            <AddButton label="이미지" icon="image" onClick={() => addBlock('image')} />
-          </div>
+          <button
+            type="button"
+            onClick={() => addBlock('place')}
+            className="w-full h-11 mt-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-[13px] font-bold text-gray-700 dark:text-gray-200 flex items-center justify-center gap-1"
+          >
+            <span className="material-symbols-outlined text-[18px]">add</span>
+            장소 추가
+          </button>
         </section>
       </main>
     </div>
@@ -361,14 +338,14 @@ function PasteModal({ onClose, onApply, hasExisting }) {
 두 번째 단락.
 
 [장소: 혼인지]
-주소: 제주특별자치도 서귀포시 표선면
-설명: 6월 초 만개 / 산책로 자체가 곱고…
-팁: 평일 오전 추천
+장소위치: 제주특별자치도 서귀포시 표선면
+장소설명: 6월 초 만개 / 산책로 자체가 곱고…
+주변장소: 표선해변, 제주민속촌
 
 [장소: 카멜리아힐]
-주소: 제주특별자치도 서귀포시 안덕면
-설명: 정원이 넓어 여유 있는 동선…
-팁: 입장료 있음 / 우천 시에도 운영`}
+장소위치: 제주특별자치도 서귀포시 안덕면
+장소설명: 정원이 넓어 여유 있는 동선…
+주변장소: 오설록, 본태박물관`}
           </pre>
           <p className="text-[10.5px] text-gray-500 mt-2">
             라벨이 하나도 없으면 첫 줄을 제목, 두 번째 줄(80자 이하)을 부제, 그 다음 단락을 인트로로 자동 추정합니다.
@@ -422,19 +399,6 @@ function Field({ label, children }) {
       <span className="text-[11px] font-bold text-gray-700 dark:text-gray-300">{label}</span>
       <div className="mt-1">{children}</div>
     </label>
-  );
-}
-
-function AddButton({ label, icon, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="h-10 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-[12px] font-bold text-gray-700 dark:text-gray-200 flex items-center justify-center gap-1"
-    >
-      <span className="material-symbols-outlined text-[16px]">{icon}</span>
-      {label}
-    </button>
   );
 }
 
@@ -509,53 +473,21 @@ function CoverImagePicker({ value, onChange }) {
   );
 }
 
-function BlockEditor({ block, index, total, onChange, onRemove, onMoveUp, onMoveDown }) {
+function PlaceCard({ block, number, index, total, onChange, onRemove, onMoveUp, onMoveDown }) {
   return (
     <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[11px] font-bold text-gray-500">
-          #{index + 1} · {labelFor(block.type)}
-        </span>
+        <span className="text-[12px] font-extrabold text-primary">장소 {number}</span>
         <div className="flex items-center gap-1">
           <IconBtn icon="arrow_upward" onClick={onMoveUp} disabled={index === 0} />
           <IconBtn icon="arrow_downward" onClick={onMoveDown} disabled={index === total - 1} />
           <IconBtn icon="delete" onClick={onRemove} danger />
         </div>
       </div>
-
-      {block.type === 'text' && (
-        <textarea
-          value={block.body}
-          onChange={(e) => onChange({ body: e.target.value })}
-          rows={4}
-          placeholder="본문 내용을 입력하세요"
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
-        />
-      )}
-
-      {block.type === 'image' && (
-        <ImageBlockEditor block={block} onChange={onChange} />
-      )}
-
-      {block.type === 'place' && (
-        <PlaceBlockEditor block={block} onChange={onChange} />
-      )}
+      <PlaceBlockEditor block={block} onChange={onChange} />
     </div>
   );
 }
-
-const labelFor = (type) => {
-  switch (type) {
-    case 'text':
-      return '텍스트';
-    case 'place':
-      return '여행지';
-    case 'image':
-      return '이미지';
-    default:
-      return type;
-  }
-};
 
 function IconBtn({ icon, onClick, disabled, danger }) {
   return (
@@ -571,55 +503,6 @@ function IconBtn({ icon, onClick, disabled, danger }) {
     >
       <span className="material-symbols-outlined text-[18px]">{icon}</span>
     </button>
-  );
-}
-
-function ImageBlockEditor({ block, onChange }) {
-  const inputRef = useRef(null);
-  const [uploading, setUploading] = useState(false);
-
-  const pick = () => inputRef.current?.click();
-  const onFile = async (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setUploading(true);
-    try {
-      const res = await uploadImage(f);
-      if (res?.success && res.url) onChange({ image_url: res.url });
-      else window.alert('업로드 실패'); // eslint-disable-line no-alert
-    } finally {
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = '';
-    }
-  };
-  return (
-    <div className="space-y-2">
-      <button
-        type="button"
-        onClick={pick}
-        className="w-full h-36 rounded-lg border border-dashed border-gray-300 overflow-hidden flex items-center justify-center"
-        style={{
-          backgroundImage: block.image_url ? `url(${block.image_url})` : 'none',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          background: block.image_url ? undefined : '#F5F7FA',
-        }}
-      >
-        {!block.image_url && (
-          <span className="text-xs text-gray-500">
-            {uploading ? '업로드 중...' : '이미지 선택'}
-          </span>
-        )}
-      </button>
-      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
-      <input
-        type="text"
-        value={block.caption}
-        onChange={(e) => onChange({ caption: e.target.value })}
-        placeholder="캡션 (선택)"
-        className="w-full h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
-      />
-    </div>
   );
 }
 
@@ -660,34 +543,117 @@ function PlaceBlockEditor({ block, onChange }) {
         )}
       </button>
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
-      <input
-        type="text"
-        value={block.name}
-        onChange={(e) => onChange({ name: e.target.value })}
-        placeholder="장소명 (예: 혼인지)"
-        className="w-full h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm font-bold"
-      />
-      <input
-        type="text"
-        value={block.address}
-        onChange={(e) => onChange({ address: e.target.value })}
-        placeholder="주소 또는 위치 설명"
-        className="w-full h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
-      />
-      <textarea
-        value={block.description}
-        onChange={(e) => onChange({ description: e.target.value })}
-        rows={3}
-        placeholder="이 곳을 추천하는 이유, 분위기, 동선 등"
-        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
-      />
-      <textarea
-        value={block.tip}
-        onChange={(e) => onChange({ tip: e.target.value })}
-        rows={2}
-        placeholder="현장 팁 (예: 평일 오전 추천, 주차장 협소 등)"
-        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
-      />
+
+      <PlaceField label="장소이름">
+        <input
+          type="text"
+          value={block.name}
+          onChange={(e) => onChange({ name: e.target.value })}
+          placeholder="예: 혼인지"
+          className="w-full h-10 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm font-bold"
+        />
+      </PlaceField>
+
+      <PlaceField label="장소위치">
+        <input
+          type="text"
+          value={block.address}
+          onChange={(e) => onChange({ address: e.target.value })}
+          placeholder="예: 제주특별자치도 서귀포시 표선면"
+          className="w-full h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
+        />
+      </PlaceField>
+
+      <PlaceField label="장소설명">
+        <textarea
+          value={block.description}
+          onChange={(e) => onChange({ description: e.target.value })}
+          rows={3}
+          placeholder="이 곳을 추천하는 이유, 분위기, 동선 등"
+          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
+        />
+      </PlaceField>
+
+      <div>
+        <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300">
+          주변장소 (최대 3곳 · 사진은 장소이름으로 자동)
+        </span>
+        <div className="mt-1">
+          <NearbyEditor items={block.nearby} onChange={(v) => onChange({ nearby: v })} />
+        </div>
+      </div>
     </div>
+  );
+}
+
+/** 주변장소 입력: 최대 3곳, 각 곳마다 이름 + 간단한 설명 (사진은 화면에서 이름으로 자동 매칭) */
+function NearbyEditor({ items, onChange }) {
+  const list = Array.isArray(items)
+    ? items.map((it) =>
+        typeof it === 'string' ? { name: it, desc: '' } : { name: it?.name || '', desc: it?.desc || '' }
+      )
+    : typeof items === 'string' && items.trim()
+    ? items
+        .split(/,|·|•|ㆍ|\n/)
+        .map((s) => ({ name: s.trim(), desc: '' }))
+        .filter((n) => n.name)
+    : [];
+
+  const update = (i, patch) => onChange(list.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
+  const add = () => onChange([...list, { name: '', desc: '' }]);
+  const remove = (i) => onChange(list.filter((_, idx) => idx !== i));
+
+  return (
+    <div className="space-y-2">
+      {list.map((it, i) => (
+        <div
+          key={i}
+          className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/30 p-2 space-y-1.5"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-gray-400">주변장소 {i + 1}</span>
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              className="text-[11px] font-semibold text-red-500"
+            >
+              삭제
+            </button>
+          </div>
+          <input
+            type="text"
+            value={it.name}
+            onChange={(e) => update(i, { name: e.target.value })}
+            placeholder="장소이름 (예: 석굴암)"
+            className="w-full h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm font-semibold"
+          />
+          <input
+            type="text"
+            value={it.desc}
+            onChange={(e) => update(i, { desc: e.target.value })}
+            placeholder="간단한 설명 (예: 통일신라 석굴 사원)"
+            className="w-full h-9 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm"
+          />
+        </div>
+      ))}
+      {list.length < 3 && (
+        <button
+          type="button"
+          onClick={add}
+          className="w-full h-9 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-[12px] font-bold text-gray-600 dark:text-gray-300"
+        >
+          + 주변장소 추가
+        </button>
+      )}
+    </div>
+  );
+}
+
+function PlaceField({ label, children }) {
+  return (
+    <label className="block">
+      <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300">{label}</span>
+      <div className="mt-1">{children}</div>
+    </label>
   );
 }

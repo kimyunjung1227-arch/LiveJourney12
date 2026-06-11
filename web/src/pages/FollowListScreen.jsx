@@ -259,9 +259,11 @@ function FollowRow({ user, onChange }) {
           disabled={pending}
           className="flex items-center justify-center gap-1"
           style={{
-            padding: '2px 8px',
+            padding: '0 14px',
+            lineHeight: 1,
             borderRadius: 6,
-            fontSize: 11,
+            fontFamily: 'inherit',
+            fontSize: 13,
             fontWeight: 600,
             cursor: pending ? 'not-allowed' : 'pointer',
             border: isFollowing ? `1px solid ${BORDER_LIGHT}` : 'none',

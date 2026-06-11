@@ -24,6 +24,7 @@ import { getDisplayImageUrl } from '../api/upload';
 import { fetchPublishedMagazines } from '../api/curatedMagazinesSupabase';
 import { logger } from '../utils/logger';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
+import { getRegionDefaultImage } from '../utils/regionDefaultImages';
 import BottomNavigation from '../components/BottomNavigation';
 
 // ────────────────────────────────────────────────
@@ -520,26 +521,54 @@ function CityGrid({ cities }) {
       <div className="grid grid-cols-2 gap-2">
         {cities.slice(0, 4).map((city) => {
           const [start, end] = CITY_GRADIENTS[city.city] || DEFAULT_CITY_GRADIENT;
+          const photo = getRegionDefaultImage(city.city);
           return (
             <button
               key={city.city}
               type="button"
               onClick={() => navigate(`/region/${encodeURIComponent(city.city)}`)}
-              className="relative text-left"
+              className="relative overflow-hidden text-left"
               style={{
                 aspectRatio: '2 / 1',
                 borderRadius: 10,
                 border: 'none',
                 padding: 0,
-                background: `linear-gradient(135deg, ${start}, ${end})`,
+                backgroundImage: photo ? `url(${photo})` : undefined,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                background: photo
+                  ? undefined
+                  : `linear-gradient(135deg, ${start}, ${end})`,
                 cursor: 'pointer',
               }}
             >
+              {/* 가독성을 위한 어두운 오버레이 */}
+              <div
+                className="absolute inset-0"
+                style={{
+                  background:
+                    'linear-gradient(180deg, rgba(0,0,0,0.05) 35%, rgba(0,0,0,0.6) 100%)',
+                }}
+              />
               <div className="absolute bottom-2 left-2.5">
-                <p className="m-0 mb-0.5" style={{ fontSize: 13, fontWeight: 700, color: 'white' }}>
+                <p
+                  className="m-0 mb-0.5"
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: 'white',
+                    textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+                  }}
+                >
                   {city.city}
                 </p>
-                <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.9)' }}>
+                <span
+                  style={{
+                    fontSize: 9,
+                    color: 'rgba(255,255,255,0.95)',
+                    textShadow: '0 1px 3px rgba(0,0,0,0.5)',
+                  }}
+                >
                   {city.live_count || 0}장 라이브
                 </span>
               </div>
@@ -553,14 +582,28 @@ function CityGrid({ cities }) {
 
 function CategoryGrid({ categories }) {
   const navigate = useNavigate();
+  const { handleDragStart, hasMovedRef } = useHorizontalDragScroll();
   const order = ['nature', 'weather', 'event', 'crowd', 'sunset', 'business'];
   const countById = new Map();
   (categories || []).forEach((c) => countById.set(c.category, c.live_count || 0));
 
+  const guardedClick = (handler) => (e) => {
+    if (hasMovedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    handler();
+  };
+
   return (
     <div>
       <SectionHeader icon={IconCategory} title="카테고리" />
-      <div className="grid grid-cols-3 gap-2">
+      <div
+        onMouseDown={handleDragStart}
+        className="flex gap-2 overflow-x-auto scrollbar-hide cursor-grab active:cursor-grabbing"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
         {order.map((catId) => {
           const meta = CATEGORY_META[catId];
           const Icon = meta.Icon;
@@ -569,24 +612,23 @@ function CategoryGrid({ categories }) {
             <button
               key={catId}
               type="button"
-              onClick={() => navigate(`/hashtag/${encodeURIComponent(catId)}`)}
-              className="text-center"
+              onClick={guardedClick(() => navigate(`/hashtag/${encodeURIComponent(catId)}`))}
+              className="flex items-center gap-1.5 flex-shrink-0"
               style={{
                 background: SURFACE,
-                borderRadius: 10,
-                border: 'none',
-                padding: '14px 8px',
+                borderRadius: 999,
+                border: `1px solid ${BORDER_LIGHT}`,
+                padding: '8px 14px',
                 cursor: 'pointer',
               }}
             >
-              <Icon size={22} color={TEXT_PRIMARY} style={{ marginBottom: 6 }} />
-              <p
-                className="m-0 mb-0.5"
-                style={{ fontSize: 11, fontWeight: 600, color: TEXT_PRIMARY }}
+              <Icon size={16} color={KEY} />
+              <span
+                style={{ fontSize: 12, fontWeight: 600, color: TEXT_PRIMARY, whiteSpace: 'nowrap' }}
               >
                 {meta.label}
-              </p>
-              <span style={{ fontSize: 9, color: TEXT_SECONDARY }}>{count}장</span>
+              </span>
+              <span style={{ fontSize: 10, color: TEXT_SECONDARY }}>{count}</span>
             </button>
           );
         })}
@@ -626,9 +668,9 @@ function SearchHub() {
 
   return (
     <div className="p-[18px]">
-      <SeasonalCards cards={magazines} />
-      <QuestionsSection questions={data.questions || []} showAllAction />
       <CityGrid cities={data.cities || []} />
+      <QuestionsSection questions={data.questions || []} showAllAction />
+      <SeasonalCards cards={magazines} />
       <CategoryGrid categories={data.categories || []} />
     </div>
   );

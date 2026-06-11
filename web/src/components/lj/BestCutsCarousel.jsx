@@ -91,12 +91,10 @@ export function BestCutsCarousel({ posts = [], onPostClick, onAuthorClick }) {
       >
         <IconCrown size={16} stroke={2} color={LJ.key} />
         <span style={{ fontSize: 13, fontWeight: 600, color: LJ.textPrimary }}>베스트 컷</span>
-        <span style={{ fontSize: 11, color: LJ.textSecondary, flex: 1 }}>
-          {N > 1 ? `이 장소를 대표하는 ${N}장` : '이 장소를 대표하는 한 장'}
-        </span>
         {N > 1 && (
           <span
             style={{
+              marginLeft: 'auto',
               fontSize: 11,
               fontWeight: 700,
               color: LJ.textSecondary,

@@ -181,11 +181,14 @@ const MAGAZINE_LABEL_VARIANTS = {
     /^title$/i,
     /^이름$/,
     /^제목$/,
+    /^명칭$/,
+    /^spot$/i,
   ],
   locationInfo: [
     /^장소\s*(?:위치|주소)$/i,
     /^위치(?:\s*정보)?$/i,
     /^주소$/,
+    /^소재지$/,
     /^address$/i,
     /^location$/i,
   ],
@@ -200,6 +203,13 @@ const MAGAZINE_LABEL_VARIANTS = {
     /^about$/i,
     /^intro$/i,
   ],
+  realtimeTip: [
+    /^실시간\s*팁$/i,
+    /^현장\s*팁$/i,
+    /^팁$/,
+    /^tip$/i,
+    /^꿀팁$/,
+  ],
   moodTitle: [
     /^분위기(?:\s*제목)?$/i,
     /^키워드$/,
@@ -209,9 +219,11 @@ const MAGAZINE_LABEL_VARIANTS = {
     /^한\s*줄$/,
   ],
   around: [
+    /^주변\s*여행지$/i,
     /^주변(?:\s*(?:장소|스폿|맛집|명소))?$/i,
     /^함께\s*(?:가볼|가볼만한|볼만한)/i,
-    /^추천\s*(?:장소|코스)$/i,
+    /^추천\s*(?:장소|코스|여행지)$/i,
+    /^근처(?:\s*(?:여행지|명소|맛집))?$/i,
     /^nearby$/i,
   ],
 };
@@ -229,12 +241,15 @@ const stripMarkdown = (line) =>
     .trim();
 
 const BLOCK_DELIMITER_PATTERNS = [
-  /^\s*(\d+)\s*[.)]\s+\S/,
-  /^\s*\((\d+)\)\s+\S/,
-  /^\s*[①-⑳]\s*\S/,
-  /^\s*[❶-❿]\s*\S/,
-  /^\s*#{1,3}\s*\d+\s*[.)]\s+/,
-  /^\s*장소\s*(?:제목|이름|명)?\s*[:：]\s*\S/i,
+  /^\s*(\d+)\s*[.)]\s+\S/, // "1. 장소" / "1) 장소"
+  /^\s*\((\d+)\)\s+\S/, // "(1) 장소"
+  /^\s*[①-⑳]\s*\S/, // "① 장소"
+  /^\s*[❶-❿]\s*\S/, // "❶ 장소"
+  /^\s*#{1,3}\s*\d+\s*[.)]?\s*\S/, // "# 1 장소" / "## 1. 장소"
+  /^\s*[【\[]?\s*(?:장소|명소|코스|spot|place)\s*\d+\s*[】\]]?\s*[:：.)]?\s*/i, // "장소 1", "[장소1]", "명소 2:"
+  /^\s*(?:장소|명소|코스)\s*(?:제목|이름|명)?\s*[:：]\s*\S/i, // "장소 이름: ..."
+  /^\s*\d+\s*번\s*[:：.)]?\s*\S/, // "1번 장소"
+  /^\s*[▶▷■□●○◆◇★☆]\s*\S/, // 불릿 헤딩
 ];
 
 const isBlockDelimiter = (cleaned) => BLOCK_DELIMITER_PATTERNS.some((re) => re.test(cleaned));
@@ -245,8 +260,11 @@ const stripBlockPrefix = (cleaned) =>
     .replace(/^\s*\(\d+\)\s+/, '')
     .replace(/^\s*[①-⑳]\s*/, '')
     .replace(/^\s*[❶-❿]\s*/, '')
-    .replace(/^\s*#{1,3}\s*\d+\s*[.)]\s+/, '')
-    .replace(/^\s*장소\s*(?:제목|이름|명)?\s*[:：]\s*/i, '')
+    .replace(/^\s*#{1,3}\s*\d+\s*[.)]?\s*/, '')
+    .replace(/^\s*[【\[]?\s*(?:장소|명소|코스|spot|place)\s*\d+\s*[】\]]?\s*[:：.)]?\s*/i, '')
+    .replace(/^\s*(?:장소|명소|코스)\s*(?:제목|이름|명)?\s*[:：]\s*/i, '')
+    .replace(/^\s*\d+\s*번\s*[:：.)]?\s*/, '')
+    .replace(/^\s*[▶▷■□●○◆◇★☆]\s*/, '')
     .replace(/^["“'`]|["”'`]$/g, '')
     .trim();
 
@@ -345,6 +363,11 @@ const parseMagazinePasteUniversal = (raw) => {
               : value;
           }
           activeField = 'description';
+        } else if (key === 'realtimeTip') {
+          // 실시간 팁은 "장소 설명" 본문에 합쳐서 표시
+          const tip = value ? `실시간 팁: ${value}` : '실시간 팁:';
+          current.description = current.description ? `${current.description}\n\n${tip}` : tip;
+          activeField = 'description';
         } else {
           current[key] = value;
           activeField = key;
@@ -382,11 +405,96 @@ const createEmptySection = (seed = {}) => ({
   locationInfo: seed.locationInfo || '',
   description: seed.description || '',
   around: Array.isArray(seed.around) ? seed.around : [],
+  liveSituation: seed.liveSituation || '',
 });
+
+/**
+ * 매거진 현재 구조 전용 파서.
+ * 인식 라벨:
+ *   제목 / 부제목 (매거진 단위)
+ *   장소 이름 / 장소 위치 / 장소 설명 / 실시간 팁 / 주변 여행지 / 실시간 상황 (장소 단위, "장소 이름:"으로 블록 분리)
+ * - 장소 설명 + 실시간 팁 → description 으로 병합 (상세화면 "장소설명" 영역)
+ * - 주변 여행지 → around (콤마/줄바꿈 구분)
+ * - 실시간 상황 → liveSituation (상세화면 시안색 실시간 박스 = regionSummary)
+ */
+const parseMagazineStructured = (raw) => {
+  const text = String(raw || '').replace(/\r\n/g, '\n').trim();
+  if (!text) return null;
+
+  // 신규 구조 전용 라벨이 하나도 없으면 이 파서는 건너뜀(구 번호/이모지 형식 보호)
+  const hasStructuredMarker =
+    /\n?\s*장소\s*이름\s*[:：]/i.test(text) &&
+    /(부제목|장소\s*위치|주변\s*여행지|실시간\s*상황)\s*[:：]/i.test(text);
+  if (!hasStructuredMarker) return null;
+
+  const title = pickLabelLine(text, /(?:^|\n)\s*제목\s*[:：]\s*([^\n]+)/i);
+  const subtitle = pickLabelLine(text, /(?:^|\n)\s*부제목\s*[:：]\s*([^\n]+)/i);
+
+  // "장소 이름:" 을 블록 구분자로 분리
+  const re = /(?:^|\n)\s*장소\s*이름\s*[:：]\s*([^\n]+)\n?([\s\S]*?)(?=\n\s*장소\s*이름\s*[:：]|$)/g;
+  const blocks = [];
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const locationTitle = normalizeSpace(m[1] || '');
+    const body = String(m[2] || '');
+
+    const locationInfo = pickLabelLine(body, /장소\s*위치\s*[:：]\s*([^\n]+)/i);
+    const description = extractLabelBlock(body, /장소\s*설명\s*[:：]\s*/i, [
+      /\n\s*실시간\s*팁\s*[:：]/i,
+      /\n\s*주변\s*여행지\s*[:：]/i,
+      /\n\s*실시간\s*상황\s*[:：]/i,
+      /\n\s*장소\s*이름\s*[:：]/i,
+    ]);
+    const realtimeTip = extractLabelBlock(body, /실시간\s*팁\s*[:：]\s*/i, [
+      /\n\s*주변\s*여행지\s*[:：]/i,
+      /\n\s*실시간\s*상황\s*[:：]/i,
+      /\n\s*장소\s*이름\s*[:：]/i,
+    ]);
+    const aroundRaw = extractLabelBlock(body, /주변\s*여행지\s*[:：]\s*/i, [
+      /\n\s*실시간\s*상황\s*[:：]/i,
+      /\n\s*장소\s*이름\s*[:：]/i,
+    ]);
+    const liveSituation = extractLabelBlock(body, /실시간\s*상황\s*[:：]\s*/i, [
+      /\n\s*장소\s*이름\s*[:：]/i,
+    ]);
+
+    const mergedDescription = [
+      description,
+      realtimeTip ? `실시간 팁: ${realtimeTip.replace(/^["“]|["”]$/g, '').trim()}` : '',
+    ]
+      .filter((v) => String(v || '').trim())
+      .join('\n\n');
+
+    blocks.push({
+      moodTitle: '',
+      locationTitle,
+      locationInfo,
+      description: mergedDescription,
+      around: splitCommaList(String(aroundRaw || '').replace(/\n/g, ',')),
+      liveSituation: normalizeSpace(liveSituation),
+    });
+  }
+
+  if (!blocks.length) return null;
+
+  // "제목:" 라벨이 없으면 첫 비어있지 않은 줄(라벨 줄 제외)을 제목으로 보충
+  let finalTitle = title;
+  if (!finalTitle) {
+    const firstLine = text.split('\n').map((l) => l.trim()).find(Boolean) || '';
+    if (!/^(?:부제목|장소\s*(?:이름|위치|설명)|실시간\s*(?:팁|상황)|주변\s*여행지)\s*[:：]/i.test(firstLine)) {
+      finalTitle = firstLine;
+    }
+  }
+
+  return { title: finalTitle, subtitle, sections: blocks };
+};
 
 /** strict 파서 → 보편 파서 순서로 시도. 결과 + 어느 파서가 매칭됐는지 반환 */
 const tryParseMagazinePaste = (raw) => {
   if (!String(raw || '').trim()) return null;
+  // 현재 매거진 구조(제목/부제목/장소 이름·위치·설명·실시간 팁/주변 여행지/실시간 상황) 우선 인식
+  const structured = parseMagazineStructured(raw);
+  if (structured?.sections?.length) return { ...structured, source: 'structured' };
   const strict = parseMagazinePaste(raw);
   if (strict?.sections?.length) return { ...strict, source: 'strict' };
   const free = parseMagazinePasteFreeform(raw);
@@ -401,6 +509,7 @@ const MagazineWriteScreen = () => {
   const { user } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdminState(user);
   const [title, setTitle] = useState('');
+  const [subtitle, setSubtitle] = useState('');
   const [sections, setSections] = useState([createEmptySection()]);
   const [pasteText, setPasteText] = useState('');
   const [pasteStatus, setPasteStatus] = useState(null); // { kind: 'ok'|'fail', message: string }
@@ -462,6 +571,7 @@ const MagazineWriteScreen = () => {
       return false;
     }
     if (parsed.title) setTitle(parsed.title);
+    if (parsed.subtitle) setSubtitle(parsed.subtitle);
     setSections(parsed.sections.map((s) => createEmptySection(s)));
     setPasteText('');
     setPasteStatus({
@@ -488,6 +598,7 @@ const MagazineWriteScreen = () => {
         locationInfo: String(s?.locationInfo || '').trim(),
         description: String(s?.description || '').trim(),
         around: Array.isArray(s?.around) ? s.around.filter((x) => String(x || '').trim()) : [],
+        liveSituation: String(s?.liveSituation || '').trim(),
       }))
       .filter((s) => s.locationTitle || s.locationInfo || s.description);
     if (normalizedSections.length === 0) return null;
@@ -495,7 +606,7 @@ const MagazineWriteScreen = () => {
     return {
       id: 'draft-preview',
       title: title.trim(),
-      subtitle: '',
+      subtitle: subtitle.trim(),
       author: user?.email || user?.username || 'LiveJourney',
       createdAt: new Date().toISOString(),
       sections: normalizedSections.map((s) => ({
@@ -504,9 +615,10 @@ const MagazineWriteScreen = () => {
         locationInfo: s.locationInfo,
         description: s.description,
         around: s.around,
+        liveSituation: s.liveSituation,
       })),
     };
-  }, [title, sections, user?.email, user?.username]);
+  }, [title, subtitle, sections, user?.email, user?.username]);
 
   const gridPostsPub = useMemo(() => getGridPostsPool(allPosts), [allPosts]);
   const previewSlides = useMemo(
@@ -563,6 +675,7 @@ const MagazineWriteScreen = () => {
           locationInfo: String(s?.locationInfo || '').trim(),
           description: String(s?.description || '').trim(),
           around: Array.isArray(s?.around) ? s.around.filter((x) => String(x || '').trim()) : [],
+          liveSituation: String(s?.liveSituation || '').trim(),
         }))
         .filter((s) => s.locationTitle || s.locationInfo || s.description);
       if (normalizedSections.length === 0) {
@@ -577,13 +690,14 @@ const MagazineWriteScreen = () => {
       setSaving(true);
       const res = await publishMagazine({
         title: title.trim(),
-        subtitle: '',
+        subtitle: subtitle.trim(),
         sections: normalizedSections.map((s) => ({
           location: s.locationTitle || s.locationInfo || title.trim(),
           moodTitle: s.moodTitle,
           locationInfo: s.locationInfo,
           description: s.description,
           around: s.around,
+          liveSituation: s.liveSituation,
         })),
       });
       setSaving(false);
@@ -598,7 +712,7 @@ const MagazineWriteScreen = () => {
       } catch (_) {}
       navigate(`/magazine/${res.magazine.id}`, { replace: true, state: { magazine: res.magazine } });
     },
-    [title, sections, navigate]
+    [title, subtitle, sections, navigate]
   );
 
   return (
@@ -694,6 +808,15 @@ const MagazineWriteScreen = () => {
                       onChange={(e) => setTitle(e.target.value)}
                     />
                   </div>
+                  <div className="mt-3">
+                    <label className="block mb-2 text-[12px] font-semibold text-gray-700 dark:text-gray-300">부제목</label>
+                    <input
+                      className="w-full border-b border-zinc-200 dark:border-zinc-700 bg-transparent px-0 py-2.5 text-[14px] text-gray-900 dark:text-gray-50 focus:outline-none"
+                      placeholder="예: 벚꽃과 함께하는 천년고도"
+                      value={subtitle}
+                      onChange={(e) => setSubtitle(e.target.value)}
+                    />
+                  </div>
                 </div>
 
                 <div className="rounded-xl border border-zinc-100 bg-white px-3 py-3 shadow-sm dark:border-zinc-800 dark:bg-gray-900/40">
@@ -702,7 +825,9 @@ const MagazineWriteScreen = () => {
                   </label>
                   <textarea
                     className="w-full min-h-[100px] rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-gray-900/30 px-3 py-2 text-[13px] leading-relaxed text-gray-900 dark:text-gray-50 focus:outline-none resize-none"
-                    placeholder={'전체 문구를 붙여넣으면 장소·설명·주변이 자동으로 채워져요.\n번호(1.) / "장소 이름:" / "위치:" / "설명:" 등의 라벨을 인식해요.'}
+                    placeholder={
+                      '전체 문구를 붙여넣으면 매거진 구조로 자동 입력돼요.\n\n제목: ...\n부제목: ...\n\n장소 이름: ...\n장소 위치: ...\n장소 설명: ...\n실시간 팁: ...\n주변 여행지: ..., ...\n실시간 상황: ...'
+                    }
                     value={pasteText}
                     onChange={(e) => {
                       setPasteText(e.target.value);
@@ -755,15 +880,6 @@ const MagazineWriteScreen = () => {
                     </div>
                     <div className="space-y-4">
                       <div>
-                        <label className="block mb-1.5 text-[12px] font-semibold text-gray-800 dark:text-gray-100">분위기 제목</label>
-                        <input
-                          className="w-full border-b border-zinc-200 dark:border-zinc-700 bg-transparent px-0 py-2.5 text-[15px] font-semibold text-gray-900 dark:text-gray-50 focus:outline-none"
-                          placeholder="예: 핑크빛 솜사탕의 실시간 현황"
-                          value={sec.moodTitle}
-                          onChange={(e) => handleChangeSection(sec.id, 'moodTitle', e.target.value)}
-                        />
-                      </div>
-                      <div>
                         <label className="block mb-1.5 text-[12px] font-semibold text-gray-800 dark:text-gray-100">장소 이름</label>
                         <input
                           className="w-full border-b border-zinc-200 dark:border-zinc-700 bg-transparent px-0 py-2.5 text-[15px] font-semibold text-gray-900 dark:text-gray-50 focus:outline-none"
@@ -774,7 +890,7 @@ const MagazineWriteScreen = () => {
                       </div>
 
                       <div>
-                        <label className="block mb-1.5 text-[12px] font-semibold text-gray-800 dark:text-gray-100">위치정보</label>
+                        <label className="block mb-1.5 text-[12px] font-semibold text-gray-800 dark:text-gray-100">장소 위치</label>
                         <input
                           className="w-full border-b border-zinc-200 dark:border-zinc-700 bg-transparent px-0 py-2.5 text-[14px] text-gray-900 dark:text-gray-50 focus:outline-none"
                           placeholder="예: 수원 화성 · 수원시 팔달구"
@@ -784,17 +900,36 @@ const MagazineWriteScreen = () => {
                       </div>
 
                       <div>
-                        <label className="block mb-1.5 text-[12px] font-semibold text-gray-800 dark:text-gray-100">장소 설명</label>
+                        <label className="block mb-1.5 text-[12px] font-semibold text-gray-800 dark:text-gray-100">장소 설명 · 실시간 팁</label>
                         <textarea
                           className="w-full min-h-[120px] bg-transparent px-0 py-2 text-[15px] leading-relaxed text-gray-900 dark:text-gray-50 focus:outline-none resize-none"
-                          placeholder="설명을 입력하세요."
+                          placeholder="장소 설명을 입력하세요. (붙여넣기 시 '실시간 팁:'은 설명 아래에 함께 합쳐져요)"
                           value={sec.description}
                           onChange={(e) => handleChangeSection(sec.id, 'description', e.target.value)}
                         />
                       </div>
 
+                      <div>
+                        <label className="block mb-1.5 text-[12px] font-semibold text-gray-800 dark:text-gray-100">주변 여행지</label>
+                        <input
+                          className="w-full border-b border-zinc-200 dark:border-zinc-700 bg-transparent px-0 py-2.5 text-[14px] text-gray-900 dark:text-gray-50 focus:outline-none"
+                          placeholder="예: 석굴암, 토함산 (콤마로 구분)"
+                          value={Array.isArray(sec.around) ? sec.around.join(', ') : ''}
+                          onChange={(e) =>
+                            handleChangeSection(
+                              sec.id,
+                              'around',
+                              e.target.value
+                                .split(/,|·|•|ㆍ/)
+                                .map((x) => x.trim())
+                                .filter(Boolean)
+                            )
+                          }
+                        />
+                      </div>
+
                       <p className="m-0 rounded-lg bg-zinc-50/90 px-3 py-2 text-[11px] leading-relaxed text-gray-600 dark:bg-zinc-900/40 dark:text-gray-400">
-                        장소 이름·위치를 입력하면 미리보기에서{' '}
+                        주변 여행지를 비워두면 미리보기에서{' '}
                         <span className="font-semibold text-gray-800 dark:text-gray-200">주변 맛집·명소 추천</span>이 지역 데이터와
                         피드 사진을 바탕으로 자동 표시돼요.
                       </p>

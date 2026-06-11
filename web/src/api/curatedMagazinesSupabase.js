@@ -5,9 +5,24 @@ import { logger } from '../utils/logger';
  * 큐레이션 매거진 (트리플 가이드 스타일) API.
  * - blocks: [{ type, ... }] 배열
  *   - { type: 'text', body }
- *   - { type: 'place', name, address, image_url, description, tip }
+ *   - { type: 'place', name, address, image_url, description, nearby, tip }
  *   - { type: 'image', image_url, caption }
  */
+
+// 주변장소: {name, desc} 배열로 정규화(최대 3). 레거시 문자열도 변환.
+const sanitizeNearby = (nearby) => {
+  let arr = [];
+  if (Array.isArray(nearby)) {
+    arr = nearby.map((n) =>
+      typeof n === 'string'
+        ? { name: n.trim(), desc: '' }
+        : { name: String(n?.name || '').trim(), desc: String(n?.desc || '').trim() }
+    );
+  } else if (typeof nearby === 'string' && nearby.trim()) {
+    arr = nearby.split(/,|·|•|ㆍ|\n/).map((s) => ({ name: s.trim(), desc: '' }));
+  }
+  return arr.filter((n) => n.name).slice(0, 3);
+};
 
 const sanitizeBlocks = (blocks) => {
   if (!Array.isArray(blocks)) return [];
@@ -24,6 +39,7 @@ const sanitizeBlocks = (blocks) => {
             address: String(b.address || '').trim(),
             image_url: String(b.image_url || ''),
             description: String(b.description || ''),
+            nearby: sanitizeNearby(b.nearby),
             tip: String(b.tip || ''),
           };
         case 'image':

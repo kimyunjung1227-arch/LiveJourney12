@@ -1,6 +1,6 @@
 import React from 'react';
-import { IconShieldCheck } from '@tabler/icons-react';
 import { LJ, formatExifTime } from './tokens';
+import ExifFreshIcon from './ExifFreshIcon';
 
 /**
  * 장소 페이지 사진 그리드 (2열 정사각형).
@@ -83,7 +83,7 @@ export function PlacePhotoGrid({ posts = [], onPhotoClick }) {
                   backdropFilter: 'blur(6px)',
                 }}
               >
-                <IconShieldCheck size={10} stroke={2} color={LJ.key} />
+                <ExifFreshIcon iso={p.exif_taken_at} size={10} stroke={2} />
                 <span style={{ color: '#fff', fontSize: 9, fontWeight: 600 }}>
                   {formatExifTime(p.exif_taken_at)}
                 </span>

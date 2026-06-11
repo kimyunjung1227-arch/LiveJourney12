@@ -36,6 +36,10 @@ const SCOPE_OPTIONS = [
   { id: 'local', label: '동네', icon: IconHome },
 ];
 
+// 범위 필터(전국/지역/동네) 노출 여부. false면 기본 '전국' 그대로 핫플 바로 노출.
+// 코드는 보존하고 UI만 숨김 — 다시 켜려면 true로.
+const SHOW_SCOPE_FILTER = false;
+
 function HotplaceScreen() {
   const navigate = useNavigate();
   const [limit, setLimit] = useState(INITIAL);
@@ -178,7 +182,8 @@ function HotplaceScreen() {
             실시간 핫플
           </h1>
 
-          {/* 우: 범위 필터 드롭다운 — 기본 "전국", 누르면 아래로 펼쳐짐 */}
+          {/* 우: 범위 필터 드롭다운 — 기본 "전국", 누르면 아래로 펼쳐짐 (SHOW_SCOPE_FILTER로 숨김) */}
+          {SHOW_SCOPE_FILTER && (
           <div ref={scopeRef} style={{ marginLeft: 'auto', position: 'relative' }}>
             <button
               type="button"
@@ -277,6 +282,7 @@ function HotplaceScreen() {
               </ul>
             )}
           </div>
+          )}
         </div>
       </header>
 

@@ -215,7 +215,8 @@ export const buildSlidesForMagazine = (mag, allPosts, gridPosts) => {
           ? getTimeAgo(matchedPosts[0].timestamp || matchedPosts[0].createdAt)
           : getTimeAgo(mag.created_at || mag.createdAt),
         askQuery: locKey || mag.title,
-        regionSummary: buildRegionSummary(matchedPosts),
+        // 편집자가 입력한 "실시간 상황"이 있으면 그것을, 없으면 피드 기반 자동 요약을 사용
+        regionSummary: String(sec?.liveSituation || '').trim() || buildRegionSummary(matchedPosts),
         fieldVoices: buildFieldVoicesFromPosts(matchedPosts),
         locKey,
         matchedPosts,

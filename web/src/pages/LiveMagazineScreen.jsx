@@ -10,6 +10,7 @@ import {
 import { fetchMagazineById } from '../api/curatedMagazinesSupabase';
 import { supabase } from '../utils/supabaseClient';
 import { getDisplayImageUrl } from '../api/upload';
+import { getRegionDefaultImage } from '../utils/regionDefaultImages';
 import BottomNavigation from '../components/BottomNavigation';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
@@ -241,12 +242,12 @@ export default function LiveMagazineScreen() {
                   padding: '0 18px',
                 }}
               >
-                <PlaceCard place={p} index={idx + 1} total={placePages.length} />
+                <PlaceCard place={p} index={idx + 1} />
               </div>
             ))}
           </div>
 
-          {/* 좌/우 네비게이션 화살표 (페이지 ≥ 2일 때) */}
+          {/* 좌/우 네비게이션 화살표 (장소 ≥ 2일 때) */}
           {placePages.length > 1 && (
             <>
               <NavArrow
@@ -257,13 +258,10 @@ export default function LiveMagazineScreen() {
               <NavArrow
                 side="right"
                 disabled={pageIdx >= placePages.length - 1}
-                onClick={() =>
-                  scrollToPage(Math.min(placePages.length - 1, pageIdx + 1))
-                }
+                onClick={() => scrollToPage(Math.min(placePages.length - 1, pageIdx + 1))}
               />
             </>
           )}
-
         </div>
       )}
 
@@ -329,19 +327,9 @@ function PlaceCard({ place, index }) {
   const placeImageUrl = useFallbackPlaceImage(place);
 
   return (
-    <div
-      style={{
-        marginTop: 2,
-        marginBottom: 4,
-        border: `1px solid ${BORDER_LIGHT}`,
-        borderRadius: 14,
-        overflow: 'hidden',
-        background: '#fff',
-        boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
-      }}
-    >
-      {/* 헤더 영역 */}
-      <div style={{ padding: '12px 14px 8px' }}>
+    <div style={{ marginTop: 2, marginBottom: 4 }}>
+      {/* 헤더 영역 — 박스 제거, 배경 위에 바로 */}
+      <div style={{ padding: '4px 0 10px' }}>
         <p
           className="m-0"
           style={{ fontSize: 11, fontWeight: 700, color: KEY, marginBottom: 4 }}
@@ -381,6 +369,8 @@ function PlaceCard({ place, index }) {
             width: '100%',
             aspectRatio: '4 / 3',
             background: SURFACE,
+            borderRadius: 14,
+            overflow: 'hidden',
           }}
         >
           <img
@@ -396,6 +386,7 @@ function PlaceCard({ place, index }) {
             width: '100%',
             aspectRatio: '4 / 3',
             background: SURFACE,
+            borderRadius: 14,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -408,7 +399,7 @@ function PlaceCard({ place, index }) {
       )}
 
       {/* 본문 */}
-      <div style={{ padding: '14px 14px 14px' }}>
+      <div style={{ padding: '14px 0' }}>
         <p
           className="m-0"
           style={{
@@ -425,22 +416,10 @@ function PlaceCard({ place, index }) {
           {place.description || '설명이 없습니다.'}
         </p>
 
-        {place.tip && (
-          <div
-            className="flex items-start gap-1.5"
-            style={{
-              marginTop: 10,
-              padding: '8px 10px',
-              borderRadius: 10,
-              background: KEY_LIGHT,
-            }}
-          >
-            <IconBulb size={13} color={KEY_DARK} stroke={2} style={{ flexShrink: 0, marginTop: 1 }} />
-            <span style={{ fontSize: 11.5, color: KEY_DARK, lineHeight: 1.5 }}>
-              {place.tip}
-            </span>
-          </div>
-        )}
+        {/* 장소설명 밑 — 실시간 정보를 모은 실시간 팁 구역 */}
+        <RealtimeTipSection placeName={place.name} manualTip={place.tip} />
+
+        <NearbyPlaces nearby={place.nearby} />
 
         <AskQuestionCTA placeName={place.name} compact />
       </div>
@@ -659,6 +638,250 @@ function LivePhotosSection({ placeName }) {
         </div>
       )}
     </section>
+  );
+}
+
+/** nearby(문자열 또는 객체배열)를 {name, desc} 배열(최대 3)로 정규화 */
+function toNearbyList(nearby) {
+  if (Array.isArray(nearby)) {
+    return nearby
+      .map((n) =>
+        typeof n === 'string'
+          ? { name: n.trim(), desc: '' }
+          : { name: String(n?.name || '').trim(), desc: String(n?.desc || '').trim() }
+      )
+      .filter((n) => n.name)
+      .slice(0, 3);
+  }
+  if (typeof nearby === 'string' && nearby.trim()) {
+    return nearby
+      .split(/,|·|•|ㆍ|\n/)
+      .map((s) => ({ name: s.trim(), desc: '' }))
+      .filter((n) => n.name)
+      .slice(0, 3);
+  }
+  return [];
+}
+
+/** 주변 여행지 이미지: lj_posts 실시간 사진 우선, 없으면 지역 대표 이미지 */
+function useNearbyImage(name) {
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    if (!name) {
+      setUrl('');
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('lj_posts')
+          .select('photo_url')
+          .eq('place_name', name)
+          .order('exif_taken_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (cancelled) return;
+        if (data?.photo_url) {
+          setUrl(getDisplayImageUrl(data.photo_url));
+          return;
+        }
+        setUrl(getRegionDefaultImage(name));
+      } catch (e) {
+        if (!cancelled) setUrl(getRegionDefaultImage(name));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [name]);
+  return url;
+}
+
+function NearbyCard({ item }) {
+  const img = useNearbyImage(item.name);
+  return (
+    <div
+      className="min-w-0 overflow-hidden"
+      style={{ borderRadius: 10, border: `1px solid ${BORDER_LIGHT}`, background: '#fff' }}
+    >
+      <div style={{ width: '100%', aspectRatio: '1 / 1', background: SURFACE }}>
+        {img ? (
+          <img
+            src={img}
+            alt=""
+            loading="lazy"
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+        ) : null}
+      </div>
+      <div style={{ padding: '7px 7px 8px' }}>
+        {/* 장소이름 — 강조 */}
+        <p
+          className="m-0"
+          style={{
+            fontSize: 11.5,
+            fontWeight: 800,
+            color: TEXT_PRIMARY,
+            lineHeight: 1.3,
+            display: '-webkit-box',
+            WebkitLineClamp: 1,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
+          {item.name}
+        </p>
+        {/* 설명 — 구분선 아래 보조 텍스트 */}
+        {item.desc ? (
+          <p
+            className="m-0"
+            style={{
+              marginTop: 5,
+              paddingTop: 5,
+              borderTop: `1px solid ${BORDER_LIGHT}`,
+              fontSize: 10,
+              fontWeight: 500,
+              color: TEXT_SECONDARY,
+              lineHeight: 1.45,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {item.desc}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function NearbyPlaces({ nearby }) {
+  const list = toNearbyList(nearby);
+  if (list.length === 0) return null;
+  return (
+    <div style={{ marginTop: 14 }}>
+      <p
+        className="m-0"
+        style={{ fontSize: 12, fontWeight: 800, color: TEXT_PRIMARY, marginBottom: 8 }}
+      >
+        주변 여행지
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+        {list.map((item, i) => (
+          <NearbyCard key={`${item.name}-${i}`} item={item} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 장소설명 아래 "실시간 팁" 구역.
+ * lj_posts 의 place_name 매칭 게시물에서 실시간 정보를 모아 요약한다.
+ *  - 최근 48시간 사진 수
+ *  - 가장 최근 업데이트 시각
+ *  - 활성도(현장 분위기) 한 줄
+ *  - 편집자가 적어둔 수동 팁(manualTip)이 있으면 함께 노출
+ */
+function RealtimeTipSection({ placeName, manualTip }) {
+  const [stat, setStat] = useState({ loading: true, count48: 0, latestAt: null });
+
+  useEffect(() => {
+    if (!placeName) {
+      setStat({ loading: false, count48: 0, latestAt: null });
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+        const { data, error } = await supabase
+          .from('lj_posts')
+          .select('exif_taken_at')
+          .eq('place_name', placeName)
+          .gt('exif_taken_at', cutoff)
+          .order('exif_taken_at', { ascending: false })
+          .limit(50);
+        if (cancelled) return;
+        if (error) {
+          logger.warn('realtime tip fetch 실패', error.message || error);
+          setStat({ loading: false, count48: 0, latestAt: null });
+          return;
+        }
+        const rows = Array.isArray(data) ? data : [];
+        setStat({
+          loading: false,
+          count48: rows.length,
+          latestAt: rows[0]?.exif_taken_at || null,
+        });
+      } catch (e) {
+        if (!cancelled) {
+          logger.warn('realtime tip fetch 실패', e?.message || e);
+          setStat({ loading: false, count48: 0, latestAt: null });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [placeName]);
+
+  const tips = [];
+  if (stat.latestAt) {
+    tips.push(`가장 최근 현장 사진 ${timeAgo(stat.latestAt)} 업데이트`);
+  }
+  if (stat.count48 > 0) {
+    tips.push(`최근 48시간 동안 ${stat.count48}장의 실시간 사진이 올라왔어요`);
+    if (stat.count48 >= 5) {
+      tips.push('지금 활발하게 공유되는 핫한 장소예요');
+    } else {
+      tips.push('조용히 실시간 기록이 쌓이는 중이에요');
+    }
+  }
+  const manual = String(manualTip || '').trim();
+  if (manual) tips.push(manual);
+
+  // 모을 실시간 정보가 전혀 없으면 안내 한 줄
+  const isEmpty = tips.length === 0;
+
+  return (
+    <div
+      style={{
+        marginTop: 12,
+        padding: '10px 12px',
+        borderRadius: 12,
+        background: KEY_LIGHT,
+      }}
+    >
+      <div className="flex items-center gap-1.5" style={{ marginBottom: isEmpty ? 0 : 6 }}>
+        <IconBulb size={14} color={KEY_DARK} stroke={2} />
+        <span style={{ fontSize: 12, fontWeight: 800, color: KEY_DARK }}>실시간 팁</span>
+      </div>
+
+      {stat.loading ? (
+        <span style={{ fontSize: 11.5, color: KEY_DARK, opacity: 0.8 }}>실시간 정보 모으는 중...</span>
+      ) : isEmpty ? (
+        <span style={{ fontSize: 11.5, color: KEY_DARK, opacity: 0.85, lineHeight: 1.5 }}>
+          아직 모인 실시간 정보가 없어요. 첫 현장 사진을 올려보세요.
+        </span>
+      ) : (
+        <ul className="m-0" style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {tips.map((t, i) => (
+            <li
+              key={i}
+              className="flex items-start gap-1.5"
+              style={{ fontSize: 11.5, color: KEY_DARK, lineHeight: 1.5 }}
+            >
+              <span style={{ flexShrink: 0, marginTop: 1, fontWeight: 800 }}>·</span>
+              <span>{t}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { IconMessageCircle, IconBookmark } from '@tabler/icons-react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Pagination } from 'swiper/modules';
 import BottomNavigation from '../components/BottomNavigation';
@@ -433,7 +434,7 @@ export default function RecommendedPlaceFeedScreen() {
                         })
                       }
                     >
-                      <span className="material-symbols-outlined text-[20px] text-slate-500">chat_bubble</span>
+                      <IconMessageCircle className="text-slate-500" size={20} stroke={2} />
                       {comments}
                     </button>
                   </div>
@@ -448,7 +449,7 @@ export default function RecommendedPlaceFeedScreen() {
                         })
                       }
                     >
-                      <span className="material-symbols-outlined text-[22px]">bookmark</span>
+                      <IconBookmark size={22} stroke={2} />
                     </button>
                     <button
                       type="button"

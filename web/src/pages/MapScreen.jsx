@@ -5,7 +5,6 @@ import {
   IconArrowLeft,
   IconSearch,
   IconCurrentLocation,
-  IconShieldCheck,
   IconHeart,
   IconMessageCircle,
   IconBookmark,
@@ -28,6 +27,7 @@ import { searchPlaceWithKakaoFirst } from '../utils/kakaoPlacesGeocode';
 import { useKakaoPlaceSearch } from '../hooks/useKakaoPlaceSearch';
 import { searchRegions, loadRegionRings } from '../utils/regionBoundary';
 import { fetchProfileByIdSupabase } from '../api/profilesSupabase';
+import ExifFreshIcon from '../components/lj/ExifFreshIcon';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
 
@@ -608,7 +608,7 @@ function PostPinPreview({
               />
             )}
             <div className="absolute top-2.5 left-2.5 bg-black/70 px-2.5 py-1 rounded-md flex items-center gap-1.5">
-              <IconShieldCheck size={11} color={KEY} />
+              <ExifFreshIcon iso={bundle.primary_taken_at} size={11} />
               <span className="text-[11px] text-white font-semibold">
                 {timeAgo(bundle.primary_taken_at)}
               </span>
@@ -826,7 +826,7 @@ function BundlePinPreview({ bundle, photos, onViewDetail, onAuthorClick }) {
                       />
                     )}
                     <div className="absolute top-1 left-1 bg-black/70 px-1.5 py-0.5 rounded flex items-center gap-1">
-                      <IconShieldCheck size={9} color={KEY} />
+                      <ExifFreshIcon iso={p.exif_taken_at} size={9} />
                       <span className="text-[9px] text-white font-semibold">
                         {timeAgo(p.exif_taken_at)}
                       </span>

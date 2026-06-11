@@ -1,12 +1,12 @@
 import React from 'react';
 import {
   IconCrown,
-  IconShieldCheck,
   IconHeart,
-  IconMessage,
+  IconMessageCircle,
   IconBookmark,
 } from '@tabler/icons-react';
 import { LJ, formatExifTime } from './tokens';
+import ExifFreshIcon from './ExifFreshIcon';
 
 /**
  * 장소 페이지 베스트 컷 히어로.
@@ -31,7 +31,6 @@ export function BestCutHero({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <IconCrown size={16} stroke={2} color={LJ.key} />
           <span style={{ fontSize: 13, fontWeight: 600, color: LJ.textPrimary }}>베스트 컷</span>
-          <span style={{ fontSize: 11, color: LJ.textSecondary }}>이 장소를 대표하는 한 장</span>
         </div>
       )}
 
@@ -72,29 +71,10 @@ export function BestCutHero({
             backdropFilter: 'blur(8px)',
           }}
         >
-          <IconShieldCheck size={12} stroke={2} color={LJ.key} />
+          <ExifFreshIcon iso={post.exif_taken_at} size={12} stroke={2} />
           <span style={{ color: '#fff', fontSize: 11, fontWeight: 600 }}>
             {formatExifTime(post.exif_taken_at)}
           </span>
-        </div>
-        <div
-          style={{
-            position: 'absolute',
-            top: 10,
-            right: 10,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            padding: '6px 12px',
-            background: LJ.gradientBestCut,
-            borderRadius: 7,
-            color: '#fff',
-            fontSize: 11,
-            fontWeight: 700,
-          }}
-        >
-          <IconCrown size={12} stroke={2} />
-          베스트 컷
         </div>
       </button>
 
@@ -206,7 +186,7 @@ export function BestCutHero({
             {post.like_count ?? 0}
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: LJ.textSecondary }}>
-            <IconMessage size={14} stroke={2} />
+            <IconMessageCircle size={14} stroke={2} />
             {post.comment_count ?? 0}
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: LJ.textSecondary }}>

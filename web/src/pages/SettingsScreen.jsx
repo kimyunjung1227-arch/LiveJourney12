@@ -1,62 +1,50 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  IconArrowLeft,
-  IconMapPin,
-  IconCrown,
-  IconHelpCircle,
-  IconHeart,
-  IconShieldLock,
-  IconInfoCircle,
-  IconFileText,
-  IconMessage2,
-  IconLogout,
-  IconTrash,
-} from '@tabler/icons-react';
+import { IconArrowLeft, IconShare, IconLogout } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useSettings } from '../hooks/useSettings';
-import { useProfile } from '../hooks/useProfile';
-import SettingsProfileCard from '../components/settings/SettingsProfileCard';
 import SettingsGroup from '../components/settings/SettingsGroup';
 import SettingsRow from '../components/settings/SettingsRow';
-import SettingsToggleRow from '../components/settings/SettingsToggleRow';
 import ConfirmModal from '../components/settings/ConfirmModal';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
+import { logger } from '../utils/logger';
 
 const TEXT_PRIMARY = '#1F1F1F';
-const TEXT_SECONDARY = '#6B6B6B';
 const SURFACE = '#F5F7FA';
 const BORDER_LIGHT = '#F0F0F0';
-
-const APP_VERSION = '1.0.0';
 
 function SettingsScreen() {
   const navigate = useNavigate();
   const { user: me, logout } = useAuth();
-  const { settings, loading: settingsLoading, updateSetting } = useSettings();
-  const { data: profileData, loading: profileLoading } = useProfile(me?.id || null);
 
   const [logoutModal, setLogoutModal] = useState(false);
-  const [deleteModal, setDeleteModal] = useState(false);
   const [pending, setPending] = useState(false);
 
-  const settingsProfile = useMemo(() => {
-    const u = profileData?.user;
-    if (!u) return null;
-    const handle =
-      (me?.email || '').split('@')[0] ||
-      (u.name && u.name.replace(/\s+/g, '').toLowerCase()) ||
-      'me';
-    return {
-      id: u.id,
-      name: u.name || '여행자',
-      handle,
-      avatar_color: u.avatar_color || '#4DB8E8',
-      avatar_url: u.avatar_url || null,
-      is_best_cut_artist: !!u.is_best_cut_artist,
+  const handleShareProfile = async () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const url = me?.id ? `${origin}/user/${me.id}` : origin;
+    const shareData = {
+      title: '내 프로필 | 라이브저니',
+      text: '내 라이브저니 프로필을 확인해보세요.',
+      url,
     };
-  }, [profileData, me?.email]);
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        return;
+      }
+      if (navigator.clipboard && url) {
+        await navigator.clipboard.writeText(url);
+        // eslint-disable-next-line no-alert
+        window.alert('프로필 링크를 복사했어요');
+        return;
+      }
+      // eslint-disable-next-line no-alert
+      window.prompt('이 링크를 복사해서 공유하세요', url);
+    } catch (e) {
+      logger.warn('프로필 공유 실패', e?.message || e);
+    }
+  };
 
   const handleLogout = async () => {
     setPending(true);
@@ -69,33 +57,20 @@ function SettingsScreen() {
     }
   };
 
-  const handleDelete = async () => {
-    setPending(true);
-    try {
-      // 추후 RPC로 교체 — 현재는 안전한 로그아웃만 수행
-      await logout();
-    } finally {
-      setPending(false);
-      setDeleteModal(false);
-      navigate('/account-delete', { replace: true });
-    }
-  };
-
   return (
     <div style={{ background: SURFACE, minHeight: '100vh' }}>
       <PageSeo {...(PAGE_SEO.settings || PAGE_SEO.profile)} />
 
-      {/* 헤더 */}
+      {/* 헤더 — 제목 중앙 고정 */}
       <div
         className="flex items-center"
         style={{
-          gap: 12,
-          padding: '14px 18px',
-          borderBottom: `1px solid ${BORDER_LIGHT}`,
-          background: '#fff',
           position: 'sticky',
           top: 0,
           zIndex: 10,
+          padding: '14px 18px',
+          borderBottom: `1px solid ${BORDER_LIGHT}`,
+          background: '#fff',
         }}
       >
         <button
@@ -116,106 +91,40 @@ function SettingsScreen() {
         >
           <IconArrowLeft size={22} color={TEXT_PRIMARY} />
         </button>
-        <span style={{ fontSize: 17, fontWeight: 600, color: TEXT_PRIMARY }}>설정</span>
+        <span
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            fontSize: 17,
+            fontWeight: 600,
+            color: TEXT_PRIMARY,
+            pointerEvents: 'none',
+          }}
+        >
+          설정
+        </span>
       </div>
 
-      {/* 프로필 카드 */}
-      {profileLoading ? null : settingsProfile ? (
-        <SettingsProfileCard profile={settingsProfile} />
-      ) : null}
+      <div style={{ height: 10 }} />
 
-      {/* 계정 */}
-      <SettingsGroup label="계정">
-        <SettingsRow
-          icon={IconMapPin}
-          iconColor="#4DB8E8"
-          label="위치 정보"
-          subtitle="정확한 위치 · EXIF 인증에 사용"
-          isLast
-          onClick={() => navigate('/location-terms')}
-        />
-      </SettingsGroup>
-
-      {/* 알림 */}
-      <SettingsGroup label="알림">
-        <SettingsToggleRow
-          icon={IconCrown}
-          iconBg="gradient"
-          label="영예 알림"
-          subtitle="베스트 컷 선정, 도움 마일스톤"
-          value={!!settings?.notify_honor}
-          onToggle={(v) => updateSetting('notify_honor', v)}
-        />
-        <SettingsToggleRow
-          icon={IconHelpCircle}
-          iconBg="key"
-          label="질문 알림"
-          subtitle="내 지역 질문 매칭, 답변 도착"
-          value={!!settings?.notify_question}
-          onToggle={(v) => updateSetting('notify_question', v)}
-        />
-        <SettingsToggleRow
-          icon={IconHeart}
-          iconBg="gray"
-          label="활동 알림"
-          subtitle="좋아요, 댓글, 저장, 팔로우"
-          value={!!settings?.notify_activity}
-          onToggle={(v) => updateSetting('notify_activity', v)}
-          isLast
-        />
-      </SettingsGroup>
-
-      {/* 개인정보 */}
-      <SettingsGroup label="개인정보">
-        <SettingsRow
-          icon={IconShieldLock}
-          label="개인정보 처리방침"
-          isLast
-          onClick={() => navigate('/privacy-policy')}
-        />
-      </SettingsGroup>
-
-      {/* 앱 정보 */}
-      <SettingsGroup label="앱 정보">
-        <SettingsRow
-          icon={IconInfoCircle}
-          label="버전"
-          value={APP_VERSION}
-          showArrow={false}
-        />
-        <SettingsRow
-          icon={IconFileText}
-          label="이용약관"
-          onClick={() => navigate('/terms-of-service')}
-        />
-        <SettingsRow
-          icon={IconMessage2}
-          label="문의하기"
-          isLast
-          onClick={() => navigate('/inquiry')}
-        />
-      </SettingsGroup>
-
-      {/* 위험 액션 */}
       <SettingsGroup>
+        <SettingsRow
+          icon={IconShare}
+          label="프로필 공유"
+          onClick={handleShareProfile}
+        />
         <SettingsRow
           icon={IconLogout}
           label="로그아웃"
           showArrow={false}
-          onClick={() => setLogoutModal(true)}
-        />
-        <SettingsRow
-          icon={IconTrash}
-          label="회원 탈퇴"
-          danger
           isLast
-          onClick={() => setDeleteModal(true)}
+          onClick={() => setLogoutModal(true)}
         />
       </SettingsGroup>
 
       <div style={{ height: 32 }} />
-
-      {/* 알림 로딩 중일 때는 토글이 어둠 — 그래도 깜빡임 방지를 위해 헤더 위에 안내 X */}
 
       <ConfirmModal
         open={logoutModal}
@@ -224,15 +133,6 @@ function SettingsScreen() {
         confirmLabel={pending ? '처리 중...' : '로그아웃'}
         onConfirm={handleLogout}
         onCancel={() => setLogoutModal(false)}
-      />
-      <ConfirmModal
-        open={deleteModal}
-        title="회원 탈퇴"
-        message="탈퇴하면 모든 사진과 기록이 삭제되며 되돌릴 수 없어요. 정말 탈퇴하시겠어요?"
-        confirmLabel={pending ? '처리 중...' : '탈퇴'}
-        danger
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteModal(false)}
       />
     </div>
   );

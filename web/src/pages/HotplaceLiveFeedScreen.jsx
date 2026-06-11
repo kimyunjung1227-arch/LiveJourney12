@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { IconMessageCircle } from '@tabler/icons-react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import 'swiper/css';
 import { getDisplayImageUrl } from '../api/upload';
@@ -446,9 +447,7 @@ export default function HotplaceLiveFeedScreen() {
                                     favorite
                                   </span>
                                   <span className="font-inter font-bold">{getLikeCount(bp)}</span>
-                                  <span className="material-symbols-outlined ml-1 text-[12px] text-sky-200/85" aria-hidden>
-                                    chat_bubble
-                                  </span>
+                                  <IconMessageCircle className="ml-1 text-sky-200/85" size={12} stroke={2} aria-hidden />
                                   <span className="font-inter font-bold">{getCommentCount(bp)}</span>
                                 </div>
                               </div>

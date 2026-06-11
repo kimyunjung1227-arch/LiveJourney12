@@ -69,20 +69,25 @@ function parsePlaceBody(body, argument) {
     name: argument || '',
     address: '',
     description: '',
-    tip: '',
+    nearby: [],
     image_url: '',
   };
   const desc = [];
   for (const line of lines) {
     if (!line) continue;
-    if (/^장소명\s*[:：]/.test(line)) {
-      if (!place.name) place.name = line.replace(/^장소명\s*[:：]\s*/, '');
-    } else if (/^주소\s*[:：]/.test(line)) {
-      place.address = line.replace(/^주소\s*[:：]\s*/, '');
-    } else if (/^팁\s*[:：]/.test(line)) {
-      place.tip = line.replace(/^팁\s*[:：]\s*/, '');
-    } else if (/^설명\s*[:：]/.test(line)) {
-      desc.push(line.replace(/^설명\s*[:：]\s*/, ''));
+    if (/^(장소이름|장소명|이름)\s*[:：]/.test(line)) {
+      if (!place.name) place.name = line.replace(/^(장소이름|장소명|이름)\s*[:：]\s*/, '');
+    } else if (/^(장소위치|위치|주소)\s*[:：]/.test(line)) {
+      place.address = line.replace(/^(장소위치|위치|주소)\s*[:：]\s*/, '');
+    } else if (/^(주변장소|주변여행지|주변)\s*[:：]/.test(line)) {
+      const names = line.replace(/^(주변장소|주변여행지|주변)\s*[:：]\s*/, '');
+      place.nearby = names
+        .split(/,|·|•|ㆍ/)
+        .map((s) => ({ name: s.trim(), desc: '' }))
+        .filter((n) => n.name)
+        .slice(0, 3);
+    } else if (/^(장소설명|설명)\s*[:：]/.test(line)) {
+      desc.push(line.replace(/^(장소설명|설명)\s*[:：]\s*/, ''));
     } else if (/^이미지\s*[:：]/.test(line) || /^사진\s*[:：]/.test(line)) {
       place.image_url = line.replace(/^(이미지|사진)\s*[:：]\s*/, '');
     } else if (/^(https?:\/\/\S+\.(?:png|jpe?g|webp|gif))$/i.test(line) && !place.image_url) {

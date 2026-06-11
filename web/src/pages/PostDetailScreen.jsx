@@ -5,7 +5,7 @@ import {
   IconMapPin,
   IconHeart,
   IconHeartFilled,
-  IconMessageCircle2,
+  IconMessageCircle,
   IconBookmark,
   IconBookmarkFilled,
 } from '@tabler/icons-react';
@@ -413,8 +413,8 @@ function PostDetailScreen() {
         >
           <DetailReactionBtn
             active={false}
-            iconOff={<IconMessageCircle2 size={20} stroke={1.8} />}
-            iconOn={<IconMessageCircle2 size={20} stroke={1.8} />}
+            iconOff={<IconMessageCircle size={20} stroke={1.8} />}
+            iconOn={<IconMessageCircle size={20} stroke={1.8} />}
             count={commentCount}
             ariaLabel="댓글"
           />
@@ -528,13 +528,13 @@ function FollowButton({ following, onClick }) {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '2px 8px',
+        padding: '0 14px',
         borderRadius: 6,
         border: following ? `1px solid ${LJ.borderLight}` : 'none',
         background: following ? '#fff' : LJ.key,
         color: following ? LJ.textSecondary : '#fff',
         fontFamily: LJ.fontStack,
-        fontSize: 11,
+        fontSize: 13,
         fontWeight: 600,
         lineHeight: 1,
         cursor: 'pointer',

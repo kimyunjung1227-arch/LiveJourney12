@@ -1,13 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  IconShieldCheck,
-  IconMapPin,
   IconHeart,
   IconHeartFilled,
   IconMessageCircle,
-  IconBookmarks,
-  IconBookmarksFilled,
+  IconBookmark,
+  IconBookmarkFilled,
 } from '@tabler/icons-react';
 import {
   LJ,
@@ -18,6 +16,7 @@ import {
 import MoreMenuDropdown from './MoreMenuDropdown';
 import PhotoCarousel from './PhotoCarousel';
 import ReportModal from './ReportModal';
+import ExifFreshIcon from './ExifFreshIcon';
 
 const BODY_PREVIEW_LINES = 4;
 
@@ -205,7 +204,6 @@ export function PostCard({
                 flex: '1 1 auto',
               }}
             >
-              <IconMapPin size={16} stroke={2} color={LJ.key} />
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {post.place_name}
               </span>
@@ -254,12 +252,10 @@ export function PostCard({
             onClick={goPostDetail}
             ariaLabel="댓글"
           />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <ReactionButton
             active={saved}
-            iconOff={<IconBookmarks size={19} stroke={1.8} />}
-            iconOn={<IconBookmarksFilled size={19} />}
+            iconOff={<IconBookmark size={19} stroke={1.8} />}
+            iconOn={<IconBookmarkFilled size={19} />}
             count={null}
             onClick={(e) => {
               e.stopPropagation();
@@ -267,6 +263,8 @@ export function PostCard({
             }}
             ariaLabel="저장"
           />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
           <MoreMenuDropdown postId={post.id} onShare={handleShare} onReport={handleReport} />
         </div>
       </div>
@@ -438,7 +436,7 @@ function ExifBadge({ takenAt }) {
         boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
       }}
     >
-      <IconShieldCheck size={15} stroke={2.2} color={LJ.key} />
+      <ExifFreshIcon iso={takenAt} size={15} stroke={2.2} />
       <span
         style={{
           color: '#fff',

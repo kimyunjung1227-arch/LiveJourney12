@@ -267,9 +267,11 @@ export default function ActivityNotice({ notification, onFollowBack }) {
             style={{
               background: KEY,
               color: 'white',
-              padding: '2px 8px',
+              padding: '0 14px',
+              lineHeight: 1,
               borderRadius: 6,
-              fontSize: 11,
+              fontFamily: 'inherit',
+              fontSize: 13,
               fontWeight: 600,
               border: 'none',
               cursor: 'pointer',

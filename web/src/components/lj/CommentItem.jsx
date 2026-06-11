@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   IconHeart,
   IconHeartFilled,
-  IconMessageCircle2,
+  IconMessageCircle,
   IconDots,
   IconEdit,
   IconTrash,
@@ -218,7 +218,7 @@ export function CommentItem({
                 fontFamily: LJ.fontStack,
               }}
             >
-              <IconMessageCircle2 size={15} stroke={1.8} />
+              <IconMessageCircle size={15} stroke={1.8} />
               답글
             </button>
             <button
