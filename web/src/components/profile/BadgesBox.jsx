@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconAward } from '@tabler/icons-react';
+import { IconAward, IconChevronRight } from '@tabler/icons-react';
 
 import {
   BADGE_CATALOG,
@@ -11,6 +11,7 @@ import {
 } from './badgeData';
 import BadgeMedallion from '../badges/BadgeMedallion';
 import { useEarnedBadges } from '../../hooks/useEarnedBadges';
+import { useHorizontalDragScroll } from '../../hooks/useHorizontalDragScroll';
 
 const TEXT_SECONDARY = '#6B6B6B';
 const TEXT_PRIMARY = '#1F1F1F';
@@ -18,24 +19,54 @@ const TEXT_PRIMARY = '#1F1F1F';
 /**
  * 프로필 메인의 뱃지 박스.
  * - 실제 활동(제보·좋아요·베스트컷)으로 획득한 뱃지만 표시 (SVG 문장 + pill 라벨)
- * - 클릭 시 /profile/badges/:badgeKey 로 이동
+ * - 크게 보이는 뱃지를 가로 스크롤로 노출 → 한눈에 "어떤 여행·취향"인지 전달
+ * - 뱃지 클릭 시 /profile/badges/:badgeKey, '모두보기'는 /profile/badges 로 이동
  */
 export default function BadgesBox({ user }) {
   const navigate = useNavigate();
   const { earnedKeys, loading } = useEarnedBadges(user);
+  const { handleDragStart, hasMovedRef } = useHorizontalDragScroll();
   if (!user) return null;
 
   const earned = collapseGrowthGroups(resolveEarnedBadges(earnedKeys), earnedKeys);
 
+  const guardedClick = (handler) => (e) => {
+    if (hasMovedRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    handler();
+  };
+
   return (
     <div style={{ padding: '0 18px', marginBottom: 16 }}>
-      <div className="flex items-center" style={{ marginBottom: 12 }}>
+      <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
         <div className="flex items-center gap-1.5">
           <IconAward size={14} color="#1F1F1F" stroke={2.2} />
           <span style={{ fontSize: 14, fontWeight: 700, color: '#1F1F1F' }}>
             뱃지
           </span>
         </div>
+        {earned.length > 0 && (
+          <button
+            type="button"
+            onClick={() => navigate('/profile/badges')}
+            className="flex items-center gap-0.5"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              fontSize: 11,
+              color: TEXT_SECONDARY,
+              fontWeight: 500,
+            }}
+          >
+            모두보기
+            <IconChevronRight size={12} color={TEXT_SECONDARY} />
+          </button>
+        )}
       </div>
 
       {earned.length === 0 ? (
@@ -52,26 +83,27 @@ export default function BadgesBox({ user }) {
         </div>
       ) : (
         <div
-          className="grid"
-          style={{ gridTemplateColumns: 'repeat(5, 1fr)', columnGap: 6, rowGap: 16 }}
+          onMouseDown={handleDragStart}
+          className="flex overflow-x-auto scrollbar-hide cursor-grab active:cursor-grabbing"
+          style={{ gap: 16, WebkitOverflowScrolling: 'touch' }}
         >
           {earned.map((meta) => (
             <button
               key={meta.key}
               type="button"
-              onClick={() => navigate(`/profile/badges/${meta.key}`)}
+              onClick={guardedClick(() => navigate(`/profile/badges/${meta.key}`))}
               aria-label={meta.name}
-              className="flex flex-col items-center"
-              style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', width: '100%' }}
+              className="flex flex-col items-center flex-shrink-0"
+              style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', width: 76 }}
             >
-              <BadgeMedallion meta={meta} state="earned" size={60} />
+              <BadgeMedallion meta={meta} state="earned" size={72} />
               <span
                 style={{
-                  marginTop: 7,
-                  fontSize: 10.5,
+                  marginTop: 8,
+                  fontSize: 11,
                   fontWeight: 700,
                   color: TEXT_PRIMARY,
-                  lineHeight: 1.2,
+                  lineHeight: 1.25,
                   textAlign: 'center',
                   wordBreak: 'keep-all',
                 }}
