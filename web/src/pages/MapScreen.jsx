@@ -240,20 +240,10 @@ function buildPinHTML(bundle, { isSelected, isOtherSelected }) {
     ? ''
     : 'background-image:linear-gradient(135deg,#e0f7fa,#b2ebf2);';
 
-  // 작성자 프로필 사진 — 핀 좌하단에 원형으로 표시
-  const avatarSrc = bundle.author_avatar_url
-    ? esc(getDisplayImageUrl(bundle.author_avatar_url))
-    : '';
-  const avSize = isSelected ? 26 : 20;
-  const avatarBadge = avatarSrc
-    ? `<div style="position:absolute;left:-5px;bottom:-5px;width:${avSize}px;height:${avSize}px;border-radius:50%;border:2px solid white;background:#e5e7eb url('${avatarSrc}') center/cover no-repeat;box-shadow:0 2px 6px rgba(0,0,0,0.28);pointer-events:none;"></div>`
-    : '';
-
   return `<div style="position:relative;opacity:${opacity};transition:all 0.15s ease;cursor:pointer;">
     <div style="width:${size}px;height:${size}px;background-image:url('${thumb}');${imgFallbackBg}background-size:cover;background-position:center;border:${borderW}px solid white;border-radius:${radius}px;box-shadow:${shadow};${outline}background-color:#f3f4f6;"></div>
     <div style="position:absolute;bottom:${arrowBottom}px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:${arrowW}px solid transparent;border-right:${arrowW}px solid transparent;border-top:${arrowH}px solid ${arrowColor};filter:drop-shadow(0 2px 2px rgba(0,0,0,0.12));pointer-events:none;"></div>
     ${bundleBadge}
-    ${avatarBadge}
   </div>`;
 }
 
@@ -1450,7 +1440,10 @@ const MapScreen = () => {
       (fallbackProfile.username && String(fallbackProfile.username).trim()) ||
       (fallbackProfile.display_name && String(fallbackProfile.display_name).trim()) ||
       selectedBundleRaw.author_name;
-    return { ...selectedBundleRaw, author_name: resolvedName };
+    // 프로필 보강 fetch 에 avatar 가 있으면 우선 사용 (상세 카드에서 프로필 사진 보장)
+    const resolvedAvatar =
+      fallbackProfile.avatar_url || selectedBundleRaw.author_avatar_url || null;
+    return { ...selectedBundleRaw, author_name: resolvedName, author_avatar_url: resolvedAvatar };
   }, [selectedBundleRaw, fallbackProfile]);
   const { photos: bundlePhotos } = useBundleDetail(
     selectedBundle?.is_bundle ? selectedBundleId : null,
