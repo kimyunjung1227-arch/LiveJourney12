@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { logger } from '../utils/logger';
@@ -14,6 +14,15 @@ export function useFollow({ targetUserId, initialFollowing = false } = {}) {
 
   const [isFollowing, setIsFollowing] = useState(!!initialFollowing);
   const [pending, setPending] = useState(false);
+
+  // 팔로우 상태는 프로필/게시물이 비동기로 로드된 뒤에야 확정되므로,
+  // initialFollowing 값이 실제로 바뀌면(예: false → true) 동기화한다.
+  // 사용자가 직접 토글 중(pending)일 때는 낙관적 값을 덮어쓰지 않는다.
+  const pendingRef = useRef(pending);
+  pendingRef.current = pending;
+  useEffect(() => {
+    if (!pendingRef.current) setIsFollowing(!!initialFollowing);
+  }, [initialFollowing]);
 
   const toggleFollow = useCallback(async () => {
     if (!meId || !targetUserId || meId === targetUserId || pending) return;

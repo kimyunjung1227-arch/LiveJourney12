@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   IconArrowLeft,
@@ -22,6 +22,8 @@ import CommentInput from '../components/lj/CommentInput';
 import { usePostDetail } from '../hooks/usePostDetail';
 import { useReactions } from '../hooks/useReactions';
 import { useAuth } from '../contexts/AuthContext';
+import { useFollow } from '../hooks/useFollow';
+import { isFollowingSupabase } from '../api/socialSupabase';
 import { supabase } from '../utils/supabaseClient';
 
 /**
@@ -40,10 +42,32 @@ function PostDetailScreen() {
   const { state, toggleLike, toggleSave } = useReactions(postArr);
 
   const [replyingTo, setReplyingTo] = useState(null);
-  const [following, setFollowing] = useState(false);
   const [showReport, setShowReport] = useState(false);
 
   const isAuthor = !!(user && post && post.author_id && user.id === post.author_id);
+  const authorId = post?.author_id || null;
+
+  // 작성자를 이미 팔로우 중인지 실제 DB에서 확인 → 팔로잉/팔로우 표기 정확하게
+  const [authorFollowed, setAuthorFollowed] = useState(false);
+  useEffect(() => {
+    let active = true;
+    if (!user?.id || !authorId || user.id === authorId) {
+      setAuthorFollowed(false);
+      return undefined;
+    }
+    (async () => {
+      const followed = await isFollowingSupabase(user.id, authorId);
+      if (active) setAuthorFollowed(followed);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user?.id, authorId]);
+
+  const { isFollowing, pending: followPending, toggleFollow, canFollow } = useFollow({
+    targetUserId: authorId,
+    initialFollowing: authorFollowed,
+  });
 
   const handleEdit = () => {
     if (!post) return;
@@ -390,7 +414,13 @@ function PostDetailScreen() {
               </button>
             </div>
           </div>
-          <FollowButton following={following} onClick={() => setFollowing((v) => !v)} />
+          {!isAuthor && canFollow && (
+            <FollowButton
+              following={isFollowing}
+              pending={followPending}
+              onClick={toggleFollow}
+            />
+          )}
         </div>
 
         {/* 본문 */}
@@ -519,12 +549,14 @@ function DetailReactionBtn({ active, iconOff, iconOn, count, onClick, ariaLabel 
   );
 }
 
-function FollowButton({ following, onClick }) {
+function FollowButton({ following, pending, onClick }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={pending}
       style={{
+        opacity: pending ? 0.6 : 1,
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',

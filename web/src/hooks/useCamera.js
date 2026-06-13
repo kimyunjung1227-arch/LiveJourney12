@@ -1,6 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
+ * 촬영 순간 기기(화면) 방향을 0/90/180/270(시계방향)으로 반환.
+ * getUserMedia 프레임은 기기 본체 기준으로 고정되므로, 가로로 들고 찍으면
+ * 피사체가 옆으로 누운 채 저장된다. 이 각도만큼 캔버스를 회전해 정면으로 보정한다.
+ */
+function getCaptureOrientationAngle() {
+  if (typeof window === 'undefined') return 0;
+  // 표준 ScreenOrientation API 우선
+  const a = window.screen?.orientation?.angle;
+  if (typeof a === 'number') return ((a % 360) + 360) % 360;
+  // 구형 iOS Safari 폴백 (window.orientation: 0 / 90 / -90 / 180)
+  const legacy = window.orientation;
+  if (typeof legacy === 'number') return ((legacy % 360) + 360) % 360;
+  return 0;
+}
+
+/**
  * 웹 인앱 카메라 훅 — getUserMedia + Canvas + MediaRecorder.
  *
  * UI 사용 패턴:
@@ -23,11 +39,19 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
   const [facingMode, setFacingMode] = useState(initialFacingMode);
   const [mode, setMode] = useState(initialMode);
   const [flashOn, setFlashOn] = useState(false);
+  const [zoom, setZoomState] = useState(1); // 디지털 줌 배율 (1 / 2 / 3)
 
   const videoRef = useRef(null);
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
   const streamRef = useRef(null);
+  const zoomRef = useRef(1);
+
+  const setZoom = useCallback((level) => {
+    const z = Math.max(1, Math.min(3, Number(level) || 1));
+    zoomRef.current = z;
+    setZoomState(z);
+  }, []);
 
   // stream이 갱신될 때마다 ref와 video 엘리먼트에 연결
   useEffect(() => {
@@ -137,12 +161,34 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
   const capturePhoto = useCallback(async () => {
     const video = videoRef.current;
     if (!video || !video.videoWidth) throw new Error('비디오 스트림이 준비되지 않았어요.');
+
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+
+    // 디지털 줌 — 중앙을 1/z 만큼 잘라내 확대 효과 (미리보기 CSS scale과 일치)
+    const z = zoomRef.current || 1;
+    const sw = vw / z;
+    const sh = vh / z;
+    const sx = (vw - sw) / 2;
+    const sy = (vh - sh) / 2;
+
+    // 가로(landscape)로 촬영한 경우 기기 방향만큼 회전해 정면(세로 기준)으로 저장
+    const angle = getCaptureOrientationAngle(); // 0 / 90 / 180 / 270
+    const swap = angle === 90 || angle === 270;
+
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = swap ? sh : sw;
+    canvas.height = swap ? sw : sh;
     const ctx = canvas.getContext('2d');
+
+    ctx.save();
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    // 화면이 회전한 각도(시계방향)를 그대로 적용해 촬영 화면을 정방향으로 되돌림
+    ctx.rotate((angle * Math.PI) / 180);
     // 전면 카메라는 미러링 표시이지만 저장은 자연 방향으로
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(video, sx, sy, sw, sh, -sw / 2, -sh / 2, sw, sh);
+    ctx.restore();
+
     return await new Promise((resolve, reject) => {
       canvas.toBlob(
         (blob) => (blob ? resolve(blob) : reject(new Error('toBlob failed'))),
@@ -213,6 +259,8 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
     facingMode,
     mode,
     flashOn,
+    zoom,
+    setZoom,
     videoRef,
     requestPermission,
     switchCamera,

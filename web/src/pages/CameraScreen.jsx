@@ -561,7 +561,9 @@ function CameraView({ cam, geo, onClose, onOpenGallery, onCapturedPhoto, onCaptu
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          transform: cam.facingMode === 'user' ? 'scaleX(-1)' : 'none',
+          transform: `${cam.facingMode === 'user' ? 'scaleX(-1) ' : ''}scale(${cam.zoom || 1})`,
+          transformOrigin: 'center center',
+          transition: 'transform 160ms ease-out',
           background: DARK,
         }}
       />
@@ -651,6 +653,9 @@ function CameraView({ cam, geo, onClose, onOpenGallery, onCapturedPhoto, onCaptu
       >
         {/* GPS 박스 */}
         <GPSBox geo={geo} />
+
+        {/* 줌(확대) 토글 — 1배 / 2배 / 3배 */}
+        {!cam.isRecording && <ZoomToggle zoom={cam.zoom} onChange={cam.setZoom} />}
 
         {/* 모드 토글 */}
         <ModeToggle mode={cam.mode} onChange={cam.setMode} disabled={cam.isRecording} />
@@ -901,6 +906,52 @@ function GPSBox({ geo }) {
       >
         {badge}
       </span>
+    </div>
+  );
+}
+
+function ZoomToggle({ zoom, onChange }) {
+  return (
+    <div
+      style={{
+        alignSelf: 'center',
+        display: 'inline-flex',
+        gap: 6,
+        padding: 4,
+        background: OVERLAY,
+        borderRadius: 999,
+        backdropFilter: 'blur(8px)',
+      }}
+    >
+      {[1, 2, 3].map((z) => {
+        const active = (zoom || 1) === z;
+        return (
+          <button
+            key={z}
+            type="button"
+            onClick={() => onChange(z)}
+            aria-label={`${z}배 확대`}
+            aria-pressed={active}
+            style={{
+              minWidth: 36,
+              height: 30,
+              padding: '0 8px',
+              borderRadius: 999,
+              border: 'none',
+              background: active ? '#fff' : 'transparent',
+              color: active ? DARK : '#fff',
+              fontFamily: LJ.fontStack,
+              fontSize: 12,
+              fontWeight: 800,
+              cursor: 'pointer',
+              lineHeight: 1,
+              letterSpacing: 0.2,
+            }}
+          >
+            {z}×
+          </button>
+        );
+      })}
     </div>
   );
 }
