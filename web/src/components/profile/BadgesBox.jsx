@@ -51,7 +51,10 @@ export default function BadgesBox({ user }) {
             : '아직 획득한 뱃지가 없어요. 활동을 쌓으면 자동으로 부여됩니다.'}
         </div>
       ) : (
-        <div className="flex flex-wrap" style={{ gap: 16, rowGap: 14 }}>
+        <div
+          className="grid"
+          style={{ gridTemplateColumns: 'repeat(5, 1fr)', columnGap: 6, rowGap: 16 }}
+        >
           {earned.map((meta) => (
             <button
               key={meta.key}
@@ -59,13 +62,13 @@ export default function BadgesBox({ user }) {
               onClick={() => navigate(`/profile/badges/${meta.key}`)}
               aria-label={meta.name}
               className="flex flex-col items-center"
-              style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', width: 64 }}
+              style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', width: '100%' }}
             >
-              <BadgeMedallion meta={meta} state="earned" size={58} />
+              <BadgeMedallion meta={meta} state="earned" size={60} />
               <span
                 style={{
                   marginTop: 7,
-                  fontSize: 11,
+                  fontSize: 10.5,
                   fontWeight: 700,
                   color: TEXT_PRIMARY,
                   lineHeight: 1.2,
