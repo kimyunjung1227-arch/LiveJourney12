@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   IconArrowLeft,
@@ -61,6 +61,38 @@ const CITY_GRADIENTS = {
   여수: ['#B3E5FC', '#4DB8E8'],
 };
 const DEFAULT_CITY_GRADIENT = ['#87CEEB', '#4DB8E8'];
+
+// 행정구역 풀네임("경북 구미시 봉곡동", "구미시 봉곡동")을 인기 도시용 '시' 단위 이름("구미")으로 정규화.
+// - 앞의 도(경북/경상북도 등) 접두는 버리고, '시'로 끝나는 토큰을 도시명으로 사용
+// - 광역/특별시는 접미사를 떼고(서울특별시→서울), 시가 없으면 군/구 단위로 폴백
+const PROVINCE_TOKENS = new Set([
+  '경기', '경기도', '강원', '강원도', '강원특별자치도',
+  '충북', '충청북도', '충남', '충청남도',
+  '전북', '전라북도', '전북특별자치도', '전남', '전라남도',
+  '경북', '경상북도', '경남', '경상남도',
+  '제주', '제주도', '제주특별자치도',
+  '서울', '부산', '대구', '인천', '광주', '대전', '울산', '세종',
+]);
+
+function normalizeCityName(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  const tokens = s.split(/\s+/).filter(Boolean);
+  // 1) '시'로 끝나는 토큰 → 시 단위 도시명
+  for (const t of tokens) {
+    if (t.endsWith('시')) {
+      const c = t.replace(/(특별자치시|특별시|광역시)$/, '').replace(/시$/, '');
+      if (c) return c;
+    }
+  }
+  // 2) '시'가 없으면 도 접두를 건너뛴 첫 토큰을 군/구 단위로
+  for (const t of tokens) {
+    if (PROVINCE_TOKENS.has(t)) continue;
+    const c = t.replace(/(군|구)$/, '');
+    if (c) return c;
+  }
+  return tokens[tokens.length - 1] || s;
+}
 
 function timeAgo(iso) {
   if (!iso) return '';
@@ -514,12 +546,25 @@ function QuestionsSection({ questions, showAllAction = true }) {
 
 function CityGrid({ cities }) {
   const navigate = useNavigate();
-  if (!cities || cities.length === 0) return null;
+  // 같은 시(예: "경북 구미시 봉곡동" + "구미시 봉곡동")를 '구미' 하나로 합치고 라이브 수 합산
+  const mergedCities = useMemo(() => {
+    const map = new Map();
+    (cities || []).forEach((c) => {
+      const name = normalizeCityName(c.city);
+      if (!name) return;
+      const prev = map.get(name);
+      if (prev) prev.live_count += c.live_count || 0;
+      else map.set(name, { city: name, live_count: c.live_count || 0 });
+    });
+    return Array.from(map.values()).sort((a, b) => b.live_count - a.live_count);
+  }, [cities]);
+
+  if (mergedCities.length === 0) return null;
   return (
     <div className="mb-[22px]">
       <SectionHeader icon={IconMap2} title="인기 도시" />
       <div className="grid grid-cols-2 gap-2">
-        {cities.slice(0, 4).map((city) => {
+        {mergedCities.slice(0, 4).map((city) => {
           const [start, end] = CITY_GRADIENTS[city.city] || DEFAULT_CITY_GRADIENT;
           const photo = getRegionDefaultImage(city.city);
           return (
