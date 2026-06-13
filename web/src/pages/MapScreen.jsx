@@ -18,6 +18,7 @@ import {
   IconMapPin,
   IconX,
   IconMap,
+  IconRefresh,
 } from '@tabler/icons-react';
 import { supabase } from '../utils/supabaseClient';
 import { getDisplayImageUrl } from '../api/upload';
@@ -26,7 +27,7 @@ import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import { searchPlaceWithKakaoFirst } from '../utils/kakaoPlacesGeocode';
 import { useKakaoPlaceSearch } from '../hooks/useKakaoPlaceSearch';
 import { searchRegions, loadRegionRings } from '../utils/regionBoundary';
-import { fetchProfileByIdSupabase } from '../api/profilesSupabase';
+import { fetchProfileByIdSupabase, fetchProfilesByIdsSupabase } from '../api/profilesSupabase';
 import ExifFreshIcon from '../components/lj/ExifFreshIcon';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
@@ -239,10 +240,20 @@ function buildPinHTML(bundle, { isSelected, isOtherSelected }) {
     ? ''
     : 'background-image:linear-gradient(135deg,#e0f7fa,#b2ebf2);';
 
+  // 작성자 프로필 사진 — 핀 좌하단에 원형으로 표시
+  const avatarSrc = bundle.author_avatar_url
+    ? esc(getDisplayImageUrl(bundle.author_avatar_url))
+    : '';
+  const avSize = isSelected ? 26 : 20;
+  const avatarBadge = avatarSrc
+    ? `<div style="position:absolute;left:-5px;bottom:-5px;width:${avSize}px;height:${avSize}px;border-radius:50%;border:2px solid white;background:#e5e7eb url('${avatarSrc}') center/cover no-repeat;box-shadow:0 2px 6px rgba(0,0,0,0.28);pointer-events:none;"></div>`
+    : '';
+
   return `<div style="position:relative;opacity:${opacity};transition:all 0.15s ease;cursor:pointer;">
     <div style="width:${size}px;height:${size}px;background-image:url('${thumb}');${imgFallbackBg}background-size:cover;background-position:center;border:${borderW}px solid white;border-radius:${radius}px;box-shadow:${shadow};${outline}background-color:#f3f4f6;"></div>
     <div style="position:absolute;bottom:${arrowBottom}px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:${arrowW}px solid transparent;border-right:${arrowW}px solid transparent;border-top:${arrowH}px solid ${arrowColor};filter:drop-shadow(0 2px 2px rgba(0,0,0,0.12));pointer-events:none;"></div>
     ${bundleBadge}
+    ${avatarBadge}
   </div>`;
 }
 
@@ -275,6 +286,8 @@ function MapSearchHeader({
   onSelect,
   onSelectRegion,
   onClear,
+  onRefresh,
+  refreshing = false,
 }) {
   const navigate = useNavigate();
   const inputRef = useRef(null);
@@ -350,7 +363,27 @@ function MapSearchHeader({
             </button>
           )}
         </div>
+        {onRefresh && (
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={refreshing}
+            className="bg-white w-[42px] h-[42px] rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ boxShadow: '0 2px 10px rgba(0,0,0,0.12)', border: 'none', cursor: refreshing ? 'wait' : 'pointer' }}
+            aria-label="새로고침"
+          >
+            <IconRefresh
+              size={19}
+              color={KEY}
+              stroke={2.2}
+              style={{
+                animation: refreshing ? 'lj-map-spin 0.8s linear infinite' : 'none',
+              }}
+            />
+          </button>
+        )}
       </div>
+      <style>{`@keyframes lj-map-spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* 검색 결과 드롭다운 (지도 위 오버레이) */}
       {showResults && (
@@ -527,13 +560,14 @@ function MyLocationButton({ onClick, raised }) {
   );
 }
 
-function AuthorAvatar({ name, color, onClick }) {
+function AuthorAvatar({ name, color, avatarUrl, onClick }) {
   const ch = String(name || '?').trim().charAt(0).toUpperCase() || '·';
+  const src = avatarUrl ? getDisplayImageUrl(avatarUrl) : '';
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center justify-center text-white font-semibold flex-shrink-0"
+      className="flex items-center justify-center text-white font-semibold flex-shrink-0 overflow-hidden"
       style={{
         width: 30,
         minWidth: 30,
@@ -551,7 +585,22 @@ function AuthorAvatar({ name, color, onClick }) {
         WebkitAppearance: 'none',
       }}
     >
-      {ch}
+      {src ? (
+        <img
+          src={src}
+          alt=""
+          referrerPolicy="no-referrer"
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          onError={(e) => {
+            e.currentTarget.style.display = 'none';
+            if (e.currentTarget.parentElement) {
+              e.currentTarget.parentElement.textContent = ch;
+            }
+          }}
+        />
+      ) : (
+        ch
+      )}
     </button>
   );
 }
@@ -630,6 +679,7 @@ function PostPinPreview({
               <AuthorAvatar
                 name={bundle.author_name}
                 color={bundle.author_avatar_color}
+                avatarUrl={bundle.author_avatar_url}
                 onClick={onAuthorClick}
               />
               <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap" style={{ lineHeight: 1.2 }}>
@@ -751,6 +801,7 @@ function BundlePinPreview({ bundle, photos, onViewDetail, onAuthorClick }) {
               <AuthorAvatar
                 name={bundle.author_name}
                 color={bundle.author_avatar_color}
+                avatarUrl={bundle.author_avatar_url}
                 onClick={onAuthorClick}
               />
               <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap" style={{ lineHeight: 1.2 }}>
@@ -1041,6 +1092,51 @@ function useMapBundles(bounds, category) {
 }
 
 /**
+ * 묶음 작성자들의 프로필 사진(avatar_url)을 profiles 에서 한 번에 조회해 캐시.
+ * RPC 가 avatar 를 주지 않으므로 핀/미리보기에서 실제 프로필 사진을 보여주기 위함.
+ * 반환: { [author_id]: avatar_url | '' }
+ */
+function useBundleAvatars(bundles) {
+  const [avatars, setAvatars] = useState({});
+  const seenRef = useRef(new Set());
+
+  useEffect(() => {
+    const ids = Array.from(
+      new Set(
+        (bundles || [])
+          .map((b) => (b?.author_id != null ? String(b.author_id) : ''))
+          .filter(Boolean),
+      ),
+    ).filter((id) => !seenRef.current.has(id));
+    if (ids.length === 0) return undefined;
+
+    ids.forEach((id) => seenRef.current.add(id));
+    let cancelled = false;
+    (async () => {
+      try {
+        const profiles = await fetchProfilesByIdsSupabase(ids);
+        if (cancelled) return;
+        setAvatars((prev) => {
+          const next = { ...prev };
+          for (const id of ids) if (!(id in next)) next[id] = ''; // 조회 완료 표시(폴백)
+          for (const p of profiles || []) {
+            if (p?.id) next[String(p.id)] = p.avatar_url || '';
+          }
+          return next;
+        });
+      } catch (e) {
+        logger.warn('프로필 사진 조회 실패', e?.message || e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [bundles]);
+
+  return avatars;
+}
+
+/**
  * Supabase에 있지만 좌표가 없는 최근 48h 게시물을 가져와서
  * place_name을 카카오 Places로 지오코드 → 핀으로 보여주는 폴백.
  * 결과는 백그라운드로 posts.exif_data.map_pin에 백필되어 다음부터는 RPC가 직접 반환.
@@ -1319,7 +1415,7 @@ const MapScreen = () => {
   const { extraBundles } = useGeocodedPosts(bounds, selectedCategory);
 
   // RPC가 반환한 묶음 + 지오코딩 폴백 묶음 병합 (중복 제거)
-  const bundles = useMemo(() => {
+  const baseBundles = useMemo(() => {
     const map = new Map();
     for (const b of rpcBundles) map.set(String(b.primary_post_id), b);
     for (const b of extraBundles) {
@@ -1328,6 +1424,18 @@ const MapScreen = () => {
     }
     return Array.from(map.values());
   }, [rpcBundles, extraBundles]);
+
+  // get_map_bundles RPC 는 작성자 프로필 사진을 주지 않으므로 client 에서 보강
+  const avatarMap = useBundleAvatars(baseBundles);
+  const bundles = useMemo(
+    () =>
+      baseBundles.map((b) => ({
+        ...b,
+        author_avatar_url:
+          avatarMap[String(b.author_id)] ?? b.author_avatar_url ?? null,
+      })),
+    [baseBundles, avatarMap],
+  );
 
   const selectedBundleRaw = useMemo(
     () => bundles.find((b) => b.bundle_id === selectedBundleId) || null,
@@ -1823,6 +1931,27 @@ const MapScreen = () => {
     searchPlaces('');
   }, [searchPlaces]);
 
+  // 새로고침 — 현재 보고 있는 지도 영역의 묶음(라이브 사진)을 다시 불러온다.
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = useCallback(() => {
+    const map = kakaoMapRef.current;
+    if (!map || refreshing) return;
+    setRefreshing(true);
+    setSelectedBundleId(null);
+    try {
+      const b = map.getBounds();
+      // bounds 객체를 새로 만들어 useMapBundles 의 refetch 를 강제
+      setBounds({
+        sw: { lat: b.getSouthWest().getLat(), lng: b.getSouthWest().getLng() },
+        ne: { lat: b.getNorthEast().getLat(), lng: b.getNorthEast().getLng() },
+      });
+    } catch {
+      /* ignore */
+    }
+    // RPC 디바운스(300ms) + 네트워크를 감안해 잠깐 회전 표시
+    window.setTimeout(() => setRefreshing(false), 900);
+  }, [refreshing]);
+
   // 검색 결과 선택 → 지도 이동 + 장소 카드 표시 (화면 전환 없음)
   const handleSelectPlace = useCallback((place) => {
     setSearchedPlace(place);
@@ -1921,6 +2050,8 @@ const MapScreen = () => {
         onSelect={handleSelectPlace}
         onSelectRegion={handleSelectRegion}
         onClear={handleSearchClear}
+        onRefresh={handleRefresh}
+        refreshing={refreshing}
       />
       <MapCategoryFilter
         selected={selectedCategory}
