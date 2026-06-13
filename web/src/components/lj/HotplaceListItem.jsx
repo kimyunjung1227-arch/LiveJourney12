@@ -5,7 +5,7 @@ import { cleanForTwoLines } from './textHelpers';
 
 /**
  * 핫플 4~20위 리스트 아이템.
- * - 순위 + 장소명 + (Gemini 2줄 설명)
+ * - 순위 + 장소명 + (Gemini 설명, 최대 3줄·"…" 없이 완결 문장으로 마무리)
  * - 들여쓴 사진 3장 (테두리·뱃지 없음)
  * - 지역/장수 표시 제거
  */
@@ -27,7 +27,7 @@ export function HotplaceListItem({
       regionHint: place.region || '',
     })
       .then((text) => {
-        if (!cancelled && text) setDesc(cleanForTwoLines(text, 110));
+        if (!cancelled && text) setDesc(cleanForTwoLines(text, 64));
       })
       .catch(() => {});
     return () => {
@@ -74,7 +74,7 @@ export function HotplaceListItem({
                 lineHeight: 1.5,
                 color: LJ.textSecondary,
                 display: '-webkit-box',
-                WebkitLineClamp: 2,
+                WebkitLineClamp: 3,
                 WebkitBoxOrient: 'vertical',
                 overflow: 'hidden',
                 wordBreak: 'break-word',

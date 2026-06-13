@@ -564,14 +564,14 @@ const CrowdedPlaceScreen = () => {
                                         .slice(0, 1);
                                     const placeKey = String(place.key || '').trim();
                                     const aiDesc = placeKey ? String(placeDescMap?.[placeKey] || '').trim() : '';
-                                    // 3줄 안에서 "…" 없이 완결된 문장으로 끝나도록 정제 (설명/폴백 공통)
+                                    // 3줄(12px·풀폭) 안에서 "…" 없이 완결된 문장으로 끝나도록 정제 (설명/폴백 공통)
                                     const aiBlurb = toHotplaceDescPreview(
                                         aiDesc || generatePlaceAiBlurb(place.key, {
                                             tags: hotTagChips,
                                             cityDong: place.cityDong || '',
                                             tier: cardProps?.hotReasonLabel || '',
                                         }),
-                                        { maxChars: 96, maxSentences: 3 }
+                                        { maxChars: 72, maxSentences: 3 }
                                     );
 
                                     const goToHotplaceDetail = () => {
