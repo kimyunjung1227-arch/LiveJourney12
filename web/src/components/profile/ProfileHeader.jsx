@@ -75,11 +75,9 @@ export default function ProfileHeader({ user, isMe = false, trailingSlot = null 
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap" style={{ marginBottom: 4 }}>
-            {!isMe && (
-              <h2 className="m-0" style={{ fontSize: 16, fontWeight: 700, color: TEXT_PRIMARY, letterSpacing: -0.3 }}>
-                {user.name}
-              </h2>
-            )}
+            <h2 className="m-0" style={{ fontSize: 16, fontWeight: 700, color: TEXT_PRIMARY, letterSpacing: -0.3 }}>
+              {user.name}
+            </h2>
             {isArtist && (
               <div
                 className="flex items-center gap-1"
