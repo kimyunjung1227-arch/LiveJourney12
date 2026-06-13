@@ -2,6 +2,7 @@ import React, { useEffect, useState, Suspense, lazy } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { ExifConsentProvider } from './contexts/ExifConsentContext'
+import { BadgeAchievementProvider } from './contexts/BadgeAchievementContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminRoute from './components/AdminRoute'
 import { initStatusBar } from './utils/statusBar'
@@ -189,6 +190,7 @@ function App() {
   return (
     <AuthProvider>
     <ExifConsentProvider>
+    <BadgeAchievementProvider>
       <Router basename={basename}>
         <RootSeo />
         <div className="app-container">
@@ -439,6 +441,7 @@ function App() {
           </div>
         </div>
       </Router>
+    </BadgeAchievementProvider>
     </ExifConsentProvider>
     </AuthProvider>
   )
