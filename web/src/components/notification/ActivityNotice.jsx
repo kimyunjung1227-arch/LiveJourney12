@@ -91,10 +91,11 @@ export default function ActivityNotice({ notification, onFollowBack }) {
         </div>
       );
     }
-    // 사람 아바타
+    // 사람 아바타 — actor 프로필 사진 우선, 없으면 이니셜 폴백
+    const avatarUrl = actor?.avatar_url ? getDisplayImageUrl(actor.avatar_url) : '';
     return (
       <div
-        className="flex items-center justify-center flex-shrink-0 text-white font-semibold"
+        className="flex items-center justify-center flex-shrink-0 overflow-hidden text-white font-semibold"
         style={{
           width: 38,
           height: 38,
@@ -103,7 +104,20 @@ export default function ActivityNotice({ notification, onFollowBack }) {
           fontSize: 14,
         }}
       >
-        {String(name).charAt(0).toUpperCase() || '·'}
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt=""
+            referrerPolicy="no-referrer"
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              // 외부 CDN(Google/Kakao 등) referer 차단으로 깨질 때 이니셜로 폴백
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        ) : (
+          String(name).charAt(0).toUpperCase() || '·'
+        )}
       </div>
     );
   };
