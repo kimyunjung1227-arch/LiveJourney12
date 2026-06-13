@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { IconArrowLeft } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,7 +11,6 @@ import BottomNavigation from '../components/BottomNavigation';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
 
-const KEY = '#4DB8E8';
 const TEXT_PRIMARY = '#1F1F1F';
 const TEXT_SECONDARY = '#6B6B6B';
 const BORDER_LIGHT = '#E8E8E8';
@@ -21,7 +20,11 @@ const ORDERED_GROUPS = ['today', 'week', 'earlier'];
 function NotificationsScreen() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
-  const { notifications, loading, markAllRead, followBack } = useNotifications();
+  const { notifications, loading, flushReadOnExit, followBack } = useNotifications();
+
+  // 화면을 떠날 때(뒤로가기 또는 알림 클릭으로 이동) 모두 읽음 처리.
+  // 머무는 동안에는 읽지 않은 알림이 강조 표시로 남아 새 알림이 구분된다.
+  useEffect(() => () => { flushReadOnExit(); }, [flushReadOnExit]);
 
   const groups = useMemo(() => {
     const g = { today: [], week: [], earlier: [] };
@@ -86,26 +89,6 @@ function NotificationsScreen() {
           <IconArrowLeft size={22} color={TEXT_PRIMARY} />
         </button>
         <span style={{ fontSize: 17, fontWeight: 600, color: TEXT_PRIMARY }}>알림</span>
-        <button
-          type="button"
-          onClick={markAllRead}
-          disabled={!hasAny}
-          style={{
-            position: 'absolute',
-            right: 12,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            background: 'transparent',
-            border: 'none',
-            color: hasAny ? KEY : '#B8B8B8',
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: hasAny ? 'pointer' : 'default',
-            padding: '6px 4px',
-          }}
-        >
-          모두 읽음
-        </button>
       </div>
 
       {/* 본문 */}
