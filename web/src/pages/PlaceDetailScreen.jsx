@@ -10,7 +10,7 @@ import { bestCutScore } from '../hooks/ljPostsMapping';
 import { useAuth } from '../contexts/AuthContext';
 import { isPlaceSaved, toggleSavedPlace } from '../api/savedPlacesSupabase';
 
-const BEST_CUT_LIMIT = 10;
+const BEST_CUT_LIMIT = 1;
 
 /**
  * 장소 페이지 (/place/:placeId).
