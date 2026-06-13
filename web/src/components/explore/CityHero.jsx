@@ -10,27 +10,42 @@ export default function CityHero({ cityName }) {
 
   return (
     <div
-      className="sticky top-0 z-20 flex items-center bg-white"
+      className="sticky top-0 z-20 flex items-center justify-center bg-white"
       style={{ height: 56, padding: '0 6px', borderBottom: '1px solid #F0F0F0' }}
     >
       <button
         type="button"
         onClick={() => navigate(-1)}
         aria-label="뒤로가기"
-        className="flex items-center justify-center flex-shrink-0"
-        style={{ width: 40, height: 40, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+        className="flex items-center justify-center"
+        style={{
+          position: 'absolute',
+          left: 6,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: 40,
+          height: 40,
+          background: 'transparent',
+          border: 'none',
+          padding: 0,
+          cursor: 'pointer',
+        }}
       >
         <IconArrowLeft size={22} color={TEXT_PRIMARY} />
       </button>
 
-      <div className="flex-1 flex items-center min-w-0" style={{ paddingLeft: 2 }}>
-        <h1
-          className="m-0 truncate"
-          style={{ fontSize: 19, fontWeight: 700, color: TEXT_PRIMARY, letterSpacing: -0.3 }}
-        >
-          {cityName}
-        </h1>
-      </div>
+      <h1
+        className="m-0 truncate"
+        style={{
+          fontSize: 19,
+          fontWeight: 700,
+          color: TEXT_PRIMARY,
+          letterSpacing: -0.3,
+          padding: '0 48px',
+        }}
+      >
+        {cityName}
+      </h1>
     </div>
   );
 }
