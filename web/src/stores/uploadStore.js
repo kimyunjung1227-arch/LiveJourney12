@@ -115,6 +115,20 @@ export function patchUploadMedia(patch) {
 }
 
 /**
+ * index 위치의 media 에 부분 업데이트 (회전 등으로 file/url 교체 시 사용).
+ * 교체로 버려지는 이전 blob URL 은 호출부에서 revoke 한다.
+ */
+export function patchUploadMediaAt(index, patch) {
+  if (!state || !patch) return;
+  if (!Array.isArray(state.medias) || index < 0 || index >= state.medias.length) return;
+  const next = [...state.medias];
+  next[index] = { ...next[index], ...patch };
+  state = { ...state, medias: next };
+  writeToSession(state);
+  emit();
+}
+
+/**
  * 묶음에 새 미디어 추가. MAX_MEDIAS 초과분은 무시.
  * payload 는 단일 객체 또는 객체 배열.
  */

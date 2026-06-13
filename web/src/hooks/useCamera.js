@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * getUserMedia 프레임은 기기 본체 기준으로 고정되므로, 가로로 들고 찍으면
  * 피사체가 옆으로 누운 채 저장된다. 이 각도만큼 캔버스를 회전해 정면으로 보정한다.
  */
-function getCaptureOrientationAngle() {
+function getScreenOrientationAngle() {
   if (typeof window === 'undefined') return 0;
   // 표준 ScreenOrientation API 우선
   const a = window.screen?.orientation?.angle;
@@ -14,6 +14,22 @@ function getCaptureOrientationAngle() {
   const legacy = window.orientation;
   if (typeof legacy === 'number') return ((legacy % 360) + 360) % 360;
   return 0;
+}
+
+/**
+ * 가속도(deviceorientation)의 beta/gamma로 기기를 어느 방향으로 들었는지 추정.
+ * OS '화면 회전 잠금'이 켜져 있으면 screen.orientation.angle 은 항상 0이라
+ * 가로로 들어도 감지가 안 된다 → 센서값으로 보완한다.
+ * 반환: 0(세로) / 90(가로) / 270(반대 가로). 애매하면 null.
+ */
+function orientationFromTilt(beta, gamma) {
+  if (typeof beta !== 'number' || typeof gamma !== 'number') return null;
+  // 좌우로 충분히 기울었으면 가로로 판단
+  if (gamma > 35) return 90; // 기기 우측이 아래로 (landscape)
+  if (gamma < -35) return 270; // 기기 좌측이 아래로 (반대 landscape)
+  // 그 외에는 세로로 본다 (애매한 평평/약한 기울기 포함)
+  if (Math.abs(gamma) <= 25) return 0;
+  return null; // 25~35° 경계 구간은 직전 값 유지
 }
 
 /**
@@ -46,11 +62,45 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
   const chunksRef = useRef([]);
   const streamRef = useRef(null);
   const zoomRef = useRef(1);
+  const tiltAngleRef = useRef(0); // 가속도 센서로 추정한 기기 방향(0/90/270)
+  const hasTiltRef = useRef(false); // 센서값을 한 번이라도 받았는지
 
   const setZoom = useCallback((level) => {
     const z = Math.max(1, Math.min(3, Number(level) || 1));
     zoomRef.current = z;
     setZoomState(z);
+  }, []);
+
+  // 기기 기울기(가속도) 추적 — 화면 회전 잠금 상태에서도 가로 촬영을 감지하기 위함.
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const onTilt = (e) => {
+      const next = orientationFromTilt(e.beta, e.gamma);
+      if (next != null) {
+        tiltAngleRef.current = next;
+        hasTiltRef.current = true;
+      }
+    };
+    window.addEventListener('deviceorientation', onTilt, true);
+
+    // iOS 13+ 는 사용자 제스처에서 권한 요청이 필요 → 첫 탭에 1회 요청
+    const DOE = window.DeviceOrientationEvent;
+    let onFirstTap;
+    if (DOE && typeof DOE.requestPermission === 'function') {
+      onFirstTap = async () => {
+        try {
+          await DOE.requestPermission();
+        } catch (_) {
+          /* 거부해도 screen.orientation 폴백 사용 */
+        }
+      };
+      window.addEventListener('pointerdown', onFirstTap, { once: true });
+    }
+
+    return () => {
+      window.removeEventListener('deviceorientation', onTilt, true);
+      if (onFirstTap) window.removeEventListener('pointerdown', onFirstTap);
+    };
   }, []);
 
   // stream이 갱신될 때마다 ref와 video 엘리먼트에 연결
@@ -172,8 +222,11 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
     const sx = (vw - sw) / 2;
     const sy = (vh - sh) / 2;
 
-    // 가로(landscape)로 촬영한 경우 기기 방향만큼 회전해 정면(세로 기준)으로 저장
-    const angle = getCaptureOrientationAngle(); // 0 / 90 / 180 / 270
+    // 가로(landscape)로 촬영한 경우 기기 방향만큼 회전해 정면(세로 기준)으로 저장.
+    // 화면 회전 잠금이 켜져 있으면 screen.orientation 은 0이므로 가속도 센서값으로 보완.
+    const screenAngle = getScreenOrientationAngle(); // 0 / 90 / 180 / 270
+    const angle =
+      screenAngle !== 0 ? screenAngle : hasTiltRef.current ? tiltAngleRef.current : 0;
     const swap = angle === 90 || angle === 270;
 
     const canvas = document.createElement('canvas');

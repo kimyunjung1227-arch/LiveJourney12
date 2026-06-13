@@ -14,6 +14,7 @@ import {
   IconInfoCircle,
   IconPlus,
   IconX,
+  IconRotateClockwise2,
 } from '@tabler/icons-react';
 import { LJ } from '../components/lj/tokens';
 import {
@@ -34,7 +35,8 @@ import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
 import { reverseGeocodeToPlaceDetail, extractRegionFromAddress } from '../utils/locationFromGeocode';
 import { searchPlaceWithKakaoFirst, ensureKakaoMapsServicesReady } from '../utils/kakaoPlacesGeocode';
-import { patchUploadMedia } from '../stores/uploadStore';
+import { patchUploadMedia, patchUploadMediaAt } from '../stores/uploadStore';
+import { rotateImageMedia } from '../utils/rotateImageMedia';
 
 const CATEGORIES = [
   { id: 'nature', label: '개화·자연', Icon: IconFlower },
@@ -194,6 +196,27 @@ function UploadInfoScreen() {
   const mediasArr = Array.isArray(media?.medias) ? media.medias : [];
   const filesArr = mediasArr.map((m) => m?.file).filter(Boolean);
   const canUpload = !!category && filesArr.length > 0 && !isUploading;
+
+  const [rotatingIdx, setRotatingIdx] = useState(-1);
+  const handleRotate = async (index) => {
+    const target = mediasArr[index];
+    if (!target || target.mode === 'video' || rotatingIdx !== -1) return;
+    setRotatingIdx(index);
+    const prevUrl = target.url;
+    try {
+      const rotated = await rotateImageMedia(target, 90);
+      patchUploadMediaAt(index, rotated);
+      if (prevUrl) {
+        try {
+          URL.revokeObjectURL(prevUrl);
+        } catch (_) {}
+      }
+    } catch (e) {
+      logger.warn('사진 회전 실패', e?.message || e);
+    } finally {
+      setRotatingIdx(-1);
+    }
+  };
 
   const handleUpload = async () => {
     if (!canUpload) return;
@@ -479,6 +502,8 @@ function UploadInfoScreen() {
             editedLocLat={editedLoc?.lat ?? null}
             editedLocLng={editedLoc?.lng ?? null}
             firstTakenLabel={takenLabel}
+            onRotate={handleRotate}
+            rotatingIdx={rotatingIdx}
           />
 
           {/* 썸네일 스트립 + 추가 버튼 */}
@@ -1022,7 +1047,7 @@ function UploadInfoScreen() {
  * - 선택한 사진/영상 전체를 좌우 스와이프로 미리볼 수 있음
  * - 한 번의 스와이프 = 1장 이동, PointerEvents 기반
  */
-function UploadPreviewSlider({ medias, displayPlaceName, editedLocLat, editedLocLng, firstTakenLabel }) {
+function UploadPreviewSlider({ medias, displayPlaceName, editedLocLat, editedLocLng, firstTakenLabel, onRotate, rotatingIdx = -1 }) {
   const [idx, setIdx] = React.useState(0);
   const [dragOffset, setDragOffset] = React.useState(0);
   const [isDragging, setIsDragging] = React.useState(false);
@@ -1245,6 +1270,39 @@ function UploadPreviewSlider({ medias, displayPlaceName, editedLocLat, editedLoc
                 : '')}
           </span>
         </div>
+      )}
+
+      {/* 회전 버튼 — 가로로 찍혀 누운 사진을 정면으로 돌리기 (이미지에만) */}
+      {current?.mode !== 'video' && typeof onRotate === 'function' && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRotate(idx);
+          }}
+          disabled={rotatingIdx === idx}
+          aria-label="사진 90도 회전"
+          style={{
+            position: 'absolute',
+            top: 10,
+            right: N > 1 ? 56 : 10,
+            width: 34,
+            height: 34,
+            borderRadius: 999,
+            background: 'rgba(0,0,0,0.7)',
+            border: 'none',
+            color: '#fff',
+            cursor: rotatingIdx === idx ? 'wait' : 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backdropFilter: 'blur(8px)',
+            opacity: rotatingIdx === idx ? 0.6 : 1,
+            zIndex: 4,
+          }}
+        >
+          <IconRotateClockwise2 size={18} stroke={2} />
+        </button>
       )}
 
       {/* 페이지 점 인디케이터 (5장 이하) */}

@@ -1204,6 +1204,77 @@ function useBundleDetail(bundleId) {
 }
 
 // ────────────────────────────────────────────────
+// 같은(거의 동일한) 좌표에 묶음이 여러 개면 핀이 겹쳐 보인다.
+// 겹치는 묶음들을 작은 원형으로 펼쳐(spiderfy) 표시 위치를 분리한다.
+//   - 실제 좌표는 그대로 두고 "표시 위치"만 픽셀 단위로 분산 → 클릭 시 원래 위치로 이동.
+//   - 클러스터링(level>=6) 중엔 펼치지 않는다.
+// 반환: Map<bundle_id, {lat, lng}>
+// ────────────────────────────────────────────────
+function computeFanoutPositions(kakao, map, bundles, useClustering) {
+  const result = new Map();
+  for (const b of bundles) {
+    result.set(b.bundle_id, { lat: b.primary_lat, lng: b.primary_lng });
+  }
+  if (useClustering || bundles.length < 2) return result;
+
+  let proj = null;
+  try {
+    proj = map.getProjection();
+  } catch {
+    proj = null;
+  }
+
+  // 좌표 반올림(약 1m) 키로 그룹화
+  const groups = new Map();
+  for (const b of bundles) {
+    if (b.primary_lat == null || b.primary_lng == null) continue;
+    const key = `${Number(b.primary_lat).toFixed(5)},${Number(b.primary_lng).toFixed(5)}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(b);
+  }
+
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    // 핀이 겹치지 않도록 개수에 따라 반경(px)을 키운다
+    const radiusPx = 30 + Math.min(group.length, 8) * 4;
+    const base = group[0];
+    const baseLatLng = new kakao.maps.LatLng(base.primary_lat, base.primary_lng);
+    let basePt = null;
+    if (proj) {
+      try {
+        basePt = proj.pointFromCoords(baseLatLng);
+      } catch {
+        basePt = null;
+      }
+    }
+
+    group.forEach((b, i) => {
+      const angle = (2 * Math.PI * i) / group.length - Math.PI / 2;
+      if (basePt && proj) {
+        try {
+          const pt = new kakao.maps.Point(
+            basePt.x + Math.cos(angle) * radiusPx,
+            basePt.y + Math.sin(angle) * radiusPx,
+          );
+          const ll = proj.coordsFromPoint(pt);
+          result.set(b.bundle_id, { lat: ll.getLat(), lng: ll.getLng() });
+          return;
+        } catch {
+          /* projection 실패 시 도(degree) 오프셋 폴백 */
+        }
+      }
+      const r = 0.00008;
+      result.set(b.bundle_id, {
+        lat: b.primary_lat + Math.cos(angle) * r,
+        lng: b.primary_lng + Math.sin(angle) * r,
+      });
+    });
+  }
+
+  return result;
+}
+
+// ────────────────────────────────────────────────
 // MapScreen (스펙 §11)
 // ────────────────────────────────────────────────
 const MapScreen = () => {
@@ -1390,6 +1461,14 @@ const MapScreen = () => {
     const useClustering = mapLevel >= 6;
     const nextIds = new Set(bundles.map((b) => b.bundle_id));
 
+    // 같은 좌표 묶음들을 겹치지 않게 펼친 "표시 위치"
+    const fanoutPos = computeFanoutPositions(kakao, map, bundles, useClustering);
+    const posOf = (bundle) =>
+      fanoutPos.get(bundle.bundle_id) || {
+        lat: bundle.primary_lat,
+        lng: bundle.primary_lng,
+      };
+
     // viewport 밖 오버레이 제거
     for (const [bid, item] of overlayMapRef.current.entries()) {
       if (!nextIds.has(bid)) {
@@ -1410,14 +1489,14 @@ const MapScreen = () => {
       const innerHtml = buildPinHTML(bundle, { isSelected, isOtherSelected });
       const display = useClustering ? 'none' : '';
 
+      const rpos = posOf(bundle);
+
       const existing = overlayMapRef.current.get(id);
       if (existing) {
         existing.wrap.innerHTML = innerHtml;
         existing.wrap.style.display = display;
         try {
-          existing.overlay.setPosition(
-            new kakao.maps.LatLng(bundle.primary_lat, bundle.primary_lng),
-          );
+          existing.overlay.setPosition(new kakao.maps.LatLng(rpos.lat, rpos.lng));
         } catch {
           /* ignore */
         }
@@ -1451,10 +1530,7 @@ const MapScreen = () => {
       });
 
       const overlay = new kakao.maps.CustomOverlay({
-        position: new kakao.maps.LatLng(
-          bundle.primary_lat,
-          bundle.primary_lng,
-        ),
+        position: new kakao.maps.LatLng(rpos.lat, rpos.lng),
         content: wrap,
         yAnchor: 1,
         xAnchor: 0.5,
