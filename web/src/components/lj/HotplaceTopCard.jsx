@@ -36,7 +36,7 @@ export function HotplaceTopCard({
       regionHint: place.region || '',
     })
       .then((text) => {
-        if (!cancelled && text) setDesc(cleanForTwoLines(text, 68));
+        if (!cancelled && text) setDesc(cleanForTwoLines(text, 110));
       })
       .catch(() => {});
     return () => {
@@ -139,7 +139,7 @@ export function HotplaceTopCard({
         )}
       </div>
 
-      {/* 본문 영역 — 장소명 + 설명(최대 3줄, "…" 없이 완결 문장으로 마무리) */}
+      {/* 본문 영역 — 장소명 + 설명(최대 5줄, "…" 없이 완결 문장으로 마무리) */}
       <div style={{ padding: '10px 4px 12px' }}>
         <div style={{ fontSize: size === 'large' ? 16 : 14, fontWeight: 700, color: LJ.textPrimary }}>
           {place?.place_name || '이름 없음'}
@@ -152,7 +152,7 @@ export function HotplaceTopCard({
               lineHeight: 1.5,
               color: LJ.textSecondary,
               display: '-webkit-box',
-              WebkitLineClamp: 3,
+              WebkitLineClamp: 5,
               WebkitBoxOrient: 'vertical',
               overflow: 'hidden',
               wordBreak: 'break-word',
