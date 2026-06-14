@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconSettings } from '@tabler/icons-react';
+import { IconSettings, IconBookmark } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import BottomNavigation from '../components/BottomNavigation';
@@ -11,7 +11,6 @@ import BadgesBox from '../components/profile/BadgesBox';
 import BestCutCarousel from '../components/profile/BestCutCarousel';
 import ProfilePostsSection from '../components/profile/ProfilePostsSection';
 import TravelMapView from '../components/profile/TravelMapView';
-import SavedPlacesView from '../components/profile/SavedPlacesView';
 import ProfileSectionHeading from '../components/profile/ProfileSectionHeading';
 import { logger } from '../utils/logger';
 
@@ -184,7 +183,7 @@ function ProfileScreen() {
     return (
       <div style={{ background: '#fff', minHeight: '100vh', paddingBottom: 80 }}>
         <PageSeo {...PAGE_SEO.profile} />
-        <ProfileHeaderBar onSettings={() => navigate('/settings')} showSettings />
+        <ProfileHeaderBar onSettings={() => navigate('/settings')} onSaved={() => navigate('/profile/saved')} showSettings />
         <div className="text-center" style={{ padding: 40, color: TEXT_SECONDARY, fontSize: 13 }}>
           불러오는 중...
         </div>
@@ -198,7 +197,7 @@ function ProfileScreen() {
     return (
       <div style={{ background: '#fff', minHeight: '100vh', paddingBottom: 80 }}>
         <PageSeo {...PAGE_SEO.profile} />
-        <ProfileHeaderBar onSettings={() => navigate('/settings')} showSettings />
+        <ProfileHeaderBar onSettings={() => navigate('/settings')} onSaved={() => navigate('/profile/saved')} showSettings />
         <div className="text-center" style={{ padding: 40, color: TEXT_SECONDARY, fontSize: 13 }}>
           프로필 정보를 불러오지 못했어요
         </div>
@@ -226,12 +225,7 @@ function ProfileScreen() {
           <ProfileSectionHeading title="여행 지도" />
           <TravelMapView userId={userId} />
         </section>
-
-        {/* 저장한 장소 */}
-        <section style={{ marginBottom: 8 }}>
-          <ProfileSectionHeading title="저장한 장소" />
-          <SavedPlacesView userId={userId} />
-        </section>
+        {/* 저장한 장소는 상단 '저장' 버튼(/profile/saved) 에서 사진 그리드로 본다 */}
       </div>
 
       <BottomNavigation />
@@ -239,7 +233,18 @@ function ProfileScreen() {
   );
 }
 
-function ProfileHeaderBar({ onSettings, showSettings }) {
+function ProfileHeaderBar({ onSettings, onSaved, showSettings }) {
+  const iconBtn = {
+    width: 36,
+    height: 36,
+    background: 'transparent',
+    border: 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    padding: 0,
+  };
   return (
     <div
       style={{
@@ -257,28 +262,24 @@ function ProfileHeaderBar({ onSettings, showSettings }) {
     >
       <span style={{ fontSize: 17, fontWeight: 600, color: TEXT_PRIMARY }}>프로필</span>
       {showSettings && (
-        <button
-          type="button"
-          onClick={onSettings}
-          aria-label="설정"
+        <div
           style={{
             position: 'absolute',
-            right: 12,
+            right: 8,
             top: '50%',
             transform: 'translateY(-50%)',
-            width: 36,
-            height: 36,
-            background: 'transparent',
-            border: 'none',
-            display: 'inline-flex',
+            display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            padding: 0,
+            gap: 2,
           }}
         >
-          <IconSettings size={20} color={TEXT_PRIMARY} stroke={1.8} />
-        </button>
+          <button type="button" onClick={onSaved} aria-label="저장한 장소" style={iconBtn}>
+            <IconBookmark size={20} color={TEXT_PRIMARY} stroke={1.8} />
+          </button>
+          <button type="button" onClick={onSettings} aria-label="설정" style={iconBtn}>
+            <IconSettings size={20} color={TEXT_PRIMARY} stroke={1.8} />
+          </button>
+        </div>
       )}
     </div>
   );
