@@ -71,7 +71,7 @@ export default function LivePhotoGrid({ photos, total }) {
           </span>
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-2 gap-2">
           {visible.map((photo, idx) => {
             const isLast = idx === 5;
             const overlay = isLast && showOverlayOnLast;
@@ -83,7 +83,7 @@ export default function LivePhotoGrid({ photos, total }) {
                 onClick={() => navigate(`/photo/${encodeURIComponent(photo.post_id)}`)}
                 className="relative overflow-hidden aspect-square"
                 style={{
-                  borderRadius: 7,
+                  borderRadius: 12,
                   background: SURFACE,
                   border: 'none',
                   padding: 0,
@@ -100,17 +100,17 @@ export default function LivePhotoGrid({ photos, total }) {
                   />
                 )}
                 <div
-                  className="absolute flex items-center gap-0.5"
+                  className="absolute flex items-center gap-1"
                   style={{
-                    top: 4,
-                    left: 4,
-                    padding: '2px 6px',
+                    top: 7,
+                    left: 7,
+                    padding: '3px 8px',
                     background: 'rgba(0,0,0,0.7)',
-                    borderRadius: 4,
+                    borderRadius: 6,
                   }}
                 >
-                  <IconShieldCheck size={8} color={KEY} stroke={2.4} />
-                  <span style={{ fontSize: 8.5, color: 'white', fontWeight: 600 }}>
+                  <IconShieldCheck size={11} color={KEY} stroke={2.4} />
+                  <span style={{ fontSize: 11, color: 'white', fontWeight: 600 }}>
                     {timeAgo(photo.exif_taken_at) || '방금'}
                   </span>
                 </div>
@@ -119,7 +119,7 @@ export default function LivePhotoGrid({ photos, total }) {
                     className="absolute inset-0 flex items-center justify-center"
                     style={{ background: 'rgba(0,0,0,0.4)' }}
                   >
-                    <span style={{ color: 'white', fontSize: 14, fontWeight: 700 }}>
+                    <span style={{ color: 'white', fontSize: 22, fontWeight: 700 }}>
                       +{extra}
                     </span>
                   </div>
