@@ -6,7 +6,6 @@ import UserPostsList, { useUserPosts } from './UserPostsList';
 const TEXT_PRIMARY = '#1F1F1F';
 const TEXT_SECONDARY = '#6B6B6B';
 const KEY = '#4DB8E8';
-const BORDER_LIGHT = '#E8E8E8';
 
 const PREVIEW_COUNT = 3;
 
@@ -63,27 +62,6 @@ export default function ProfilePostsSection({ userId, seeAllTo }) {
         </div>
       ) : (
         <UserPostsList posts={preview} />
-      )}
-
-      {hasMore && !loading && (
-        <button
-          type="button"
-          onClick={() => navigate(seeAllTo)}
-          className="w-full"
-          style={{
-            marginTop: 8,
-            height: 44,
-            background: '#fff',
-            border: `1px solid ${BORDER_LIGHT}`,
-            borderRadius: 12,
-            color: TEXT_PRIMARY,
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: 'pointer',
-          }}
-        >
-          게시물 전체보기
-        </button>
       )}
     </section>
   );
