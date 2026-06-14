@@ -853,7 +853,8 @@ function ZoomToggle({ zoom, onChange }) {
       style={{
         alignSelf: 'center',
         display: 'inline-flex',
-        gap: 5,
+        alignItems: 'center',
+        gap: 9,
         padding: 3,
         background: OVERLAY,
         borderRadius: 999,
@@ -870,6 +871,8 @@ function ZoomToggle({ zoom, onChange }) {
             aria-label={`${z}배 확대`}
             aria-pressed={active}
             style={{
+              flex: '0 0 auto',
+              boxSizing: 'border-box',
               width: 28,
               height: 28,
               padding: 0,
