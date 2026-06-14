@@ -237,8 +237,8 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
 
     ctx.save();
     ctx.translate(canvas.width / 2, canvas.height / 2);
-    // 기기 회전 각도를 반대(반시계)로 되돌려 누운 사진을 똑바로 세움.
-    ctx.rotate((-angle * Math.PI) / 180);
+    // 화면이 회전한 각도(시계방향)만큼 그대로 회전해 누운 사진을 정방향으로 세움.
+    ctx.rotate((angle * Math.PI) / 180);
     // 전면 카메라는 미러링 표시이지만 저장은 자연 방향으로
     ctx.drawImage(video, sx, sy, sw, sh, -sw / 2, -sh / 2, sw, sh);
     ctx.restore();
