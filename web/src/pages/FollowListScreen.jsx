@@ -122,7 +122,7 @@ function FollowListScreen({ mode = 'user' }) {
         >
           <IconArrowLeft size={22} color={TEXT_PRIMARY} />
         </button>
-        <span style={{ fontSize: 17, fontWeight: 600, color: TEXT_PRIMARY }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: TEXT_PRIMARY }}>
           {headerTitle}
         </span>
       </div>

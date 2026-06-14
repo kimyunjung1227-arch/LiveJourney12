@@ -171,7 +171,7 @@ function HotplaceScreen() {
               top: '50%',
               transform: 'translate(-50%, -50%)',
               margin: 0,
-              fontSize: 16,
+              fontSize: 14,
               fontWeight: 700,
               color: LJ.textPrimary,
               lineHeight: 1,

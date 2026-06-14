@@ -439,7 +439,7 @@ const CrowdedPlaceScreen = () => {
                 >
                     <span className="material-symbols-outlined text-2xl">arrow_back</span>
                 </button>
-                <h1 className="pointer-events-none absolute left-1/2 top-1/2 w-[min(70%,260px)] -translate-x-1/2 -translate-y-1/2 truncate text-center text-[17px] font-bold leading-snug text-text-primary-light dark:text-text-primary-dark">
+                <h1 className="pointer-events-none absolute left-1/2 top-1/2 w-[min(70%,260px)] -translate-x-1/2 -translate-y-1/2 truncate text-center text-[14px] font-bold leading-snug text-text-primary-light dark:text-text-primary-dark">
                     실시간 급상승 핫플
                 </h1>
                 <div ref={scopeMenuWrapRef} className="absolute right-3 top-1/2 z-10 -translate-y-1/2">

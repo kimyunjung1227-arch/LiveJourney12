@@ -88,7 +88,7 @@ function NotificationsScreen() {
         >
           <IconArrowLeft size={22} color={TEXT_PRIMARY} />
         </button>
-        <span style={{ fontSize: 17, fontWeight: 600, color: TEXT_PRIMARY }}>알림</span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: TEXT_PRIMARY }}>알림</span>
       </div>
 
       {/* 본문 */}

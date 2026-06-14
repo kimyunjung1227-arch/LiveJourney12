@@ -109,7 +109,7 @@ function UserProfileScreen() {
         </button>
         <span
           style={{
-            fontSize: 17,
+            fontSize: 14,
             fontWeight: 600,
             color: TEXT_PRIMARY,
             maxWidth: 'calc(100% - 120px)',

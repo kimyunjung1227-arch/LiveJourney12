@@ -97,7 +97,7 @@ function SettingsScreen() {
             left: '50%',
             top: '50%',
             transform: 'translate(-50%, -50%)',
-            fontSize: 17,
+            fontSize: 14,
             fontWeight: 600,
             color: TEXT_PRIMARY,
             pointerEvents: 'none',

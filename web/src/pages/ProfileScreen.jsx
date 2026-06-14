@@ -260,7 +260,7 @@ function ProfileHeaderBar({ onSettings, onSaved, showSettings }) {
         justifyContent: 'center',
       }}
     >
-      <span style={{ fontSize: 17, fontWeight: 600, color: TEXT_PRIMARY }}>프로필</span>
+      <span style={{ fontSize: 14, fontWeight: 600, color: TEXT_PRIMARY }}>프로필</span>
       {showSettings && (
         <div
           style={{
