@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconCamera, IconMapPin } from '@tabler/icons-react';
+import { IconCamera, IconMapPin, IconCheck } from '@tabler/icons-react';
 import { supabase } from '../../utils/supabaseClient';
 import { getDisplayImageUrl } from '../../api/upload';
 import { logger } from '../../utils/logger';
@@ -91,18 +91,28 @@ export function useUserPosts(userId, limit) {
 
 /**
  * 게시물 한 줄 — 사진 + 장소 + 설명(2줄) + 날짜.
+ * selectable=true 면 탭 시 이동 대신 선택 토글(삭제용 선택 모드).
  */
-function PostRow({ post }) {
+function PostRow({ post, selectable = false, selected = false, onToggle }) {
   const navigate = useNavigate();
   const thumb = postThumb(post);
   const place = post.place_name || post.region || '';
   const body = (post.content || post.body || '').trim();
   const date = formatDate(post.captured_at || post.created_at);
 
+  const handleClick = () => {
+    if (selectable) {
+      onToggle?.(post.id);
+    } else {
+      navigate(`/post/${encodeURIComponent(post.id)}`);
+    }
+  };
+
   return (
     <button
       type="button"
-      onClick={() => navigate(`/post/${encodeURIComponent(post.id)}`)}
+      onClick={handleClick}
+      aria-pressed={selectable ? selected : undefined}
       className="flex items-stretch w-full text-left"
       style={{
         gap: 12,
@@ -114,6 +124,7 @@ function PostRow({ post }) {
     >
       <div
         style={{
+          position: 'relative',
           width: 76,
           height: 76,
           flexShrink: 0,
@@ -134,6 +145,31 @@ function PostRow({ post }) {
           <div className="flex items-center justify-center w-full h-full">
             <IconCamera size={22} color={TEXT_TERTIARY} stroke={1.6} />
           </div>
+        )}
+        {selectable && (
+          <>
+            {selected && (
+              <div
+                className="absolute inset-0"
+                style={{ background: 'rgba(77,184,232,0.32)' }}
+              />
+            )}
+            <div
+              className="absolute flex items-center justify-center"
+              style={{
+                top: 5,
+                left: 5,
+                width: 22,
+                height: 22,
+                borderRadius: 999,
+                background: selected ? KEY : 'rgba(255,255,255,0.85)',
+                border: selected ? 'none' : '1.5px solid rgba(0,0,0,0.15)',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+              }}
+            >
+              {selected && <IconCheck size={14} color="#fff" stroke={3} />}
+            </div>
+          </>
         )}
       </div>
 
@@ -190,8 +226,11 @@ function PostRow({ post }) {
  *
  * @param {object} props
  * @param {Array} props.posts 표시할 게시물 배열
+ * @param {boolean} [props.selectable] 선택 모드 (삭제용)
+ * @param {Set<string>} [props.selectedIds] 선택된 게시물 id 집합
+ * @param {(id:string)=>void} [props.onToggleSelect] 선택 토글
  */
-export default function UserPostsList({ posts }) {
+export default function UserPostsList({ posts, selectable = false, selectedIds, onToggleSelect }) {
   const list = Array.isArray(posts) ? posts : [];
   if (list.length === 0) {
     return (
@@ -222,7 +261,12 @@ export default function UserPostsList({ posts }) {
           key={post.id}
           style={{ borderTop: i === 0 ? 'none' : '1px solid #F0F0F0' }}
         >
-          <PostRow post={post} />
+          <PostRow
+            post={post}
+            selectable={selectable}
+            selected={!!selectedIds && selectedIds.has(post.id)}
+            onToggle={onToggleSelect}
+          />
         </div>
       ))}
     </div>
