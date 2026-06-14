@@ -1217,15 +1217,16 @@ function useGeocodedPosts(bounds, category) {
             saves_count: 0,
           });
 
-          // 백그라운드 백필 (지속화)
-          const prevExif = p.exif_data && typeof p.exif_data === 'object' ? p.exif_data : {};
-          const nextExif = {
-            ...prevExif,
-            lat: coords.lat,
-            lng: coords.lng,
-            map_pin: { lat: coords.lat, lng: coords.lng },
-          };
-          void supabase.from('posts').update({ exif_data: nextExif }).eq('id', p.id);
+          // 백그라운드 백필 (지속화) — posts UPDATE 는 owner-only RLS 라,
+          // 비소유자 글도 핀 좌표만 안전하게 병합하는 definer RPC 사용.
+          const _pid = typeof p.id === 'string' ? p.id : '';
+          if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(_pid)) {
+            void supabase.rpc('backfill_post_map_pin', {
+              p_post_id: _pid,
+              p_lat: coords.lat,
+              p_lng: coords.lng,
+            });
+          }
         }
 
         if (!cancelled) setExtraBundles(synth);
