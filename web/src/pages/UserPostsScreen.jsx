@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { IconArrowLeft, IconTrash, IconPencil, IconChecks } from '@tabler/icons-react';
+import { IconArrowLeft, IconTrash, IconPencil } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import UserPostsList, { useUserPosts } from '../components/profile/UserPostsList';
@@ -166,39 +166,22 @@ export default function UserPostsScreen() {
             }}
           >
             {editMode ? (
-              <>
-                <button
-                  type="button"
-                  onClick={toggleSelectAll}
-                  aria-label={allSelected ? '전체 해제' : '전체 선택'}
-                  style={iconBtn}
-                >
-                  <IconChecks size={22} color={allSelected ? KEY : TEXT_PRIMARY} stroke={2} />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={selectedCount === 0 || deleting}
-                  aria-label="선택 삭제"
-                  style={{
-                    height: 34,
-                    padding: '0 12px',
-                    borderRadius: 999,
-                    border: 'none',
-                    background: selectedCount === 0 ? '#F1F1F1' : DANGER,
-                    color: selectedCount === 0 ? '#B0B0B0' : '#fff',
-                    fontSize: 13.5,
-                    fontWeight: 700,
-                    cursor: selectedCount === 0 || deleting ? 'default' : 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5,
-                  }}
-                >
-                  <IconTrash size={16} stroke={2} />
-                  {deleting ? '삭제 중' : selectedCount > 0 ? selectedCount : ''}
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={selectedCount === 0 || deleting}
+                aria-label="선택 삭제"
+                style={{
+                  ...iconBtn,
+                  cursor: selectedCount === 0 || deleting ? 'default' : 'pointer',
+                }}
+              >
+                <IconTrash
+                  size={20}
+                  stroke={2}
+                  color={selectedCount === 0 ? '#C4C4C4' : DANGER}
+                />
+              </button>
             ) : (
               <button
                 type="button"
@@ -223,14 +206,43 @@ export default function UserPostsScreen() {
           </div>
         ) : (
           <>
-            {posts.length > 0 && (
-              <p
-                className="m-0"
-                style={{ fontSize: 12.5, color: TEXT_SECONDARY, padding: '12px 0 4px' }}
-              >
-                {editMode ? '삭제할 게시물을 선택하세요' : `총 ${posts.length}개`}
-              </p>
-            )}
+            {posts.length > 0 &&
+              (editMode ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 0 4px',
+                  }}
+                >
+                  <span style={{ fontSize: 12.5, color: TEXT_SECONDARY }}>
+                    삭제할 게시물을 선택하세요
+                  </span>
+                  <button
+                    type="button"
+                    onClick={toggleSelectAll}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 2,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: KEY,
+                    }}
+                  >
+                    {allSelected ? '모두해제' : '모두선택'}
+                  </button>
+                </div>
+              ) : (
+                <p
+                  className="m-0"
+                  style={{ fontSize: 12.5, color: TEXT_SECONDARY, padding: '12px 0 4px' }}
+                >
+                  총 {posts.length}개
+                </p>
+              ))}
             <UserPostsList
               posts={posts}
               selectable={editMode}
