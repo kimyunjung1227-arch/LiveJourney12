@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { IconArrowLeft, IconTrash } from '@tabler/icons-react';
+import { IconArrowLeft, IconTrash, IconPencil, IconChecks } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import UserPostsList, { useUserPosts } from '../components/profile/UserPostsList';
@@ -89,8 +89,20 @@ export default function UserPostsScreen() {
     if (deletedIds.size > 0 && posts.length - deletedIds.size === 0) exitEdit();
   };
 
+  const iconBtn = {
+    width: 36,
+    height: 36,
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    padding: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  };
+
   return (
-    <div style={{ background: '#fff', minHeight: '100vh', paddingBottom: editMode ? 96 : 32 }}>
+    <div style={{ background: '#fff', minHeight: '100vh', paddingBottom: 32 }}>
       <PageSeo {...(PAGE_SEO.userProfile || PAGE_SEO.profile)} />
 
       <div
@@ -99,7 +111,7 @@ export default function UserPostsScreen() {
           top: 0,
           zIndex: 10,
           height: 52,
-          padding: '0 12px',
+          padding: '0 8px',
           borderBottom: `1px solid ${BORDER_LIGHT}`,
           background: '#fff',
           display: 'flex',
@@ -107,36 +119,31 @@ export default function UserPostsScreen() {
           justifyContent: 'center',
         }}
       >
+        {/* 좌측: 뒤로가기 / (편집 모드) 취소 */}
         <button
           type="button"
           onClick={() => (editMode ? exitEdit() : navigate(-1))}
           aria-label={editMode ? '선택 취소' : '뒤로가기'}
           style={{
+            ...iconBtn,
             position: 'absolute',
-            left: 12,
+            left: 8,
             top: '50%',
             transform: 'translateY(-50%)',
             minWidth: 36,
-            height: 36,
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            padding: 0,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
             fontSize: 15,
             color: TEXT_PRIMARY,
           }}
         >
           {editMode ? '취소' : <IconArrowLeft size={22} color={TEXT_PRIMARY} />}
         </button>
+
         <span
           style={{
             fontSize: 17,
             fontWeight: 600,
             color: TEXT_PRIMARY,
-            maxWidth: 'calc(100% - 120px)',
+            maxWidth: 'calc(100% - 150px)',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -145,28 +152,64 @@ export default function UserPostsScreen() {
           {editMode ? `${selectedCount}개 선택` : title}
         </span>
 
-        {/* 본인 프로필 + 게시물이 있을 때만 수정/완료 노출 */}
+        {/* 우측: (보기) 수정 아이콘 / (편집) 전체선택 + 삭제 — 모두 헤더 안 */}
         {isMe && posts.length > 0 && (
-          <button
-            type="button"
-            onClick={() => (editMode ? toggleSelectAll() : setEditMode(true))}
+          <div
             style={{
               position: 'absolute',
-              right: 12,
+              right: 8,
               top: '50%',
               transform: 'translateY(-50%)',
-              height: 36,
-              padding: '0 4px',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: 15,
-              fontWeight: 600,
-              color: editMode ? KEY : TEXT_PRIMARY,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
             }}
           >
-            {editMode ? (allSelected ? '전체해제' : '전체선택') : '수정'}
-          </button>
+            {editMode ? (
+              <>
+                <button
+                  type="button"
+                  onClick={toggleSelectAll}
+                  aria-label={allSelected ? '전체 해제' : '전체 선택'}
+                  style={iconBtn}
+                >
+                  <IconChecks size={22} color={allSelected ? KEY : TEXT_PRIMARY} stroke={2} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={selectedCount === 0 || deleting}
+                  aria-label="선택 삭제"
+                  style={{
+                    height: 34,
+                    padding: '0 12px',
+                    borderRadius: 999,
+                    border: 'none',
+                    background: selectedCount === 0 ? '#F1F1F1' : DANGER,
+                    color: selectedCount === 0 ? '#B0B0B0' : '#fff',
+                    fontSize: 13.5,
+                    fontWeight: 700,
+                    cursor: selectedCount === 0 || deleting ? 'default' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                  }}
+                >
+                  <IconTrash size={16} stroke={2} />
+                  {deleting ? '삭제 중' : selectedCount > 0 ? selectedCount : ''}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditMode(true)}
+                aria-label="게시물 편집"
+                style={iconBtn}
+              >
+                <IconPencil size={20} color={TEXT_PRIMARY} stroke={2} />
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -197,46 +240,6 @@ export default function UserPostsScreen() {
           </>
         )}
       </div>
-
-      {/* 하단 삭제 바 (선택 모드) */}
-      {editMode && (
-        <div
-          style={{
-            position: 'fixed',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 20,
-            padding: '12px 18px calc(12px + env(safe-area-inset-bottom))',
-            background: '#fff',
-            borderTop: `1px solid ${BORDER_LIGHT}`,
-          }}
-        >
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={selectedCount === 0 || deleting}
-            style={{
-              width: '100%',
-              height: 50,
-              borderRadius: 14,
-              border: 'none',
-              background: selectedCount === 0 ? '#F1F1F1' : DANGER,
-              color: selectedCount === 0 ? '#B0B0B0' : '#fff',
-              fontSize: 15,
-              fontWeight: 700,
-              cursor: selectedCount === 0 || deleting ? 'default' : 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-            }}
-          >
-            <IconTrash size={18} stroke={2} />
-            {deleting ? '삭제 중...' : selectedCount > 0 ? `${selectedCount}개 삭제` : '삭제'}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
