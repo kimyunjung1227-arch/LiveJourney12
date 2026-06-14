@@ -135,7 +135,7 @@ export default function UserPostsScreen() {
             color: TEXT_PRIMARY,
           }}
         >
-          {editMode ? '취소' : <IconArrowLeft size={22} color={TEXT_PRIMARY} />}
+          {editMode ? '취소' : <IconArrowLeft size={18} color={TEXT_PRIMARY} />}
         </button>
 
         <span
@@ -189,7 +189,7 @@ export default function UserPostsScreen() {
                 aria-label="게시물 편집"
                 style={iconBtn}
               >
-                <IconPencil size={20} color={TEXT_PRIMARY} stroke={2} />
+                <IconPencil size={18} color={TEXT_PRIMARY} stroke={2} />
               </button>
             )}
           </div>

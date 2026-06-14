@@ -117,7 +117,7 @@ function MainScreen() {
               justifyContent: 'center',
             }}
           >
-            <IconBell size={20} stroke={1.7} />
+            <IconBell size={18} stroke={1.7} />
             {unreadCount > 0 && (
               <span
                 aria-hidden

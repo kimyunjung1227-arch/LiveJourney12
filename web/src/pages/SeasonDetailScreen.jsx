@@ -167,7 +167,7 @@ function SeasonHero({ season }) {
             cursor: 'pointer',
           }}
         >
-          <IconArrowLeft size={20} color="white" />
+          <IconArrowLeft size={18} color="white" />
         </button>
         <button
           type="button"

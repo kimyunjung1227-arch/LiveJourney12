@@ -170,7 +170,7 @@ export default function LiveMagazineScreen() {
             justifyContent: 'center',
           }}
         >
-          <IconArrowLeft size={20} color={TEXT_PRIMARY} stroke={1.8} />
+          <IconArrowLeft size={18} color={TEXT_PRIMARY} stroke={1.8} />
         </button>
         <span style={{ fontSize: 16, fontWeight: 700, color: TEXT_PRIMARY }}>라이브매거진</span>
       </div>

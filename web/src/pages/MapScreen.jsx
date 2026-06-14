@@ -311,7 +311,7 @@ function MapSearchHeader({
           style={{ boxShadow: '0 2px 10px rgba(0,0,0,0.12)' }}
           aria-label="뒤로가기"
         >
-          <IconArrowLeft size={20} color="#1F1F1F" />
+          <IconArrowLeft size={18} color="#1F1F1F" />
         </button>
         <div
           className="flex-1 bg-white h-[42px] rounded-xl flex items-center px-3.5 gap-2.5"

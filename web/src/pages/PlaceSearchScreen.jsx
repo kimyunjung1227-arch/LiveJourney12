@@ -41,7 +41,7 @@ const PlaceSearchScreen = () => {
           aria-label="뒤로가기"
           style={{ background: 'transparent', border: 'none', padding: 4, cursor: 'pointer' }}
         >
-          <IconArrowLeft size={22} color={TEXT_PRIMARY} />
+          <IconArrowLeft size={18} color={TEXT_PRIMARY} />
         </button>
         <div
           className="flex-1 flex items-center gap-2.5"

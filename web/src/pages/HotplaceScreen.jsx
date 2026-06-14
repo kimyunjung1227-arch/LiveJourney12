@@ -160,7 +160,7 @@ function HotplaceScreen() {
               justifyContent: 'center',
             }}
           >
-            <IconArrowLeft size={20} stroke={1.8} />
+            <IconArrowLeft size={18} stroke={1.8} />
           </button>
 
           {/* 중앙 제목 (absolute로 한가운데 고정) */}

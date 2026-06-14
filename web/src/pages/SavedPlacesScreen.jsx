@@ -345,7 +345,7 @@ function Header({ onBack }) {
           padding: 0,
         }}
       >
-        <IconArrowLeft size={22} color={TEXT_PRIMARY} stroke={1.8} />
+        <IconArrowLeft size={18} color={TEXT_PRIMARY} stroke={1.8} />
       </button>
       <span style={{ fontSize: 14, fontWeight: 600, color: TEXT_PRIMARY }}>저장한 장소</span>
     </div>

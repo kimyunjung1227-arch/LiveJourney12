@@ -86,7 +86,7 @@ function NotificationsScreen() {
             justifyContent: 'center',
           }}
         >
-          <IconArrowLeft size={22} color={TEXT_PRIMARY} />
+          <IconArrowLeft size={18} color={TEXT_PRIMARY} />
         </button>
         <span style={{ fontSize: 14, fontWeight: 600, color: TEXT_PRIMARY }}>알림</span>
       </div>

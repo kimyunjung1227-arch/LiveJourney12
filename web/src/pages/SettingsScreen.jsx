@@ -89,7 +89,7 @@ function SettingsScreen() {
             justifyContent: 'center',
           }}
         >
-          <IconArrowLeft size={22} color={TEXT_PRIMARY} />
+          <IconArrowLeft size={18} color={TEXT_PRIMARY} />
         </button>
         <span
           style={{

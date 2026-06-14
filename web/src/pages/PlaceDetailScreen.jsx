@@ -149,7 +149,7 @@ function PlaceDetailScreen() {
               justifyContent: 'center',
             }}
           >
-            <IconArrowLeft size={22} stroke={1.8} />
+            <IconArrowLeft size={18} stroke={1.8} />
           </button>
 
           {/* 중앙 장소명 (좌우 버튼 영역만큼 padding 두고 ellipsis 처리) */}

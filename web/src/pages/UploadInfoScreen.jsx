@@ -477,7 +477,7 @@ function UploadInfoScreen() {
                 padding: 0,
               }}
             >
-              <IconArrowLeft size={20} stroke={1.8} />
+              <IconArrowLeft size={18} stroke={1.8} />
             </button>
             <span style={{ fontSize: 16, fontWeight: 600, color: LJ.textPrimary, lineHeight: 1 }}>
               {isAnswerMode ? '답변 작성' : '정보 입력'}

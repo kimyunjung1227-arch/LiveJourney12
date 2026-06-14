@@ -45,7 +45,7 @@ const QuestionsListScreen = () => {
           aria-label="뒤로가기"
           style={{ background: 'transparent', border: 'none', padding: 4, cursor: 'pointer' }}
         >
-          <IconArrowLeft size={22} color={TEXT_PRIMARY} />
+          <IconArrowLeft size={18} color={TEXT_PRIMARY} />
         </button>
         <div className="flex items-center gap-1.5">
           <IconHelpCircle size={19} color={KEY} />

@@ -240,7 +240,7 @@ function PostDetailScreen() {
               justifyContent: 'center',
             }}
           >
-            <IconArrowLeft size={22} stroke={1.8} />
+            <IconArrowLeft size={18} stroke={1.8} />
           </button>
           <span
             style={{

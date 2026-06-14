@@ -80,7 +80,7 @@ function Header({ onBack }) {
           padding: 0,
         }}
       >
-        <IconArrowLeft size={20} color={TEXT_PRIMARY} stroke={1.8} />
+        <IconArrowLeft size={18} color={TEXT_PRIMARY} stroke={1.8} />
       </button>
       <span style={{ fontSize: 14, fontWeight: 600, color: TEXT_PRIMARY }}>전체 뱃지</span>
     </div>

@@ -437,7 +437,7 @@ const CrowdedPlaceScreen = () => {
                     aria-label="뒤로가기"
                     className="absolute left-3 top-1/2 z-10 flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-text-primary-light hover:bg-black/5 dark:text-text-primary-dark dark:hover:bg-white/10"
                 >
-                    <span className="material-symbols-outlined text-2xl">arrow_back</span>
+                    <span className="material-symbols-outlined text-lg">arrow_back</span>
                 </button>
                 <h1 className="pointer-events-none absolute left-1/2 top-1/2 w-[min(70%,260px)] -translate-x-1/2 -translate-y-1/2 truncate text-center text-[14px] font-bold leading-snug text-text-primary-light dark:text-text-primary-dark">
                     실시간 급상승 핫플

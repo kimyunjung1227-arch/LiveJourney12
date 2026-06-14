@@ -226,7 +226,7 @@ function SearchHeader({ query, onChange, onClear }) {
         className="flex-shrink-0"
         style={{ background: 'transparent', border: 'none', padding: 4, cursor: 'pointer' }}
       >
-        <IconArrowLeft size={22} color={TEXT_PRIMARY} />
+        <IconArrowLeft size={18} color={TEXT_PRIMARY} />
       </button>
 
       <div

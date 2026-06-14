@@ -875,7 +875,7 @@ const QuestionDetailScreen = () => {
             aria-label="뒤로가기"
             style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
           >
-            <IconArrowLeft size={22} color={TEXT_PRIMARY} />
+            <IconArrowLeft size={18} color={TEXT_PRIMARY} />
           </button>
           <span style={{ fontSize: 16, fontWeight: 600, color: TEXT_PRIMARY }}>질문</span>
         </div>
