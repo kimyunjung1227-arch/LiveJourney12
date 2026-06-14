@@ -73,9 +73,29 @@ export default {
         "placeholder-dark": "#6B7280",
       },
       fontFamily: {
-        "display": ["Plus Jakarta Sans", "Noto Sans KR", "sans-serif"],
-        "manrope": ["Manrope", "Noto Sans KR", "sans-serif"],
-        "inter": ["Inter", "Noto Sans KR", "sans-serif"],
+        // 전 화면 폰트 통일 — 모두 Pretendard 스택(index.css --lj-font-sans와 동일).
+        // display/manrope/inter 별칭도 Pretendard로 매핑해 기존 클래스 사용처가
+        // 자동으로 통일되도록 함.
+        "sans": [
+          "Pretendard Variable", "Pretendard", "-apple-system", "BlinkMacSystemFont",
+          "system-ui", "Apple SD Gothic Neo", "Segoe UI", "Roboto", "Helvetica Neue",
+          "Noto Sans KR", "sans-serif",
+        ],
+        "display": [
+          "Pretendard Variable", "Pretendard", "-apple-system", "BlinkMacSystemFont",
+          "system-ui", "Apple SD Gothic Neo", "Segoe UI", "Roboto", "Helvetica Neue",
+          "Noto Sans KR", "sans-serif",
+        ],
+        "manrope": [
+          "Pretendard Variable", "Pretendard", "-apple-system", "BlinkMacSystemFont",
+          "system-ui", "Apple SD Gothic Neo", "Segoe UI", "Roboto", "Helvetica Neue",
+          "Noto Sans KR", "sans-serif",
+        ],
+        "inter": [
+          "Pretendard Variable", "Pretendard", "-apple-system", "BlinkMacSystemFont",
+          "system-ui", "Apple SD Gothic Neo", "Segoe UI", "Roboto", "Helvetica Neue",
+          "Noto Sans KR", "sans-serif",
+        ],
       },
       borderRadius: {
         "DEFAULT": "1rem",

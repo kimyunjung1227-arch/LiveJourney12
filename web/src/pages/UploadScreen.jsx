@@ -1080,7 +1080,7 @@ const UploadScreen = () => {
                 fontSize: '18px',
                 fontWeight: 700,
                 color: '#111827',
-                fontFamily: "'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                fontFamily: 'var(--lj-font-sans)',
               }}
             >
               업로드
