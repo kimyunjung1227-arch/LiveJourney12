@@ -24,12 +24,13 @@ function getScreenOrientationAngle() {
  */
 function orientationFromTilt(beta, gamma) {
   if (typeof beta !== 'number' || typeof gamma !== 'number') return null;
-  // 좌우로 충분히 기울었으면 가로로 판단
-  if (gamma > 35) return 90; // 기기 우측이 아래로 (landscape)
-  if (gamma < -35) return 270; // 기기 좌측이 아래로 (반대 landscape)
+  // 좌우로 기울면 가로로 판단 — 화면 회전 잠금 환경에서도 가로 촬영을 잡아내도록
+  // 임계값을 낮춰 약하게 기울여도 가로로 인식한다.
+  if (gamma > 20) return 90; // 기기 우측이 아래로 (landscape)
+  if (gamma < -20) return 270; // 기기 좌측이 아래로 (반대 landscape)
   // 그 외에는 세로로 본다 (애매한 평평/약한 기울기 포함)
-  if (Math.abs(gamma) <= 25) return 0;
-  return null; // 25~35° 경계 구간은 직전 값 유지
+  if (Math.abs(gamma) <= 15) return 0;
+  return null; // 15~20° 경계 구간은 직전 값 유지
 }
 
 /**
@@ -222,7 +223,7 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
     const sx = (vw - sw) / 2;
     const sy = (vh - sh) / 2;
 
-    // 가로(landscape)로 촬영한 경우 기기 방향만큼 회전해 정면(세로 기준)으로 저장.
+    // 가로(landscape)로 촬영한 경우 기기 방향만큼 회전해 세로(정방향)로 저장.
     // 화면 회전 잠금이 켜져 있으면 screen.orientation 은 0이므로 가속도 센서값으로 보완.
     const screenAngle = getScreenOrientationAngle(); // 0 / 90 / 180 / 270
     const angle =
@@ -236,8 +237,8 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
 
     ctx.save();
     ctx.translate(canvas.width / 2, canvas.height / 2);
-    // 화면이 회전한 각도(시계방향)를 그대로 적용해 촬영 화면을 정방향으로 되돌림
-    ctx.rotate((angle * Math.PI) / 180);
+    // 기기 회전 각도를 반대(반시계)로 되돌려 누운 사진을 똑바로 세움.
+    ctx.rotate((-angle * Math.PI) / 180);
     // 전면 카메라는 미러링 표시이지만 저장은 자연 방향으로
     ctx.drawImage(video, sx, sy, sw, sh, -sw / 2, -sh / 2, sw, sh);
     ctx.restore();

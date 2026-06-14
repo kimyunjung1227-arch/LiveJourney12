@@ -6,7 +6,6 @@ import {
   IconBoltOff,
   IconRotate2,
   IconShieldCheck,
-  IconMapPin,
   IconCamera,
   IconAlertTriangle,
   IconCameraOff,
@@ -33,7 +32,6 @@ const RED = 'rgb(220, 38, 38)';
 const KEY_BG_30 = 'rgba(77,184,232,0.3)';
 const WHITE_85 = 'rgba(255,255,255,0.85)';
 const WHITE_70 = 'rgba(255,255,255,0.7)';
-const WHITE_60 = 'rgba(255,255,255,0.6)';
 
 const MAX_RECORD_SECONDS = 30;
 
@@ -216,7 +214,6 @@ function CameraScreen() {
     <>
       <CameraView
         cam={cam}
-        geo={geo}
         answerQuestion={answerTo ? answerQuestion : null}
         onClose={close}
         onOpenGallery={openGallery}
@@ -479,7 +476,7 @@ function DarkFrame({ children, onClose }) {
 }
 
 /* -------------------- 카메라 뷰 -------------------- */
-function CameraView({ cam, geo, onClose, onOpenGallery, onCapturedPhoto, onCapturedVideo, answerQuestion }) {
+function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVideo, answerQuestion }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [recordSeconds, setRecordSeconds] = useState(0);
@@ -651,9 +648,6 @@ function CameraView({ cam, geo, onClose, onOpenGallery, onCapturedPhoto, onCaptu
           zIndex: 5,
         }}
       >
-        {/* GPS 박스 */}
-        <GPSBox geo={geo} />
-
         {/* 줌(확대) 토글 — 1배 / 2배 / 3배 */}
         {!cam.isRecording && <ZoomToggle zoom={cam.zoom} onChange={cam.setZoom} />}
 
@@ -853,71 +847,14 @@ function ViewfinderGuide({ recording }) {
   );
 }
 
-function GPSBox({ geo }) {
-  let primary = '위치 확인 중...';
-  let badge = 'GPS';
-  if (geo.status === 'denied' || geo.status === 'unsupported') {
-    primary = '위치 권한이 없어요';
-    badge = '없음';
-  } else if (geo.placeName) {
-    primary = geo.placeName;
-    badge = 'GPS 확인';
-  } else if (geo.coords) {
-    primary = `${geo.coords.lat.toFixed(4)}, ${geo.coords.lng.toFixed(4)}`;
-    badge = 'GPS 확인';
-  }
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '8px 12px',
-        background: 'rgba(0,0,0,0.5)',
-        borderRadius: 10,
-        backdropFilter: 'blur(8px)',
-      }}
-    >
-      <IconMapPin size={14} stroke={2} color={LJ.key} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 9.5, color: WHITE_60, letterSpacing: 0.4 }}>위치 자동 인증</div>
-        <div
-          style={{
-            fontSize: 12.5,
-            fontWeight: 700,
-            color: '#fff',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {primary}
-        </div>
-      </div>
-      <span
-        style={{
-          padding: '3px 8px',
-          background: 'rgba(77,184,232,0.18)',
-          color: LJ.key,
-          borderRadius: 999,
-          fontSize: 10,
-          fontWeight: 700,
-        }}
-      >
-        {badge}
-      </span>
-    </div>
-  );
-}
-
 function ZoomToggle({ zoom, onChange }) {
   return (
     <div
       style={{
         alignSelf: 'center',
         display: 'inline-flex',
-        gap: 6,
-        padding: 4,
+        gap: 5,
+        padding: 3,
         background: OVERLAY,
         borderRadius: 999,
         backdropFilter: 'blur(8px)',
@@ -933,15 +870,15 @@ function ZoomToggle({ zoom, onChange }) {
             aria-label={`${z}배 확대`}
             aria-pressed={active}
             style={{
-              minWidth: 36,
-              height: 30,
-              padding: '0 8px',
-              borderRadius: 999,
+              width: 28,
+              height: 28,
+              padding: 0,
+              borderRadius: '50%',
               border: 'none',
               background: active ? '#fff' : 'transparent',
               color: active ? DARK : '#fff',
               fontFamily: LJ.fontStack,
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: 800,
               cursor: 'pointer',
               lineHeight: 1,
