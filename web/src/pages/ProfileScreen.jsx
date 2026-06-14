@@ -209,7 +209,7 @@ function ProfileScreen() {
   return (
     <div style={{ background: '#fff', minHeight: '100vh', paddingBottom: 80 }}>
       <PageSeo {...PAGE_SEO.profile} />
-      <ProfileHeaderBar onSettings={() => navigate('/settings')} showSettings />
+      <ProfileHeaderBar onSettings={() => navigate('/settings')} onSaved={() => navigate('/profile/saved')} showSettings />
 
       <ProfileHeader user={profileUser} isMe />
       <BadgesBox user={profileUser} />
