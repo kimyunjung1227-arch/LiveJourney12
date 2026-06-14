@@ -848,20 +848,42 @@ function ViewfinderGuide({ recording }) {
 }
 
 function ZoomToggle({ zoom, onChange }) {
+  const LEVELS = [1, 2, 3];
+  const SLOT = 34; // 각 버튼(원) 지름
+  const GAP = 2; // 버튼 사이 간격
+  const PAD = 4; // 컨테이너 안쪽 여백
+  const activeIndex = Math.max(0, LEVELS.indexOf(zoom || 1));
   return (
     <div
       style={{
         alignSelf: 'center',
+        position: 'relative',
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 2,
-        padding: 4,
+        gap: GAP,
+        padding: PAD,
         background: 'rgba(0,0,0,0.45)',
         borderRadius: 999,
         backdropFilter: 'blur(8px)',
       }}
     >
-      {[1, 2, 3].map((z) => {
+      {/* 선택 자리로 좌우로 미끄러지는 흰 원 인디케이터 */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          top: PAD,
+          left: PAD,
+          width: SLOT,
+          height: SLOT,
+          borderRadius: '50%',
+          background: '#fff',
+          transform: `translateX(${activeIndex * (SLOT + GAP)}px)`,
+          transition: 'transform 220ms cubic-bezier(0.22, 0.7, 0.2, 1)',
+          zIndex: 0,
+        }}
+      />
+      {LEVELS.map((z) => {
         const active = (zoom || 1) === z;
         return (
           <button
@@ -871,20 +893,22 @@ function ZoomToggle({ zoom, onChange }) {
             aria-label={`${z}배 확대`}
             aria-pressed={active}
             style={{
+              position: 'relative',
+              zIndex: 1,
               flex: '0 0 auto',
               boxSizing: 'border-box',
               // 전역 button min-height:44px 무력화 → 완전한 원 유지
               minWidth: 0,
               minHeight: 0,
-              width: active ? 34 : 'auto',
-              height: 34,
-              padding: active ? 0 : '0 9px',
-              borderRadius: 999,
+              width: SLOT,
+              height: SLOT,
+              padding: 0,
+              borderRadius: '50%',
               border: 'none',
-              background: active ? '#fff' : 'transparent',
+              background: 'transparent',
               color: active ? DARK : 'rgba(255,255,255,0.92)',
               fontFamily: LJ.fontStack,
-              fontSize: active ? 12 : 11.5,
+              fontSize: 12,
               fontWeight: active ? 800 : 700,
               cursor: 'pointer',
               lineHeight: 1,
@@ -892,7 +916,7 @@ function ZoomToggle({ zoom, onChange }) {
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              transition: 'all 140ms ease-out',
+              transition: 'color 160ms ease-out',
             }}
           >
             {z}×
