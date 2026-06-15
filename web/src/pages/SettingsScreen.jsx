@@ -107,8 +107,6 @@ function SettingsScreen() {
         </span>
       </div>
 
-      <div style={{ height: 10 }} />
-
       <SettingsGroup>
         <SettingsRow
           icon={IconShare}
