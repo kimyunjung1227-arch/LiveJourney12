@@ -296,7 +296,6 @@ function NextBadgeCard({ meta, user, progressFn, target }) {
   const current = typeof progressFn === 'function' ? progressFn(user) || 0 : 0;
   const goal = target || meta.progressTarget || 0;
   const ratio = goal > 0 ? Math.min(1, current / goal) : 0;
-  const remaining = Math.max(0, goal - current);
   const pill = getPillColors(meta.tier);
 
   return (
@@ -318,8 +317,7 @@ function NextBadgeCard({ meta, user, progressFn, target }) {
               className="m-0"
               style={{ fontSize: 13, color: TEXT_PRIMARY, lineHeight: 1.5 }}
             >
-              다음 단계까지 {remaining > 0 ? `${remaining} 회` : '달성 완료'}
-              {goal > 0 ? ` 남음 (목표 ${goal})` : ''}
+              {goal > 0 ? `다음 단계까지 ${goal} 회 달성` : '달성 완료'}
             </p>
           </div>
         </div>

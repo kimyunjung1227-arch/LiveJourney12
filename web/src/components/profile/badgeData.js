@@ -382,6 +382,29 @@ export function resolveEarnedBadges(keys) {
   return keys.map((k) => BADGE_CATALOG[k]).filter(Boolean);
 }
 
+/**
+ * 획득한 뱃지 메타 목록 — 성장 체인은 최고 단계 1개만 남김(중복 노출 방지),
+ * 비성장형은 그대로. 프로필 뱃지 박스 / 전체보기에서 공통 사용.
+ * 반환 개수 = "사용자가 획득한 뱃지 수"의 기준.
+ */
+export function collapseEarnedToHighest(earnedKeys) {
+  const earnedMetas = resolveEarnedBadges(earnedKeys);
+  const seenChains = new Set();
+  const result = [];
+  for (const meta of earnedMetas) {
+    if (isGrowthBadge(meta)) {
+      if (seenChains.has(meta.chainId)) continue;
+      seenChains.add(meta.chainId);
+      const chain = getChainForBadge(meta.key);
+      const topKey = highestEarnedInChain(chain, earnedKeys);
+      result.push(topKey ? BADGE_CATALOG[topKey] : meta);
+    } else {
+      result.push(meta);
+    }
+  }
+  return result;
+}
+
 /** 전체 카탈로그를 그룹별로 묶어서 반환 (전체보기 화면용). */
 export function getCatalogByGroup() {
   const buckets = new Map(BADGE_GROUP_ORDER.map((g) => [g, []]));

@@ -6,13 +6,7 @@ import { useProfile } from '../hooks/useProfile';
 import { useEarnedBadges } from '../hooks/useEarnedBadges';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
-import {
-  BADGE_CATALOG,
-  CHAINS,
-  BADGE_GROUP_ORDER,
-  resolveEarnedBadges,
-  getBadgeProgress,
-} from '../components/profile/badgeData';
+import { BADGE_GROUP_ORDER, collapseEarnedToHighest } from '../components/profile/badgeData';
 import { GROUP_META } from '../components/badges/badgeTheme';
 import BadgeMedallion from '../components/badges/BadgeMedallion';
 
@@ -23,7 +17,10 @@ const BORDER_LIGHT = '#E8E8E8';
 const KEY_DARK = '#1A6EA8';
 
 /**
- * 뱃지 전체보기 — 섹션별 카드 + 3단계 진화(메달리온) + 진행 링/카운트.
+ * 뱃지 전체보기 — 사용자가 실제로 "획득한" 뱃지만 모아서 보여준다.
+ * - 라이브저니 전체 카탈로그가 아니라 획득분만 노출 (미획득/잠금 단계는 표시하지 않음)
+ * - 성장 체인은 최고 단계 1개로 묶어 1개로 카운트
+ * - 개수 = 획득한 뱃지 수
  */
 export default function BadgesScreen() {
   const navigate = useNavigate();
@@ -32,12 +29,19 @@ export default function BadgesScreen() {
   const { data, loading } = useProfile(userId);
 
   const profileUser = data?.user;
-  const { earnedKeys, stats, loading: badgesLoading } = useEarnedBadges(profileUser);
-  const earnedSet = new Set(earnedKeys);
+  const { earnedKeys, loading: badgesLoading } = useEarnedBadges(profileUser);
 
-  const totalEarned = resolveEarnedBadges(earnedKeys).length;
-  const totalAll = Object.keys(BADGE_CATALOG).length;
+  // 획득한 뱃지만 (성장 체인은 최고 단계 1개로 collapse)
+  const earnedMetas = collapseEarnedToHighest(earnedKeys);
+  const totalEarned = earnedMetas.length;
 
+  // 그룹별로 묶되, 획득한 뱃지가 있는 그룹만 노출
+  const groups = BADGE_GROUP_ORDER.map((group) => ({
+    group,
+    items: earnedMetas.filter((m) => m.group === group),
+  })).filter((g) => g.items.length > 0);
+
+  const isLoading = loading || badgesLoading;
   const go = (key) => navigate(`/profile/badges/${key}`);
 
   return (
@@ -47,35 +51,39 @@ export default function BadgesScreen() {
 
       <div style={{ padding: '16px 18px 8px' }}>
         <h1 className="m-0" style={{ fontSize: 20, fontWeight: 700, color: TEXT_PRIMARY, letterSpacing: -0.3 }}>
-          뱃지
+          획득한 뱃지
         </h1>
         <p className="m-0" style={{ marginTop: 4, fontSize: 12, color: TEXT_SECONDARY }}>
-          활동을 쌓으면 단계가 진화하는 라이브저니 뱃지
+          활동을 쌓으며 직접 모은 라이브저니 뱃지
         </p>
-        {profileUser && (
+        {profileUser && !isLoading && (
           <p className="m-0" style={{ marginTop: 6, fontSize: 12, fontWeight: 700, color: KEY_DARK }}>
-            획득 {totalEarned} / {totalAll}
+            획득한 뱃지 {totalEarned}개
           </p>
         )}
       </div>
 
-      {(loading || badgesLoading) && (
+      {isLoading && (
         <div className="text-center" style={{ padding: 40, color: TEXT_SECONDARY, fontSize: 13 }}>
           불러오는 중...
         </div>
       )}
 
-      <div style={{ padding: '8px 18px 0' }}>
-        {BADGE_GROUP_ORDER.map((group) => (
-          <GroupSection
-            key={group}
-            group={group}
-            stats={stats}
-            earnedSet={earnedSet}
-            onPick={go}
-          />
-        ))}
-      </div>
+      {!isLoading && totalEarned === 0 && (
+        <div className="text-center" style={{ padding: '48px 24px', color: TEXT_SECONDARY, fontSize: 13, lineHeight: 1.6 }}>
+          아직 획득한 뱃지가 없어요.
+          <br />
+          활동을 쌓으면 자동으로 부여됩니다.
+        </div>
+      )}
+
+      {!isLoading && totalEarned > 0 && (
+        <div style={{ padding: '8px 18px 0' }}>
+          {groups.map(({ group, items }) => (
+            <GroupSection key={group} group={group} items={items} onPick={go} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -123,11 +131,9 @@ function Header({ onBack }) {
   );
 }
 
-/** 한 그룹(섹션) = 헤더 + 카드. 카드 안에 1~N개의 단계 행. */
-function GroupSection({ group, stats, earnedSet, onPick }) {
+/** 한 그룹(섹션) = 헤더 + 카드. 카드 안에 획득한 뱃지들만 3열 그리드. */
+function GroupSection({ group, items, onPick }) {
   const gm = GROUP_META[group] || { ko: group, en: '', dot: '#2BA0DC', tag: '' };
-  const rows = buildRows(group, stats, earnedSet);
-  if (rows.length === 0) return null;
 
   return (
     <div style={{ marginBottom: 22 }}>
@@ -137,110 +143,30 @@ function GroupSection({ group, stats, earnedSet, onPick }) {
         <span style={{ fontSize: 15, fontWeight: 700, color: TEXT_PRIMARY }}>{gm.ko}</span>
         <span style={{ fontSize: 10.5, fontWeight: 700, color: TEXT_MUTED, letterSpacing: 0.6 }}>{gm.en}</span>
         <span style={{ marginLeft: 'auto', fontSize: 10.5, fontWeight: 700, color: TEXT_MUTED, letterSpacing: 0.3 }}>
-          {gm.tag}
+          {items.length}개
         </span>
       </div>
 
       {/* 카드 — 흰 배경 + 옅은 보더 (파스텔 스쿼클이 대비되도록) */}
       <div style={{ background: '#fff', border: '1px solid #EFF1F4', borderRadius: 18, padding: '18px 14px' }}>
-        {rows.map((row, ri) => (
-          <div
-            key={ri}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-              columnGap: 8,
-              rowGap: 16,
-              marginTop: ri === 0 ? 0 : 18,
-            }}
-          >
-            {row.map((item) => (
-              <TierItem key={item.meta.key} item={item} onClick={() => onPick(item.meta.key)} />
-            ))}
-          </div>
-        ))}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+            columnGap: 8,
+            rowGap: 16,
+          }}
+        >
+          {items.map((meta) => (
+            <TierItem key={meta.key} meta={meta} onClick={() => onPick(meta.key)} />
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-/** 그룹을 단계 행(들)로 구성. 각 항목 = { meta, state, pct, pill } */
-function buildRows(group, stats, earnedSet) {
-  if (group === '지역 전문성') {
-    const counts = stats?.region_counts || {};
-    let activeKeys = Object.entries(counts)
-      .filter(([, c]) => c > 0)
-      .sort((a, b) => b[1] - a[1])
-      .map(([k]) => k);
-    if (activeKeys.length === 0) activeKeys = ['seoul']; // 미리보기
-    return activeKeys
-      .map((rk) => CHAINS[`region_${rk}`])
-      .filter(Boolean)
-      .map((chain) => chainRow(chain, stats, earnedSet));
-  }
-
-  if (group === '카테고리 전문성') {
-    const items = Object.values(BADGE_CATALOG).filter((m) => m.group === group);
-    const cells = items.map((meta) => singleCell(meta, stats, earnedSet));
-    return chunk(cells, 3);
-  }
-
-  // 성장형 단일 체인 그룹 (영예 / 베스트 컷 / 도움)
-  const chainId = chainIdForGroup(group);
-  const chain = chainId ? CHAINS[chainId] : null;
-  if (chain) return [chainRow(chain, stats, earnedSet)];
-  return [];
-}
-
-function chainIdForGroup(group) {
-  switch (group) {
-    case '영예':
-      return 'honor';
-    case '베스트 컷 작가':
-      return 'bestcut';
-    case '도움 마일스톤':
-      return 'help';
-    default:
-      return null;
-  }
-}
-
-/** 체인(단계 배열) → 단계별 상태 셀 배열. 첫 미달성 = 진행중, 이후 = 잠금. */
-function chainRow(chainKeys, stats, earnedSet) {
-  let progressUsed = false;
-  return chainKeys.map((key) => {
-    const meta = BADGE_CATALOG[key];
-    if (earnedSet.has(key)) return buildCell(meta, 'earned', stats);
-    if (!progressUsed) {
-      progressUsed = true;
-      return buildCell(meta, 'progress', stats);
-    }
-    return buildCell(meta, 'locked', stats);
-  });
-}
-
-function singleCell(meta, stats, earnedSet) {
-  if (earnedSet.has(meta.key)) return buildCell(meta, 'earned', stats);
-  const prog = getBadgeProgress(meta, stats);
-  const state = prog && prog.current > 0 ? 'progress' : 'locked';
-  return buildCell(meta, state, stats);
-}
-
-function buildCell(meta, state, stats) {
-  const prog = getBadgeProgress(meta, stats);
-  const pct = prog && prog.target ? prog.current / prog.target : 0;
-  const pill =
-    state === 'earned'
-      ? { text: '달성', tone: 'green' }
-      : prog
-      ? { text: `${Math.min(prog.current, prog.target)}/${prog.target} ${prog.unit}`, tone: 'gray' }
-      : { text: '미획득', tone: 'gray' };
-  return { meta, state, pct, pill };
-}
-
-function TierItem({ item, onClick }) {
-  const { meta, state, pct, pill } = item;
-  const labelColor = state === 'locked' ? '#AEB6BF' : TEXT_PRIMARY;
+function TierItem({ meta, onClick }) {
   return (
     <button
       type="button"
@@ -248,13 +174,13 @@ function TierItem({ item, onClick }) {
       className="flex flex-col items-center"
       style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 0', width: '100%' }}
     >
-      <BadgeMedallion meta={meta} state={state} pct={pct} size={66} />
+      <BadgeMedallion meta={meta} state="earned" size={66} />
       <span
         style={{
           marginTop: 9,
           fontSize: 12,
           fontWeight: 700,
-          color: labelColor,
+          color: TEXT_PRIMARY,
           lineHeight: 1.25,
           textAlign: 'center',
           wordBreak: 'keep-all',
@@ -270,19 +196,13 @@ function TierItem({ item, onClick }) {
           fontWeight: 700,
           padding: '2px 9px',
           borderRadius: 999,
-          background: pill.tone === 'green' ? '#E3F8EC' : '#EEF0F3',
-          color: pill.tone === 'green' ? '#1E9E5A' : '#7A828B',
+          background: '#E3F8EC',
+          color: '#1E9E5A',
           whiteSpace: 'nowrap',
         }}
       >
-        {pill.text}
+        달성
       </span>
     </button>
   );
-}
-
-function chunk(arr, n) {
-  const out = [];
-  for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
-  return out;
 }

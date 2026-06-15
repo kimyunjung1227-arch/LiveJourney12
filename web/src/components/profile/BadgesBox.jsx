@@ -2,13 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { IconAward, IconChevronRight } from '@tabler/icons-react';
 
-import {
-  BADGE_CATALOG,
-  resolveEarnedBadges,
-  isGrowthBadge,
-  getChainForBadge,
-  highestEarnedInChain,
-} from './badgeData';
+import { collapseEarnedToHighest } from './badgeData';
 import BadgeMedallion from '../badges/BadgeMedallion';
 import { useEarnedBadges } from '../../hooks/useEarnedBadges';
 import { useHorizontalDragScroll } from '../../hooks/useHorizontalDragScroll';
@@ -28,7 +22,7 @@ export default function BadgesBox({ user }) {
   const { handleDragStart, hasMovedRef } = useHorizontalDragScroll();
   if (!user) return null;
 
-  const earned = collapseGrowthGroups(resolveEarnedBadges(earnedKeys), earnedKeys);
+  const earned = collapseEarnedToHighest(earnedKeys);
 
   const guardedClick = (handler) => (e) => {
     if (hasMovedRef.current) {
@@ -116,28 +110,5 @@ export default function BadgesBox({ user }) {
       )}
     </div>
   );
-}
-
-/**
- * 성장형 체인은 최고 단계 1개만 남기고, 비성장형은 그대로 유지.
- * - 같은 체인(chainId)의 다른 단계 뱃지는 제거 (중복 노출 방지)
- * - 지역 체인도 각 지역별로 1개씩 노출된다.
- */
-function collapseGrowthGroups(earnedMetas, earnedKeys) {
-  const seenChains = new Set();
-  const result = [];
-  for (const meta of earnedMetas) {
-    if (isGrowthBadge(meta)) {
-      if (seenChains.has(meta.chainId)) continue;
-      seenChains.add(meta.chainId);
-      const chain = getChainForBadge(meta.key);
-      const topKey = highestEarnedInChain(chain, earnedKeys);
-      const topMeta = topKey ? BADGE_CATALOG[topKey] : meta;
-      result.push(topMeta);
-    } else {
-      result.push(meta);
-    }
-  }
-  return result;
 }
 
