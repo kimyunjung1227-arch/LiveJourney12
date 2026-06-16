@@ -31,7 +31,6 @@ function ensureKeyframes() {
       100% { transform: scale(1) translateY(0); opacity: 1; }
     }
     @keyframes lj-badge-fade { from { opacity: 0; } to { opacity: 1; } }
-    @keyframes lj-badge-spark { 0%,100% { opacity: 0.25; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
   `;
   document.head.appendChild(style);
 }
@@ -74,7 +73,6 @@ export function BadgeAchievementProvider({ children }) {
 const SKY = '#2BA0DC';
 
 function BadgeAchievementOverlay({ meta, remaining, onClose }) {
-  const isMaster = !!meta?.chainId && (meta?.level || 0) >= 3;
   return (
     <div
       role="dialog"
@@ -116,29 +114,17 @@ function BadgeAchievementOverlay({ meta, remaining, onClose }) {
             gap: 6,
             padding: '5px 13px',
             borderRadius: 999,
-            background: isMaster ? '#FEF3C7' : '#E3F3FB',
-            color: isMaster ? '#B45309' : '#1577B5',
+            background: '#E3F3FB',
+            color: '#1577B5',
             fontSize: 12,
             fontWeight: 800,
             letterSpacing: -0.2,
           }}
         >
-          🎉 뱃지 획득!
+          새 뱃지 획득
         </div>
 
-        <div style={{ position: 'relative', margin: '18px 0 6px', display: 'inline-block' }}>
-          <span
-            aria-hidden
-            style={{
-              position: 'absolute',
-              inset: -10,
-              borderRadius: '40%',
-              background: isMaster
-                ? 'radial-gradient(circle, rgba(245,158,11,0.22), transparent 70%)'
-                : 'radial-gradient(circle, rgba(43,160,220,0.22), transparent 70%)',
-              animation: 'lj-badge-spark 1.6s ease-in-out infinite',
-            }}
-          />
+        <div style={{ margin: '18px 0 6px', display: 'inline-block' }}>
           <BadgeMedallion meta={meta} state="earned" size={120} />
         </div>
 

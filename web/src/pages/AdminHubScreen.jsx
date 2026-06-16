@@ -32,8 +32,8 @@ const tiles = [
   },
   {
     id: 'badges',
-    title: '뱃지 모아보기',
-    desc: '전체 뱃지 카탈로그 + 획득 조건 확인',
+    title: '뱃지 디자인 갤러리',
+    desc: '새 원형 뱃지 디자인 · 상태/단계 전체 미리보기',
     icon: 'workspace_premium',
     path: '/admin/badges',
   },

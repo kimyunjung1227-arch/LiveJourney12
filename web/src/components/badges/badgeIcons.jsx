@@ -180,10 +180,10 @@ const PATHS = {
 
 // 기본 팔레트 (badgeTheme.ICON_PALETTE 와 동일 — 순환 import 방지용 복제)
 const DEFAULT_PALETTE = {
-  M: '#2BA0DC',
-  D: '#1A6EA8',
-  A: '#FFB94E',
-  C: '#FF8A70',
+  M: '#4DB8E8',
+  D: '#2F87BC',
+  A: '#8BD2F0',
+  C: '#62BEEA',
   W: '#FFFFFF',
 };
 
