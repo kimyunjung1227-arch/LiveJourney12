@@ -5,7 +5,6 @@ import {
   IconBolt,
   IconBoltOff,
   IconRotate2,
-  IconShieldCheck,
   IconCamera,
   IconAlertTriangle,
   IconCameraOff,
@@ -585,7 +584,7 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
           <IconX size={18} stroke={2} />
         </CircleButton>
 
-        {cam.isRecording ? (
+        {cam.isRecording && (
           <Pill
             background="rgba(220,38,38,0.9)"
             style={{ fontVariantNumeric: 'tabular-nums' }}
@@ -600,11 +599,6 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
               }}
             />
             {formatSeconds(recordSeconds)}
-          </Pill>
-        ) : (
-          <Pill background={OVERLAY}>
-            <IconShieldCheck size={13} stroke={2} color={LJ.key} />
-            EXIF 자동 인증
           </Pill>
         )}
 
