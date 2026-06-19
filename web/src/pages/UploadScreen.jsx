@@ -59,7 +59,6 @@ const UploadScreen = () => {
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [loadingAITags, setLoadingAITags] = useState(false);
   const [exifExtracting, setExifExtracting] = useState(false);
-  const [uploadExifBadge, setUploadExifBadge] = useState(null); // 'LIVE' | 'VERIFIED' | null
   const [showBadgeModal, setShowBadgeModal] = useState(false);
   const [earnedBadge, setEarnedBadge] = useState(null);
   /** 미디어를 모두 지우기 전까지 AI 자동 태그는 최초 1회만 */
@@ -131,18 +130,6 @@ const UploadScreen = () => {
     return formatUploadDateLine(preferred || Date.now());
   }, [formData?.exifData?.photoDate, formData?.photoDate]);
 
-  const computeUploadExifBadge = useCallback((photoDateIso) => {
-    if (!photoDateIso) return null;
-    const t = new Date(photoDateIso).getTime();
-    if (!Number.isFinite(t)) return null;
-    const diff = Date.now() - t;
-    if (!Number.isFinite(diff) || diff < 0) return null;
-    // photoStatus.ts와 동일 기준: 3시간 이내 LIVE, 30시간 이내 VERIFIED
-    if (diff <= 3 * 60 * 60 * 1000) return 'LIVE';
-    if (diff <= 30 * 60 * 60 * 1000) return 'VERIFIED';
-    return null;
-  }, []);
-
   const applyExtractedExifToForm = useCallback(async (exifFirst, sourceFile) => {
     if (!exifFirst) return;
     const f = sourceFile;
@@ -164,8 +151,6 @@ const UploadScreen = () => {
         // ignore
       }
     }
-
-    setUploadExifBadge(exifFirst?.oldCapture ? null : computeUploadExifBadge(exifFirst?.photoDate || null));
 
     setFormData((prev) => ({
       ...prev,
@@ -191,7 +176,7 @@ const UploadScreen = () => {
         }));
       }
     }
-  }, [computeUploadExifBadge]);
+  }, []);
 
   const growNoteArea = useCallback(() => {
     const el = noteAreaRef.current;
@@ -497,8 +482,6 @@ const UploadScreen = () => {
         : prev.prefetchedExif,
     }));
 
-    setUploadExifBadge(exifFirst?.oldCapture ? null : computeUploadExifBadge(exifFirst?.photoDate || null));
-
     if (isFirstMedia && (imageFiles.length > 0 || videoFiles.length > 0)) {
       // ✅ 사진 EXIF GPS가 있으면 "그 위치"를 최우선으로 위치 입력칸에 반영
       // - 업로드 시 "내 위치 자동 입력"은 하지 않음 (사용자가 버튼으로만 선택)
@@ -569,7 +552,6 @@ const UploadScreen = () => {
   useEffect(() => {
     if (formData.imageFiles.length === 0 && formData.videoFiles.length === 0) {
       initialAiSuggestDoneRef.current = null;
-      setUploadExifBadge(null);
     }
   }, [formData.imageFiles.length, formData.videoFiles.length]);
 
@@ -1179,19 +1161,6 @@ const UploadScreen = () => {
                         alt={`preview-${index}`} 
                         className="w-full h-full object-contain" 
                       />
-                      {/* 첫 이미지: EXIF 기반 LIVE/최근 인증 뱃지 */}
-                      {index === 0 && uploadExifBadge && (
-                        <div
-                          className="absolute bottom-1 left-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold"
-                          style={{
-                            background: uploadExifBadge === 'LIVE' ? 'rgba(14,165,233,0.92)' : 'rgba(148,163,184,0.92)',
-                            color: '#fff',
-                            boxShadow: '0 1px 6px rgba(15,23,42,0.14)',
-                          }}
-                        >
-                          {uploadExifBadge === 'LIVE' ? '현장 LIVE' : '최근 인증'}
-                        </div>
-                      )}
                       {/* EXIF 추출 중 표시 */}
                       {index === 0 && exifAllowed && exifExtracting && (
                         <div
