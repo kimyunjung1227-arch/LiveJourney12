@@ -1161,17 +1161,6 @@ const UploadScreen = () => {
                         alt={`preview-${index}`} 
                         className="w-full h-full object-contain" 
                       />
-                      {/* EXIF 추출 중 표시 */}
-                      {index === 0 && exifAllowed && exifExtracting && (
-                        <div
-                          className="absolute inset-0 flex items-center justify-center"
-                          style={{ background: 'rgba(15,23,42,0.18)' }}
-                        >
-                          <div className="rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-extrabold text-gray-700">
-                            촬영정보 추출 중…
-                          </div>
-                        </div>
-                      )}
                       <button
                         type="button"
                         onClick={(e) => {
