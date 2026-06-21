@@ -30,7 +30,7 @@ const BODY_PREVIEW_LINES = 4;
 export function PostCard({
   post,
   reactionState,
-  photoHeight = 430,
+  photoHeight = 427,
   onToggleLike,
   onToggleSave,
   priority = false,
@@ -155,7 +155,7 @@ export function PostCard({
           height={photoHeight}
           alt={post.place_name}
           priority={priority}
-          radius={16}
+          radius={6}
           onPhotoClick={(i) => goPhoto(i)}
         />
         {/* 좌상단 EXIF 뱃지 (날씨는 위치명 옆에서만 노출) */}
