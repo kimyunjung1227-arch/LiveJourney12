@@ -7,11 +7,11 @@ const TEXT_PRIMARY = '#1F1F1F';
 const TEXT_SECONDARY = '#6B6B6B';
 const KEY = '#4DB8E8';
 
-const PREVIEW_COUNT = 3;
+const PREVIEW_COUNT = 4;
 
 /**
  * 프로필 안의 "게시물" 미리보기 섹션.
- * - 최신 게시물 3개를 사진 + 장소 + 설명(2줄) 행으로 보여주고
+ * - 최신 게시물 4개를 가로 사진 + 하단 장소명 카드(2열 그리드)로 보여주고
  * - 전체보기 버튼 → 전용 게시물 화면으로 이동
  *
  * @param {object} props

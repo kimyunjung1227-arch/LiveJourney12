@@ -6,7 +6,6 @@ import { getDisplayImageUrl } from '../../api/upload';
 import { logger } from '../../utils/logger';
 
 const TEXT_PRIMARY = '#1F1F1F';
-const TEXT_SECONDARY = '#6B6B6B';
 const TEXT_TERTIARY = '#B8B8B8';
 const SURFACE = '#F5F7FA';
 const KEY = '#4DB8E8';
@@ -90,14 +89,13 @@ export function useUserPosts(userId, limit) {
 }
 
 /**
- * 게시물 한 줄 — 사진 + 장소 + 설명(2줄) + 날짜.
+ * 게시물 카드 — 가로(landscape) 사진 위 + 장소명 아래.
  * selectable=true 면 탭 시 이동 대신 선택 토글(삭제용 선택 모드).
  */
 function PostRow({ post, selectable = false, selected = false, onToggle }) {
   const navigate = useNavigate();
   const thumb = postThumb(post);
   const place = post.place_name || post.region || '';
-  const body = (post.content || post.body || '').trim();
   const date = formatDate(post.captured_at || post.created_at);
 
   const handleClick = () => {
@@ -113,21 +111,21 @@ function PostRow({ post, selectable = false, selected = false, onToggle }) {
       type="button"
       onClick={handleClick}
       aria-pressed={selectable ? selected : undefined}
-      className="flex items-stretch w-full text-left"
+      className="text-left"
       style={{
-        gap: 12,
-        padding: '12px 0',
+        width: '100%',
+        padding: 0,
         background: 'transparent',
         border: 'none',
         cursor: 'pointer',
       }}
     >
+      {/* 사진 — 가로 비율 */}
       <div
         style={{
           position: 'relative',
-          width: 76,
-          height: 76,
-          flexShrink: 0,
+          width: '100%',
+          aspectRatio: '4 / 3',
           borderRadius: 12,
           background: SURFACE,
           overflow: 'hidden',
@@ -143,7 +141,7 @@ function PostRow({ post, selectable = false, selected = false, onToggle }) {
           />
         ) : (
           <div className="flex items-center justify-center w-full h-full">
-            <IconCamera size={22} color={TEXT_TERTIARY} stroke={1.6} />
+            <IconCamera size={24} color={TEXT_TERTIARY} stroke={1.6} />
           </div>
         )}
         {selectable && (
@@ -157,8 +155,8 @@ function PostRow({ post, selectable = false, selected = false, onToggle }) {
             <div
               className="absolute flex items-center justify-center"
               style={{
-                top: 5,
-                left: 5,
+                top: 6,
+                left: 6,
                 width: 22,
                 height: 22,
                 borderRadius: 999,
@@ -173,49 +171,28 @@ function PostRow({ post, selectable = false, selected = false, onToggle }) {
         )}
       </div>
 
-      <div className="flex flex-col min-w-0" style={{ flex: 1, paddingTop: 2 }}>
-        <div className="flex items-center" style={{ gap: 4, marginBottom: 4 }}>
-          <IconMapPin size={13} color={KEY} stroke={2} style={{ flexShrink: 0 }} />
-          <span
-            className="min-w-0"
-            style={{
-              fontSize: 14,
-              fontWeight: 700,
-              color: TEXT_PRIMARY,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {place || '어딘가의 순간'}
-          </span>
-        </div>
-        {body ? (
-          <p
-            className="m-0"
-            style={{
-              fontSize: 12.5,
-              lineHeight: 1.5,
-              color: TEXT_SECONDARY,
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-            }}
-          >
-            {body}
-          </p>
-        ) : (
-          <p className="m-0" style={{ fontSize: 12.5, color: TEXT_TERTIARY }}>
-            설명이 없는 한 장
-          </p>
-        )}
-        {date && (
-          <span style={{ fontSize: 11, color: TEXT_TERTIARY, marginTop: 'auto', paddingTop: 4 }}>
-            {date}
-          </span>
-        )}
+      {/* 장소명 (사진 아래) */}
+      <div className="flex items-center" style={{ gap: 4, marginTop: 8 }}>
+        <IconMapPin size={13} color={KEY} stroke={2} style={{ flexShrink: 0 }} />
+        <span
+          className="min-w-0"
+          style={{
+            fontSize: 13.5,
+            fontWeight: 700,
+            color: TEXT_PRIMARY,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {place || '어딘가의 순간'}
+        </span>
       </div>
+      {date && (
+        <span style={{ display: 'block', fontSize: 11, color: TEXT_TERTIARY, marginTop: 2 }}>
+          {date}
+        </span>
+      )}
     </button>
   );
 }
@@ -255,19 +232,15 @@ export default function UserPostsList({ posts, selectable = false, selectedIds, 
   }
 
   return (
-    <div className="flex flex-col">
-      {list.map((post, i) => (
-        <div
+    <div className="grid grid-cols-2" style={{ gap: 14 }}>
+      {list.map((post) => (
+        <PostRow
           key={post.id}
-          style={{ borderTop: i === 0 ? 'none' : '1px solid #F0F0F0' }}
-        >
-          <PostRow
-            post={post}
-            selectable={selectable}
-            selected={!!selectedIds && selectedIds.has(post.id)}
-            onToggle={onToggleSelect}
-          />
-        </div>
+          post={post}
+          selectable={selectable}
+          selected={!!selectedIds && selectedIds.has(post.id)}
+          onToggle={onToggleSelect}
+        />
       ))}
     </div>
   );
