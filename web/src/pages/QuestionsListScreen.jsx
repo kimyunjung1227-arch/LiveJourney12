@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   IconArrowLeft,
@@ -9,7 +9,6 @@ import {
 } from '@tabler/icons-react';
 import { useQuestionsList } from '../hooks/useQuestionsList';
 import QuestionListCard from '../components/question/QuestionListCard';
-import CategoryChips from '../components/question/CategoryChips';
 import BottomNavigation from '../components/BottomNavigation';
 
 const TEXT_PRIMARY = '#1F1F1F';
@@ -19,8 +18,7 @@ const KEY_DARK = '#1A6EA8';
 
 const QuestionsListScreen = () => {
   const navigate = useNavigate();
-  const [category, setCategory] = useState('all');
-  const { data, loading } = useQuestionsList(category === 'all' ? null : category);
+  const { data, loading } = useQuestionsList(null);
 
   const myRegion = data?.my_region || [];
   const otherRegion = data?.other_region || [];
@@ -51,10 +49,6 @@ const QuestionsListScreen = () => {
           <IconHelpCircle size={19} color={KEY} />
           <span style={{ fontSize: 16, fontWeight: 600, color: TEXT_PRIMARY }}>실시간 질문</span>
         </div>
-      </div>
-
-      <div style={{ padding: '14px 18px', borderBottom: '1px solid #F5F7FA' }}>
-        <CategoryChips selected={category} onChange={setCategory} />
       </div>
 
       <div style={{ padding: '14px 18px' }}>
