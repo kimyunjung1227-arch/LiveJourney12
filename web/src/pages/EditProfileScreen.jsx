@@ -174,7 +174,7 @@ const EditProfileScreen = () => {
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
         {/* 헤더 */}
         <header
-          className="sticky top-0 z-10 flex items-center justify-between"
+          className="relative sticky top-0 z-10 flex items-center justify-between"
           style={{
             background: 'rgba(255,255,255,0.92)',
             backdropFilter: 'saturate(180%) blur(10px)',
@@ -199,7 +199,7 @@ const EditProfileScreen = () => {
             <IconX size={22} color={TEXT_PRIMARY} stroke={2} />
           </button>
           <h1
-            className="m-0"
+            className="m-0 absolute left-1/2 -translate-x-1/2"
             style={{
               fontSize: 16,
               fontWeight: 700,

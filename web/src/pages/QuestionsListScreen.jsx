@@ -34,7 +34,7 @@ const QuestionsListScreen = () => {
       }}
     >
       <div
-        className="flex items-center gap-3 sticky top-0 z-20 bg-white"
+        className="relative flex items-center sticky top-0 z-20 bg-white"
         style={{ padding: '14px 18px 12px', borderBottom: '1px solid #F0F0F0' }}
       >
         <button
@@ -45,7 +45,7 @@ const QuestionsListScreen = () => {
         >
           <IconArrowLeft size={18} color={TEXT_PRIMARY} />
         </button>
-        <div className="flex items-center gap-1.5">
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5">
           <IconHelpCircle size={19} color={KEY} />
           <span style={{ fontSize: 16, fontWeight: 600, color: TEXT_PRIMARY }}>실시간 질문</span>
         </div>

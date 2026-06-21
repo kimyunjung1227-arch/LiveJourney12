@@ -451,6 +451,7 @@ function UploadInfoScreen() {
       >
         <div
           style={{
+            position: 'relative',
             height: 56,
             display: 'flex',
             alignItems: 'center',
@@ -458,31 +459,39 @@ function UploadInfoScreen() {
             padding: '0 12px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              aria-label="뒤로"
-              style={{
-                width: 32,
-                height: 32,
-                background: 'transparent',
-                border: 'none',
-                borderRadius: 8,
-                cursor: 'pointer',
-                color: LJ.textPrimary,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: 0,
-              }}
-            >
-              <IconArrowLeft size={18} stroke={1.8} />
-            </button>
-            <span style={{ fontSize: 16, fontWeight: 600, color: LJ.textPrimary, lineHeight: 1 }}>
-              {isAnswerMode ? '답변 작성' : '정보 입력'}
-            </span>
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            aria-label="뒤로"
+            style={{
+              width: 32,
+              height: 32,
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 8,
+              cursor: 'pointer',
+              color: LJ.textPrimary,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+            }}
+          >
+            <IconArrowLeft size={18} stroke={1.8} />
+          </button>
+          <span
+            style={{
+              position: 'absolute',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: 16,
+              fontWeight: 600,
+              color: LJ.textPrimary,
+              lineHeight: 1,
+            }}
+          >
+            {isAnswerMode ? '답변 작성' : '정보 입력'}
+          </span>
         </div>
       </header>
 

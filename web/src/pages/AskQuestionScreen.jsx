@@ -85,9 +85,9 @@ const AskQuestionScreen = () => {
       style={{ background: '#ffffff', minHeight: '100vh', color: TEXT_PRIMARY }}
       className="flex flex-col"
     >
-      {/* 헤더 */}
+      {/* 헤더 — 제목 가운데 정렬 */}
       <div
-        className="flex items-center gap-3"
+        className="relative flex items-center"
         style={{ padding: '14px 18px 12px', borderBottom: '1px solid #F0F0F0' }}
       >
         <button
@@ -98,7 +98,9 @@ const AskQuestionScreen = () => {
         >
           <IconX size={22} color={TEXT_PRIMARY} />
         </button>
-        <span style={{ fontSize: 16, fontWeight: 600 }}>질문하기</span>
+        <span className="absolute left-1/2 -translate-x-1/2" style={{ fontSize: 16, fontWeight: 600 }}>
+          질문하기
+        </span>
       </div>
 
       {/* 본문 */}

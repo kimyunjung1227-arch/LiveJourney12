@@ -885,22 +885,25 @@ const QuestionDetailScreen = () => {
         flexDirection: 'column',
       }}
     >
-      {/* 헤더 */}
+      {/* 헤더 — 질문 제목을 가운데 정렬 */}
       <div
-        className="flex items-center justify-between"
+        className="relative flex items-center justify-between"
         style={{ padding: '16px 18px', borderBottom: '1px solid #F0F0F0' }}
       >
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            aria-label="뒤로가기"
-            style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
-          >
-            <IconArrowLeft size={18} color={TEXT_PRIMARY} />
-          </button>
-          <span style={{ fontSize: 16, fontWeight: 600, color: TEXT_PRIMARY }}>질문</span>
-        </div>
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          aria-label="뒤로가기"
+          style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+        >
+          <IconArrowLeft size={18} color={TEXT_PRIMARY} />
+        </button>
+        <span
+          className="absolute left-1/2 -translate-x-1/2"
+          style={{ fontSize: 16, fontWeight: 600, color: TEXT_PRIMARY }}
+        >
+          질문
+        </span>
         {isMine ? (
           <QuestionMenu onEdit={startEdit} onDelete={handleDelete} />
         ) : (

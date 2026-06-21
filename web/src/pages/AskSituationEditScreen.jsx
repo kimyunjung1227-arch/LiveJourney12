@@ -94,11 +94,11 @@ export default function AskSituationEditScreen() {
     return (
       <div className="screen-layout bg-background-light dark:bg-background-dark min-h-[100dvh]">
         <div className="screen-content bg-white">
-          <header className="flex items-center gap-3 border-b border-gray-100 px-4 py-3 pt-12 bg-white">
+          <header className="relative flex items-center gap-3 border-b border-gray-100 px-4 py-3 pt-12 bg-white">
             <button type="button" onClick={() => navigate(-1)} className="rounded-full p-2 hover:bg-gray-50" aria-label="뒤로">
               <ArrowLeft className="h-5 w-5 text-gray-800" />
             </button>
-            <h1 className="text-base font-bold text-gray-900">질문 수정</h1>
+            <h1 className="absolute left-1/2 -translate-x-1/2 text-base font-bold text-gray-900">질문 수정</h1>
           </header>
           <div className="p-4 text-[13px] text-gray-500">질문 글을 찾을 수 없어요.</div>
           <BottomNavigation />
@@ -111,11 +111,11 @@ export default function AskSituationEditScreen() {
     return (
       <div className="screen-layout bg-background-light dark:bg-background-dark min-h-[100dvh]">
         <div className="screen-content bg-white">
-          <header className="flex items-center gap-3 border-b border-gray-100 px-4 py-3 pt-12 bg-white">
+          <header className="relative flex items-center gap-3 border-b border-gray-100 px-4 py-3 pt-12 bg-white">
             <button type="button" onClick={() => navigate(-1)} className="rounded-full p-2 hover:bg-gray-50" aria-label="뒤로">
               <ArrowLeft className="h-5 w-5 text-gray-800" />
             </button>
-            <h1 className="text-base font-bold text-gray-900">질문 수정</h1>
+            <h1 className="absolute left-1/2 -translate-x-1/2 text-base font-bold text-gray-900">질문 수정</h1>
           </header>
           <div className="p-4 text-[13px] text-gray-500">작성자만 수정/삭제할 수 있어요.</div>
           <BottomNavigation />
@@ -129,11 +129,11 @@ export default function AskSituationEditScreen() {
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark min-h-[100dvh]">
       <div className="screen-content bg-white">
-        <header className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 pt-12 bg-white">
+        <header className="relative flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 pt-12 bg-white">
           <button type="button" onClick={() => navigate(-1)} className="rounded-full p-2 hover:bg-gray-50" aria-label="뒤로">
             <ArrowLeft className="h-5 w-5 text-gray-800" />
           </button>
-          <h1 className="text-base font-bold text-gray-900">질문 수정</h1>
+          <h1 className="absolute left-1/2 -translate-x-1/2 text-base font-bold text-gray-900">질문 수정</h1>
           <button type="button" onClick={onDelete} disabled={busy} className="text-[13px] font-extrabold text-red-500 disabled:opacity-40">
             삭제
           </button>

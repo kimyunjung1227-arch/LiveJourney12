@@ -45,31 +45,29 @@ export default function CategoryHeader({ category }) {
         zIndex: 10,
       }}
     >
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          aria-label="뒤로가기"
-          style={{
-            width: 36,
-            height: 36,
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            padding: 0,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <IconArrowLeft size={22} color={TEXT_PRIMARY} />
-        </button>
-        <div className="flex items-center gap-1.5">
-          <Icon size={18} color={TEXT_PRIMARY} stroke={1.8} />
-          <span style={{ fontSize: 16, fontWeight: 600, color: TEXT_PRIMARY }}>
-            {meta.label}
-          </span>
-        </div>
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
+        aria-label="뒤로가기"
+        style={{
+          width: 36,
+          height: 36,
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          padding: 0,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <IconArrowLeft size={22} color={TEXT_PRIMARY} />
+      </button>
+      <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+        <Icon size={18} color={TEXT_PRIMARY} stroke={1.8} />
+        <span style={{ fontSize: 16, fontWeight: 600, color: TEXT_PRIMARY }}>
+          {meta.label}
+        </span>
       </div>
       <button
         type="button"

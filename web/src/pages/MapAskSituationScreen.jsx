@@ -478,11 +478,11 @@ export default function MapAskSituationScreen() {
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-white">
-      <header className="flex items-center gap-3 border-b border-gray-100 px-4 py-3 pt-12">
+      <header className="relative flex items-center gap-3 border-b border-gray-100 px-4 py-3 pt-12">
         <button type="button" onClick={() => navigate(-1)} className="rounded-full p-2 hover:bg-gray-50" aria-label="뒤로">
           <ArrowLeft className="h-5 w-5 text-gray-800" />
         </button>
-        <h1 className="text-base font-bold text-gray-900">현장 상황 물어보기</h1>
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-base font-bold text-gray-900">현장 상황 물어보기</h1>
       </header>
       <div className="flex flex-1 flex-col px-4 py-4">
         <p className="mb-3 text-sm leading-relaxed text-gray-600">
