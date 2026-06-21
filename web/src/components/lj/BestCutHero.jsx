@@ -157,24 +157,6 @@ export function BestCutHero({
           >
             {author.nickname || '익명'}
           </button>
-          {post.is_on_site && (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '3px 8px',
-                background: 'rgba(255,255,255,0.92)',
-                borderRadius: 6,
-                fontSize: 11,
-                fontWeight: 600,
-                color: LJ.keyTextDark,
-              }}
-            >
-              <span style={{ width: 5, height: 5, borderRadius: '50%', background: LJ.key }} />
-              지금 현장
-            </span>
-          )}
         </div>
       </div>
 

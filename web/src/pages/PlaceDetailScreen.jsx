@@ -4,7 +4,6 @@ import { IconArrowLeft, IconBookmark, IconBookmarkFilled, IconShare3 } from '@ta
 import { LJ } from '../components/lj/tokens';
 import BestCutsCarousel from '../components/lj/BestCutsCarousel';
 import PlacePhotoGrid from '../components/lj/PlacePhotoGrid';
-import PlaceCTA from '../components/lj/PlaceCTA';
 import { usePlaceDetail } from '../hooks/usePlaceDetail';
 import { bestCutScore } from '../hooks/ljPostsMapping';
 import { useAuth } from '../contexts/AuthContext';
@@ -245,9 +244,6 @@ function PlaceDetailScreen() {
       ) : (
         <PlacePhotoGrid posts={gridPosts} onPhotoClick={(id) => navigate(`/post/${id}`)} />
       )}
-
-      {/* CTA */}
-      <PlaceCTA onClick={() => navigate('/upload')} />
 
       {/* 저장 토스트 */}
       {toast && (
