@@ -102,10 +102,15 @@ input, textarea, select, button {
 
 /* 앱 컨테이너 - 가운데 정렬, 모바일 크기 제한 */
 .app-container {
+  /* 전체 화면 비율 축소 — 핸드폰에서 UI가 다소 크게(부담스럽게) 느껴지던 것을 완화.
+     값을 1에 가깝게 올리면 더 크게, 낮추면 더 작게 보인다. */
+  --app-zoom: 0.92;
+  zoom: var(--app-zoom);
   width: 100%;
   max-width: 414px;
   /* 모바일 최대 너비 (핸드폰 화면, iPhone 기준) */
-  min-height: 100vh;
+  /* zoom 으로 줄어든 만큼 보정해 하단에 흰 여백이 생기지 않도록 */
+  min-height: calc(100vh / 0.92);
   height: auto;
   margin: 0 auto;
   background-color: #ffffff;
