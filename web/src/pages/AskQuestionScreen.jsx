@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  IconBolt,
   IconHelpCircle,
   IconMapPin,
   IconX,
@@ -11,7 +10,6 @@ import { useAuth } from '../contexts/AuthContext';
 
 const KEY = '#4DB8E8';
 const KEY_LIGHT = '#E8F4FB';
-const KEY_DARK = '#1A6EA8';
 const TEXT_PRIMARY = '#1F1F1F';
 const TEXT_SECONDARY = '#6B6B6B';
 const TEXT_TERTIARY = '#B8B8B8';
@@ -119,50 +117,7 @@ const AskQuestionScreen = () => {
 
       {/* 본문 */}
       <div className="flex-1 overflow-y-auto" style={{ padding: 18 }}>
-        {/* 자동 매칭 안내 */}
-        <div
-          className="flex items-start gap-2"
-          style={{
-            background: KEY_LIGHT,
-            borderRadius: 11,
-            padding: '12px 14px',
-            marginBottom: 20,
-          }}
-        >
-          <IconBolt size={17} color={KEY} className="flex-shrink-0" style={{ marginTop: 1 }} />
-          <p className="m-0" style={{ fontSize: 11, color: KEY_DARK, lineHeight: 1.55 }}>
-            장소 근처에 계신 분들께 알림이 가요. 사진으로 빠른 답변을 받을 수 있어요.
-          </p>
-        </div>
-
-        {/* 본문 입력 */}
-        <p
-          className="m-0"
-          style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}
-        >
-          무엇이 궁금한가요?
-        </p>
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value.slice(0, 200))}
-          placeholder="여의도 벚꽃 지금 어떤가요? 윤중로 가려는데..."
-          className="w-full outline-none resize-none"
-          style={{
-            background: SURFACE,
-            borderRadius: 11,
-            padding: '14px 14px',
-            fontSize: 14,
-            lineHeight: 1.55,
-            minHeight: 90,
-            border: '1px solid transparent',
-            color: TEXT_PRIMARY,
-          }}
-        />
-        <div className="flex justify-end" style={{ marginTop: 6, marginBottom: 20 }}>
-          <span style={{ fontSize: 11, color: TEXT_TERTIARY }}>{body.length} / 200</span>
-        </div>
-
-        {/* 장소 (필수) */}
+        {/* 장소 (필수) — 먼저 입력 */}
         <div className="flex items-center gap-1" style={{ marginBottom: 8 }}>
           <p className="m-0" style={{ fontSize: 12, fontWeight: 600 }}>장소</p>
           <span style={{ fontSize: 11, color: KEY, fontWeight: 600 }}>필수</span>
@@ -220,6 +175,33 @@ const AskQuestionScreen = () => {
             <span style={{ fontSize: 13, color: TEXT_TERTIARY }}>장소를 선택하세요</span>
           </button>
         )}
+
+        {/* 질문 내용 입력 — 장소 아래 */}
+        <p
+          className="m-0"
+          style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}
+        >
+          무엇이 궁금한가요?
+        </p>
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value.slice(0, 200))}
+          placeholder="여의도 벚꽃 지금 어떤가요? 윤중로 가려는데..."
+          className="w-full outline-none resize-none"
+          style={{
+            background: SURFACE,
+            borderRadius: 11,
+            padding: '14px 14px',
+            fontSize: 14,
+            lineHeight: 1.55,
+            minHeight: 90,
+            border: '1px solid transparent',
+            color: TEXT_PRIMARY,
+          }}
+        />
+        <div className="flex justify-end" style={{ marginTop: 6 }}>
+          <span style={{ fontSize: 11, color: TEXT_TERTIARY }}>{body.length} / 200</span>
+        </div>
 
         {error && (
           <p
