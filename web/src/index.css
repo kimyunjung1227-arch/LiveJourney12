@@ -369,6 +369,14 @@ img {
   display: block;
 }
 
+/* 전 화면 아이콘 느낌 통일 — Tabler 아이콘 선 두께를 1.8로 고정.
+   각 호출부의 stroke 값이 1.6~3으로 제각각이어도 이 규칙(스타일시트)이
+   인라인 presentation 속성(stroke-width)을 덮어 일관된 두께를 유지한다.
+   크기(size)는 위치별로 의도된 값이라 건드리지 않는다. */
+svg.tabler-icon {
+  stroke-width: 1.8px;
+}
+
 /* 슬라이드 업 애니메이션 */
 @keyframes slideUp {
   from {
