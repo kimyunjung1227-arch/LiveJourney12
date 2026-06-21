@@ -6,7 +6,6 @@ import {
   IconMapPin,
   IconX,
 } from '@tabler/icons-react';
-import CategoryChips from '../components/question/CategoryChips';
 import { useCreateQuestion } from '../hooks/useCreateQuestion';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -56,7 +55,6 @@ const AskQuestionScreen = () => {
 
   const [body, setBody] = useState(initialDraft?.body || '');
   const [place, setPlace] = useState(incomingPlace || initialDraft?.place || null);
-  const [category, setCategory] = useState(initialDraft?.category || 'all');
 
   // 장소가 새로 들어오면 한 번만 반영 (history.replace로 state 비움)
   useEffect(() => {
@@ -67,12 +65,12 @@ const AskQuestionScreen = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incomingPlace]);
 
-  // body/place/category 바뀔 때마다 draft 저장 (장소 검색 화면 다녀와도 유지)
+  // body/place 바뀔 때마다 draft 저장 (장소 검색 화면 다녀와도 유지)
   useEffect(() => {
-    if (body || place || category !== 'all') {
-      saveDraft({ body, place, category });
+    if (body || place) {
+      saveDraft({ body, place });
     }
-  }, [body, place, category]);
+  }, [body, place]);
 
   const canSubmit = body.trim().length > 0 && place !== null && !submitting;
 
@@ -85,7 +83,7 @@ const AskQuestionScreen = () => {
     const id = await createQuestion({
       body: body.trim(),
       place,
-      category: category === 'all' ? null : category,
+      category: null,
     });
     if (id) {
       clearDraft();
@@ -222,13 +220,6 @@ const AskQuestionScreen = () => {
             <span style={{ fontSize: 13, color: TEXT_TERTIARY }}>장소를 선택하세요</span>
           </button>
         )}
-
-        {/* 카테고리 (선택) */}
-        <div className="flex items-center gap-1" style={{ marginBottom: 8 }}>
-          <p className="m-0" style={{ fontSize: 12, fontWeight: 600 }}>카테고리</p>
-          <span style={{ fontSize: 11, color: TEXT_TERTIARY }}>선택</span>
-        </div>
-        <CategoryChips selected={category} onChange={setCategory} />
 
         {error && (
           <p
