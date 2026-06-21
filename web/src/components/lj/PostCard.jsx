@@ -30,7 +30,7 @@ const BODY_PREVIEW_LINES = 4;
 export function PostCard({
   post,
   reactionState,
-  photoHeight = 340,
+  photoHeight = 430,
   onToggleLike,
   onToggleSave,
   priority = false,
@@ -148,14 +148,14 @@ export function PostCard({
         )}
       </div>
 
-      {/* 사진 (더 크게 + 멀티 캐러셀) */}
-      <div style={{ position: 'relative' }}>
+      {/* 사진 (세로 크게 + 가로 약간 좁혀 한 구역 안에 담긴 느낌) */}
+      <div style={{ position: 'relative', margin: '0 8px' }}>
         <PhotoCarousel
           photos={photosList}
           height={photoHeight}
           alt={post.place_name}
           priority={priority}
-          radius={4}
+          radius={16}
           onPhotoClick={(i) => goPhoto(i)}
         />
         {/* 좌상단 EXIF 뱃지 (날씨는 위치명 옆에서만 노출) */}
