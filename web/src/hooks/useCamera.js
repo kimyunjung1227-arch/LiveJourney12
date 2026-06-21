@@ -24,13 +24,13 @@ function getScreenOrientationAngle() {
  */
 function orientationFromTilt(beta, gamma) {
   if (typeof beta !== 'number' || typeof gamma !== 'number') return null;
-  // 좌우로 기울면 가로로 판단 — 화면 회전 잠금 환경에서도 가로 촬영을 잡아내도록
-  // 임계값을 낮춰 약하게 기울여도 가로로 인식한다.
-  if (gamma > 20) return 90; // 기기 우측이 아래로 (landscape)
-  if (gamma < -20) return 270; // 기기 좌측이 아래로 (반대 landscape)
-  // 그 외에는 세로로 본다 (애매한 평평/약한 기울기 포함)
-  if (Math.abs(gamma) <= 15) return 0;
-  return null; // 15~20° 경계 구간은 직전 값 유지
+  // 기기를 '확실히' 옆으로 눕혔을 때만 가로로 인정한다.
+  // 세로로 들고 약간 기운 정도(±30° 이내)는 무조건 세로로 보아,
+  // '세로로 찍었는데 정보 입력화면에서 사진이 돌아가는' 오판을 막는다.
+  if (gamma >= 45) return 90; // 기기 우측이 아래로 (landscape)
+  if (gamma <= -45) return 270; // 기기 좌측이 아래로 (반대 landscape)
+  if (Math.abs(gamma) <= 30) return 0; // 명확한 세로
+  return null; // 30~45° 경계 구간은 직전 판단 유지 (떨림으로 인한 오회전 방지)
 }
 
 /**
@@ -56,20 +56,78 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
   const [facingMode, setFacingMode] = useState(initialFacingMode);
   const [mode, setMode] = useState(initialMode);
   const [flashOn, setFlashOn] = useState(false);
-  const [zoom, setZoomState] = useState(1); // 디지털 줌 배율 (1 / 2 / 3)
+  const [zoom, setZoomState] = useState(1); // 줌 배율 (1 / 2 / 3)
+  const [hardwareZoom, setHardwareZoom] = useState(false); // 센서(광학) 줌 사용 중 여부
 
   const videoRef = useRef(null);
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
   const streamRef = useRef(null);
-  const zoomRef = useRef(1);
+  const zoomRef = useRef(1); // 디지털 줌 폴백 배율
+  const zoomCapsRef = useRef(null); // 하드웨어 줌 지원 시 { min, max, step }
+  const hardwareZoomRef = useRef(false); // 캡처 시 디지털 크롭 여부 판단용
   const tiltAngleRef = useRef(0); // 가속도 센서로 추정한 기기 방향(0/90/270)
   const hasTiltRef = useRef(false); // 센서값을 한 번이라도 받았는지
 
-  const setZoom = useCallback((level) => {
-    const z = Math.max(1, Math.min(3, Number(level) || 1));
-    zoomRef.current = z;
-    setZoomState(z);
+  /**
+   * 트랙 화질 보정 — 연속 자동초점/노출/화이트밸런스를 켜고,
+   * 하드웨어 줌 지원 범위를 파악해 둔다. (지원하는 항목만 선택적으로 적용)
+   */
+  const tuneTrack = useCallback((track) => {
+    if (!track?.getCapabilities) return;
+    let caps = {};
+    try {
+      caps = track.getCapabilities() || {};
+    } catch (_) {
+      caps = {};
+    }
+    const advanced = [];
+    if (Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
+      advanced.push({ focusMode: 'continuous' }); // 연속 자동초점 — 흐릿함 감소
+    }
+    if (Array.isArray(caps.exposureMode) && caps.exposureMode.includes('continuous')) {
+      advanced.push({ exposureMode: 'continuous' });
+    }
+    if (Array.isArray(caps.whiteBalanceMode) && caps.whiteBalanceMode.includes('continuous')) {
+      advanced.push({ whiteBalanceMode: 'continuous' });
+    }
+    if (advanced.length) {
+      track.applyConstraints({ advanced }).catch(() => {});
+    }
+    // 하드웨어 줌 캐파 저장 (max가 min보다 클 때만 의미 있음)
+    const zc = caps.zoom;
+    if (zc && typeof zc.max === 'number' && zc.max > (zc.min ?? 1) + 0.01) {
+      zoomCapsRef.current = { min: zc.min ?? 1, max: zc.max, step: zc.step || 0.1 };
+    } else {
+      zoomCapsRef.current = null;
+    }
+  }, []);
+
+  const setZoom = useCallback(async (level) => {
+    const lvl = Math.max(1, Math.min(3, Number(level) || 1));
+    const caps = zoomCapsRef.current;
+    if (caps) {
+      // 하드웨어(센서) 줌 — 카메라가 실제로 확대해 화질 손실이 없다.
+      const target = Math.min(caps.max, Math.max(caps.min, lvl));
+      try {
+        const track = streamRef.current?.getVideoTracks?.()[0];
+        if (track) {
+          await track.applyConstraints({ advanced: [{ zoom: target }] });
+          hardwareZoomRef.current = true;
+          zoomRef.current = 1; // 디지털 크롭은 하지 않음
+          setHardwareZoom(true);
+          setZoomState(lvl);
+          return;
+        }
+      } catch (_) {
+        /* 실패 시 아래 디지털 줌으로 폴백 */
+      }
+    }
+    // 디지털 줌 폴백 — 중앙 크롭 + CSS 확대
+    hardwareZoomRef.current = false;
+    zoomRef.current = lvl;
+    setHardwareZoom(false);
+    setZoomState(lvl);
   }, []);
 
   // 기기 기울기(가속도) 추적 — 화면 회전 잠금 상태에서도 가로 촬영을 감지하기 위함.
@@ -139,11 +197,23 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
       const s = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode,
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+          // 더 높은 해상도를 요청해 선명도 확보 (브라우저가 지원 최대치로 클램프)
+          width: { ideal: 2560 },
+          height: { ideal: 1440 },
+          frameRate: { ideal: 30 },
         },
         audio: mode === 'video',
       });
+      // 트랙 보정: 연속 자동초점/노출/화이트밸런스 + 하드웨어 줌 캐파 파악
+      try {
+        const track = s.getVideoTracks?.()[0];
+        if (track) tuneTrack(track);
+      } catch (_) {}
+      // 스트림이 새로 열리면 줌은 1배로 초기화
+      hardwareZoomRef.current = false;
+      zoomRef.current = 1;
+      setHardwareZoom(false);
+      setZoomState(1);
       setStream(s);
       setPermission('granted');
       return s;
@@ -153,7 +223,7 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
       );
       return null;
     }
-  }, [facingMode, mode]);
+  }, [facingMode, mode, tuneTrack]);
 
   const requestPermission = useCallback(async () => {
     await openStream();
@@ -216,8 +286,10 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
     const vw = video.videoWidth;
     const vh = video.videoHeight;
 
-    // 디지털 줌 — 중앙을 1/z 만큼 잘라내 확대 효과 (미리보기 CSS scale과 일치)
-    const z = zoomRef.current || 1;
+    // 줌 처리 — 하드웨어 줌이 적용 중이면 스트림 자체가 이미 확대되어 있으므로
+    // 추가 크롭 없이 전체 프레임을 사용한다(화질 보존). 하드웨어 줌 미지원일 때만
+    // 중앙을 1/z 만큼 잘라내는 디지털 줌(미리보기 CSS scale과 일치)을 적용.
+    const z = hardwareZoomRef.current ? 1 : zoomRef.current || 1;
     const sw = vw / z;
     const sh = vh / z;
     const sx = (vw - sw) / 2;
@@ -247,7 +319,7 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
       canvas.toBlob(
         (blob) => (blob ? resolve(blob) : reject(new Error('toBlob failed'))),
         'image/jpeg',
-        0.92
+        0.95
       );
     });
   }, []);
@@ -314,6 +386,7 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
     mode,
     flashOn,
     zoom,
+    hardwareZoom,
     setZoom,
     videoRef,
     requestPermission,

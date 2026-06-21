@@ -557,7 +557,11 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          transform: `${cam.facingMode === 'user' ? 'scaleX(-1) ' : ''}scale(${cam.zoom || 1})`,
+          // 하드웨어(센서) 줌이 적용 중이면 스트림 자체가 확대되므로 CSS scale은 1로 둔다.
+          // (CSS scale은 디지털 줌 폴백일 때만 미리보기를 확대)
+          transform: `${cam.facingMode === 'user' ? 'scaleX(-1) ' : ''}scale(${
+            cam.hardwareZoom ? 1 : cam.zoom || 1
+          })`,
           transformOrigin: 'center center',
           transition: 'transform 160ms ease-out',
           background: DARK,
