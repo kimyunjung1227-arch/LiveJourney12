@@ -1,12 +1,14 @@
 /**
  * GPS 좌표 → 사람이 읽는 장소명.
  *
- * 정책(2026-05 세 번째 개정):
- * - "근처 POI"는 가져오지 않는다 — 좌표가 가리키는 *현재 위치 자체*만 사용한다.
- * - 도로명 주소를 1순위, 지번 주소를 2순위로 사용한다.
- * - 호환을 위해 건물명이 명확하면 그 안에 함께 노출 가능하지만, POI(카테고리 검색)는 더 이상 호출하지 않는다.
- * - 결과를 못 찾으면 빈 문자열을 반환 (호출자가 좌표 라벨로 폴백).
+ * 정책(2026-06 개정):
+ * - 좌표 바로 위의 "지점명(가게/시설명)"을 1순위로 사용한다.
+ *   (예: 구미 '비아보스코' 카페에서 찍으면 도로명 주소가 아니라 "비아보스코"로 표시)
+ *   → findNearestPoiName 으로 가까운 POI를 찾고, 일정 반경(기본 40m) 이내일 때만 채택.
+ * - POI를 못 찾으면 건물명 → 도로명 주소 → 지번 주소 순으로 폴백한다.
+ * - 모두 없으면 빈 문자열을 반환 (호출자가 좌표 라벨로 폴백).
  */
+import { findNearestPoiName } from './kakaoPlacesGeocode';
 
 /**
  * 카카오 JS SDK가 services 라이브러리와 함께 준비될 때까지 대기.
@@ -124,6 +126,10 @@ function pickRegionFromCoordRow(row) {
 export async function reverseGeocodeToPlace(lat, lng) {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return '';
   try {
+    // 1) 좌표 위의 지점명(가게/시설) 우선
+    const poi = await findNearestPoiName(lat, lng);
+    if (poi) return poi;
+    // 2) 건물명 → 도로명 → 지번
     const row = await fetchCoord2Address(lat, lng);
     const label = pickPreciseAddressFromCoordRow(row);
     if (label) return label;
@@ -142,12 +148,15 @@ export async function reverseGeocodeToPlaceDetail(lat, lng) {
   const empty = { name: '', region: '' };
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return empty;
   try {
-    const row = await fetchCoord2Address(lat, lng);
-    if (!row) return empty;
-    return {
-      name: pickPreciseAddressFromCoordRow(row) || '',
-      region: pickRegionFromCoordRow(row) || '',
-    };
+    // 지점명 조회와 주소 조회를 동시에 — 지역 라벨은 주소(coord2Address)에서만 얻을 수 있다.
+    const [poi, row] = await Promise.all([
+      findNearestPoiName(lat, lng),
+      fetchCoord2Address(lat, lng),
+    ]);
+    const region = pickRegionFromCoordRow(row) || '';
+    // 1) 지점명(가게/시설) 우선 → 2) 건물명/도로명/지번 폴백
+    const name = poi || pickPreciseAddressFromCoordRow(row) || '';
+    return { name, region };
   } catch (_) {
     return empty;
   }
