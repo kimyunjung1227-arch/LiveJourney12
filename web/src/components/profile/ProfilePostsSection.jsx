@@ -7,12 +7,13 @@ const TEXT_PRIMARY = '#1F1F1F';
 const TEXT_SECONDARY = '#6B6B6B';
 const KEY = '#4DB8E8';
 
-const PREVIEW_COUNT = 4;
+const PREVIEW_COUNT = 8;
 
 /**
  * 프로필 안의 "게시물" 미리보기 섹션.
- * - 최신 게시물 4개를 가로 사진 + 하단 장소명 카드(2열 그리드)로 보여주고
- * - 전체보기 버튼 → 전용 게시물 화면으로 이동
+ * - 최신 게시물 최대 8개를 정사각형 썸네일 + 하단 장소명으로,
+ *   한 화면에 3개씩 보이는 가로 스크롤로 보여주고
+ * - 8개를 넘으면 "모두 보기" 버튼 → 전용 게시물 화면으로 이동
  *
  * @param {object} props
  * @param {string} props.userId 대상 사용자 UUID
@@ -47,7 +48,7 @@ export default function ProfilePostsSection({ userId, seeAllTo }) {
               cursor: 'pointer',
             }}
           >
-            전체보기
+            모두 보기
             <IconChevronRight size={15} stroke={2.4} />
           </button>
         )}
@@ -61,7 +62,7 @@ export default function ProfilePostsSection({ userId, seeAllTo }) {
           게시물 불러오는 중...
         </div>
       ) : (
-        <UserPostsList posts={preview} />
+        <UserPostsList posts={preview} horizontal />
       )}
     </section>
   );

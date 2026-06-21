@@ -26,18 +26,6 @@ function postThumb(p) {
   return raw ? getDisplayImageUrl(raw) : '';
 }
 
-function formatDate(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const y = d.getFullYear();
-  const m = d.getMonth() + 1;
-  const day = d.getDate();
-  const now = new Date();
-  if (y === now.getFullYear()) return `${m}월 ${day}일`;
-  return `${y}.${m}.${day}`;
-}
-
 /**
  * 한 사용자의 게시물을 최신순으로 가져온다.
  * (posts 테이블 직접 조회 — place_name/body 까지 포함)
@@ -96,7 +84,6 @@ function PostRow({ post, selectable = false, selected = false, onToggle }) {
   const navigate = useNavigate();
   const thumb = postThumb(post);
   const place = post.place_name || post.region || '';
-  const date = formatDate(post.captured_at || post.created_at);
 
   const handleClick = () => {
     if (selectable) {
@@ -120,13 +107,13 @@ function PostRow({ post, selectable = false, selected = false, onToggle }) {
         cursor: 'pointer',
       }}
     >
-      {/* 사진 — 가로 비율 */}
+      {/* 사진 — 정사각형 */}
       <div
         style={{
           position: 'relative',
           width: '100%',
-          aspectRatio: '4 / 3',
-          borderRadius: 12,
+          aspectRatio: '1 / 1',
+          borderRadius: 10,
           background: SURFACE,
           overflow: 'hidden',
         }}
@@ -141,7 +128,7 @@ function PostRow({ post, selectable = false, selected = false, onToggle }) {
           />
         ) : (
           <div className="flex items-center justify-center w-full h-full">
-            <IconCamera size={24} color={TEXT_TERTIARY} stroke={1.6} />
+            <IconCamera size={22} color={TEXT_TERTIARY} stroke={1.6} />
           </div>
         )}
         {selectable && (
@@ -172,13 +159,13 @@ function PostRow({ post, selectable = false, selected = false, onToggle }) {
       </div>
 
       {/* 장소명 (사진 아래) */}
-      <div className="flex items-center" style={{ gap: 4, marginTop: 8 }}>
-        <IconMapPin size={13} color={KEY} stroke={2} style={{ flexShrink: 0 }} />
+      <div className="flex items-center" style={{ gap: 3, marginTop: 6 }}>
+        <IconMapPin size={11} color={KEY} stroke={2} style={{ flexShrink: 0 }} />
         <span
           className="min-w-0"
           style={{
-            fontSize: 13.5,
-            fontWeight: 700,
+            fontSize: 11.5,
+            fontWeight: 600,
             color: TEXT_PRIMARY,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -188,11 +175,6 @@ function PostRow({ post, selectable = false, selected = false, onToggle }) {
           {place || '어딘가의 순간'}
         </span>
       </div>
-      {date && (
-        <span style={{ display: 'block', fontSize: 11, color: TEXT_TERTIARY, marginTop: 2 }}>
-          {date}
-        </span>
-      )}
     </button>
   );
 }
@@ -207,7 +189,13 @@ function PostRow({ post, selectable = false, selected = false, onToggle }) {
  * @param {Set<string>} [props.selectedIds] 선택된 게시물 id 집합
  * @param {(id:string)=>void} [props.onToggleSelect] 선택 토글
  */
-export default function UserPostsList({ posts, selectable = false, selectedIds, onToggleSelect }) {
+export default function UserPostsList({
+  posts,
+  selectable = false,
+  selectedIds,
+  onToggleSelect,
+  horizontal = false,
+}) {
   const list = Array.isArray(posts) ? posts : [];
   if (list.length === 0) {
     return (
@@ -231,8 +219,45 @@ export default function UserPostsList({ posts, selectable = false, selectedIds, 
     );
   }
 
+  // 가로 스크롤(프로필 미리보기) — 한 화면에 3개, 좌우로 넘김
+  if (horizontal) {
+    return (
+      <div
+        className="hide-scrollbar"
+        style={{
+          display: 'flex',
+          gap: 8,
+          overflowX: 'auto',
+          paddingBottom: 2,
+          touchAction: 'pan-x',
+          scrollSnapType: 'x proximity',
+        }}
+      >
+        {list.map((post) => (
+          <div
+            key={post.id}
+            style={{
+              flex: '0 0 auto',
+              // 한 화면에 3개 노출 (gap 8 × 2 = 16px 빼고 3등분)
+              width: 'calc((100% - 16px) / 3)',
+              scrollSnapAlign: 'start',
+            }}
+          >
+            <PostRow
+              post={post}
+              selectable={selectable}
+              selected={!!selectedIds && selectedIds.has(post.id)}
+              onToggle={onToggleSelect}
+            />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // 기본 — 3열 정사각형 그리드 (전체보기 화면)
   return (
-    <div className="grid grid-cols-2" style={{ gap: 14 }}>
+    <div className="grid grid-cols-3" style={{ gap: 8 }}>
       {list.map((post) => (
         <PostRow
           key={post.id}
