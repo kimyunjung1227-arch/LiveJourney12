@@ -222,11 +222,36 @@ function PlaceDetailScreen() {
 
       {/* 베스트 컷 캐러셀 — 게시물 수만큼 좌우 슬라이드 */}
       {bestCuts.length > 0 && (
-        <BestCutsCarousel
-          posts={bestCuts}
-          onPostClick={(p) => navigate(`/post/${p.id}`)}
-          onAuthorClick={(p) => navigate(`/user/${p.author?.id || p.author_id}`)}
-        />
+        <>
+          <BestCutsCarousel
+            posts={bestCuts}
+            onPostClick={(p) => navigate(`/post/${p.id}`)}
+            onAuthorClick={(p) => navigate(`/user/${p.author?.id || p.author_id}`)}
+          />
+          {/* 베스트 컷 아래 가벼운 캡션 — 좌측 배치, 베스트 컷을 더 강조 */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '8px 18px 0',
+              fontSize: 11,
+              fontWeight: 500,
+              color: LJ.textTertiary,
+            }}
+          >
+            <span
+              style={{
+                width: 5,
+                height: 5,
+                borderRadius: '50%',
+                background: LJ.key,
+                opacity: 0.8,
+              }}
+            />
+            실시간 사진
+          </div>
+        </>
       )}
 
       {/* 사진 그리드 */}
