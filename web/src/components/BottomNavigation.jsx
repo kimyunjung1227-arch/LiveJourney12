@@ -146,7 +146,7 @@ const BottomNavigation = React.memo(() => {
           maxWidth: '414px',
           height: 'calc(58px + env(safe-area-inset-bottom, 0px))',
           background: '#ffffff',
-          borderTop: '1px solid rgba(242, 244, 247, 0.8)',
+          borderTop: '1px solid #E6E9ED',
           zIndex: 45,
           pointerEvents: 'none',
         }}
@@ -163,6 +163,8 @@ const BottomNavigation = React.memo(() => {
           height: '58px',
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           boxShadow: 'none',
+          // 화면과 분리되어 보이도록 상단 구분선
+          borderTop: '1px solid #E6E9ED',
           zIndex: 50,
           transition: 'transform 0.3s ease-in-out',
           background: '#ffffff',
