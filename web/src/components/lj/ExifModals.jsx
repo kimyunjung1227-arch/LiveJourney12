@@ -42,7 +42,7 @@ function ModalShell({ onClose, children }) {
 
 /**
  * EXIF 거부 모달
- * reason: 'too_old' (8시간 초과) | 'no_exif' (정보 없음)
+ * reason: 'too_old' (24시간 초과) | 'no_exif' (정보 없음)
  */
 export function EXIFRejectModal({ open, reason, minutesAgo = 0, onRetake, onPickOther, onClose }) {
   if (!open) return null;
@@ -50,7 +50,7 @@ export function EXIFRejectModal({ open, reason, minutesAgo = 0, onRetake, onPick
   const isTooOld = reason === 'too_old';
   const headerText = isTooOld ? '이 사진은\n지금이 아니에요' : '촬영 정보를\n찾을 수 없어요';
   const subText = isTooOld
-    ? `선택한 사진의 촬영 시각이 ${minutesAgo}분 전이에요. 라이브저니는 8시간 이내 사진만 받아요.`
+    ? `선택한 사진의 촬영 시각이 ${minutesAgo}분 전이에요. 라이브저니는 24시간 이내 사진만 받아요.`
     : '다른 사진을 선택해주세요. 라이브저니는 EXIF가 있는 사진만 받아요.';
 
   return (

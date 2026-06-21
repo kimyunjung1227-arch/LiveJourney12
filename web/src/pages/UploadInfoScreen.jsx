@@ -293,7 +293,7 @@ function UploadInfoScreen() {
       const v = validations[firstFail];
       alert(
         v.reason === 'too_old'
-          ? '추가한 사진 중 8시간이 지난 것이 있어요.'
+          ? '추가한 사진 중 24시간이 지난 것이 있어요.'
           : 'EXIF 가 없는 사진은 추가할 수 없어요.',
       );
       return;

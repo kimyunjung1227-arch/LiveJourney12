@@ -2,7 +2,7 @@ import { parse } from 'exifr';
 
 /**
  * 갤러리에서 선택한 파일의 EXIF 검증 + 추출.
- * - 라이브저니는 8시간 이내 사진만 허용
+ * - 라이브저니는 24시간 이내 사진만 허용
  * - EXIF DateTimeOriginal 없으면 거부
  * - 영상 파일은 EXIF 보장이 어려워 일단 EXIF 없음으로 처리
  *
@@ -24,7 +24,7 @@ export async function validateGalleryFile(file) {
     return { valid: false, reason: 'no_exif' };
   }
 
-  // 스펙: "8시간 이내 사진만"
+  // 스펙: "24시간 이내 사진만"
   try {
     // 더 많은 태그 추출: 시간/타임존/GPS/카메라/방향/픽셀
     const exif = await parse(file, {
@@ -70,7 +70,7 @@ export async function validateGalleryFile(file) {
     const diffMs = Date.now() - takenAt.getTime();
     const minutesAgo = Math.max(0, Math.floor(diffMs / 60000));
 
-    if (diffMs > 8 * 60 * 60 * 1000) {
+    if (diffMs > 24 * 60 * 60 * 1000) {
       return { valid: false, reason: 'too_old', takenAt, minutesAgo };
     }
 

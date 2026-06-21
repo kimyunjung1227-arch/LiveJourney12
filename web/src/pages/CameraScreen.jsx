@@ -695,7 +695,7 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
               marginTop: 2,
             }}
           >
-            갤러리는 8시간 이내 사진만 답변할 수 있어요
+            갤러리는 24시간 이내 사진만 답변할 수 있어요
           </p>
         )}
 
