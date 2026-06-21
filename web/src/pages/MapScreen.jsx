@@ -638,7 +638,7 @@ function PostPinPreview({
           }}
         >
           {/* 사진 */}
-          <div className="relative h-[200px] bg-[#F5F7FA]">
+          <div className="relative h-[248px] bg-[#F5F7FA]">
             {bundle.primary_thumbnail && (
               <img
                 src={getDisplayImageUrl(bundle.primary_thumbnail)}
@@ -665,9 +665,9 @@ function PostPinPreview({
           </div>
 
           {/* 정보 */}
-          <div className="p-3 px-3.5">
+          <div className="p-2.5 px-3.5">
             {/* 프로필 섹션 */}
-            <div className="flex items-center gap-2.5 mb-3">
+            <div className="flex items-center gap-2.5 mb-2">
               <AuthorAvatar
                 name={bundle.author_name}
                 color={bundle.author_avatar_color}
@@ -683,28 +683,11 @@ function PostPinPreview({
                 >
                   {bundle.author_name || '이름 없음'}
                 </button>
-                {bundle.is_author_on_site && (
-                  <div
-                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded"
-                    style={{ background: KEY_LIGHT }}
-                  >
-                    <div
-                      className="w-1 h-1 rounded-full"
-                      style={{ background: KEY }}
-                    />
-                    <span
-                      className="text-[9px] font-semibold"
-                      style={{ color: KEY_DARK }}
-                    >
-                      지금 현장
-                    </span>
-                  </div>
-                )}
               </div>
             </div>
 
             {/* 장소 섹션 — 프로필과 분리, 남은시간은 우측 정렬 */}
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-2">
               <IconMapPin size={14} color={KEY} stroke={2} className="flex-shrink-0" />
               <button
                 type="button"
@@ -732,12 +715,12 @@ function PostPinPreview({
             </div>
 
             {bundle.body ? (
-              <p className="text-[12px] line-clamp-2 mb-3 leading-relaxed text-[#1F1F1F]">
+              <p className="text-[12px] line-clamp-1 mb-2 leading-relaxed text-[#1F1F1F]">
                 {bundle.body}
               </p>
             ) : null}
 
-            <div className="flex gap-4 pt-2.5 border-t border-[#F5F7FA] text-[11px] text-[#6B6B6B]">
+            <div className="flex gap-4 pt-2 border-t border-[#F5F7FA] text-[11px] text-[#6B6B6B]">
               <span className="flex items-center gap-1">
                 <IconHeart size={13} /> {bundle.likes_count || 0}
               </span>
@@ -784,15 +767,25 @@ function BundlePinPreview({ bundle, photos, onViewPost, onAuthorClick, onLocatio
     [photos, bundle],
   );
   const n = list.length;
-  const [idx, setIdx] = React.useState(0);
+  const [[idx, dir], setSlide] = React.useState([0, 0]);
   React.useEffect(() => {
-    if (idx > n - 1) setIdx(0);
+    if (idx > n - 1) setSlide([0, 0]);
   }, [n, idx]);
   const cur = list[Math.min(idx, n - 1)] || list[0];
 
   const cat = CATEGORY_META[bundle.category];
   const CatIcon = cat?.Icon;
-  const go = React.useCallback((dir) => setIdx((p) => (p + dir + n) % n), [n]);
+  const go = React.useCallback(
+    (d) => setSlide(([p]) => [(p + d + n) % n, d]),
+    [n],
+  );
+
+  // 가벼운 슬라이드 — 살짝 밀리며 페이드 (0.18s)
+  const slideVariants = {
+    enter: (d) => ({ opacity: 0, x: d >= 0 ? 22 : -22 }),
+    center: { opacity: 1, x: 0 },
+    exit: (d) => ({ opacity: 0, x: d >= 0 ? -22 : 22 }),
+  };
 
   // 가벼운 스와이프 (좌우)
   const startXRef = React.useRef(null);
@@ -841,22 +834,30 @@ function BundlePinPreview({ bundle, photos, onViewPost, onAuthorClick, onLocatio
         >
           {/* 사진 (좌우로 넘기는 캐러셀) */}
           <div
-            className="relative h-[200px] bg-[#F5F7FA]"
+            className="relative h-[248px] bg-[#F5F7FA] overflow-hidden"
             style={{ touchAction: 'pan-y' }}
             onPointerDown={onPointerDown}
             onPointerUp={onPointerUp}
           >
-            {cur?.thumbnail_url && (
-              <img
-                key={cur.post_id}
-                src={getDisplayImageUrl(cur.thumbnail_url)}
-                alt=""
-                className="w-full h-full object-cover"
-                loading="eager"
-                decoding="async"
-                draggable="false"
-              />
-            )}
+            <AnimatePresence initial={false} custom={dir}>
+              {cur?.thumbnail_url && (
+                <motion.img
+                  key={cur.post_id}
+                  custom={dir}
+                  variants={slideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  src={getDisplayImageUrl(cur.thumbnail_url)}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover"
+                  loading="eager"
+                  decoding="async"
+                  draggable="false"
+                />
+              )}
+            </AnimatePresence>
             <div className="absolute top-2.5 left-2.5 bg-black/70 px-2.5 py-1 rounded-md flex items-center gap-1.5 pointer-events-none">
               <ExifFreshIcon iso={cur?.exif_taken_at} size={11} />
               <span className="text-[11px] text-white font-semibold">
@@ -920,41 +921,36 @@ function BundlePinPreview({ bundle, photos, onViewPost, onAuthorClick, onLocatio
             </div>
           )}
 
-          {/* 정보 */}
-          <div className="p-3 px-3.5">
-            {/* 프로필 섹션 */}
-            <div className="flex items-center gap-2.5 mb-3">
+          {/* 정보 — 사진 비중을 키우기 위해 컴팩트하게 */}
+          <div className="p-2.5 px-3.5">
+            {/* 프로필 + 장소를 한 줄로 압축 */}
+            <div className="flex items-center gap-2.5 mb-2">
               <AuthorAvatar
                 name={bundle.author_name}
                 color={bundle.author_avatar_color}
                 avatarUrl={bundle.author_avatar_url}
                 onClick={onAuthorClick}
               />
-              <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap" style={{ lineHeight: 1.2 }}>
-                <button
-                  type="button"
-                  onClick={onAuthorClick}
-                  className="text-[14px] font-bold text-[#1F1F1F]"
-                  style={{ padding: 0, lineHeight: 1.2, background: 'none', border: 'none' }}
-                >
-                  {bundle.author_name || '이름 없음'}
-                </button>
-                {bundle.is_author_on_site && (
-                  <div
-                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded"
-                    style={{ background: KEY_LIGHT }}
-                  >
-                    <div className="w-1 h-1 rounded-full" style={{ background: KEY }} />
-                    <span className="text-[9px] font-semibold" style={{ color: KEY_DARK }}>
-                      지금 현장
-                    </span>
-                  </div>
-                )}
-              </div>
+              <button
+                type="button"
+                onClick={onAuthorClick}
+                className="flex-1 min-w-0 text-left text-[14px] font-bold text-[#1F1F1F]"
+                style={{
+                  padding: 0,
+                  lineHeight: 1.2,
+                  background: 'none',
+                  border: 'none',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {bundle.author_name || '이름 없음'}
+              </button>
             </div>
 
             {/* 장소 섹션 — 남은 시간은 현재 사진 기준, 우측 정렬 */}
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2">
               <IconMapPin size={14} color={KEY} stroke={2} className="flex-shrink-0" />
               <button
                 type="button"
@@ -982,7 +978,7 @@ function BundlePinPreview({ bundle, photos, onViewPost, onAuthorClick, onLocatio
             </div>
 
             {cur?.body ? (
-              <p className="text-[12px] line-clamp-2 leading-relaxed text-[#1F1F1F] m-0">
+              <p className="text-[12px] line-clamp-1 leading-relaxed text-[#1F1F1F] mt-2 mb-0">
                 {cur.body}
               </p>
             ) : null}
