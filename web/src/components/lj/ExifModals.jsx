@@ -50,8 +50,8 @@ export function EXIFRejectModal({ open, reason, minutesAgo = 0, onRetake, onPick
   const isTooOld = reason === 'too_old';
   const headerText = isTooOld ? '이 사진은\n지금이 아니에요' : '촬영 정보를\n찾을 수 없어요';
   const subText = isTooOld
-    ? `선택한 사진의 촬영 시각이 ${minutesAgo}분 전이에요. 라이브저니는 24시간 이내 사진만 받아요.`
-    : '다른 사진을 선택해주세요. 라이브저니는 EXIF가 있는 사진만 받아요.';
+    ? `선택한 사진의 촬영 시각이 ${minutesAgo}분 전이에요. 라이브저니는 24시간 이내 사진만 올릴 수 있어요.`
+    : '다른 사진을 선택해주세요. 라이브저니는 EXIF가 있는 사진만 올릴 수 있어요.';
 
   return (
     <ModalShell onClose={onClose}>

@@ -406,7 +406,7 @@ function PermissionDenied({ unsupported = false, onClose }) {
         <p style={{ margin: '10px 0 0', fontSize: 13, color: WHITE_85, lineHeight: 1.6, maxWidth: 320 }}>
           {unsupported
             ? '최신 브라우저(Chrome, Safari, Edge)에서 다시 열어주세요.'
-            : '라이브저니는 카메라로 직접 촬영한 사진만 받아요'}
+            : '라이브저니는 카메라로 직접 촬영한 사진만 올릴 수 있어요'}
         </p>
       </div>
       <div style={{ padding: '14px 18px calc(18px + env(safe-area-inset-bottom))' }}>
