@@ -19,6 +19,8 @@ import {
   IconX,
   IconMap,
   IconRefresh,
+  IconChevronLeft,
+  IconChevronRight,
 } from '@tabler/icons-react';
 import { supabase } from '../utils/supabaseClient';
 import { getDisplayImageUrl } from '../api/upload';
@@ -763,12 +765,64 @@ function PostPinPreview({
   );
 }
 
-// 8-9. BundlePinPreview
-function BundlePinPreview({ bundle, photos, onViewDetail, onAuthorClick }) {
-  const total = bundle.bundle_count;
-  const isPair = total === 2;
-  const visible = isPair ? photos.slice(0, 2) : photos.slice(0, 3);
-  const extra = total > 3 ? total - 3 : 0;
+// 8-9. BundlePinPreview — 같은 장소의 여러 게시물을 단일 카드 스타일로,
+//      좌우 화살표/스와이프로 한 장씩 넘겨 본다. (single PostPinPreview와 동일한 톤)
+function BundlePinPreview({ bundle, photos, onViewPost, onAuthorClick, onLocationClick }) {
+  // photos 로딩 전이면 primary 정보로 1장 폴백 (빈 카드 방지)
+  const list = React.useMemo(
+    () =>
+      Array.isArray(photos) && photos.length
+        ? photos
+        : [
+            {
+              post_id: bundle.primary_post_id,
+              thumbnail_url: bundle.primary_thumbnail,
+              exif_taken_at: bundle.primary_taken_at,
+              body: bundle.body,
+            },
+          ],
+    [photos, bundle],
+  );
+  const n = list.length;
+  const [idx, setIdx] = React.useState(0);
+  React.useEffect(() => {
+    if (idx > n - 1) setIdx(0);
+  }, [n, idx]);
+  const cur = list[Math.min(idx, n - 1)] || list[0];
+
+  const cat = CATEGORY_META[bundle.category];
+  const CatIcon = cat?.Icon;
+  const go = React.useCallback((dir) => setIdx((p) => (p + dir + n) % n), [n]);
+
+  // 가벼운 스와이프 (좌우)
+  const startXRef = React.useRef(null);
+  const onPointerDown = (e) => {
+    if (n <= 1) return;
+    startXRef.current = e.clientX;
+  };
+  const onPointerUp = (e) => {
+    if (startXRef.current == null) return;
+    const dx = e.clientX - startXRef.current;
+    startXRef.current = null;
+    if (Math.abs(dx) >= 40) go(dx < 0 ? 1 : -1);
+  };
+
+  // 가벼운 화살표 버튼 공통 스타일
+  const arrowStyle = {
+    width: 30,
+    height: 30,
+    minWidth: 30,
+    minHeight: 30,
+    padding: 0,
+    borderRadius: '50%',
+    background: 'rgba(255,255,255,0.6)',
+    backdropFilter: 'blur(6px)',
+    WebkitBackdropFilter: 'blur(6px)',
+    border: 'none',
+    color: '#1F1F1F',
+    cursor: 'pointer',
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: -10 }}
@@ -785,7 +839,89 @@ function BundlePinPreview({ bundle, photos, onViewDetail, onAuthorClick }) {
             boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
           }}
         >
-          <div className="p-3 px-3.5 pb-0">
+          {/* 사진 (좌우로 넘기는 캐러셀) */}
+          <div
+            className="relative h-[200px] bg-[#F5F7FA]"
+            style={{ touchAction: 'pan-y' }}
+            onPointerDown={onPointerDown}
+            onPointerUp={onPointerUp}
+          >
+            {cur?.thumbnail_url && (
+              <img
+                key={cur.post_id}
+                src={getDisplayImageUrl(cur.thumbnail_url)}
+                alt=""
+                className="w-full h-full object-cover"
+                loading="eager"
+                decoding="async"
+                draggable="false"
+              />
+            )}
+            <div className="absolute top-2.5 left-2.5 bg-black/70 px-2.5 py-1 rounded-md flex items-center gap-1.5 pointer-events-none">
+              <ExifFreshIcon iso={cur?.exif_taken_at} size={11} />
+              <span className="text-[11px] text-white font-semibold">
+                {timeAgo(cur?.exif_taken_at)}
+              </span>
+            </div>
+            {cat && (
+              <div className="absolute top-2.5 right-2.5 bg-white px-2.5 py-1 rounded-md flex items-center gap-1 pointer-events-none">
+                {CatIcon && <CatIcon size={10} stroke={1.8} color="#1F1F1F" />}
+                <span className="text-[10px] font-semibold">{cat.label}</span>
+              </div>
+            )}
+
+            {/* 좌우 화살표 + 카운터 (2장 이상일 때만) */}
+            {n > 1 && (
+              <>
+                <button
+                  type="button"
+                  aria-label="이전 사진"
+                  onClick={() => go(-1)}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center justify-center"
+                  style={arrowStyle}
+                >
+                  <IconChevronLeft size={18} stroke={2} />
+                </button>
+                <button
+                  type="button"
+                  aria-label="다음 사진"
+                  onClick={() => go(1)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center"
+                  style={arrowStyle}
+                >
+                  <IconChevronRight size={18} stroke={2} />
+                </button>
+                <div
+                  className="absolute bottom-2.5 right-2.5 bg-black/60 px-2 py-0.5 rounded-md text-white text-[10px] font-bold pointer-events-none"
+                  style={{ fontVariantNumeric: 'tabular-nums' }}
+                >
+                  {idx + 1} / {n}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* 점 인디케이터 (2~6장) */}
+          {n > 1 && n <= 6 && (
+            <div className="flex items-center justify-center gap-1.5 pt-2.5">
+              {list.map((_, i) => (
+                <span
+                  key={i}
+                  aria-hidden
+                  style={{
+                    width: i === idx ? 14 : 5,
+                    height: 5,
+                    borderRadius: 999,
+                    background: i === idx ? KEY : '#D8DEE5',
+                    transition: 'all 160ms ease-out',
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* 정보 */}
+          <div className="p-3 px-3.5">
             {/* 프로필 섹션 */}
             <div className="flex items-center gap-2.5 mb-3">
               <AuthorAvatar
@@ -808,14 +944,8 @@ function BundlePinPreview({ bundle, photos, onViewDetail, onAuthorClick }) {
                     className="flex items-center gap-0.5 px-1.5 py-0.5 rounded"
                     style={{ background: KEY_LIGHT }}
                   >
-                    <div
-                      className="w-1 h-1 rounded-full"
-                      style={{ background: KEY }}
-                    />
-                    <span
-                      className="text-[9px] font-semibold"
-                      style={{ color: KEY_DARK }}
-                    >
+                    <div className="w-1 h-1 rounded-full" style={{ background: KEY }} />
+                    <span className="text-[9px] font-semibold" style={{ color: KEY_DARK }}>
                       지금 현장
                     </span>
                   </div>
@@ -823,12 +953,17 @@ function BundlePinPreview({ bundle, photos, onViewDetail, onAuthorClick }) {
               </div>
             </div>
 
-            {/* 장소 섹션 — 분리, 우측에 묶음 개수 */}
+            {/* 장소 섹션 — 남은 시간은 현재 사진 기준, 우측 정렬 */}
             <div className="flex items-center gap-2 mb-3">
               <IconMapPin size={14} color={KEY} stroke={2} className="flex-shrink-0" />
-              <p
-                className="flex-1 min-w-0 text-[13px] font-semibold text-[#1F1F1F] m-0"
+              <button
+                type="button"
+                onClick={onLocationClick}
+                className="flex-1 min-w-0 text-left text-[13px] font-semibold text-[#1F1F1F]"
                 style={{
+                  padding: 0,
+                  background: 'none',
+                  border: 'none',
                   lineHeight: 1.3,
                   wordBreak: 'keep-all',
                   overflow: 'hidden',
@@ -837,67 +972,29 @@ function BundlePinPreview({ bundle, photos, onViewDetail, onAuthorClick }) {
                 }}
               >
                 {bundle.place_name || '위치 정보 없음'}
-              </p>
+              </button>
               <span
                 className="flex-shrink-0 text-[11px] font-semibold"
                 style={{ color: KEY_DARK, whiteSpace: 'nowrap' }}
               >
-                1시간 · {total}장
+                {formatHoursLeft(cur?.exif_taken_at)}
               </span>
             </div>
 
-            {/* 사진 그리드 */}
-            <div className="flex gap-1.5 mb-3">
-              {visible.map((p, idx) => {
-                const isLast = idx === visible.length - 1;
-                const showOverlay = !isPair && isLast && extra > 0;
-                return (
-                  <div
-                    key={p.post_id}
-                    className="flex-1 rounded-lg relative overflow-hidden bg-[#F5F7FA]"
-                    style={{ aspectRatio: isPair ? '16 / 10' : '1 / 1' }}
-                  >
-                    {p.thumbnail_url && (
-                      <img
-                        src={getDisplayImageUrl(p.thumbnail_url)}
-                        alt=""
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    )}
-                    <div className="absolute top-1 left-1 bg-black/70 px-1.5 py-0.5 rounded flex items-center gap-1">
-                      <ExifFreshIcon iso={p.exif_taken_at} size={9} />
-                      <span className="text-[9px] text-white font-semibold">
-                        {timeAgo(p.exif_taken_at)}
-                      </span>
-                    </div>
-                    {showOverlay && (
-                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                        <span className="text-white text-base font-bold">
-                          +{extra}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {bundle.body ? (
-              <p className="text-[12px] line-clamp-1 mb-3 leading-relaxed text-[#1F1F1F]">
-                {bundle.body}
+            {cur?.body ? (
+              <p className="text-[12px] line-clamp-2 leading-relaxed text-[#1F1F1F] m-0">
+                {cur.body}
               </p>
             ) : null}
           </div>
 
           <button
             type="button"
-            onClick={onViewDetail}
+            onClick={() => onViewPost?.(cur?.post_id)}
             className="w-full text-white py-2.5 text-[13px] font-semibold flex items-center justify-center gap-1.5"
             style={{ background: KEY }}
           >
-            {total}장 모두 보기
+            게시물 상세 보기
             <IconArrowRight size={14} />
           </button>
         </div>
@@ -2114,16 +2211,23 @@ const MapScreen = () => {
             key={`bundle-${selectedBundleId}`}
             bundle={selectedBundle}
             photos={bundlePhotos}
-            onViewDetail={() =>
+            onViewPost={(postId) =>
               navigate(
                 `/post/${encodeURIComponent(
-                  selectedBundle.primary_post_id,
+                  postId || selectedBundle.primary_post_id,
                 )}?bundle=${encodeURIComponent(selectedBundle.bundle_id)}`,
               )
             }
             onAuthorClick={() =>
               navigate(`/user/${encodeURIComponent(selectedBundle.author_id)}`)
             }
+            onLocationClick={() => {
+              if (selectedBundle.place_name) {
+                navigate(
+                  `/region/${encodeURIComponent(selectedBundle.place_name)}`,
+                );
+              }
+            }}
           />
         )}
       </AnimatePresence>
