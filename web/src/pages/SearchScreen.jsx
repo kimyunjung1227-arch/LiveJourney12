@@ -574,7 +574,7 @@ function CityGrid({ cities }) {
               onClick={() => navigate(`/region/${encodeURIComponent(city.city)}`)}
               className="relative overflow-hidden text-left"
               style={{
-                aspectRatio: '3 / 4',
+                aspectRatio: '4 / 5',
                 borderRadius: 10,
                 border: 'none',
                 padding: 0,
