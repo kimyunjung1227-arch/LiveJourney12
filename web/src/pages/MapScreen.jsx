@@ -5,9 +5,6 @@ import {
   IconArrowLeft,
   IconSearch,
   IconCurrentLocation,
-  IconHeart,
-  IconMessageCircle,
-  IconBookmark,
   IconArrowRight,
   IconFlower,
   IconCloud,
@@ -715,22 +712,10 @@ function PostPinPreview({
             </div>
 
             {bundle.body ? (
-              <p className="text-[12px] line-clamp-1 mb-2 leading-relaxed text-[#1F1F1F]">
+              <p className="text-[12px] line-clamp-1 leading-relaxed text-[#1F1F1F] m-0">
                 {bundle.body}
               </p>
             ) : null}
-
-            <div className="flex gap-4 pt-2 border-t border-[#F5F7FA] text-[11px] text-[#6B6B6B]">
-              <span className="flex items-center gap-1">
-                <IconHeart size={13} /> {bundle.likes_count || 0}
-              </span>
-              <span className="flex items-center gap-1">
-                <IconMessageCircle size={13} /> {bundle.comments_count || 0}
-              </span>
-              <span className="flex items-center gap-1">
-                <IconBookmark size={13} /> {bundle.saves_count || 0}
-              </span>
-            </div>
           </div>
 
           <button
