@@ -18,6 +18,7 @@ import { supabase } from '../utils/supabaseClient';
 import { getDisplayImageUrl } from '../api/upload';
 import { logger } from '../utils/logger';
 import { useAuth } from '../contexts/AuthContext';
+import { parseQuestionBody } from '../utils/questionText';
 
 // ────────────────────────────────────────────────
 // 디자인 토큰
@@ -251,18 +252,39 @@ function QuestionBody({ question, editing, draft, onDraftChange, onSave, onCance
           </div>
         </div>
       ) : (
-        <p
-          className="m-0"
-          style={{
-            fontSize: 16,
-            fontWeight: 500,
-            lineHeight: 1.6,
-            color: TEXT_PRIMARY,
-            marginBottom: 16,
-          }}
-        >
-          {question?.body}
-        </p>
+        (() => {
+          const { title, content } = parseQuestionBody(question?.body);
+          return (
+            <div style={{ marginBottom: 16 }}>
+              <p
+                className="m-0"
+                style={{
+                  fontSize: 17,
+                  fontWeight: 700,
+                  lineHeight: 1.5,
+                  color: TEXT_PRIMARY,
+                }}
+              >
+                {title}
+              </p>
+              {content && (
+                <p
+                  className="m-0"
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 400,
+                    lineHeight: 1.6,
+                    color: TEXT_SECONDARY,
+                    marginTop: 8,
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  {content}
+                </p>
+              )}
+            </div>
+          );
+        })()
       )}
     </div>
   );

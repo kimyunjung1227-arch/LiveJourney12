@@ -1,17 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   IconHelpCircle,
-  IconMapPin,
   IconX,
 } from '@tabler/icons-react';
 import { useCreateQuestion } from '../hooks/useCreateQuestion';
 import { useAuth } from '../contexts/AuthContext';
+import { buildQuestionBody } from '../utils/questionText';
 
 const KEY = '#4DB8E8';
-const KEY_LIGHT = '#E8F4FB';
 const TEXT_PRIMARY = '#1F1F1F';
-const TEXT_SECONDARY = '#6B6B6B';
 const TEXT_TERTIARY = '#B8B8B8';
 const SURFACE = '#F5F7FA';
 
@@ -44,33 +42,22 @@ function clearDraft() {
 
 const AskQuestionScreen = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const { user } = useAuth();
   const { createQuestion, submitting, error } = useCreateQuestion();
 
   const initialDraft = readDraft();
-  const incomingPlace = location.state?.selectedPlace || null;
 
-  const [body, setBody] = useState(initialDraft?.body || '');
-  const [place, setPlace] = useState(incomingPlace || initialDraft?.place || null);
+  const [title, setTitle] = useState(initialDraft?.title || '');
+  const [content, setContent] = useState(initialDraft?.content || '');
 
-  // 장소가 새로 들어오면 한 번만 반영 (history.replace로 state 비움)
+  // title/content 바뀔 때마다 draft 저장
   useEffect(() => {
-    if (incomingPlace) {
-      setPlace(incomingPlace);
-      navigate(location.pathname, { replace: true, state: {} });
+    if (title || content) {
+      saveDraft({ title, content });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [incomingPlace]);
+  }, [title, content]);
 
-  // body/place 바뀔 때마다 draft 저장 (장소 검색 화면 다녀와도 유지)
-  useEffect(() => {
-    if (body || place) {
-      saveDraft({ body, place });
-    }
-  }, [body, place]);
-
-  const canSubmit = body.trim().length > 0 && place !== null && !submitting;
+  const canSubmit = title.trim().length > 0 && !submitting;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -79,8 +66,7 @@ const AskQuestionScreen = () => {
       return;
     }
     const id = await createQuestion({
-      body: body.trim(),
-      place,
+      body: buildQuestionBody(title, content),
       category: null,
     });
     if (id) {
@@ -117,76 +103,41 @@ const AskQuestionScreen = () => {
 
       {/* 본문 */}
       <div className="flex-1 overflow-y-auto" style={{ padding: 18 }}>
-        {/* 장소 (필수) — 먼저 입력 */}
+        {/* 제목 (필수) — 먼저 입력 */}
         <div className="flex items-center gap-1" style={{ marginBottom: 8 }}>
-          <p className="m-0" style={{ fontSize: 12, fontWeight: 600 }}>장소</p>
+          <p className="m-0" style={{ fontSize: 12, fontWeight: 600 }}>제목</p>
           <span style={{ fontSize: 11, color: KEY, fontWeight: 600 }}>필수</span>
         </div>
-        {place ? (
-          <div
-            className="flex items-center gap-2.5"
-            style={{
-              background: KEY_LIGHT,
-              border: `1.5px solid ${KEY}`,
-              borderRadius: 11,
-              padding: '12px 14px',
-              marginBottom: 20,
-            }}
-          >
-            <IconMapPin size={18} color={KEY} className="flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p
-                className="m-0 truncate"
-                style={{ fontSize: 13, fontWeight: 600, color: TEXT_PRIMARY }}
-              >
-                {place.name}
-              </p>
-              <p
-                className="m-0 truncate"
-                style={{ fontSize: 10, color: TEXT_SECONDARY, marginTop: 1 }}
-              >
-                {[place.city, place.district].filter(Boolean).join(' ')}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setPlace(null)}
-              aria-label="장소 제거"
-              style={{ background: 'transparent', border: 'none', padding: 4, cursor: 'pointer' }}
-            >
-              <IconX size={16} color={TEXT_SECONDARY} />
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => navigate('/question/new/place')}
-            className="flex items-center gap-2.5 w-full text-left"
-            style={{
-              background: SURFACE,
-              borderRadius: 11,
-              padding: '12px 14px',
-              border: 'none',
-              cursor: 'pointer',
-              marginBottom: 20,
-            }}
-          >
-            <IconMapPin size={18} color={TEXT_TERTIARY} />
-            <span style={{ fontSize: 13, color: TEXT_TERTIARY }}>장소를 선택하세요</span>
-          </button>
-        )}
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value.slice(0, 60))}
+          placeholder="예: 제주도 날씨 어때요?"
+          className="w-full outline-none"
+          style={{
+            background: SURFACE,
+            borderRadius: 11,
+            padding: '13px 14px',
+            fontSize: 15,
+            fontWeight: 600,
+            border: '1px solid transparent',
+            color: TEXT_PRIMARY,
+            boxSizing: 'border-box',
+          }}
+        />
+        <div className="flex justify-end" style={{ marginTop: 6, marginBottom: 20 }}>
+          <span style={{ fontSize: 11, color: TEXT_TERTIARY }}>{title.length} / 60</span>
+        </div>
 
-        {/* 질문 내용 입력 — 장소 아래 */}
-        <p
-          className="m-0"
-          style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}
-        >
-          무엇이 궁금한가요?
-        </p>
+        {/* 내용 (선택) — 제목 아래 */}
+        <div className="flex items-center gap-1" style={{ marginBottom: 8 }}>
+          <p className="m-0" style={{ fontSize: 12, fontWeight: 600 }}>내용</p>
+          <span style={{ fontSize: 11, color: TEXT_TERTIARY }}>선택</span>
+        </div>
         <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value.slice(0, 200))}
-          placeholder="여의도 벚꽃 지금 어떤가요? 윤중로 가려는데..."
+          value={content}
+          onChange={(e) => setContent(e.target.value.slice(0, 300))}
+          placeholder="궁금한 점을 더 자세히 적어주세요 (예: 오후에 우도 가려는데 바람 많이 부나요?)"
           className="w-full outline-none resize-none"
           style={{
             background: SURFACE,
@@ -194,13 +145,13 @@ const AskQuestionScreen = () => {
             padding: '14px 14px',
             fontSize: 14,
             lineHeight: 1.55,
-            minHeight: 90,
+            minHeight: 110,
             border: '1px solid transparent',
             color: TEXT_PRIMARY,
           }}
         />
         <div className="flex justify-end" style={{ marginTop: 6 }}>
-          <span style={{ fontSize: 11, color: TEXT_TERTIARY }}>{body.length} / 200</span>
+          <span style={{ fontSize: 11, color: TEXT_TERTIARY }}>{content.length} / 300</span>
         </div>
 
         {error && (

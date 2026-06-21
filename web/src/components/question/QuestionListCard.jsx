@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { IconClock, IconMapPin, IconPhoto } from '@tabler/icons-react';
 import { getDisplayImageUrl } from '../../api/upload';
+import { parseQuestionBody } from '../../utils/questionText';
 
 const KEY = '#4DB8E8';
 const KEY_LIGHT = '#E8F4FB';
@@ -26,6 +27,7 @@ function timeAgo(iso) {
 export default function QuestionListCard({ question }) {
   const navigate = useNavigate();
   const initial = String(question?.author?.name || '?').trim().charAt(0).toUpperCase() || '·';
+  const { title, content } = parseQuestionBody(question?.body);
 
   return (
     <button
@@ -75,18 +77,36 @@ export default function QuestionListCard({ question }) {
           <p
             className="m-0"
             style={{
-              fontSize: 13,
-              lineHeight: 1.55,
+              fontSize: 14,
+              fontWeight: 600,
+              lineHeight: 1.45,
               color: TEXT_PRIMARY,
-              marginBottom: 10,
+              marginBottom: content ? 4 : 10,
               display: '-webkit-box',
-              WebkitLineClamp: 3,
+              WebkitLineClamp: 2,
               WebkitBoxOrient: 'vertical',
               overflow: 'hidden',
             }}
           >
-            {question?.body}
+            {title}
           </p>
+          {content && (
+            <p
+              className="m-0"
+              style={{
+                fontSize: 12.5,
+                lineHeight: 1.5,
+                color: TEXT_SECONDARY,
+                marginBottom: 10,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}
+            >
+              {content}
+            </p>
+          )}
           <div className="flex items-center gap-2.5 flex-wrap">
             {question?.is_answered ? (
               <div
