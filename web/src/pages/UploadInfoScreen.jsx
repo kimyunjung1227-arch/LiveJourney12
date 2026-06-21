@@ -4,7 +4,6 @@ import {
   IconArrowLeft,
   IconShieldCheck,
   IconMapPin,
-  IconClock,
   IconFlower,
   IconCloud,
   IconCalendarEvent,
@@ -195,7 +194,8 @@ function UploadInfoScreen() {
 
   const mediasArr = Array.isArray(media?.medias) ? media.medias : [];
   const filesArr = mediasArr.map((m) => m?.file).filter(Boolean);
-  const canUpload = !!category && filesArr.length > 0 && !isUploading;
+  // 설명은 필수 입력 — 비어 있으면 업로드 불가
+  const canUpload = !!category && body.trim().length > 0 && filesArr.length > 0 && !isUploading;
 
   const [rotatingIdx, setRotatingIdx] = useState(-1);
   const handleRotate = async (index) => {
@@ -853,7 +853,51 @@ function UploadInfoScreen() {
         )}
       </section>
 
-      {/* 카테고리 (필수) */}
+      {/* 설명 (필수) — 화면의 중심. 큼직하게. */}
+      <section style={{ padding: '18px 18px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: LJ.textPrimary }}>
+            {isAnswerMode ? '답변 한마디' : '설명'}
+          </span>
+          <span
+            style={{
+              display: 'inline-block',
+              width: 5,
+              height: 5,
+              borderRadius: '50%',
+              background: LJ.error,
+            }}
+          />
+        </div>
+        <div style={{ position: 'relative' }}>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder={
+              isAnswerMode
+                ? '예: 윤중로 끝쪽 100% 만개예요, 사람 적어요'
+                : '예: 윤중로 80% 만개, 주말이 절정일 듯'
+            }
+            style={{
+              width: '100%',
+              minHeight: 150,
+              padding: '14px 16px',
+              background: LJ.bgSurface,
+              border: `1px solid ${LJ.borderLight}`,
+              borderRadius: 12,
+              fontFamily: LJ.fontStack,
+              fontSize: 14,
+              color: LJ.textPrimary,
+              resize: 'vertical',
+              outline: 'none',
+              lineHeight: 1.6,
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+      </section>
+
+      {/* 카테고리 (필수) — 설명 아래. 버튼은 가볍게. */}
       <section style={{ padding: '18px 18px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: LJ.textPrimary }}>카테고리 선택</span>
@@ -871,7 +915,7 @@ function UploadInfoScreen() {
           style={{
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
-            gap: 8,
+            gap: 7,
           }}
         >
           {CATEGORIES.map((c) => {
@@ -885,20 +929,21 @@ function UploadInfoScreen() {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
-                  padding: 14,
+                  gap: 7,
+                  minHeight: 0,
+                  padding: '9px 12px',
                   background: active ? LJ.keyBgLight : '#fff',
                   border: active ? `1.5px solid ${LJ.key}` : `1px solid ${LJ.borderLight}`,
-                  borderRadius: 10,
-                  color: active ? LJ.keyTextDark : LJ.textPrimary,
+                  borderRadius: 9,
+                  color: active ? LJ.keyTextDark : LJ.textSecondary,
                   fontFamily: LJ.fontStack,
-                  fontSize: 13,
+                  fontSize: 12.5,
                   fontWeight: active ? 700 : 500,
                   cursor: 'pointer',
                   textAlign: 'left',
                 }}
               >
-                <Icon size={18} stroke={1.8} color={active ? LJ.key : LJ.textSecondary} />
+                <Icon size={16} stroke={1.8} color={active ? LJ.key : LJ.textTertiary} />
                 {c.label}
               </button>
             );
@@ -906,44 +951,9 @@ function UploadInfoScreen() {
         </div>
       </section>
 
-      {/* 한 줄 설명 (선택) */}
-      <section style={{ padding: '18px 18px 0' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginBottom: 10 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: LJ.textPrimary }}>
-            {isAnswerMode ? '답변 한마디' : '한 줄 설명'}
-          </span>
-          <span style={{ fontSize: 11, color: LJ.textTertiary }}>선택</span>
-        </div>
-        <div style={{ position: 'relative' }}>
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder={
-              isAnswerMode
-                ? '예: 윤중로 끝쪽 100% 만개예요, 사람 적어요'
-                : '예: 윤중로 80% 만개, 주말이 절정일 듯'
-            }
-            style={{
-              width: '100%',
-              minHeight: 60,
-              padding: '12px 14px',
-              background: LJ.bgSurface,
-              border: `1px solid ${LJ.borderLight}`,
-              borderRadius: 10,
-              fontFamily: LJ.fontStack,
-              fontSize: 13,
-              color: LJ.textPrimary,
-              resize: 'vertical',
-              outline: 'none',
-              lineHeight: 1.5,
-            }}
-          />
-        </div>
-      </section>
-
-      {/* 하단 안내 */}
-      <section style={{ padding: '18px 18px 0' }}>
-        {isAnswerMode && answerQuestion ? (
+      {/* 답변 모드 안내 */}
+      {isAnswerMode && answerQuestion && (
+        <section style={{ padding: '18px 18px 0' }}>
           <div
             style={{
               display: 'flex',
@@ -967,29 +977,8 @@ function UploadInfoScreen() {
               답변하면 {answerQuestion.author_name}님에게 알림이 가고, 도움이 되면 영예를 받아요.
             </p>
           </div>
-        ) : (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '12px 14px',
-              background: LJ.keyBgLight,
-              borderRadius: 10,
-            }}
-          >
-            <IconClock size={16} stroke={1.8} color={LJ.key} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: LJ.keyTextDark }}>
-                48시간 라이브 노출
-              </div>
-              <div style={{ fontSize: 11, color: LJ.keyTextDark, opacity: 0.85, marginTop: 2 }}>
-                지금 누군가 이 정보를 기다리고 있어요
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
+        </section>
+      )}
 
       {error && (
         <section style={{ padding: '12px 18px 0' }}>
