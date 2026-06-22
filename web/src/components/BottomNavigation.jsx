@@ -160,7 +160,7 @@ const BottomNavigation = React.memo(() => {
           transform: `translateX(-50%) ${isVisible ? 'translateY(0)' : 'translateY(100%)'}`,
           width: '100%',
           maxWidth: '414px',
-          height: '58px',
+          height: 'calc(58px + env(safe-area-inset-bottom, 0px))',
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           boxShadow: 'none',
           // 화면과 분리되어 보이도록 상단 구분선
@@ -198,7 +198,7 @@ const BottomNavigation = React.memo(() => {
           justifyContent: 'center',
           alignItems: 'center',
           boxShadow: '0 3px 10px rgba(0, 188, 212, 0.3)',
-          marginTop: '-3px'
+          flexShrink: 0
         }}
       >
         <IconCamera size={23} stroke={2} color="#fff" />
