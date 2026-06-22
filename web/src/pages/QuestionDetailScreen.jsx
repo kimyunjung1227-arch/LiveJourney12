@@ -4,7 +4,6 @@ import {
   IconArrowLeft,
   IconDots,
   IconMapPin,
-  IconBolt,
   IconPhoto,
   IconCrown,
   IconShieldCheck,
@@ -384,34 +383,6 @@ function QuestionMenu({ onEdit, onDelete }) {
           </button>
         </div>
       )}
-    </div>
-  );
-}
-
-function AutoMatchNotice({ placeName, hasAnswers }) {
-  return (
-    <div
-      className="flex items-center gap-2"
-      style={{
-        padding: '12px 14px',
-        borderRadius: 11,
-        background: KEY_LIGHT,
-        marginBottom: 24,
-      }}
-    >
-      <IconBolt size={16} color={KEY} className="flex-shrink-0" />
-      <p
-        className="m-0"
-        style={{
-          fontSize: 11,
-          color: KEY_DARK,
-          lineHeight: 1.5,
-        }}
-      >
-        {hasAnswers
-          ? `${placeName} 근처 분들이 답변을 보내고 있어요.`
-          : `${placeName} 근처 계신 분들께 알림이 갔어요. 곧 답변이 올 거예요.`}
-      </p>
     </div>
   );
 }
@@ -921,8 +892,6 @@ const QuestionDetailScreen = () => {
           onSave={saveEdit}
           onCancel={() => setEditing(false)}
         />
-        <AutoMatchNotice placeName={placeName} hasAnswers={hasAnswers} />
-
         {hasAnswers ? (
           <>
             <div className="flex items-center gap-1.5" style={{ marginBottom: 14 }}>
