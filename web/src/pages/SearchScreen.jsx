@@ -38,6 +38,8 @@ const TEXT_SECONDARY = '#6B6B6B';
 const TEXT_TERTIARY = '#B8B8B8';
 const SURFACE = '#F5F7FA';
 const BORDER_LIGHT = '#E8E8E8';
+// 검색화면 각 섹션 카드 공통 배경 — 흰색 + 얇은 경계선으로 통일
+const CARD_BG = '#ffffff';
 
 const CATEGORY_META = {
   nature: { Icon: IconFlower, label: '개화·자연' },
@@ -295,7 +297,7 @@ function SeasonalCards({ cards }) {
           style={{
             height: 130,
             borderRadius: 11,
-            background: SURFACE,
+            background: CARD_BG,
             border: `1px dashed ${BORDER_LIGHT}`,
           }}
         >
@@ -393,10 +395,10 @@ function QuestionCard({ question, onClick, compact = false }) {
       onClick={onClick}
       className="text-left w-full"
       style={{
-        background: SURFACE,
+        background: CARD_BG,
         borderRadius: 11,
         padding: '12px 14px',
-        border: 'none',
+        border: `1px solid ${BORDER_LIGHT}`,
         cursor: 'pointer',
       }}
     >
@@ -514,7 +516,7 @@ function QuestionsSection({ questions, showAllAction = true }) {
           style={{
             padding: '14px 16px',
             borderRadius: 11,
-            background: SURFACE,
+            background: CARD_BG,
             border: `1px dashed ${BORDER_LIGHT}`,
             cursor: 'pointer',
           }}
@@ -660,7 +662,7 @@ function CategoryGrid({ categories }) {
               onClick={guardedClick(() => navigate(`/hashtag/${encodeURIComponent(catId)}`))}
               className="flex items-center gap-1.5 flex-shrink-0"
               style={{
-                background: SURFACE,
+                background: CARD_BG,
                 borderRadius: 999,
                 border: `1px solid ${BORDER_LIGHT}`,
                 padding: '8px 14px',
@@ -733,10 +735,10 @@ function PlaceResultRow({ place }) {
       onClick={() => navigate(`/place/${encodeURIComponent(place.id || place.name)}`)}
       className="flex items-center gap-3 text-left w-full"
       style={{
-        background: SURFACE,
+        background: CARD_BG,
         borderRadius: 10,
         padding: 10,
-        border: 'none',
+        border: `1px solid ${BORDER_LIGHT}`,
         cursor: 'pointer',
       }}
     >
