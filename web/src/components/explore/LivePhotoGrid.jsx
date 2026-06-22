@@ -83,7 +83,7 @@ export default function LivePhotoGrid({ photos, total }) {
                 onClick={() => navigate(`/post/${encodeURIComponent(photo.post_id)}`)}
                 className="relative overflow-hidden"
                 style={{
-                  aspectRatio: '5 / 7',
+                  aspectRatio: '4 / 5',
                   borderRadius: 12,
                   background: SURFACE,
                   border: 'none',
