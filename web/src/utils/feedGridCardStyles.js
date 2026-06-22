@@ -37,7 +37,7 @@ export const feedGridImageBoxFlat = {
 /** 지역 상세 — 메인 배경 위 플랫 카드용. 세로 비율(가로 대비), 라운드 18px 상·하 동일 */
 export const feedGridImageBoxRegion = {
   width: '100%',
-  paddingBottom: '140%',
+  paddingBottom: '112%',
   height: 0,
   position: 'relative',
   background: '#e5e7eb',

@@ -80,9 +80,10 @@ export default function LivePhotoGrid({ photos, total }) {
               <button
                 key={photo.post_id}
                 type="button"
-                onClick={() => navigate(`/photo/${encodeURIComponent(photo.post_id)}`)}
-                className="relative overflow-hidden aspect-square"
+                onClick={() => navigate(`/post/${encodeURIComponent(photo.post_id)}`)}
+                className="relative overflow-hidden"
                 style={{
+                  aspectRatio: '5 / 7',
                   borderRadius: 12,
                   background: SURFACE,
                   border: 'none',
