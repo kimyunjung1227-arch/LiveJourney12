@@ -717,7 +717,8 @@ function SearchHub() {
     <div className="p-[18px]">
       <CityGrid cities={data.cities || []} />
       <QuestionsSection questions={data.questions || []} showAllAction />
-      <SeasonalCards cards={magazines} />
+      {/* 매거진 구역 임시 숨김 */}
+      {/* <SeasonalCards cards={magazines} /> */}
       <CategoryGrid categories={data.categories || []} />
     </div>
   );
