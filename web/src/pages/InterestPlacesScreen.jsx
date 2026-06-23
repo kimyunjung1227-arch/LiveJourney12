@@ -128,10 +128,7 @@ const InterestPlacesScreen = () => {
         {/* 내 관심 목록 */}
         {interestPlaces.length === 0 ? (
           <div className="text-center py-12">
-            <span className="material-symbols-outlined text-gray-300 dark:text-gray-600 text-6xl mb-4 block">
-              star_outline
-            </span>
-            <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">
+            <p className="text-gray-800 dark:text-gray-200 text-[15px] font-bold mb-2">
               아직 관심 지역/장소가 없어요
             </p>
             <p className="text-gray-400 dark:text-gray-500 text-xs">

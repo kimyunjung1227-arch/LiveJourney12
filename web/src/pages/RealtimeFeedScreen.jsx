@@ -208,8 +208,7 @@ const RealtimeFeedScreen = () => {
       >
         {realtimeData.length === 0 ? (
           <div className="py-16 text-center text-text-secondary-light dark:text-text-secondary-dark">
-            <span className="material-symbols-outlined mb-4 block text-5xl opacity-60">schedule</span>
-            <p className="text-sm">아직 게시물이 없어요</p>
+            <p className="text-[15px] font-bold text-gray-800 dark:text-gray-200">아직 게시물이 없어요</p>
           </div>
         ) : (
           <div

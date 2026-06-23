@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconClock, IconShieldCheck, IconCamera } from '@tabler/icons-react';
+import { IconClock, IconShieldCheck } from '@tabler/icons-react';
 import { getDisplayImageUrl } from '../../api/upload';
 
 const KEY = '#4DB8E8';
@@ -218,20 +218,8 @@ function PhotoGrid({ photos, variant }) {
 
 function Empty() {
   return (
-    <div className="text-center" style={{ padding: '32px 16px' }}>
-      <div
-        className="flex items-center justify-center"
-        style={{
-          width: 56,
-          height: 56,
-          borderRadius: 999,
-          background: SURFACE,
-          margin: '0 auto 14px',
-        }}
-      >
-        <IconCamera size={24} color={TEXT_TERTIARY} stroke={1.6} />
-      </div>
-      <p className="m-0" style={{ fontSize: 13, fontWeight: 600, color: TEXT_PRIMARY, marginBottom: 6 }}>
+    <div className="text-center" style={{ padding: '44px 16px' }}>
+      <p className="m-0" style={{ fontSize: 14, fontWeight: 700, color: TEXT_PRIMARY, marginBottom: 6 }}>
         아직 사진이 없어요
       </p>
       <p className="m-0" style={{ fontSize: 11, color: TEXT_SECONDARY, lineHeight: 1.6 }}>

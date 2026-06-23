@@ -78,10 +78,7 @@ const MyCouponsScreen = () => {
         <main className="flex-grow px-4 pb-4">
           {filteredCoupons.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
-              <span className="material-symbols-outlined text-6xl text-subtle-light dark:text-subtle-dark mb-4">
-                confirmation_number
-              </span>
-              <p className="text-subtle-light dark:text-subtle-dark text-base">
+              <p className="text-text-light dark:text-text-dark text-[15px] font-bold">
                 {filter === 'available' ? '사용 가능한 쿠폰이 없습니다' : '사용한 쿠폰이 없습니다'}
               </p>
               <p className="text-sm text-subtle-light dark:text-subtle-dark mt-2">
@@ -89,7 +86,7 @@ const MyCouponsScreen = () => {
               </p>
               <button
                 onClick={() => navigate('/points/shop')}
-                className="mt-6 px-6 py-3 bg-primary text-white rounded-lg font-semibold hover:bg-primary/90 transition-colors"
+                className="mt-5 px-4 py-2 bg-primary/10 text-primary rounded-full font-semibold text-sm hover:bg-primary/15 transition-colors"
               >
                 포인트 상점 가기
               </button>

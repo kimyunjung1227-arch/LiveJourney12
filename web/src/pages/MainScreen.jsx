@@ -1,8 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconSearch, IconBell, IconCamera } from '@tabler/icons-react';
+import { IconSearch, IconBell } from '@tabler/icons-react';
 import BottomNavigation from '../components/BottomNavigation';
 import { LJ } from '../components/lj/tokens';
+import EmptyState from '../components/lj/EmptyState';
 import PostCard from '../components/lj/PostCard';
 import { useHomeFeed } from '../hooks/useHomeFeed';
 import { useReactions } from '../hooks/useReactions';
@@ -272,66 +273,25 @@ function FeedSkeleton() {
 
 function EmptyFeed({ onUpload }) {
   return (
-    <div
-      style={{
-        padding: '72px 24px',
-        textAlign: 'center',
-        color: LJ.textSecondary,
-        fontFamily: LJ.fontStack,
-      }}
-    >
-      <div
-        style={{
-          width: 72,
-          height: 72,
-          borderRadius: '50%',
-          background: LJ.keyBgLight,
-          margin: '0 auto 16px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: LJ.key,
-        }}
-      >
-        <IconCamera size={28} stroke={1.8} />
-      </div>
-      <p
-        style={{
-          margin: 0,
-          color: LJ.textPrimary,
-          fontSize: 16,
-          fontWeight: 700,
-          lineHeight: 1.4,
-        }}
-      >
-        첫 한 장이
-        <br />
-        라이브저니의 시작
-      </p>
-      <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.6 }}>
-        지금 있는 곳을 사진으로 남기면
-        <br />
-        같은 곳을 궁금해하는 누군가에게 닿아요
-      </p>
-      <button
-        type="button"
-        onClick={onUpload}
-        style={{
-          marginTop: 18,
-          padding: '12px 20px',
-          background: LJ.key,
-          color: '#fff',
-          border: 'none',
-          borderRadius: 12,
-          fontFamily: LJ.fontStack,
-          fontSize: 14,
-          fontWeight: 600,
-          cursor: 'pointer',
-        }}
-      >
-        사진 한 장 올리기
-      </button>
-    </div>
+    <EmptyState
+      padding="72px 24px"
+      title={
+        <>
+          첫 한 장이
+          <br />
+          라이브저니의 시작
+        </>
+      }
+      description={
+        <>
+          지금 있는 곳을 사진으로 남기면
+          <br />
+          같은 곳을 궁금해하는 누군가에게 닿아요
+        </>
+      }
+      actionLabel="사진 한 장 올리기"
+      onAction={onUpload}
+    />
   );
 }
 

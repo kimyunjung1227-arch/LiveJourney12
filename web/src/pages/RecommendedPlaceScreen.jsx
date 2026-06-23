@@ -128,8 +128,7 @@ const RecommendedPlaceScreen = () => {
       <div className="screen-content" style={{ flex: 1, overflow: 'auto', padding: '16px', paddingBottom: '100px' }}>
         {recommendedData.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: '#94a3b8' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '48px', marginBottom: '16px', display: 'block' }}>explore</span>
-            <p>아직 추천 여행지가 없어요</p>
+            <p style={{ fontSize: '15px', fontWeight: 700, color: '#475569' }}>아직 추천 여행지가 없어요</p>
             <p style={{ fontSize: '12px', marginTop: '8px' }}>사진을 올려보세요!</p>
           </div>
         ) : (

@@ -246,18 +246,17 @@ const MapPhotoGridScreen = () => {
               <button
                 onClick={() => navigate('/upload')}
                 style={{
-                  backgroundColor: '#00BCD4',
-                  color: 'white',
+                  backgroundColor: '#E8F4FB',
+                  color: '#1A6EA8',
                   border: 'none',
                   borderRadius: '9999px',
-                  padding: '10px 20px',
+                  padding: '8px 16px',
                   fontSize: '13px',
                   fontWeight: '600',
                   cursor: 'pointer',
-                  boxShadow: '0 2px 8px rgba(255,107,53,0.3)'
                 }}
               >
-                📷 사진 올리기
+                사진 올리기
               </button>
             </div>
           )}

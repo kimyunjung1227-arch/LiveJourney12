@@ -346,10 +346,7 @@ const MagazineDetailScreen = () => {
             <div className="w-10" />
           </div>
           <main className="flex-1 flex flex-col items-center justify-center px-4">
-            <span className="material-symbols-outlined text-5xl text-gray-300 dark:text-gray-600 mb-3">
-              book_5
-            </span>
-            <p className="text-[15px] font-medium text-gray-800 dark:text-gray-100 mb-1">
+            <p className="text-[15px] font-bold text-gray-800 dark:text-gray-100 mb-1">
               라이브매거진 정보를 불러올 수 없어요
             </p>
             <p className="text-[13px] text-gray-500 dark:text-gray-400 text-center">

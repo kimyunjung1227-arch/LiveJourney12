@@ -782,8 +782,7 @@ const MagazineWriteScreen = () => {
                 </div>
               ) : (
                 <div className="w-full shrink-0 flex flex-col items-center justify-center px-2 py-10 text-center">
-                  <span className="material-symbols-outlined text-5xl text-zinc-300 dark:text-zinc-600 mb-3">book_5</span>
-                  <p className="m-0 text-[14px] font-medium text-gray-800 dark:text-gray-100 mb-1">
+                  <p className="m-0 text-[14px] font-bold text-gray-800 dark:text-gray-100 mb-1">
                     미리보기를 불러올 수 있어요
                   </p>
                   <p className="m-0 text-[13px] text-gray-500 dark:text-gray-400 max-w-[280px] leading-relaxed">

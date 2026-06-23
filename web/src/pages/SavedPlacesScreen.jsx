@@ -296,11 +296,8 @@ function EmptyState() {
         lineHeight: 1.7,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <IconBookmarkFilled size={32} color={BORDER_LIGHT} />
-      </div>
-      <p style={{ marginTop: 12, fontWeight: 700, color: TEXT_PRIMARY }}>저장한 장소가 없어요</p>
-      <p style={{ marginTop: 4 }}>
+      <p style={{ margin: 0, fontWeight: 700, color: TEXT_PRIMARY, fontSize: 15 }}>저장한 장소가 없어요</p>
+      <p style={{ marginTop: 8 }}>
         장소 페이지의 북마크 버튼을 누르면
         <br />
         여기에 사진으로 모아볼 수 있어요.

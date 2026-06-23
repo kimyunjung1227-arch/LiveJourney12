@@ -433,8 +433,7 @@ const RegionDetailScreen = () => {
 
               {realtimePhotos.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 px-4">
-                  <span className="material-symbols-outlined text-6xl text-gray-300 dark:text-gray-600 mb-4">add_a_photo</span>
-                  <p className="text-base font-medium text-gray-700 dark:text-gray-300 mb-2 text-center">
+                  <p className="text-[15px] font-bold text-gray-800 dark:text-gray-200 mb-2 text-center">
                     {region.name}의 실시간 정보가 없어요
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-4">
@@ -442,9 +441,8 @@ const RegionDetailScreen = () => {
                   </p>
                   <button
                     onClick={() => navigate('/upload')}
-                    className="bg-primary text-white px-6 py-3 rounded-full font-semibold hover:bg-primary/90 transition-colors shadow-lg flex items-center gap-2 mx-auto"
+                    className="bg-primary/10 text-primary px-4 py-2 rounded-full font-semibold text-sm hover:bg-primary/15 transition-colors mx-auto"
                   >
-                    <span className="material-symbols-outlined">add_a_photo</span>
                     첫 사진 올리기
                   </button>
                 </div>

@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IconMap2 } from '@tabler/icons-react';
 import { supabase } from '../../utils/supabaseClient';
 import { searchPlaceWithKakaoFirst } from '../../utils/kakaoPlacesGeocode';
 import { getDisplayImageUrl } from '../../api/upload';
@@ -462,21 +461,9 @@ export default function TravelMapView({ userId }) {
             pointerEvents: 'none',
           }}
         >
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 999,
-              background: '#F5F7FA',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: 10,
-            }}
-          >
-            <IconMap2 size={22} color={KEY} stroke={1.8} />
-          </div>
-          아직 표시할 여행지가 없어요
+          <span style={{ fontWeight: 700, color: '#1F1F1F', fontSize: 14 }}>
+            아직 표시할 여행지가 없어요
+          </span>
         </div>
       )}
     </div>

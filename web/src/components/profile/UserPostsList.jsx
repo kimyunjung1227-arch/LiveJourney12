@@ -199,20 +199,8 @@ export default function UserPostsList({
   const list = Array.isArray(posts) ? posts : [];
   if (list.length === 0) {
     return (
-      <div className="text-center" style={{ padding: '28px 16px' }}>
-        <div
-          className="flex items-center justify-center"
-          style={{
-            width: 52,
-            height: 52,
-            borderRadius: 999,
-            background: SURFACE,
-            margin: '0 auto 12px',
-          }}
-        >
-          <IconCamera size={22} color={TEXT_TERTIARY} stroke={1.6} />
-        </div>
-        <p className="m-0" style={{ fontSize: 13, fontWeight: 600, color: TEXT_PRIMARY }}>
+      <div className="text-center" style={{ padding: '40px 16px' }}>
+        <p className="m-0" style={{ fontSize: 14, fontWeight: 700, color: TEXT_PRIMARY }}>
           아직 올린 게시물이 없어요
         </p>
       </div>

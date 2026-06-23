@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   IconArrowLeft,
-  IconFlame,
   IconChevronDown,
   IconWorld,
   IconMap,
@@ -10,6 +9,7 @@ import {
 } from '@tabler/icons-react';
 import BottomNavigation from '../components/BottomNavigation';
 import { LJ } from '../components/lj/tokens';
+import EmptyState from '../components/lj/EmptyState';
 import HotplaceTopCard from '../components/lj/HotplaceTopCard';
 import HotplaceListItem from '../components/lj/HotplaceListItem';
 import { useHotplaceRanking } from '../hooks/useHotplaceRanking';
@@ -436,49 +436,19 @@ function Skeleton() {
 
 function EmptyHotplace({ onUpload }) {
   return (
-    <div style={{ padding: '64px 24px', textAlign: 'center', color: LJ.textSecondary, fontFamily: LJ.fontStack }}>
-      <div
-        style={{
-          width: 72,
-          height: 72,
-          borderRadius: '50%',
-          background: LJ.keyBgLight,
-          margin: '0 auto 16px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: LJ.key,
-        }}
-      >
-        <IconFlame size={28} stroke={1.8} />
-      </div>
-      <p style={{ margin: 0, color: LJ.textPrimary, fontSize: 15, fontWeight: 700, lineHeight: 1.4 }}>
-        아직 활동 중인 핫플이 없어요
-      </p>
-      <p style={{ marginTop: 8, fontSize: 12, lineHeight: 1.6 }}>
-        지금 있는 곳을 한 장 올려보세요.
-        <br />
-        당신의 한 장이 첫 핫플이 될 수도 있어요.
-      </p>
-      <button
-        type="button"
-        onClick={onUpload}
-        style={{
-          marginTop: 18,
-          padding: '11px 18px',
-          background: LJ.key,
-          color: '#fff',
-          border: 'none',
-          borderRadius: 12,
-          fontFamily: LJ.fontStack,
-          fontSize: 13,
-          fontWeight: 600,
-          cursor: 'pointer',
-        }}
-      >
-        사진 한 장 올리기
-      </button>
-    </div>
+    <EmptyState
+      padding="64px 24px"
+      title="아직 활동 중인 핫플이 없어요"
+      description={
+        <>
+          지금 있는 곳을 한 장 올려보세요.
+          <br />
+          당신의 한 장이 첫 핫플이 될 수도 있어요.
+        </>
+      }
+      actionLabel="사진 한 장 올리기"
+      onAction={onUpload}
+    />
   );
 }
 
