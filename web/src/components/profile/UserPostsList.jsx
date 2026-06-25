@@ -159,12 +159,12 @@ function PostRow({ post, selectable = false, selected = false, onToggle }) {
       </div>
 
       {/* 장소명 (사진 아래) */}
-      <div className="flex items-center" style={{ gap: 3, marginTop: 6 }}>
-        <IconMapPin size={11} color={KEY} stroke={2} style={{ flexShrink: 0 }} />
+      <div className="flex items-center" style={{ gap: 4, marginTop: 7 }}>
+        <IconMapPin size={13} color={KEY} stroke={2} style={{ flexShrink: 0 }} />
         <span
           className="min-w-0"
           style={{
-            fontSize: 11.5,
+            fontSize: 13.5,
             fontWeight: 600,
             color: TEXT_PRIMARY,
             overflow: 'hidden',
