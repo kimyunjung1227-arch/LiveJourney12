@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { IconCamera, IconMapPin, IconCheck } from '@tabler/icons-react';
 import { supabase } from '../../utils/supabaseClient';
@@ -207,39 +207,15 @@ export default function UserPostsList({
     );
   }
 
-  // 가로 스크롤(프로필 미리보기) — 한 화면에 3개, 좌우로 넘김
+  // 가로 스크롤(프로필 미리보기) — 한 화면에 3개, 터치 스와이프 + 마우스 드래그
   if (horizontal) {
     return (
-      <div
-        className="hide-scrollbar"
-        style={{
-          display: 'flex',
-          gap: 8,
-          overflowX: 'auto',
-          paddingBottom: 2,
-          touchAction: 'pan-x',
-          scrollSnapType: 'x proximity',
-        }}
-      >
-        {list.map((post) => (
-          <div
-            key={post.id}
-            style={{
-              flex: '0 0 auto',
-              // 한 화면에 3개 노출 (gap 8 × 2 = 16px 빼고 3등분)
-              width: 'calc((100% - 16px) / 3)',
-              scrollSnapAlign: 'start',
-            }}
-          >
-            <PostRow
-              post={post}
-              selectable={selectable}
-              selected={!!selectedIds && selectedIds.has(post.id)}
-              onToggle={onToggleSelect}
-            />
-          </div>
-        ))}
-      </div>
+      <HorizontalPostsRow
+        list={list}
+        selectable={selectable}
+        selectedIds={selectedIds}
+        onToggleSelect={onToggleSelect}
+      />
     );
   }
 
@@ -254,6 +230,85 @@ export default function UserPostsList({
           selected={!!selectedIds && selectedIds.has(post.id)}
           onToggle={onToggleSelect}
         />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * 가로 스크롤 리스트 — 모바일은 터치 스와이프, 데스크톱은 마우스 드래그로 좌우 이동.
+ * 드래그로 이동한 경우엔 그 끝의 클릭(상세 진입)을 막아 의도치 않은 이동을 방지한다.
+ */
+function HorizontalPostsRow({ list, selectable, selectedIds, onToggleSelect }) {
+  const scrollerRef = useRef(null);
+  const drag = useRef({ active: false, startX: 0, scrollLeft: 0, moved: false });
+
+  const onMouseDown = (e) => {
+    const el = scrollerRef.current;
+    if (!el || e.button !== 0) return;
+    drag.current = { active: true, startX: e.pageX, scrollLeft: el.scrollLeft, moved: false };
+    el.style.cursor = 'grabbing';
+  };
+  const onMouseMove = (e) => {
+    const el = scrollerRef.current;
+    if (!el || !drag.current.active) return;
+    const dx = e.pageX - drag.current.startX;
+    if (Math.abs(dx) > 4) drag.current.moved = true;
+    el.scrollLeft = drag.current.scrollLeft - dx;
+  };
+  const endDrag = () => {
+    const el = scrollerRef.current;
+    if (!drag.current.active) return;
+    drag.current.active = false;
+    if (el) el.style.cursor = 'grab';
+  };
+  // 드래그 직후의 클릭은 캡처 단계에서 삼켜 상세 진입을 막는다.
+  const onClickCapture = (e) => {
+    if (drag.current.moved) {
+      e.preventDefault();
+      e.stopPropagation();
+      drag.current.moved = false;
+    }
+  };
+
+  return (
+    <div
+      ref={scrollerRef}
+      className="hide-scrollbar"
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseUp={endDrag}
+      onMouseLeave={endDrag}
+      onClickCapture={onClickCapture}
+      onDragStart={(e) => e.preventDefault()}
+      style={{
+        display: 'flex',
+        gap: 8,
+        overflowX: 'auto',
+        paddingBottom: 2,
+        touchAction: 'pan-x',
+        scrollSnapType: 'x proximity',
+        cursor: 'grab',
+        userSelect: 'none',
+      }}
+    >
+      {list.map((post) => (
+        <div
+          key={post.id}
+          style={{
+            flex: '0 0 auto',
+            // 한 화면에 3개 노출 (gap 8 × 2 = 16px 빼고 3등분)
+            width: 'calc((100% - 16px) / 3)',
+            scrollSnapAlign: 'start',
+          }}
+        >
+          <PostRow
+            post={post}
+            selectable={selectable}
+            selected={!!selectedIds && selectedIds.has(post.id)}
+            onToggle={onToggleSelect}
+          />
+        </div>
       ))}
     </div>
   );

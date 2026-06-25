@@ -11,9 +11,9 @@ const PREVIEW_COUNT = 8;
 
 /**
  * 프로필 안의 "게시물" 미리보기 섹션.
- * - 최신 게시물 최대 8개를 정사각형 썸네일 + 하단 장소명으로,
- *   한 화면에 3개씩 보이는 가로 스크롤로 보여주고
- * - 8개를 넘으면 "모두 보기" 버튼 → 전용 게시물 화면으로 이동
+ * - 최신 게시물을 정사각형 썸네일 + 하단 장소명으로,
+ *   한 화면에 3개씩 보이는 가로 스크롤(좌우 스와이프)로 보여주고
+ * - 게시물이 8개 이상이면 "모두 보기" 버튼 → 전용 게시물 화면으로 이동
  *
  * @param {object} props
  * @param {string} props.userId 대상 사용자 UUID
@@ -21,9 +21,9 @@ const PREVIEW_COUNT = 8;
  */
 export default function ProfilePostsSection({ userId, seeAllTo }) {
   const navigate = useNavigate();
-  // 더보기 여부 판단을 위해 한 개 더 가져온다.
-  const { posts, loading } = useUserPosts(userId, PREVIEW_COUNT + 1);
-  const hasMore = posts.length > PREVIEW_COUNT;
+  // 가로 미리보기는 최대 PREVIEW_COUNT개. 8개 이상이면 "모두 보기"를 노출한다.
+  const { posts, loading } = useUserPosts(userId, PREVIEW_COUNT);
+  const hasMore = posts.length >= PREVIEW_COUNT;
   const preview = posts.slice(0, PREVIEW_COUNT);
 
   return (
