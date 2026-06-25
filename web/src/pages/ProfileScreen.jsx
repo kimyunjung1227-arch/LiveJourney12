@@ -7,6 +7,10 @@ import BottomNavigation from '../components/BottomNavigation';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
 import ProfileHeader from '../components/profile/ProfileHeader';
+import LiveGuideCard from '../components/liveGuide/LiveGuideCard';
+import LiveGuideCelebration from '../components/liveGuide/LiveGuideCelebration';
+import { useLiveGuide } from '../hooks/useLiveGuide';
+import { useLiveGuideCelebration } from '../hooks/useLiveGuideCelebration';
 import BadgesBox from '../components/profile/BadgesBox';
 import BestCutCarousel from '../components/profile/BestCutCarousel';
 import ProfilePostsSection from '../components/profile/ProfilePostsSection';
@@ -24,6 +28,13 @@ function ProfileScreen() {
   const { user, isAuthenticated, authLoading, loginWithProvider } = useAuth();
   const userId = user?.id || null;
   const { data, loading } = useProfile(userId);
+  const liveGuide = useLiveGuide(userId, { followerCount: data?.user?.follower_count });
+  const { celebrateLevel, dismiss: dismissCelebration } = useLiveGuideCelebration({
+    userId,
+    level: liveGuide.level,
+    loading: liveGuide.loading,
+    enabled: isAuthenticated,
+  });
   const [loginError, setLoginError] = useState('');
   const [loginPending, setLoginPending] = useState(false);
 
@@ -211,7 +222,8 @@ function ProfileScreen() {
       <PageSeo {...PAGE_SEO.profile} />
       <ProfileHeaderBar onSettings={() => navigate('/settings')} onSaved={() => navigate('/profile/saved')} showSettings />
 
-      <ProfileHeader user={profileUser} isMe />
+      <ProfileHeader user={profileUser} isMe liveGuide={liveGuide} />
+      <LiveGuideCard data={liveGuide} />
       <BadgesBox user={profileUser} />
 
       <BestCutCarousel bestCuts={data?.best_cuts} />
@@ -229,6 +241,10 @@ function ProfileScreen() {
       </div>
 
       <BottomNavigation />
+
+      {celebrateLevel != null && (
+        <LiveGuideCelebration level={celebrateLevel} onClose={dismissCelebration} />
+      )}
     </div>
   );
 }

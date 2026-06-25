@@ -4,6 +4,7 @@ import { IconArrowLeft, IconDots } from '@tabler/icons-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfile } from '../hooks/useProfile';
 import { useFollow } from '../hooks/useFollow';
+import { useLiveGuide } from '../hooks/useLiveGuide';
 import ProfileHeader from '../components/profile/ProfileHeader';
 import BadgesBox from '../components/profile/BadgesBox';
 import BestCutCarousel from '../components/profile/BestCutCarousel';
@@ -24,6 +25,7 @@ function UserProfileScreen() {
   const { userId } = useParams();
   const { user: me } = useAuth();
   const { data, loading } = useProfile(userId);
+  const liveGuide = useLiveGuide(userId, { followerCount: data?.user?.follower_count });
 
   const profileUser = data?.user;
   const isMe = profileUser?.is_me;
@@ -156,6 +158,7 @@ function UserProfileScreen() {
         <>
           <ProfileHeader
             user={profileUser}
+            liveGuide={liveGuide}
             trailingSlot={
               !isMe ? (
                 <FollowChip

@@ -2,6 +2,7 @@ import React from 'react';
 import { IconCrown, IconPencil } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { getDisplayImageUrl } from '../../api/upload';
+import LiveGuideBadge from '../liveGuide/LiveGuideBadge';
 
 const KEY = '#4DB8E8';
 const KEY_DARK = '#1A6EA8';
@@ -16,7 +17,7 @@ const GRADIENT = 'linear-gradient(135deg, #4DB8E8, #1A6EA8)';
  * @param {object} props.user
  * @param {boolean} [props.isMe] /profile 컨텍스트면 true → 팔로워/팔로잉 클릭 시 /profile/follows
  */
-export default function ProfileHeader({ user, isMe = false, trailingSlot = null }) {
+export default function ProfileHeader({ user, isMe = false, trailingSlot = null, liveGuide = null }) {
   const navigate = useNavigate();
   if (!user) return null;
 
@@ -78,6 +79,9 @@ export default function ProfileHeader({ user, isMe = false, trailingSlot = null 
             <h2 className="m-0" style={{ fontSize: 16, fontWeight: 700, color: TEXT_PRIMARY, letterSpacing: -0.3 }}>
               {user.name}
             </h2>
+            {liveGuide?.isGuide && (
+              <LiveGuideBadge level={liveGuide.level} live={liveGuide.isLive} size={18} />
+            )}
             {isArtist && (
               <div
                 className="flex items-center gap-1"
