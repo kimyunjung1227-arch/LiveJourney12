@@ -4,12 +4,6 @@ import {
   IconArrowLeft,
   IconShieldCheck,
   IconMapPin,
-  IconFlower,
-  IconCloud,
-  IconCalendarEvent,
-  IconUsers,
-  IconMoon,
-  IconBuildingStore,
   IconInfoCircle,
   IconPlus,
   IconX,
@@ -36,15 +30,7 @@ import { reverseGeocodeToPlaceDetail, extractRegionFromAddress } from '../utils/
 import { searchPlaceWithKakaoFirst, ensureKakaoMapsServicesReady } from '../utils/kakaoPlacesGeocode';
 import { patchUploadMedia, patchUploadMediaAt } from '../stores/uploadStore';
 import { rotateImageMedia } from '../utils/rotateImageMedia';
-
-const CATEGORIES = [
-  { id: 'nature', label: '개화·자연', Icon: IconFlower },
-  { id: 'weather', label: '날씨·체감', Icon: IconCloud },
-  { id: 'event', label: '이벤트·축제', Icon: IconCalendarEvent },
-  { id: 'crowd', label: '혼잡도·대기', Icon: IconUsers },
-  { id: 'sunset', label: '노을·야경', Icon: IconMoon },
-  { id: 'business', label: '영업·운영', Icon: IconBuildingStore },
-];
+import { autoCategorize } from '../utils/autoCategorize';
 
 function UploadInfoScreen() {
   const navigate = useNavigate();
@@ -60,7 +46,7 @@ function UploadInfoScreen() {
   // (resetUploadStore 로 media=null 이 되면 아래 redirect useEffect 가 /camera 로 덮어쓰는 레이스 방지)
   const uploadCompletedRef = useRef(false);
 
-  const [category, setCategory] = useState(null);
+  const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   // 화면에 표시할 장소명. 좌표 변경 시 항상 재지오코딩해 최신값을 보여준다.
   const [resolvedPlace, setResolvedPlace] = useState('');
@@ -174,13 +160,6 @@ function UploadInfoScreen() {
     }
   }, [media, navigate, answerTo]);
 
-  // 답변 모드: 질문 카테고리를 기본 선택 (사용자가 직접 안 골랐을 때만)
-  useEffect(() => {
-    if (isAnswerMode && answerQuestion?.category && !category) {
-      setCategory(answerQuestion.category);
-    }
-  }, [isAnswerMode, answerQuestion?.category, category]);
-
   const takenAtDate = useMemo(
     () => (media?.takenAt ? new Date(media.takenAt) : null),
     [media?.takenAt]
@@ -194,8 +173,9 @@ function UploadInfoScreen() {
 
   const mediasArr = Array.isArray(media?.medias) ? media.medias : [];
   const filesArr = mediasArr.map((m) => m?.file).filter(Boolean);
-  // 설명은 필수 입력 — 비어 있으면 업로드 불가
-  const canUpload = !!category && body.trim().length > 0 && filesArr.length > 0 && !isUploading;
+
+  // 설명은 필수 입력 — 비어 있으면 업로드 불가 (카테고리는 자동이라 조건에서 제외)
+  const canUpload = body.trim().length > 0 && filesArr.length > 0 && !isUploading;
 
   const [rotatingIdx, setRotatingIdx] = useState(-1);
   const handleRotate = async (index) => {
@@ -232,9 +212,15 @@ function UploadInfoScreen() {
         (editedLoc && typeof editedLoc.region === 'string' ? editedLoc.region : '') ||
         resolvedRegion ||
         null;
+      // 답변 모드면 질문 카테고리를 우선, 아니면 입력/사진 기반 자동 분류
+      const finalCategory =
+        isAnswerMode && answerQuestion?.category
+          ? answerQuestion.category
+          : autoCategorize({ title, body, placeName: finalPlace, region: finalRegion, capturedAt: media.takenAt });
       const postId = await upload({
         files: filesArr,
-        category,
+        category: finalCategory,
+        title,
         body,
         takenAt: media.takenAt,
         lat: finalLat,
@@ -631,6 +617,33 @@ function UploadInfoScreen() {
         </div>
       )}
 
+      {/* 제목 — 위치 위. 한 줄 입력 (선택) */}
+      <section style={{ padding: '16px 18px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: LJ.textPrimary }}>제목</span>
+        </div>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          maxLength={40}
+          placeholder={isAnswerMode ? '예: 윤중로 끝쪽 지금 상황' : '예: 지금 윤중로 벚꽃 절정'}
+          style={{
+            width: '100%',
+            padding: '13px 16px',
+            background: LJ.bgSurface,
+            border: `1px solid ${LJ.borderLight}`,
+            borderRadius: 12,
+            fontFamily: LJ.fontStack,
+            fontSize: 15,
+            fontWeight: 600,
+            color: LJ.textPrimary,
+            outline: 'none',
+            boxSizing: 'border-box',
+          }}
+        />
+      </section>
+
       {/* 위치 편집 */}
       <section style={{ padding: '14px 18px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -906,59 +919,6 @@ function UploadInfoScreen() {
         </div>
       </section>
 
-      {/* 카테고리 (필수) — 설명 아래. 버튼은 가볍게. */}
-      <section style={{ padding: '18px 18px 0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: LJ.textPrimary }}>카테고리 선택</span>
-          <span
-            style={{
-              display: 'inline-block',
-              width: 5,
-              height: 5,
-              borderRadius: '50%',
-              background: LJ.error,
-            }}
-          />
-        </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 7,
-          }}
-        >
-          {CATEGORIES.map((c) => {
-            const active = category === c.id;
-            const Icon = c.Icon;
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setCategory(c.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 7,
-                  minHeight: 0,
-                  padding: '9px 12px',
-                  background: active ? LJ.keyBgLight : '#fff',
-                  border: active ? `1.5px solid ${LJ.key}` : `1px solid ${LJ.borderLight}`,
-                  borderRadius: 9,
-                  color: active ? LJ.keyTextDark : LJ.textSecondary,
-                  fontFamily: LJ.fontStack,
-                  fontSize: 12.5,
-                  fontWeight: active ? 700 : 500,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                }}
-              >
-                <Icon size={16} stroke={1.8} color={active ? LJ.key : LJ.textTertiary} />
-                {c.label}
-              </button>
-            );
-          })}
-        </div>
-      </section>
 
       {/* 답변 모드 안내 */}
       {isAnswerMode && answerQuestion && (

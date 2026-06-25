@@ -128,11 +128,17 @@ export function normalizePostRow(row) {
 
   const weather = row.weather && typeof row.weather === 'object' ? row.weather : null;
 
+  const title =
+    row.exif_data && typeof row.exif_data === 'object' && typeof row.exif_data.title === 'string'
+      ? row.exif_data.title
+      : null;
+
   return {
     id: row.id,
     author_id: row.user_id,
     photo_url: photos[0] || null,
     photos,
+    title,
     category: ljCategory || row.category || row.category_name || null,
     category_raw: row.category_name || row.category || '',
     place_id: makePlaceId(placeName),

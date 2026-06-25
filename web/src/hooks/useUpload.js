@@ -66,6 +66,7 @@ export function useUpload() {
       file,
       files,
       category,
+      title,
       body,
       takenAt,
       lat,
@@ -100,9 +101,12 @@ export function useUpload() {
 
         const categoryName = category ? LJ_CATEGORY_LABEL[category] || category : null;
         const hasCoords = Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
+        const cleanTitle = typeof title === 'string' && title.trim() ? title.trim() : null;
         const exifData = {
           taken_at: capturedIso,
           photoDate: capturedIso,
+          // 제목은 posts 스키마 변경 없이 exif_data 에 저장 (홈 카드에서 노출)
+          title: cleanTitle,
           lat: lat ?? null,
           lng: lng ?? null,
           map_pin: hasCoords ? { lat: Number(lat), lng: Number(lng) } : null,

@@ -306,6 +306,10 @@ export const mapSupabasePostRowToPost = (row, opts = {}) => {
     tags: Array.isArray(row.tags) ? row.tags : [],
     note: row.content || '',
     content: row.content || '',
+    title:
+      row.exif_data && typeof row.exif_data === 'object' && typeof row.exif_data.title === 'string'
+        ? row.exif_data.title
+        : null,
     timestamp: row.created_at ? new Date(row.created_at).getTime() : null,
     createdAt: row.created_at || null,
     photoDate:

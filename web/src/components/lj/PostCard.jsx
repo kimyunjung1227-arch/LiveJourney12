@@ -6,6 +6,7 @@ import {
   IconMessageCircle,
   IconBookmark,
   IconBookmarkFilled,
+  IconMapPin,
 } from '@tabler/icons-react';
 import {
   LJ,
@@ -171,7 +172,34 @@ export function PostCard({
         </div>
       </div>
 
-      {/* 위치명 (좌) + 기온 (우) */}
+      {/* 제목 (작성자가 입력) — 위치명 위 헤드라인 */}
+      {post.title && (
+        <button
+          type="button"
+          onClick={goPostDetail}
+          style={{
+            display: 'block',
+            width: '100%',
+            textAlign: 'left',
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            fontFamily: LJ.fontStack,
+            fontSize: 16.5,
+            fontWeight: 700,
+            color: LJ.textPrimary,
+            letterSpacing: -0.3,
+            lineHeight: 1.35,
+            margin: '12px 0 4px',
+            wordBreak: 'break-word',
+          }}
+        >
+          {post.title}
+        </button>
+      )}
+
+      {/* 위치명 (좌) + 기온 (우) — 제목이 있으면 위치는 작은 보조 줄로 */}
       {(post.place_name || post.weather || post.weatherSnapshot) && (
         <div
           style={{
@@ -179,7 +207,7 @@ export function PostCard({
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 8,
-            margin: '12px 0 6px',
+            margin: post.title ? '0 0 6px' : '12px 0 6px',
           }}
         >
           {post.place_name ? (
@@ -192,18 +220,21 @@ export function PostCard({
                 padding: 0,
                 cursor: 'pointer',
                 fontFamily: LJ.fontStack,
-                fontSize: 17,
-                fontWeight: 700,
-                color: LJ.textPrimary,
+                fontSize: post.title ? 13 : 17,
+                fontWeight: post.title ? 600 : 700,
+                color: post.title ? LJ.textSecondary : LJ.textPrimary,
                 letterSpacing: -0.3,
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 4,
+                gap: 3,
                 textAlign: 'left',
                 minWidth: 0,
                 flex: '1 1 auto',
               }}
             >
+              {post.title && (
+                <IconMapPin size={13} stroke={2} color={LJ.textTertiary} style={{ flexShrink: 0 }} />
+              )}
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {post.place_name}
               </span>
