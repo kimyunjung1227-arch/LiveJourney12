@@ -174,8 +174,9 @@ function UploadInfoScreen() {
   const mediasArr = Array.isArray(media?.medias) ? media.medias : [];
   const filesArr = mediasArr.map((m) => m?.file).filter(Boolean);
 
-  // 설명은 필수 입력 — 비어 있으면 업로드 불가 (카테고리는 자동이라 조건에서 제외)
-  const canUpload = body.trim().length > 0 && filesArr.length > 0 && !isUploading;
+  // 제목·설명은 필수 입력 — 비어 있으면 업로드 불가 (카테고리는 자동이라 조건에서 제외)
+  const canUpload =
+    title.trim().length > 0 && body.trim().length > 0 && filesArr.length > 0 && !isUploading;
 
   const [rotatingIdx, setRotatingIdx] = useState(-1);
   const handleRotate = async (index) => {
@@ -621,6 +622,15 @@ function UploadInfoScreen() {
       <section style={{ padding: '16px 18px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: LJ.textPrimary }}>제목</span>
+          <span
+            style={{
+              display: 'inline-block',
+              width: 5,
+              height: 5,
+              borderRadius: '50%',
+              background: LJ.error,
+            }}
+          />
         </div>
         <input
           type="text"
