@@ -175,6 +175,16 @@ export const updatePostSupabase = async (postId, updates) => {
     if (Array.isArray(updates.tags)) payload.tags = updates.tags.map((t) => (typeof t === 'string' ? t.replace(/^#+/, '') : String(t || '')));
     if (Array.isArray(updates.images)) payload.images = onlyPersistentUrls(updates.images);
     if (Array.isArray(updates.videos)) payload.videos = onlyPersistentUrls(updates.videos);
+    // 제목은 exif_data.title 에 저장 — 기존 exif_data 를 보존한 채 병합
+    if (updates.title !== undefined) {
+      let baseExif = {};
+      try {
+        const { data: cur } = await supabase.from('posts').select('exif_data').eq('id', trimmed).single();
+        if (cur?.exif_data && typeof cur.exif_data === 'object') baseExif = cur.exif_data;
+      } catch (_) { /* 조회 실패 시 빈 객체에서 시작 */ }
+      const nextTitle = typeof updates.title === 'string' ? updates.title.trim() : '';
+      payload.exif_data = { ...baseExif, title: nextTitle };
+    }
     if (Object.keys(payload).length === 0) return { success: true };
     const { data, error } = await supabase.from('posts').update(payload).eq('id', trimmed).select('*').single();
     if (error) throw error;

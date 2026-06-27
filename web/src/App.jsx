@@ -121,6 +121,7 @@ const UploadInfoScreen = lazyWithRecover(() => import('./pages/UploadInfoScreen'
 const UploadCompleteScreen = lazyWithRecover(() => import('./pages/UploadCompleteScreen'))
 const RegionDetailScreen = lazyWithRecover(() => import('./pages/RegionDetailScreen'))
 const UploadScreen = lazyWithRecover(() => import('./pages/UploadScreen'))
+const PostEditScreen = lazyWithRecover(() => import('./pages/PostEditScreen'))
 const MapScreen = lazyWithRecover(() => import('./pages/MapScreen'))
 const MapAskSituationScreen = lazyWithRecover(() => import('./pages/MapAskSituationScreen'))
 const MapPhotoGridScreen = lazyWithRecover(() => import('./pages/MapPhotoGridScreen'))
@@ -241,7 +242,7 @@ function App() {
                 <Route path="/question/:id" element={<QuestionDetailScreen />} />
                 <Route path="/hashtags" element={<HashtagScreen />} />
                 <Route path="/detail" element={<DetailScreen />} />
-                <Route path="/post/:id/edit" element={<UploadScreen />} />
+                <Route path="/post/:id/edit" element={<PostEditScreen />} />
                 <Route path="/post/:id" element={<PostDetailScreen />} />
                 <Route path="/region/:regionName" element={<CityDetailScreen />} />
                 <Route path="/city/:cityName" element={<CityDetailScreen />} />
