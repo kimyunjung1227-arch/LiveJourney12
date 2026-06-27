@@ -460,8 +460,7 @@ function PostEditScreen() {
                       padding: 0,
                     }}
                   >
-                    <IconPlus size={18} stroke={2} />
-                    <span style={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>{remainingSlots}장</span>
+                    <IconPlus size={20} stroke={2} />
                   </button>
                   <input
                     ref={addInputRef}
