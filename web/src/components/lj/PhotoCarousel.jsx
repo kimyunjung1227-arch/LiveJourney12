@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { LJ } from './tokens';
+import { FeedVideo } from './FeedVideo';
 
 /**
  * 한 장씩 슬라이드되는 사진 캐러셀 (state 기반 transform 슬라이더).
@@ -130,7 +131,7 @@ export function PhotoCarousel({ photos = [], media = null, height = 340, onPhoto
         {items.map((item, i) => {
           const url = item?.url;
           if (item?.type === 'video') {
-            // 영상은 네이티브 컨트롤로 재생 — 버튼 래퍼 없이 video 요소만.
+            // 중앙 밴드 진입 시 자동재생, 클릭 시 전체화면(소리·컨트롤). 인라인 컨트롤 없음.
             return (
               <div
                 key={`${url}-${i}`}
@@ -142,21 +143,7 @@ export function PhotoCarousel({ photos = [], media = null, height = 340, onPhoto
                   background: '#000',
                 }}
               >
-                <video
-                  src={url}
-                  controls
-                  playsInline
-                  preload="metadata"
-                  // 컨트롤 조작이 캐러셀 스와이프로 오인되지 않게 포인터 이벤트 분리
-                  onPointerDown={(e) => e.stopPropagation()}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    display: 'block',
-                    background: '#000',
-                  }}
-                />
+                <FeedVideo src={url} poster={item?.cover} />
               </div>
             );
           }

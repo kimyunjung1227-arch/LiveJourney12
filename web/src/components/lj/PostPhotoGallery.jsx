@@ -1,5 +1,6 @@
 import React from 'react';
 import { LJ } from './tokens';
+import { FeedVideo } from './FeedVideo';
 
 /**
  * 게시물 상세 사진 갤러리 — 사진 개수별 적응형 레이아웃.
@@ -55,13 +56,7 @@ export function PostPhotoGallery({ photos = [], media = null, onPhotoClick, onSh
     if (item?.type === 'video') {
       return (
         <div key={i} style={{ ...cellBase, ...style, cursor: 'default', background: '#000' }}>
-          <video
-            src={item.url}
-            controls
-            playsInline
-            preload="metadata"
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: '#000' }}
-          />
+          <FeedVideo src={item.url} poster={item?.cover} />
         </div>
       );
     }
