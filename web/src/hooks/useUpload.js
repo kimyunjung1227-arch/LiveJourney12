@@ -14,16 +14,23 @@ const LJ_CATEGORY_LABEL = {
   business: '영업·운영',
 };
 
+/** content-type 에서 코덱 등 파라미터를 떼어낸 기본 MIME (예: 'video/webm;codecs=vp9,opus' → 'video/webm') */
+function baseMime(type) {
+  return String(type || '').split(';')[0].trim().toLowerCase();
+}
+
 /** Blob/File에서 storage 경로 확장자 추론 */
 function extOf(file) {
+  const mime = baseMime(file?.type);
   if (!file) return 'jpg';
-  if (file.type?.startsWith('video/')) {
-    if (file.type.includes('mp4')) return 'mp4';
-    if (file.type.includes('webm')) return 'webm';
-    return 'webm';
+  if (mime.startsWith('video/')) {
+    if (mime.includes('mp4')) return 'mp4';
+    if (mime.includes('quicktime')) return 'mov';
+    if (mime.includes('webm')) return 'webm';
+    return 'mp4';
   }
-  if (file.type === 'image/png') return 'png';
-  if (file.type === 'image/webp') return 'webp';
+  if (mime === 'image/png') return 'png';
+  if (mime === 'image/webp') return 'webp';
   return 'jpg';
 }
 
@@ -34,7 +41,15 @@ async function uploadOneFile(file, userId) {
   const ext = extOf(file);
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
   const path = `${userId}/${filename}`;
-  const contentType = file.type || (file.type?.startsWith('video/') ? 'video/webm' : 'image/jpeg');
+  // 코덱 파라미터가 붙은 MIME 은 버킷의 allowed_mime_types 필터에 걸릴 수 있어 기본 MIME 만 사용.
+  const stripped = baseMime(file?.type);
+  const isVideoExt = ext === 'mp4' || ext === 'webm' || ext === 'mov';
+  const contentType =
+    (stripped.startsWith('video/') || stripped.startsWith('image/'))
+      ? stripped
+      : isVideoExt
+        ? `video/${ext === 'mov' ? 'quicktime' : ext}`
+        : 'image/jpeg';
 
   const { error: uploadError } = await supabase.storage
     .from(BUCKET)

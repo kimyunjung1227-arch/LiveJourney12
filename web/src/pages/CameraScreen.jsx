@@ -253,7 +253,7 @@ function CameraScreen() {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,video/*"
         multiple
         capture={undefined}
         style={{ display: 'none' }}

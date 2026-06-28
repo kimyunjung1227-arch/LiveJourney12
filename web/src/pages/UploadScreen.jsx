@@ -1,7 +1,7 @@
 ﻿import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
-import { uploadImage, uploadMetaToExifShape } from '../api/upload';
+import { uploadImage, uploadVideo, uploadMetaToExifShape } from '../api/upload';
 import { createPostSupabase, fetchPostByIdSupabase, getMergedMyPostsForStats, mapSupabasePostRowToPost, updatePostSupabase } from '../api/postsSupabase';
 import { useAuth } from '../contexts/AuthContext';
 import { notifyBadge } from '../utils/notifications';
@@ -784,17 +784,19 @@ const UploadScreen = () => {
         }
       }
       
-      // 동영상 업로드 (동일한 uploadImage 함수 사용, 백엔드에서 처리)
+      // 동영상 업로드 (동영상 전용 uploadVideo: videos/ 경로 + 올바른 MIME + 100MB 한도)
       if (formData.videoFiles.length > 0) {
         for (let i = 0; i < formData.videoFiles.length; i++) {
           const file = formData.videoFiles[i];
           uploadedCount++;
           setUploadProgress(20 + (uploadedCount * 40 / totalFiles));
-          
+
           try {
-            const uploadResult = await uploadImage(file);
+            const uploadResult = await uploadVideo(file);
             if (uploadResult.success && uploadResult.url) {
               uploadedVideoUrls.push(uploadResult.url);
+            } else if (uploadResult.message) {
+              logger.warn('동영상 업로드 실패:', uploadResult.message);
             }
           } catch (uploadError) {
             logger.warn('동영상 업로드 실패:', uploadError?.message || uploadError);

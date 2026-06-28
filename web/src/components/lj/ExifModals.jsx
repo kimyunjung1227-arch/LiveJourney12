@@ -157,6 +157,8 @@ export function EXIFConfirmModal({ open, file, takenAt, location, placeName, onC
     };
   }, [previewUrl]);
 
+  const isVideo = Boolean(file?.type && String(file.type).startsWith('video/'));
+
   return (
     <ModalShell onClose={onClose}>
       {/* 닫기 */}
@@ -206,7 +208,11 @@ export function EXIFConfirmModal({ open, file, takenAt, location, placeName, onC
           EXIF 인증 완료
         </h2>
         <p style={{ margin: '8px 0 0', fontSize: 12.5, color: LJ.textSecondary }}>
-          {takenAt ? `${formatTimeAgo(takenAt)}에 촬영된 사진이에요` : '촬영 시각이 확인됐어요'}
+          {isVideo
+            ? '선택한 영상을 올릴 수 있어요'
+            : takenAt
+              ? `${formatTimeAgo(takenAt)}에 촬영된 사진이에요`
+              : '촬영 시각이 확인됐어요'}
         </p>
       </div>
 
@@ -223,11 +229,21 @@ export function EXIFConfirmModal({ open, file, takenAt, location, placeName, onC
           }}
         >
           {previewUrl && (
-            <img
-              src={previewUrl}
-              alt=""
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
+            isVideo ? (
+              <video
+                src={previewUrl}
+                muted
+                playsInline
+                controls
+                style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#000' }}
+              />
+            ) : (
+              <img
+                src={previewUrl}
+                alt=""
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            )
           )}
           {takenAt && (
             <div

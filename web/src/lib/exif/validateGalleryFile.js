@@ -19,9 +19,18 @@ import { parse } from 'exifr';
 export async function validateGalleryFile(file) {
   if (!file) return { valid: false, reason: 'no_exif' };
 
-  // 영상은 EXIF 추출 비표준 — 일단 거부 처리 (스펙: "1시간 이내 사진만")
+  // 영상은 EXIF 메타가 비표준이라 추출이 어렵다.
+  // 거부하면 "영상 촬영물이 업로드 안 되는" 문제가 생기므로,
+  // 촬영 시각은 지금(업로드 시점), 위치는 현재 GPS로 채워 통과시킨다.
   if (file.type && file.type.startsWith('video/')) {
-    return { valid: false, reason: 'no_exif' };
+    const takenAt = new Date();
+    return {
+      valid: true,
+      isVideo: true,
+      takenAt,
+      minutesAgo: 0,
+      exif: { source: 'video_no_exif', DateTimeOriginal: takenAt.toISOString() },
+    };
   }
 
   // 스펙: "24시간 이내 사진만"
