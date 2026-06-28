@@ -2,6 +2,8 @@
 // API 키: Supabase 대시보드 → Edge Functions → Secrets 에 ANTHROPIC_API_KEY 설정
 // 모델: 기본 claude-opus-4-8 (CLAUDE_PLACE_MODEL 로 변경 가능)
 
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
 const cors: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -13,6 +15,73 @@ const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
 // 기본 모델은 가장 성능 좋은 Opus 4.8. 필요 시 Secrets 의 CLAUDE_PLACE_MODEL 로 교체.
 const CLAUDE_MODEL = Deno.env.get('CLAUDE_PLACE_MODEL') || 'claude-opus-4-8';
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+
+// 서버 캐시용 Supabase(서비스 롤). SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 는 Edge 런타임이 자동 주입.
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+const supabaseAdmin =
+  SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
+    : null;
+
+// 현재 시점(월) 라벨 — 캐시 키 + 프롬프트 시기 주입에 사용.
+// 한국시(UTC+9) 기준으로 월을 계산해 자정 경계 어긋남을 줄인다.
+function getKstNow(): Date {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000);
+}
+function getTimeBucket(): string {
+  const d = getKstNow();
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`; // 예: '2026-04'
+}
+// 월 → 계절 + 그 시기 대표 풍경 힌트(있으면 활용, 없으면 무시).
+function getSeasonContext(): { month: number; season: string; hint: string } {
+  const month = getKstNow().getUTCMonth() + 1;
+  if (month >= 3 && month <= 5) {
+    return { month, season: '봄', hint: '벚꽃·유채·신록 등 봄꽃과 새순' };
+  }
+  if (month >= 6 && month <= 8) {
+    return { month, season: '여름', hint: '녹음·수변·물놀이·해변 등 시원한 여름 풍경' };
+  }
+  if (month >= 9 && month <= 11) {
+    return { month, season: '가을', hint: '단풍·억새·국화 등 가을 정취' };
+  }
+  return { month, season: '겨울', hint: '설경·일몰·겨울 야경 등 차분한 겨울 풍경' };
+}
+function buildSeasonLine(): string {
+  const { month, season, hint } = getSeasonContext();
+  return (
+    `- 현재 시점: ${month}월(${season}). 이 시기에 실제로 어울리는 모습만 반영하세요(예: ${hint}).\n` +
+    `  계절 현상은 그 장소에 실제로 해당할 때만 언급하고, 해당 월과 맞지 않는 계절 묘사는 쓰지 마세요.`
+  );
+}
+
+// 생성된 소개 글을 (장소 × 시기)로 서버 캐시에 저장. 폴백/빈 결과는 저장하지 않는다.
+async function saveToCache(
+  name: string,
+  timeBucket: string,
+  regionHint: string,
+  description: string,
+) {
+  if (!supabaseAdmin || !description) return;
+  try {
+    await supabaseAdmin.from('place_descriptions').upsert(
+      {
+        place_key: name,
+        time_bucket: timeBucket,
+        region_hint: regionHint,
+        description,
+        model: CLAUDE_MODEL,
+        method: 'supabase-edge-claude',
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'place_key,time_bucket' },
+    );
+  } catch (_) {
+    /* 캐시 저장 실패는 응답에 영향을 주지 않는다 */
+  }
+}
 
 type RequestBody = {
   placeKey?: string;
@@ -81,6 +150,8 @@ function buildPrompt(input: {
     `  2) 무엇으로 유명한지(산책로/포토 스팟/야경/먹거리 등)\n` +
     `  3) 방문하기 좋은 시기·시간대(오전/해질녘/평일/일몰 전후 등)\n` +
     `- 연도/역사/면적/수치 같은 사실은 확실히 아는 경우에만. 모르면 절대 지어내지 말 것.\n` +
+    `- 널리 알려진 명소라면 대표 명성·특징(예: 봄철 벚꽃 명소)을 자연스럽게 드러내되, 확실치 않으면 일반적 묘사로.\n` +
+    `${buildSeasonLine()}\n` +
     `- 광고 문구/과장/이모지 금지. 존댓말.\n` +
     `- 길이는 450~900자 목표(최소 380자). 너무 짧으면 설명을 보강해.\n` +
     `- 문장은 반드시 마침표로 끝내고, 문장 중간에서 끊기지 않게 완결형으로 써.\n` +
@@ -126,8 +197,10 @@ function buildJsonPrompt(input: {
     `  - "best_time": 방문 추천 타이밍(시간대/요일/계절 등) 1~2문장(60~140자)\n` +
     `  - "tips": 방문 팁 1문장(40~100자)\n` +
     `- 첫 문장(one_liner)에는 장소명("${input.name}")을 1번만 포함하고, 나머지 항목에서는 반복을 피하세요.\n` +
-    `- "제보/반응/트렌드/핫플" 같은 표현은 금지. 광고/과장/이모지 금지. 존댓말.\n` +
-    `- 연도/역사/면적/수치 같은 사실은 확실히 아는 경우에만. 모르면 절대 지어내지 말 것.\n\n` +
+    `- "제보/반응/트렌드/핫플" 같은 표현은 금지. 과장/이모지 금지. 존댓말.\n` +
+    `- 연도/역사/면적/수치 같은 사실은 확실히 아는 경우에만. 모르면 절대 지어내지 말 것.\n` +
+    `- 널리 알려진 명소라면 그 대표 명성·특징(예: 봄철 벚꽃 명소)을 자연스럽게 드러내되, 확실치 않으면 일반적 묘사로.\n` +
+    `${buildSeasonLine()}\n\n` +
     `[입력]\n` +
     `- 장소명: ${input.name}\n` +
     `- 지역 힌트: ${input.regionHint || '(없음)'}\n` +
@@ -331,6 +404,28 @@ Deno.serve(async (req) => {
       );
     }
 
+    // 서버 캐시 조회: 같은 (장소 × 이번 달)은 전 사용자 통틀어 1번만 생성한다.
+    const timeBucket = getTimeBucket();
+    if (supabaseAdmin) {
+      try {
+        const { data: cachedRow } = await supabaseAdmin
+          .from('place_descriptions')
+          .select('description')
+          .eq('place_key', name)
+          .eq('time_bucket', timeBucket)
+          .maybeSingle();
+        const cachedDesc = String(cachedRow?.description || '').trim();
+        if (cachedDesc) {
+          return new Response(
+            JSON.stringify({ success: true, description: cachedDesc, method: 'cache-db' }),
+            { headers: { ...cors, 'Content-Type': 'application/json' } },
+          );
+        }
+      } catch (_) {
+        /* 캐시 조회 실패 시 생성으로 진행 */
+      }
+    }
+
     const jsonPrompt = buildJsonPrompt({ name, regionHint, tier, tags, userCaptions });
     const first = await callClaude(jsonPrompt, 900, 0.35);
     if (!first.ok) {
@@ -403,6 +498,9 @@ Deno.serve(async (req) => {
         { headers: { ...cors, 'Content-Type': 'application/json' } },
       );
     }
+
+    // 생성 성공분만 서버 캐시에 저장 → 다음 달 전까지 전 사용자가 재사용(추가 호출 0).
+    await saveToCache(name, timeBucket, regionHint, cleaned);
 
     return new Response(
       JSON.stringify({

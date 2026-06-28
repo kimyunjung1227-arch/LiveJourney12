@@ -49,8 +49,15 @@ export async function fetchPlaceDescription({
   const key = String(placeKey || '').trim();
   if (!key) return '';
 
+  // 월 단위로 캐시를 회전시킨다(서버 캐시 time_bucket 과 동일 개념).
+  // 달이 바뀌면 키가 달라져, 계절에 맞는 새 설명을 즉시 받는다.
+  const monthBucket = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  })();
+
   const cache = loadCache();
-  const ck = makeKey(key, cacheSalt || regionHint || tier);
+  const ck = makeKey(key, `${monthBucket}|${cacheSalt || regionHint || tier}`);
   const hit = cache?.[ck];
   if (hit && typeof hit === 'object' && hit.value && now() < Number(hit.expiresAt || 0)) {
     return String(hit.value || '').trim();
