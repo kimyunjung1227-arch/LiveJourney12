@@ -96,8 +96,10 @@ function categoryNearest(places, code, latlng, radius) {
  * - 촬영 장소가 될 만한 카테고리들을 거리순으로 동시 조회해 가장 가까운 1건을 고른다.
  * - acceptWithin(m) 이내에 후보가 없으면 '' (호출자가 도로명 주소로 폴백).
  *   예: 구미 '비아보스코' 카페 위에서 찍으면 도로명 주소 대신 "비아보스코"를 반환.
+ * - 반경 기본값: 사용자가 "지금 서 있는 장소명"을 더 잘 받도록 다소 넉넉하게 잡는다
+ *   (도시 GPS 오차 ~10~30m 감안). 너무 넓히면 옆 가게를 잡으므로 65m 선에서 절충.
  */
-export async function findNearestPoiName(lat, lng, { radius = 80, acceptWithin = 40 } = {}) {
+export async function findNearestPoiName(lat, lng, { radius = 150, acceptWithin = 65 } = {}) {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return '';
   try {
     await ensureKakaoMapsServicesReady();

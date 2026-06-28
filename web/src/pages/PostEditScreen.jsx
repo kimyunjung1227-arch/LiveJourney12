@@ -747,6 +747,36 @@ function EditPreviewSlider({ medias, placeName }) {
 
   const current = medias[idx] || medias[0];
 
+  // 가로/세로 구분 — 각 미디어 실제 비율에 맞춰 박스 높이 조정 (잘림 없이 contain)
+  const wrapRef = React.useRef(null);
+  const [wrapW, setWrapW] = React.useState(0);
+  const [dims, setDims] = React.useState({}); // index -> { w, h }
+  React.useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return undefined;
+    const update = () => setWrapW(el.clientWidth || 0);
+    update();
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(update);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+  const recordDims = (i, w, h) => {
+    if (!w || !h) return;
+    setDims((prev) => (prev[i]?.w === w && prev[i]?.h === h ? prev : { ...prev, [i]: { w, h } }));
+  };
+  const PREVIEW_MIN_H = 200;
+  const PREVIEW_MAX_H = 460;
+  const curDims = dims[idx];
+  const boxH = (() => {
+    if (!wrapW || !curDims?.w || !curDims?.h) return 280;
+    const h = wrapW * (curDims.h / curDims.w);
+    return Math.round(Math.max(PREVIEW_MIN_H, Math.min(PREVIEW_MAX_H, h)));
+  })();
+
   const onPointerDown = (e) => {
     if (N <= 1) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -794,13 +824,15 @@ function EditPreviewSlider({ medias, placeName }) {
 
   return (
     <div
+      ref={wrapRef}
       style={{
         position: 'relative',
         width: '100%',
-        height: 280,
+        height: boxH,
         background: LJ.bgSurface,
         borderRadius: 12,
         overflow: 'hidden',
+        transition: isDragging ? 'none' : 'height 240ms ease',
       }}
     >
       <div
@@ -826,17 +858,19 @@ function EditPreviewSlider({ medias, placeName }) {
                 src={m.url}
                 controls
                 playsInline
-                style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#000', display: 'block' }}
+                onLoadedMetadata={(e) => recordDims(i, e.currentTarget.videoWidth, e.currentTarget.videoHeight)}
+                style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000', display: 'block' }}
               />
             ) : (
               <img
                 src={m.url}
                 alt={`미리보기 ${i + 1}`}
                 draggable="false"
+                onLoad={(e) => recordDims(i, e.currentTarget.naturalWidth, e.currentTarget.naturalHeight)}
                 style={{
                   width: '100%',
                   height: '100%',
-                  objectFit: 'cover',
+                  objectFit: 'contain',
                   display: 'block',
                   userSelect: 'none',
                   WebkitUserDrag: 'none',
