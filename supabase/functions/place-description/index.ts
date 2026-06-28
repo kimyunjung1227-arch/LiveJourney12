@@ -1,5 +1,6 @@
-// Supabase Edge Function: 장소 설명 생성 (Google Gemini)
-// API 키: Supabase 대시보드 → Edge Functions → Secrets 에 GEMINI_API_KEY 설정
+// Supabase Edge Function: 장소 설명 생성 (Anthropic Claude)
+// API 키: Supabase 대시보드 → Edge Functions → Secrets 에 ANTHROPIC_API_KEY 설정
+// 모델: 기본 claude-opus-4-8 (CLAUDE_PLACE_MODEL 로 변경 가능)
 
 const cors: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -8,10 +9,10 @@ const cors: Record<string, string> = {
   'Access-Control-Max-Age': '86400',
 };
 
-const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
-// 2026 기준: 1.5 계열은 generateContent 미지원/종료 케이스가 있어 최신 flash로 기본값 상향
-const GEMINI_MODEL = Deno.env.get('GEMINI_PLACE_MODEL') || 'gemini-2.5-flash';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
+// 기본 모델은 가장 성능 좋은 Opus 4.8. 필요 시 Secrets 의 CLAUDE_PLACE_MODEL 로 교체.
+const CLAUDE_MODEL = Deno.env.get('CLAUDE_PLACE_MODEL') || 'claude-opus-4-8';
+const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 
 type RequestBody = {
   placeKey?: string;
@@ -189,18 +190,24 @@ function buildLocalFallback(input: { name: string; regionHint: string; tags: str
   ).replace(/\s+/g, ' ').trim();
 }
 
-async function callGemini(prompt: string, maxOutputTokens: number, temperature = 0.45) {
-  const resp = await fetch(GEMINI_URL, {
+// Anthropic Messages API 호출.
+// - Opus 4.8 은 temperature/top_p/top_k 를 받지 않으므로(400) 전달하지 않는다.
+// - 출력은 텍스트 블록만 이어붙여 반환. refusal(안전 거부) 이면 로컬 폴백으로 넘긴다.
+// - 3번째 인자(과거 temperature)는 호환을 위해 받기만 하고 사용하지 않는다.
+async function callClaude(prompt: string, maxTokens: number, _legacyTemperature = 0) {
+  const resp = await fetch(ANTHROPIC_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'x-api-key': ANTHROPIC_API_KEY || '',
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens,
-      },
+      model: CLAUDE_MODEL,
+      max_tokens: maxTokens,
+      system:
+        '너는 한국 여행/장소 소개를 잘 쓰는 에디터다. 사용자가 요청한 출력 형식(소개 문단 또는 JSON)만 정확히 출력하고, 서론·부연 설명·코드펜스·따옴표 밖 텍스트는 절대 붙이지 않는다. 확실히 아는 사실만 쓰고 모르면 지어내지 않는다.',
+      messages: [{ role: 'user', content: prompt }],
     }),
   });
 
@@ -210,12 +217,14 @@ async function callGemini(prompt: string, maxOutputTokens: number, temperature =
   }
 
   const data = (await resp.json()) as any;
-  const parts = Array.isArray(data?.candidates?.[0]?.content?.parts)
-    ? data.candidates[0].content.parts
-    : [];
+  // 안전 분류기 거부: HTTP 200 + stop_reason 'refusal'. content 를 읽기 전에 먼저 확인.
+  if (data?.stop_reason === 'refusal') {
+    return { ok: false as const, status: 200, error: 'refusal' };
+  }
+  const parts = Array.isArray(data?.content) ? data.content : [];
   const text = parts
-    .map((p: any) => (p && p.text != null ? String(p.text) : ''))
-    .filter(Boolean)
+    .filter((b: any) => b && b.type === 'text' && typeof b.text === 'string')
+    .map((b: any) => b.text)
     .join(' ')
     .trim();
   const cleaned = text
@@ -226,11 +235,12 @@ async function callGemini(prompt: string, maxOutputTokens: number, temperature =
   return { ok: true as const, status: resp.status, cleaned };
 }
 
-function isQuota429(status: number | undefined, errText: string | undefined) {
+// 로컬 폴백으로 넘겨야 하는 상황: 레이트리밋(429)/과부하(529)/안전 거부(refusal).
+function shouldUseLocalFallback(status: number | undefined, errText: string | undefined) {
   const s = Number(status || 0);
-  if (s === 429) return true;
+  if (s === 429 || s === 529) return true;
   const t = String(errText || '');
-  return /"code"\s*:\s*429|RESOURCE_EXHAUSTED|rate limit|Quota exceeded/i.test(t);
+  return /"type"\s*:\s*"(rate_limit_error|overloaded_error)"|rate limit|overloaded|^refusal$/i.test(t);
 }
 
 Deno.serve(async (req) => {
@@ -244,9 +254,9 @@ Deno.serve(async (req) => {
     });
   }
 
-  if (!GEMINI_API_KEY) {
+  if (!ANTHROPIC_API_KEY) {
     return new Response(
-      JSON.stringify({ success: false, message: 'GEMINI_API_KEY not configured in Edge Function secrets' }),
+      JSON.stringify({ success: false, message: 'ANTHROPIC_API_KEY not configured in Edge Function secrets' }),
       { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } },
     );
   }
@@ -322,17 +332,17 @@ Deno.serve(async (req) => {
     }
 
     const jsonPrompt = buildJsonPrompt({ name, regionHint, tier, tags, userCaptions });
-    const first = await callGemini(jsonPrompt, 900, 0.35);
+    const first = await callClaude(jsonPrompt, 900, 0.35);
     if (!first.ok) {
       // 쿼터/레이트리밋은 즉시 로컬 폴백 (프론트에서 "설명 없음" 방지)
-      if (isQuota429(first.status, (first as any).error)) {
+      if (shouldUseLocalFallback(first.status, (first as any).error)) {
         const fb = buildLocalFallback({ name, regionHint, tags });
         return new Response(
-          JSON.stringify({ success: true, description: fb, method: 'fallback-local', reason: 'gemini_429' }),
+          JSON.stringify({ success: true, description: fb, method: 'fallback-local', reason: 'claude_unavailable' }),
           { headers: { ...cors, 'Content-Type': 'application/json' } },
         );
       }
-      return new Response(JSON.stringify({ success: false, message: 'Gemini API error', detail: String(first.error || '').slice(0, 500) }), {
+      return new Response(JSON.stringify({ success: false, message: 'Claude API error', detail: String(first.error || '').slice(0, 500) }), {
         status: 200,
         headers: { ...cors, 'Content-Type': 'application/json' },
       });
@@ -341,15 +351,15 @@ Deno.serve(async (req) => {
     type PlaceJson = { one_liner?: string; highlights?: string[]; best_time?: string; tips?: string };
     let parsed = safeParseJson<PlaceJson>(first.cleaned || '');
     if (!parsed.ok) {
-      const retry = await callGemini(
+      const retry = await callClaude(
         jsonPrompt + `\n[재요청]\n- 반드시 JSON만 출력하세요. (코드블록/설명 금지)\n`,
         900,
         0.2,
       );
-      if (!retry.ok && isQuota429(retry.status, (retry as any).error)) {
+      if (!retry.ok && shouldUseLocalFallback(retry.status, (retry as any).error)) {
         const fb = buildLocalFallback({ name, regionHint, tags });
         return new Response(
-          JSON.stringify({ success: true, description: fb, method: 'fallback-local', reason: 'gemini_429' }),
+          JSON.stringify({ success: true, description: fb, method: 'fallback-local', reason: 'claude_unavailable' }),
           { headers: { ...cors, 'Content-Type': 'application/json' } },
         );
       }
@@ -362,8 +372,8 @@ Deno.serve(async (req) => {
     } else {
       // JSON이 계속 실패하면 기존 자유서술 프롬프트로 최후 fallback
       const prompt = buildPrompt({ name, regionHint, tier, tags, userCaptions });
-      const fallback = await callGemini(prompt, 1800, 0.25);
-      if (!fallback.ok && isQuota429(fallback.status, (fallback as any).error)) {
+      const fallback = await callClaude(prompt, 1800, 0.25);
+      if (!fallback.ok && shouldUseLocalFallback(fallback.status, (fallback as any).error)) {
         cleaned = buildLocalFallback({ name, regionHint, tags });
       } else {
         cleaned = fallback.ok ? (fallback.cleaned || '') : '';
@@ -373,13 +383,13 @@ Deno.serve(async (req) => {
     const needsRetry = (s: string) => s.length < 260 || (s && !/[.!?]$/.test(s));
     if (needsRetry(cleaned)) {
       const prompt = buildPrompt({ name, regionHint, tier, tags, userCaptions });
-      const second = await callGemini(
+      const second = await callClaude(
         prompt +
           `\n\n[재요청]\n- 너무 짧거나 문장 중간에서 끊겼습니다. 처음부터 완결된 2~3문단 소개문으로 다시 작성하세요.\n- 최소 450자 이상, 마지막은 반드시 마침표로 끝내세요.\n`,
         2400,
         0.2,
       );
-      if (!second.ok && isQuota429(second.status, (second as any).error)) {
+      if (!second.ok && shouldUseLocalFallback(second.status, (second as any).error)) {
         cleaned = buildLocalFallback({ name, regionHint, tags });
       } else if (second.ok && second.cleaned && second.cleaned.length > cleaned.length) {
         cleaned = second.cleaned;
@@ -398,7 +408,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: !!cleaned,
         description: cleaned,
-        method: 'supabase-edge-gemini',
+        method: 'supabase-edge-claude',
       }),
       { headers: { ...cors, 'Content-Type': 'application/json' } },
     );
