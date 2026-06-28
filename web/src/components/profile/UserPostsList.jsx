@@ -26,6 +26,13 @@ function postThumb(p) {
   return raw ? getDisplayImageUrl(raw) : '';
 }
 
+/** 사진이 없고 영상만 있는 게시물용 — 첫 영상 URL */
+function postVideoThumb(p) {
+  if (postThumb(p)) return ''; // 사진이 있으면 사진 우선
+  const fromVideos = Array.isArray(p.videos) ? extractImageUrl(p.videos[0]) : extractImageUrl(p.videos);
+  return fromVideos || '';
+}
+
 /**
  * 한 사용자의 게시물을 최신순으로 가져온다.
  * (posts 테이블 직접 조회 — place_name/body 까지 포함)
@@ -50,7 +57,7 @@ export function useUserPosts(userId, limit) {
         const { data, error } = await supabase
           .from('posts')
           .select(
-            'id, place_name, region, content, images, photo_url, captured_at, created_at',
+            'id, place_name, region, content, images, videos, photo_url, captured_at, created_at',
           )
           .eq('user_id', userId)
           .order('captured_at', { ascending: false, nullsFirst: false })
@@ -83,6 +90,7 @@ export function useUserPosts(userId, limit) {
 function PostRow({ post, selectable = false, selected = false, onToggle }) {
   const navigate = useNavigate();
   const thumb = postThumb(post);
+  const videoThumb = thumb ? '' : postVideoThumb(post);
   const place = post.place_name || post.region || '';
 
   const handleClick = () => {
@@ -126,6 +134,34 @@ function PostRow({ post, selectable = false, selected = false, onToggle }) {
             decoding="async"
             className="w-full h-full object-cover"
           />
+        ) : videoThumb ? (
+          <>
+            <video
+              src={`${videoThumb}#t=0.1`}
+              muted
+              playsInline
+              preload="metadata"
+              className="w-full h-full object-cover"
+              style={{ background: '#000' }}
+            />
+            {/* 영상 표시 — 재생 삼각형 오버레이 */}
+            <div
+              className="absolute flex items-center justify-center"
+              style={{
+                top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+                width: 34, height: 34, borderRadius: 999,
+                background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(2px)',
+                pointerEvents: 'none',
+              }}
+            >
+              <div style={{
+                width: 0, height: 0, marginLeft: 3,
+                borderTop: '7px solid transparent',
+                borderBottom: '7px solid transparent',
+                borderLeft: '11px solid #fff',
+              }} />
+            </div>
+          </>
         ) : (
           <div className="flex items-center justify-center w-full h-full">
             <IconCamera size={22} color={TEXT_TERTIARY} stroke={1.6} />

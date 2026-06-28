@@ -71,14 +71,23 @@ export function HotplaceTopCard({
           borderRadius: 8,
         }}
       >
-        {bestCutPost?.photo_url && (
+        {bestCutPost?.photo_url ? (
           <img
             src={bestCutPost.photo_url}
             alt={place?.place_name || ''}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             loading="lazy"
           />
-        )}
+        ) : bestCutPost?.cover_url ? (
+          // 사진 없는 영상 게시물 — 첫 프레임을 커버로
+          <video
+            src={`${bestCutPost.cover_url}#t=0.1`}
+            muted
+            playsInline
+            preload="metadata"
+            style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#000' }}
+          />
+        ) : null}
 
         {/* 좌상단 순위 뱃지 */}
         <div
@@ -127,12 +136,22 @@ export function HotplaceTopCard({
                   boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
                 }}
               >
-                <img
-                  src={p.photo_url}
-                  alt=""
-                  loading="lazy"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
+                {p.photo_url ? (
+                  <img
+                    src={p.photo_url}
+                    alt=""
+                    loading="lazy"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                ) : p.cover_url ? (
+                  <video
+                    src={`${p.cover_url}#t=0.1`}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#000' }}
+                  />
+                ) : null}
               </div>
             ))}
           </div>

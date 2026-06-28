@@ -3,7 +3,7 @@ import { supabase } from '../utils/supabaseClient';
 import { normalizePostRow, bestCutScore, decodePlaceId, makePlaceId } from './ljPostsMapping';
 
 const SELECT_COLUMNS = `
-  id, user_id, content, images, location, detailed_location, place_name, region,
+  id, user_id, content, images, videos, location, detailed_location, place_name, region,
   category, category_name, likes_count, comments_count, captured_at, created_at,
   exif_data,
   author_username, author_avatar_url, is_in_app_camera
@@ -48,7 +48,7 @@ export function usePlaceDetail(placeId) {
 
       const normalized = (data || [])
         .map(normalizePostRow)
-        .filter((p) => !!p.photo_url && makePlaceId(p.place_name) === normalizedTarget);
+        .filter((p) => !!p.cover_url && makePlaceId(p.place_name) === normalizedTarget);
 
       let best = null;
       let bestScore = -Infinity;

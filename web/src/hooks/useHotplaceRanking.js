@@ -3,7 +3,7 @@ import { supabase } from '../utils/supabaseClient';
 import { normalizePostRow, bestCutScore, makePlaceId } from './ljPostsMapping';
 
 const SELECT_COLUMNS = `
-  id, user_id, content, images, location, detailed_location, place_name, region,
+  id, user_id, content, images, videos, location, detailed_location, place_name, region,
   category, category_name, likes_count, comments_count, captured_at, created_at,
   exif_data,
   author_username, author_avatar_url, is_in_app_camera
@@ -96,7 +96,7 @@ export function useHotplaceRanking({
             n.coords = pickPostCoords(row);
             return n;
           })
-          .filter((p) => !!p.photo_url && !!p.place_id);
+          .filter((p) => !!p.cover_url && !!p.place_id);
 
         const groups = new Map();
         const recentCutoff = Date.now() - RECENT_HOURS * 60 * 60 * 1000;
