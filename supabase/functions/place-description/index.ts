@@ -15,6 +15,8 @@ const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
 // 기본 모델은 가장 성능 좋은 Opus 4.8. 필요 시 Secrets 의 CLAUDE_PLACE_MODEL 로 교체.
 const CLAUDE_MODEL = Deno.env.get('CLAUDE_PLACE_MODEL') || 'claude-opus-4-8';
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+// 프롬프트/로직이 바뀌면 이 버전을 올린다 → time_bucket 이 달라져 기존 캐시를 무시하고 즉시 재생성.
+const PROMPT_CACHE_VERSION = 'v2';
 
 // 서버 캐시용 Supabase(서비스 롤). SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 는 Edge 런타임이 자동 주입.
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
@@ -33,7 +35,7 @@ function getTimeBucket(): string {
   const d = getKstNow();
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-  return `${y}-${m}`; // 예: '2026-04'
+  return `${y}-${m}-${PROMPT_CACHE_VERSION}`; // 예: '2026-04-v2'
 }
 // 월 → 계절 + 그 시기 대표 풍경 힌트(있으면 활용, 없으면 무시).
 function getSeasonContext(): { month: number; season: string; hint: string } {

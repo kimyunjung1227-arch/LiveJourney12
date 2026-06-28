@@ -1,7 +1,8 @@
 import { logger } from '../utils/logger';
 import { supabase } from '../utils/supabaseClient';
 
-const CACHE_KEY = 'lj:placeDesc:v1';
+// 프롬프트/로직이 바뀌면 버전을 올린다 → 기존 캐시를 폐기하고 새 소개 글을 받는다.
+const CACHE_KEY = 'lj:placeDesc:v2';
 const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7d (쿼터 절약: 재방문 시 재호출 최소화)
 const FAIL_BACKOFF_MS = 5 * 60 * 1000; // 5m (연속 실패 시 과호출 방지)
 
