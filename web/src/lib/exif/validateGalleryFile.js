@@ -1,4 +1,5 @@
 import { parse } from 'exifr';
+import { extractExifData } from '../../utils/exifExtractor';
 
 /**
  * 갤러리에서 선택한 파일의 EXIF 검증 + 추출.
@@ -19,17 +20,62 @@ import { parse } from 'exifr';
 export async function validateGalleryFile(file) {
   if (!file) return { valid: false, reason: 'no_exif' };
 
-  // 영상은 EXIF 메타가 비표준이라 추출이 어렵다.
-  // 거부하면 "영상 촬영물이 업로드 안 되는" 문제가 생기므로,
-  // 촬영 시각은 지금(업로드 시점), 위치는 현재 GPS로 채워 통과시킨다.
+  // 영상: 사진과 동일하게 "24시간 이내"만 허용한다.
+  // 촬영 시각은 ① 컨테이너 메타(MP4/MOV mvhd creation_time, exifr) ② 파일 수정시각 순으로 추정.
+  // 메타가 전혀 없으면(추정 불가) 갤러리 선택 자체는 막지 않되 촬영시각=지금으로 통과시킨다.
   if (file.type && file.type.startsWith('video/')) {
+    let meta = null;
+    try {
+      meta = await extractExifData(file, { allowed: true });
+    } catch (_) {
+      meta = null;
+    }
+
+    // 추정 촬영시각: 메타 우선, 없으면 파일 수정시각(카메라롤 저장 시각 근사)
+    const metaMs = meta?.photoTimestamp || (meta?.photoDate ? Date.parse(meta.photoDate) : NaN);
+    const lastModMs = Number.isFinite(file.lastModified) ? file.lastModified : NaN;
+    const bestMs = Number.isFinite(metaMs) ? metaMs : (Number.isFinite(lastModMs) ? lastModMs : NaN);
+
+    // 메타 GPS가 있으면 위치로 사용
+    const gLat = meta?.gpsCoordinates?.lat ?? meta?.gpsLatitude;
+    const gLng = meta?.gpsCoordinates?.lng ?? meta?.gpsLongitude;
+    const location =
+      Number.isFinite(Number(gLat)) && Number.isFinite(Number(gLng))
+        ? { lat: Number(gLat), lng: Number(gLng) }
+        : undefined;
+
+    if (Number.isFinite(bestMs)) {
+      const takenAt = new Date(bestMs);
+      const diffMs = Date.now() - takenAt.getTime();
+      const minutesAgo = Math.max(0, Math.floor(diffMs / 60000));
+      // 미래 시각(시계 오차)은 통과, 과거 24시간 초과만 차단
+      if (diffMs > 24 * 60 * 60 * 1000) {
+        return { valid: false, reason: 'too_old', takenAt, minutesAgo };
+      }
+      return {
+        valid: true,
+        isVideo: true,
+        takenAt,
+        minutesAgo,
+        location,
+        exif: {
+          source: meta?.photoDate ? 'video_container_meta' : 'video_file_mtime',
+          DateTimeOriginal: takenAt.toISOString(),
+          GPSLatitude: location?.lat ?? null,
+          GPSLongitude: location?.lng ?? null,
+        },
+      };
+    }
+
+    // 촬영시각을 전혀 추정할 수 없는 경우 — 선택은 허용, 시각=지금
     const takenAt = new Date();
     return {
       valid: true,
       isVideo: true,
       takenAt,
       minutesAgo: 0,
-      exif: { source: 'video_no_exif', DateTimeOriginal: takenAt.toISOString() },
+      location,
+      exif: { source: 'video_no_meta', DateTimeOriginal: takenAt.toISOString() },
     };
   }
 

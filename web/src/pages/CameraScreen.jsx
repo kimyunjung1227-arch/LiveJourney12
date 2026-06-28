@@ -117,6 +117,7 @@ function CameraScreen() {
           type: 'reject',
           reason: result.reason,
           minutesAgo: result.minutesAgo || 0,
+          isVideo: !!file.type?.startsWith('video'),
           file: null,
           takenAt: null,
           location: null,
@@ -145,6 +146,7 @@ function CameraScreen() {
         type: 'reject',
         reason: v.reason,
         minutesAgo: v.minutesAgo || 0,
+        isVideo: !!sliced[firstFail]?.type?.startsWith('video'),
         file: null,
         takenAt: null,
         location: null,
@@ -263,6 +265,7 @@ function CameraScreen() {
         open={galleryModal.type === 'reject'}
         reason={galleryModal.reason}
         minutesAgo={galleryModal.minutesAgo}
+        isVideo={galleryModal.isVideo}
         onRetake={() => setGalleryModal({ type: null })}
         onPickOther={() => {
           setGalleryModal({ type: null });

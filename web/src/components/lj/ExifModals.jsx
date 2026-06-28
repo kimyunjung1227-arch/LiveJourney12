@@ -44,14 +44,15 @@ function ModalShell({ onClose, children }) {
  * EXIF 거부 모달
  * reason: 'too_old' (24시간 초과) | 'no_exif' (정보 없음)
  */
-export function EXIFRejectModal({ open, reason, minutesAgo = 0, onRetake, onPickOther, onClose }) {
+export function EXIFRejectModal({ open, reason, minutesAgo = 0, isVideo = false, onRetake, onPickOther, onClose }) {
   if (!open) return null;
 
+  const noun = isVideo ? '영상' : '사진';
   const isTooOld = reason === 'too_old';
-  const headerText = isTooOld ? '이 사진은\n지금이 아니에요' : '촬영 정보를\n찾을 수 없어요';
+  const headerText = isTooOld ? `이 ${noun}은\n지금이 아니에요` : '촬영 정보를\n찾을 수 없어요';
   const subText = isTooOld
-    ? `선택한 사진의 촬영 시각이 ${minutesAgo}분 전이에요. 라이브저니는 24시간 이내 사진만 올릴 수 있어요.`
-    : '다른 사진을 선택해주세요. 라이브저니는 EXIF가 있는 사진만 올릴 수 있어요.';
+    ? `선택한 ${noun}의 촬영 시각이 ${minutesAgo}분 전이에요. 라이브저니는 24시간 이내 ${noun}만 올릴 수 있어요.`
+    : `다른 ${noun}을 선택해주세요. 라이브저니는 촬영 정보가 있는 ${noun}만 올릴 수 있어요.`;
 
   return (
     <ModalShell onClose={onClose}>
@@ -208,10 +209,10 @@ export function EXIFConfirmModal({ open, file, takenAt, location, placeName, onC
           EXIF 인증 완료
         </h2>
         <p style={{ margin: '8px 0 0', fontSize: 12.5, color: LJ.textSecondary }}>
-          {isVideo
-            ? '선택한 영상을 올릴 수 있어요'
-            : takenAt
-              ? `${formatTimeAgo(takenAt)}에 촬영된 사진이에요`
+          {takenAt
+            ? `${formatTimeAgo(takenAt)}에 촬영된 ${isVideo ? '영상' : '사진'}이에요`
+            : isVideo
+              ? '선택한 영상을 올릴 수 있어요'
               : '촬영 시각이 확인됐어요'}
         </p>
       </div>
