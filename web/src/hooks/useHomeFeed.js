@@ -37,6 +37,7 @@ const SELECT_COLUMNS = `
   user_id,
   content,
   images,
+  videos,
   location,
   detailed_location,
   place_name,
@@ -106,7 +107,7 @@ export function useHomeFeed(selectedCategory = 'all') {
 
         const normalized = raw
           .map(normalizePostRow)
-          .filter((p) => !!p.photo_url); // 사진이 정보 — 사진 없으면 노출 X
+          .filter((p) => !!p.cover_url); // 사진 또는 영상이 있어야 노출 (미디어 없는 글 제외)
 
         // 카테고리 필터링 (클라 사이드, normalized.category는 lj_category id로 매핑됨)
         const filtered =

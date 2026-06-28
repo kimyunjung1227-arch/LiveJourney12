@@ -78,6 +78,11 @@ export function PostCard({
     post.photos && post.photos.length > 0
       ? post.photos
       : [post.photo_url].filter(Boolean);
+  // 영상+사진 통합 미디어 (영상 우선). 없으면 사진 목록으로 폴백.
+  const mediaList =
+    Array.isArray(post.media) && post.media.length > 0
+      ? post.media
+      : photosList.map((url) => ({ type: 'image', url }));
   const goPhoto = (startIndex = 0) =>
     navigate(`/photo/${post.id}`, { state: { photos: photosList, startIndex } });
   const goAuthor = (e) => {
@@ -152,12 +157,18 @@ export function PostCard({
       {/* 사진 (세로 크게 + 가로 약간 좁혀 한 구역 안에 담긴 느낌) */}
       <div style={{ position: 'relative', margin: '0 8px' }}>
         <PhotoCarousel
+          media={mediaList}
           photos={photosList}
           height={photoHeight}
           alt={post.place_name}
           priority={priority}
           radius={6}
-          onPhotoClick={(i) => goPhoto(i)}
+          onPhotoClick={(i) => {
+            // i는 통합 미디어 인덱스 → 사진 뷰어는 사진만 받으므로 사진 인덱스로 환산
+            const url = mediaList[i]?.url;
+            const photoIdx = Math.max(0, photosList.indexOf(url));
+            goPhoto(photoIdx);
+          }}
         />
         {/* 좌상단 EXIF 뱃지 (날씨는 위치명 옆에서만 노출) */}
         <div

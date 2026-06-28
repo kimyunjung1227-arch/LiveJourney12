@@ -50,16 +50,17 @@ function extractUrl(item) {
   return null;
 }
 
-/** images jsonb (string/array/객체 혼재 허용) → URL 문자열 배열 */
-function pickAllImages(images) {
-  if (!images) return [];
-  if (Array.isArray(images)) {
-    return images.map(extractUrl).filter(Boolean);
+/** images/videos jsonb (string/array/객체 혼재 허용) → URL 문자열 배열 */
+function pickAllUrls(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.map(extractUrl).filter(Boolean);
   }
   // 단일 객체나 문자열이 그대로 들어온 경우 대응
-  const single = extractUrl(images);
+  const single = extractUrl(value);
   return single ? [single] : [];
 }
+const pickAllImages = pickAllUrls;
 
 /**
  * posts row → HomeScreen/PostCard 모델.
@@ -119,6 +120,14 @@ function pickExifTakenAt(row) {
 export function normalizePostRow(row) {
   if (!row) return row;
   const photos = pickAllImages(row.images);
+  const videos = pickAllUrls(row.videos);
+  // 통합 미디어 목록 — 영상 우선(영상 게시물은 영상이 본문), 그 다음 사진.
+  const media = [
+    ...videos.map((url) => ({ type: 'video', url })),
+    ...photos.map((url) => ({ type: 'image', url })),
+  ];
+  // 노출/썸네일 게이트: 사진이 있으면 사진, 없으면 영상으로 대표 미디어를 잡는다.
+  const coverUrl = photos[0] || videos[0] || null;
   const exifTakenAt = pickExifTakenAt(row);
   const expiresAt = exifTakenAt
     ? new Date(new Date(exifTakenAt).getTime() + 48 * 60 * 60 * 1000).toISOString()
@@ -138,6 +147,10 @@ export function normalizePostRow(row) {
     author_id: row.user_id,
     photo_url: photos[0] || null,
     photos,
+    videos,
+    media,
+    cover_url: coverUrl,
+    has_video: videos.length > 0,
     title,
     category: ljCategory || row.category || row.category_name || null,
     category_raw: row.category_name || row.category || '',

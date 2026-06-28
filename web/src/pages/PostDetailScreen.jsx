@@ -276,23 +276,25 @@ function PostDetailScreen() {
         {/* 사진 갤러리 (개수별 적응형 레이아웃) */}
         <div style={{ position: 'relative' }}>
           <PostPhotoGallery
+            media={post.media && post.media.length > 0 ? post.media : undefined}
             photos={post.photos && post.photos.length > 0 ? post.photos : [post.photo_url].filter(Boolean)}
-            onPhotoClick={(i) =>
-              navigate(`/photo/${post.id}`, {
-                state: {
-                  photos: post.photos && post.photos.length > 0 ? post.photos : [post.photo_url].filter(Boolean),
-                  startIndex: i,
-                },
-              })
-            }
-            onShowAll={() =>
-              navigate(`/photo/${post.id}`, {
-                state: {
-                  photos: post.photos && post.photos.length > 0 ? post.photos : [post.photo_url].filter(Boolean),
-                  startIndex: 5,
-                },
-              })
-            }
+            onPhotoClick={(i) => {
+              // i는 통합 미디어 인덱스 → 사진 뷰어는 사진만 받으므로 사진 인덱스로 환산
+              const mediaArr =
+                post.media && post.media.length > 0
+                  ? post.media
+                  : (post.photos && post.photos.length > 0 ? post.photos : [post.photo_url].filter(Boolean)).map((url) => ({ type: 'image', url }));
+              const photosOnly = mediaArr.filter((m) => m.type !== 'video').map((m) => m.url);
+              const clickedUrl = mediaArr[i]?.url;
+              const startIndex = Math.max(0, photosOnly.indexOf(clickedUrl));
+              if (photosOnly.length === 0) return;
+              navigate(`/photo/${post.id}`, { state: { photos: photosOnly, startIndex } });
+            }}
+            onShowAll={() => {
+              const photosOnly = post.photos && post.photos.length > 0 ? post.photos : [post.photo_url].filter(Boolean);
+              if (photosOnly.length === 0) return;
+              navigate(`/photo/${post.id}`, { state: { photos: photosOnly, startIndex: 5 } });
+            }}
           />
         </div>
 

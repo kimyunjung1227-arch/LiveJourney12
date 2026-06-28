@@ -8,6 +8,7 @@ const POST_COLUMNS = `
   user_id,
   content,
   images,
+  videos,
   location,
   detailed_location,
   place_name,

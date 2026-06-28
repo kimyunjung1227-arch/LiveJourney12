@@ -12,7 +12,7 @@ import { LJ } from './tokens';
  * @param {{ photos: string[], height?: number, onPhotoClick?: (i:number,e:any)=>void, alt?: string, priority?: boolean }} props
  *  priority=true면 첫 사진은 eager + fetchPriority=high (LCP 단축, 홈 첫 카드용).
  */
-export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '', priority = false, radius = 14 }) {
+export function PhotoCarousel({ photos = [], media = null, height = 340, onPhotoClick, alt = '', priority = false, radius = 14 }) {
   const [index, setIndex] = useState(0);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -25,9 +25,14 @@ export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '
   const activePointerIdRef = useRef(null);
 
   const SWIPE_COMMIT_PX = 40;
-  const N = photos.length;
+  // media({type,url})가 있으면 영상/사진 혼합 렌더, 없으면 photos(문자열)=이미지로 처리.
+  const items =
+    Array.isArray(media) && media.length > 0
+      ? media
+      : (photos || []).map((url) => ({ type: 'image', url }));
+  const N = items.length;
 
-  if (!photos || N === 0) return null;
+  if (N === 0) return null;
 
   const goTo = (next) => {
     setIndex(Math.max(0, Math.min(N - 1, next)));
@@ -122,42 +127,76 @@ export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '
           willChange: 'transform',
         }}
       >
-        {photos.map((url, i) => (
-          <button
-            key={`${url}-${i}`}
-            type="button"
-            onClick={handlePhotoClick(i)}
-            aria-label={`사진 ${i + 1} 크게 보기`}
-            style={{
-              flex: '0 0 100%',
-              width: '100%',
-              height: '100%',
-              border: 'none',
-              padding: 0,
-              background: 'transparent',
-              cursor: 'pointer',
-              display: 'block',
-            }}
-          >
-            <img
-              src={url}
-              alt={alt}
-              loading={priority && i === 0 ? 'eager' : 'lazy'}
-              fetchpriority={priority && i === 0 ? 'high' : 'auto'}
-              decoding="async"
-              draggable="false"
+        {items.map((item, i) => {
+          const url = item?.url;
+          if (item?.type === 'video') {
+            // 영상은 네이티브 컨트롤로 재생 — 버튼 래퍼 없이 video 요소만.
+            return (
+              <div
+                key={`${url}-${i}`}
+                style={{
+                  flex: '0 0 100%',
+                  width: '100%',
+                  height: '100%',
+                  display: 'block',
+                  background: '#000',
+                }}
+              >
+                <video
+                  src={url}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  // 컨트롤 조작이 캐러셀 스와이프로 오인되지 않게 포인터 이벤트 분리
+                  onPointerDown={(e) => e.stopPropagation()}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    display: 'block',
+                    background: '#000',
+                  }}
+                />
+              </div>
+            );
+          }
+          return (
+            <button
+              key={`${url}-${i}`}
+              type="button"
+              onClick={handlePhotoClick(i)}
+              aria-label={`사진 ${i + 1} 크게 보기`}
               style={{
+                flex: '0 0 100%',
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover',
+                border: 'none',
+                padding: 0,
+                background: 'transparent',
+                cursor: 'pointer',
                 display: 'block',
-                userSelect: 'none',
-                WebkitUserDrag: 'none',
-                pointerEvents: 'none',
               }}
-            />
-          </button>
-        ))}
+            >
+              <img
+                src={url}
+                alt={alt}
+                loading={priority && i === 0 ? 'eager' : 'lazy'}
+                fetchpriority={priority && i === 0 ? 'high' : 'auto'}
+                decoding="async"
+                draggable="false"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: 'block',
+                  userSelect: 'none',
+                  WebkitUserDrag: 'none',
+                  pointerEvents: 'none',
+                }}
+              />
+            </button>
+          );
+        })}
       </div>
 
       {N > 1 && (
@@ -175,7 +214,7 @@ export function PhotoCarousel({ photos = [], height = 340, onPhotoClick, alt = '
             pointerEvents: 'none',
           }}
         >
-          {photos.map((_, i) => (
+          {items.map((_, i) => (
             <span
               key={i}
               style={{
