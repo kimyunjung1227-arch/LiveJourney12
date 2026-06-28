@@ -383,13 +383,17 @@ const CrowdedPlaceScreen = () => {
                     const post = place.representative;
                     const tags = Array.isArray(place.liveTags) ? place.liveTags.map((t) => String(t || '').replace(/[#_]/g, ' ').trim()).filter(Boolean).slice(0, 6) : [];
                     const regionHint = String(post?.region || post?.location || '').trim();
+                    // 실제 그 장소에 올라온 글(캡션)을 근거로 넘겨 소개 글이 장소와 일치하도록 함
+                    const userCaptions = Array.isArray(place.captions) && place.captions.length > 0
+                        ? place.captions
+                        : (String(post?.note || post?.content || '').trim() ? [String(post.note || post.content).trim()] : []);
                     const norm = normalizePlaceIdentityKey(key);
                     const desc = await fetchPlaceDescription({
                         placeKey: key,
                         regionHint,
                         tier: '',
                         tags,
-                        userCaptions: [],
+                        userCaptions,
                         cacheSalt: norm,
                     });
                     const normalized = toHotplaceDescPreview(desc, { maxChars: 96, maxSentences: 4 });

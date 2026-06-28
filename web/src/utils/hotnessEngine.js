@@ -295,6 +295,19 @@ export const rankHotspotPlaces = (posts, options = {}) => {
     const scoreRaw = WR * recency + WD * density + WT * trustAvg;
     const score = scoreRaw * safety.penalty;
 
+    // 장소에 실제로 올라온 글(캡션) 상위 몇 개 — AI 소개 글을 실제 장소에 맞추는 근거로 사용
+    const captions = [];
+    const seenCaption = new Set();
+    for (const p of sorted) {
+      const c = String(p?.note || p?.content || '').replace(/\s+/g, ' ').trim();
+      if (!c) continue;
+      const ck = c.toLowerCase();
+      if (seenCaption.has(ck)) continue;
+      seenCaption.add(ck);
+      captions.push(c.slice(0, 160));
+      if (captions.length >= 4) break;
+    }
+
     return {
       key,
       score,
@@ -306,6 +319,7 @@ export const rankHotspotPlaces = (posts, options = {}) => {
       compassCount,
       latestMs,
       representative,
+      captions,
       warning: safety.warning,
     };
   });
