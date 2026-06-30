@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { LJ } from './tokens';
 import { fetchPlaceDescription } from '../../api/placeDescription';
 import { cleanForTwoLines } from './textHelpers';
+import { buildInstantPlaceBlurb } from './placeBlurb';
 
 /**
  * 핫플 4~20위 리스트 아이템.
@@ -18,7 +19,9 @@ export function HotplaceListItem({
 }) {
   const photos = [bestCutPost, ...recentPosts].filter(Boolean).slice(0, 3);
 
-  const [desc, setDesc] = useState('');
+  const [desc, setDesc] = useState(() =>
+    cleanForTwoLines(buildInstantPlaceBlurb(place?.place_name, place?.region), 92),
+  );
   useEffect(() => {
     let cancelled = false;
     if (!place?.place_name) return;

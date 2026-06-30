@@ -3,6 +3,7 @@ import { IconFlame, IconTrendingUp } from '@tabler/icons-react';
 import { LJ } from './tokens';
 import { fetchPlaceDescription } from '../../api/placeDescription';
 import { cleanForTwoLines } from './textHelpers';
+import { buildInstantPlaceBlurb } from './placeBlurb';
 
 const HEIGHT_BY_SIZE = { large: 220, medium: 180, small: 160 };
 
@@ -26,8 +27,10 @@ export function HotplaceTopCard({
   // 우하단 미리보기 — 최대 2장
   const previewPhotos = recentPosts.slice(0, 2);
 
-  // Gemini 기반 장소 설명
-  const [desc, setDesc] = useState('');
+  // 장소 설명 — 진입 즉시 임시 한 줄을 보여주고, AI/캐시 소개가 오면 교체.
+  const [desc, setDesc] = useState(() =>
+    cleanForTwoLines(buildInstantPlaceBlurb(place?.place_name, place?.region), 110),
+  );
   useEffect(() => {
     let cancelled = false;
     if (!place?.place_name) return;
