@@ -18,9 +18,6 @@ import {
   IconUsers,
   IconMoon,
   IconBuildingStore,
-  IconTrophy,
-  IconHeart,
-  IconBolt,
 } from '@tabler/icons-react';
 import { supabase } from '../utils/supabaseClient';
 import { getDisplayImageUrl } from '../api/upload';
@@ -549,16 +546,13 @@ function QuestionsSection({ questions, showAllAction = true }) {
   );
 }
 
-// 인기 여행자 — 여행자들이 자부심을 느낄 수 있도록 상위 랭킹을 노출.
-// 랭킹은 팔로워(인기) 중심 + 실시간 활동/뱃지 가산(서버 계산).
-function TravelerCard({ traveler, rank }) {
+// 인기 여행자 — 순위/장식 없이 사용자 프로필(아바타+이름)만 담백하게 노출.
+// 섹션 자체가 '인기 여행자'이므로 별도 순위 표기 없이도 인기 있는 여행자로 인식된다.
+function TravelerCard({ traveler }) {
   const navigate = useNavigate();
   const initial =
     String(traveler?.name || '?').trim().charAt(0).toUpperCase() || '·';
   const avatar = traveler?.avatar_url ? getDisplayImageUrl(traveler.avatar_url) : '';
-  const isLive = (traveler?.live_count || 0) > 0;
-  // 상위 3인은 은은한 하늘색 랭크 링으로 자부심 강조
-  const topRing = rank <= 3;
 
   return (
     <button
@@ -566,106 +560,40 @@ function TravelerCard({ traveler, rank }) {
       onClick={() => navigate(`/user/${encodeURIComponent(traveler.id)}`)}
       className="flex flex-col items-center flex-shrink-0"
       style={{
-        width: 76,
+        width: 72,
         padding: 0,
         border: 'none',
         background: 'transparent',
         cursor: 'pointer',
       }}
     >
-      <div className="relative" style={{ width: 60, height: 60, marginBottom: 7 }}>
-        <div
-          className="rounded-full overflow-hidden flex items-center justify-center text-white font-bold"
-          style={{
-            width: 60,
-            height: 60,
-            fontSize: 22,
-            background: KEY,
-            boxSizing: 'border-box',
-            border: topRing ? `2.5px solid ${KEY}` : `2px solid ${BORDER_LIGHT}`,
-            padding: topRing ? 2 : 0,
-          }}
-        >
-          <div
-            className="rounded-full overflow-hidden w-full h-full flex items-center justify-center"
-            style={{ background: traveler?.avatar_color || KEY }}
-          >
-            {avatar ? (
-              <img
-                src={avatar}
-                alt=""
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-cover"
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-              />
-            ) : (
-              initial
-            )}
-          </div>
-        </div>
-
-        {/* 랭크 뱃지 — 1~3위는 트로피, 그 외는 숫자 */}
-        <div
-          className="absolute flex items-center justify-center"
-          style={{
-            top: -3,
-            left: -3,
-            minWidth: 20,
-            height: 20,
-            padding: '0 5px',
-            borderRadius: 999,
-            background: topRing ? KEY : '#ffffff',
-            border: topRing ? '2px solid #ffffff' : `1.5px solid ${BORDER_LIGHT}`,
-            boxSizing: 'border-box',
-          }}
-        >
-          {rank === 1 ? (
-            <IconTrophy size={11} color="#ffffff" stroke={2.2} />
-          ) : (
-            <span
-              style={{
-                fontSize: 10,
-                fontWeight: 800,
-                color: topRing ? '#ffffff' : TEXT_SECONDARY,
-                lineHeight: 1,
-              }}
-            >
-              {rank}
-            </span>
-          )}
-        </div>
-
-        {/* 실시간 활동 인디케이터 */}
-        {isLive && (
-          <div
-            className="absolute flex items-center justify-center"
-            style={{
-              right: -2,
-              bottom: -2,
-              width: 20,
-              height: 20,
-              borderRadius: 999,
-              background: '#FF5A5A',
-              border: '2px solid #ffffff',
-            }}
-          >
-            <IconBolt size={11} color="#ffffff" stroke={2.4} />
-          </div>
+      <div
+        className="rounded-full overflow-hidden flex items-center justify-center text-white font-bold"
+        style={{
+          width: 60,
+          height: 60,
+          fontSize: 22,
+          marginBottom: 7,
+          background: traveler?.avatar_color || KEY,
+        }}
+      >
+        {avatar ? (
+          <img
+            src={avatar}
+            alt=""
+            referrerPolicy="no-referrer"
+            className="w-full h-full object-cover"
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
+        ) : (
+          initial
         )}
       </div>
-
       <span
         className="truncate w-full text-center"
-        style={{ fontSize: 11.5, fontWeight: 700, color: TEXT_PRIMARY }}
+        style={{ fontSize: 11.5, fontWeight: 600, color: TEXT_PRIMARY }}
       >
         {traveler?.name || '여행자'}
-      </span>
-      <span
-        className="inline-flex items-center gap-0.5"
-        style={{ fontSize: 9.5, color: TEXT_SECONDARY, marginTop: 1 }}
-      >
-        <IconHeart size={9} color={KEY} />
-        팔로워 {traveler?.follower_count || 0}
       </span>
     </button>
   );
@@ -678,13 +606,7 @@ function TravelersSection({ travelers }) {
 
   return (
     <div className="mb-[22px]">
-      <SectionHeader icon={IconTrophy} title="인기 여행자" />
-      <div
-        className="mb-2.5"
-        style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: -6 }}
-      >
-        지금 가장 사랑받는 여행자들이에요
-      </div>
+      <SectionHeader icon={IconUsers} title="인기 여행자" />
       <div
         onMouseDown={handleDragStart}
         className="flex gap-3 overflow-x-auto scrollbar-hide cursor-grab active:cursor-grabbing"
@@ -697,7 +619,7 @@ function TravelersSection({ travelers }) {
         }}
       >
         {list.map((t, idx) => (
-          <TravelerCard key={t.id || idx} traveler={t} rank={idx + 1} />
+          <TravelerCard key={t.id || idx} traveler={t} />
         ))}
       </div>
     </div>
