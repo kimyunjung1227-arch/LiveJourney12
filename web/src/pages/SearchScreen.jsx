@@ -18,6 +18,9 @@ import {
   IconUsers,
   IconMoon,
   IconBuildingStore,
+  IconTrophy,
+  IconHeart,
+  IconBolt,
 } from '@tabler/icons-react';
 import { supabase } from '../utils/supabaseClient';
 import { getDisplayImageUrl } from '../api/upload';
@@ -546,6 +549,161 @@ function QuestionsSection({ questions, showAllAction = true }) {
   );
 }
 
+// 인기 여행자 — 여행자들이 자부심을 느낄 수 있도록 상위 랭킹을 노출.
+// 랭킹은 팔로워(인기) 중심 + 실시간 활동/뱃지 가산(서버 계산).
+function TravelerCard({ traveler, rank }) {
+  const navigate = useNavigate();
+  const initial =
+    String(traveler?.name || '?').trim().charAt(0).toUpperCase() || '·';
+  const avatar = traveler?.avatar_url ? getDisplayImageUrl(traveler.avatar_url) : '';
+  const isLive = (traveler?.live_count || 0) > 0;
+  // 상위 3인은 은은한 하늘색 랭크 링으로 자부심 강조
+  const topRing = rank <= 3;
+
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(`/user/${encodeURIComponent(traveler.id)}`)}
+      className="flex flex-col items-center flex-shrink-0"
+      style={{
+        width: 76,
+        padding: 0,
+        border: 'none',
+        background: 'transparent',
+        cursor: 'pointer',
+      }}
+    >
+      <div className="relative" style={{ width: 60, height: 60, marginBottom: 7 }}>
+        <div
+          className="rounded-full overflow-hidden flex items-center justify-center text-white font-bold"
+          style={{
+            width: 60,
+            height: 60,
+            fontSize: 22,
+            background: KEY,
+            boxSizing: 'border-box',
+            border: topRing ? `2.5px solid ${KEY}` : `2px solid ${BORDER_LIGHT}`,
+            padding: topRing ? 2 : 0,
+          }}
+        >
+          <div
+            className="rounded-full overflow-hidden w-full h-full flex items-center justify-center"
+            style={{ background: traveler?.avatar_color || KEY }}
+          >
+            {avatar ? (
+              <img
+                src={avatar}
+                alt=""
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover"
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+            ) : (
+              initial
+            )}
+          </div>
+        </div>
+
+        {/* 랭크 뱃지 — 1~3위는 트로피, 그 외는 숫자 */}
+        <div
+          className="absolute flex items-center justify-center"
+          style={{
+            top: -3,
+            left: -3,
+            minWidth: 20,
+            height: 20,
+            padding: '0 5px',
+            borderRadius: 999,
+            background: topRing ? KEY : '#ffffff',
+            border: topRing ? '2px solid #ffffff' : `1.5px solid ${BORDER_LIGHT}`,
+            boxSizing: 'border-box',
+          }}
+        >
+          {rank === 1 ? (
+            <IconTrophy size={11} color="#ffffff" stroke={2.2} />
+          ) : (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 800,
+                color: topRing ? '#ffffff' : TEXT_SECONDARY,
+                lineHeight: 1,
+              }}
+            >
+              {rank}
+            </span>
+          )}
+        </div>
+
+        {/* 실시간 활동 인디케이터 */}
+        {isLive && (
+          <div
+            className="absolute flex items-center justify-center"
+            style={{
+              right: -2,
+              bottom: -2,
+              width: 20,
+              height: 20,
+              borderRadius: 999,
+              background: '#FF5A5A',
+              border: '2px solid #ffffff',
+            }}
+          >
+            <IconBolt size={11} color="#ffffff" stroke={2.4} />
+          </div>
+        )}
+      </div>
+
+      <span
+        className="truncate w-full text-center"
+        style={{ fontSize: 11.5, fontWeight: 700, color: TEXT_PRIMARY }}
+      >
+        {traveler?.name || '여행자'}
+      </span>
+      <span
+        className="inline-flex items-center gap-0.5"
+        style={{ fontSize: 9.5, color: TEXT_SECONDARY, marginTop: 1 }}
+      >
+        <IconHeart size={9} color={KEY} />
+        팔로워 {traveler?.follower_count || 0}
+      </span>
+    </button>
+  );
+}
+
+function TravelersSection({ travelers }) {
+  const { handleDragStart, hasMovedRef } = useHorizontalDragScroll();
+  const list = Array.isArray(travelers) ? travelers : [];
+  if (list.length === 0) return null;
+
+  return (
+    <div className="mb-[22px]">
+      <SectionHeader icon={IconTrophy} title="인기 여행자" />
+      <div
+        className="mb-2.5"
+        style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: -6 }}
+      >
+        지금 가장 사랑받는 여행자들이에요
+      </div>
+      <div
+        onMouseDown={handleDragStart}
+        className="flex gap-3 overflow-x-auto scrollbar-hide cursor-grab active:cursor-grabbing"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+        onClickCapture={(e) => {
+          if (hasMovedRef.current) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}
+      >
+        {list.map((t, idx) => (
+          <TravelerCard key={t.id || idx} traveler={t} rank={idx + 1} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CityGrid({ cities }) {
   const navigate = useNavigate();
   // 같은 시(예: "경북 구미시 봉곡동" + "구미시 봉곡동")를 '구미' 하나로 합치고 라이브 수 합산
@@ -717,6 +875,7 @@ function SearchHub() {
     <div className="p-[18px]">
       <CityGrid cities={data.cities || []} />
       <QuestionsSection questions={data.questions || []} showAllAction />
+      <TravelersSection travelers={data.travelers || []} />
       {/* 매거진 구역 임시 숨김 */}
       {/* <SeasonalCards cards={magazines} /> */}
       <CategoryGrid categories={data.categories || []} />
@@ -778,6 +937,67 @@ function PlaceResultRow({ place }) {
             {place.live_count || 0}장 라이브
           </span>
         </div>
+      </div>
+      <IconChevronRight size={16} color={TEXT_TERTIARY} className="flex-shrink-0" />
+    </button>
+  );
+}
+
+function UserResultRow({ user }) {
+  const navigate = useNavigate();
+  const initial = String(user?.name || '?').trim().charAt(0).toUpperCase() || '·';
+  const avatar = user?.avatar_url ? getDisplayImageUrl(user.avatar_url) : '';
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(`/user/${encodeURIComponent(user.id)}`)}
+      className="flex items-center gap-3 text-left w-full"
+      style={{
+        background: CARD_BG,
+        borderRadius: 10,
+        padding: 10,
+        border: `1px solid ${BORDER_LIGHT}`,
+        cursor: 'pointer',
+      }}
+    >
+      <div
+        className="flex-shrink-0 rounded-full overflow-hidden flex items-center justify-center text-white font-bold"
+        style={{ width: 44, height: 44, fontSize: 17, background: user?.avatar_color || KEY }}
+      >
+        {avatar ? (
+          <img
+            src={avatar}
+            alt=""
+            referrerPolicy="no-referrer"
+            className="w-full h-full object-cover"
+            loading="lazy"
+            decoding="async"
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
+        ) : (
+          initial
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p
+          className="m-0 mb-0.5 truncate"
+          style={{ fontSize: 13, fontWeight: 600, color: TEXT_PRIMARY }}
+        >
+          {user.name}
+        </p>
+        {user.bio ? (
+          <p className="m-0 truncate" style={{ fontSize: 10, color: TEXT_SECONDARY }}>
+            {user.bio}
+          </p>
+        ) : (
+          <div className="flex items-center gap-1.5" style={{ fontSize: 10 }}>
+            <span style={{ color: KEY_DARK, fontWeight: 600 }}>
+              팔로워 {user.follower_count || 0}
+            </span>
+            <span style={{ color: TEXT_TERTIARY }}>·</span>
+            <span style={{ color: TEXT_SECONDARY }}>게시물 {user.post_count || 0}</span>
+          </div>
+        )}
       </div>
       <IconChevronRight size={16} color={TEXT_TERTIARY} className="flex-shrink-0" />
     </button>
@@ -864,8 +1084,13 @@ function SearchResults({ query, results, loading }) {
   const photos = Array.isArray(results.photos) ? results.photos : [];
   const totalPhotos = Number(results.photos_total) || 0;
   const questions = Array.isArray(results.questions) ? results.questions : [];
+  const users = Array.isArray(results.users) ? results.users : [];
 
-  const noResults = places.length === 0 && photos.length === 0 && questions.length === 0;
+  const noResults =
+    places.length === 0 &&
+    photos.length === 0 &&
+    questions.length === 0 &&
+    users.length === 0;
 
   if (noResults) {
     return (
@@ -879,6 +1104,17 @@ function SearchResults({ query, results, loading }) {
 
   return (
     <div className="p-[18px]">
+      {users.length > 0 && (
+        <div className="mb-[22px]">
+          <SectionHeader icon={IconUsers} title={`여행자 ${users.length}`} />
+          <div className="flex flex-col gap-2">
+            {users.slice(0, 5).map((u) => (
+              <UserResultRow key={u.id} user={u} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {places.length > 0 && (
         <div className="mb-[22px]">
           <SectionHeader
