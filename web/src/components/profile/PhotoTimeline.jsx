@@ -125,7 +125,7 @@ function SectionHeader({ type, label }) {
           }}
         />
       ) : (
-        <IconClock size={13} color={TEXT_SECONDARY} stroke={1.8} />
+        <IconClock size={13} color={TEXT_SECONDARY} stroke={2} />
       )}
       <p
         className="m-0"
@@ -187,7 +187,7 @@ function PhotoGrid({ photos, variant }) {
                   backdropFilter: 'blur(6px)',
                 }}
               >
-                <IconShieldCheck size={9} color={KEY} stroke={2.4} />
+                <IconShieldCheck size={9} color={KEY} stroke={2} />
                 <span style={{ fontSize: 8.5, color: 'white', fontWeight: 600 }}>
                   {timeAgo(photo.exif_taken_at) || '방금'}
                 </span>

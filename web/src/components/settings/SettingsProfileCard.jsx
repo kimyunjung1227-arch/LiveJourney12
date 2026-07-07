@@ -58,7 +58,7 @@ export default function SettingsProfileCard({ profile }) {
               border: '2px solid white',
             }}
           >
-            <IconCrown size={10} color="white" stroke={2.2} />
+            <IconCrown size={10} color="white" stroke={2} />
           </div>
         )}
       </div>

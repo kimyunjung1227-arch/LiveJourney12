@@ -110,7 +110,7 @@ export default function LivePhotoGrid({ photos, total }) {
                     borderRadius: 6,
                   }}
                 >
-                  <IconShieldCheck size={11} color={KEY} stroke={2.4} />
+                  <IconShieldCheck size={11} color={KEY} stroke={2} />
                   <span style={{ fontSize: 11, color: 'white', fontWeight: 600 }}>
                     {timeAgo(photo.exif_taken_at) || '방금'}
                   </span>

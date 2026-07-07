@@ -50,7 +50,7 @@ export default function BestCutNotice({ notification }) {
 
       {/* 헤더 */}
       <div className="flex items-center gap-1.5 relative" style={{ marginBottom: 10 }}>
-        <IconCrown size={16} color="white" stroke={2.2} />
+        <IconCrown size={16} color="white" stroke={2} />
         <span style={{ fontSize: 12, color: 'white', fontWeight: 700, letterSpacing: 0.2 }}>
           베스트 컷 선정
         </span>

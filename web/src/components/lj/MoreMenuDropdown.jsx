@@ -59,7 +59,7 @@ export function MoreMenuDropdown({
           justifyContent: 'center',
         }}
       >
-        <IconDots size={size} stroke={1.8} />
+        <IconDots size={size} stroke={2} />
       </button>
       {open && (
         <div
@@ -81,18 +81,18 @@ export function MoreMenuDropdown({
           {isAuthor ? (
             <>
               <MenuItem
-                icon={<IconEdit size={15} stroke={1.8} />}
+                icon={<IconEdit size={15} stroke={2} />}
                 label="수정"
                 onClick={() => handle('edit')}
               />
               <MenuItem
-                icon={<IconTrash size={15} stroke={1.8} />}
+                icon={<IconTrash size={15} stroke={2} />}
                 label="삭제"
                 onClick={() => handle('delete')}
                 danger
               />
               <MenuItem
-                icon={<IconShare3 size={15} stroke={1.8} />}
+                icon={<IconShare3 size={15} stroke={2} />}
                 label="공유"
                 onClick={() => handle('share')}
               />
@@ -100,12 +100,12 @@ export function MoreMenuDropdown({
           ) : (
             <>
               <MenuItem
-                icon={<IconShare3 size={15} stroke={1.8} />}
+                icon={<IconShare3 size={15} stroke={2} />}
                 label="공유"
                 onClick={() => handle('share')}
               />
               <MenuItem
-                icon={<IconFlag size={15} stroke={1.8} />}
+                icon={<IconFlag size={15} stroke={2} />}
                 label="신고"
                 onClick={() => handle('report')}
                 danger

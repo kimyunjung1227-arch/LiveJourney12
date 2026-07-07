@@ -92,7 +92,7 @@ export function ReportModal({ postId, onClose }) {
               display: 'inline-flex',
             }}
           >
-            <IconX size={18} stroke={1.8} />
+            <IconX size={18} stroke={2} />
           </button>
         </div>
 

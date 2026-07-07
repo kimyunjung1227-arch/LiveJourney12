@@ -135,7 +135,7 @@ const QuestionsListScreen = () => {
           zIndex: 48,
         }}
       >
-        <IconPencilPlus size={14} stroke={2.2} />
+        <IconPencilPlus size={14} stroke={2} />
         질문하기
       </button>
 

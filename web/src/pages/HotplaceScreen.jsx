@@ -160,7 +160,7 @@ function HotplaceScreen() {
               justifyContent: 'center',
             }}
           >
-            <IconArrowLeft size={18} stroke={1.8} />
+            <IconArrowLeft size={18} stroke={2} />
           </button>
 
           {/* 중앙 제목 (absolute로 한가운데 고정) */}
@@ -205,7 +205,7 @@ function HotplaceScreen() {
                 lineHeight: 1,
               }}
             >
-              <CurrentIcon size={14} stroke={1.7} color={LJ.textSecondary} />
+              <CurrentIcon size={14} stroke={2} color={LJ.textSecondary} />
               <span>{currentScope.label}</span>
               <IconChevronDown
                 size={13}
@@ -273,7 +273,7 @@ function HotplaceScreen() {
                           if (!active) e.currentTarget.style.background = 'transparent';
                         }}
                       >
-                        <Opt size={14} stroke={1.8} color={active ? LJ.key : LJ.textSecondary} />
+                        <Opt size={14} stroke={2} color={active ? LJ.key : LJ.textSecondary} />
                         {opt.label}
                       </button>
                     </li>

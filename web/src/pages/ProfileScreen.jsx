@@ -290,10 +290,10 @@ function ProfileHeaderBar({ onSettings, onSaved, showSettings }) {
           }}
         >
           <button type="button" onClick={onSaved} aria-label="저장한 장소" style={iconBtn}>
-            <IconBookmark size={18} color={TEXT_PRIMARY} stroke={1.8} />
+            <IconBookmark size={18} color={TEXT_PRIMARY} stroke={2} />
           </button>
           <button type="button" onClick={onSettings} aria-label="설정" style={iconBtn}>
-            <IconSettings size={18} color={TEXT_PRIMARY} stroke={1.8} />
+            <IconSettings size={18} color={TEXT_PRIMARY} stroke={2} />
           </button>
         </div>
       )}

@@ -31,7 +31,7 @@ export default function BestCutCarousel({ bestCuts }) {
   return (
     <div style={{ marginBottom: 22 }}>
       <div className="flex items-center gap-1.5" style={{ padding: '0 18px', marginBottom: 12 }}>
-        <IconCrown size={15} color={KEY} stroke={2.2} />
+        <IconCrown size={15} color={KEY} stroke={2} />
         <p className="m-0" style={{ fontSize: 14, fontWeight: 700, color: TEXT_PRIMARY }}>
           베스트 컷 · {list.length}개
         </p>
@@ -84,7 +84,7 @@ export default function BestCutCarousel({ bestCuts }) {
                   background: GRADIENT,
                 }}
               >
-                <IconCrown size={9} color="white" stroke={2.4} />
+                <IconCrown size={9} color="white" stroke={2} />
                 <span style={{ fontSize: 9, color: 'white', fontWeight: 700 }}>베스트</span>
               </div>
               {/* 하단 그라데이션 + 장소명 + 도움 */}

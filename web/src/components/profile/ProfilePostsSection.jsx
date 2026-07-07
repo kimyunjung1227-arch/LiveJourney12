@@ -49,7 +49,7 @@ export default function ProfilePostsSection({ userId, seeAllTo }) {
             }}
           >
             모두 보기
-            <IconChevronRight size={15} stroke={2.4} />
+            <IconChevronRight size={15} stroke={2} />
           </button>
         )}
       </div>

@@ -348,7 +348,7 @@ function MapSearchHeader({
                 padding: 0,
               }}
             >
-              <IconX size={11} color="#6B6B6B" stroke={2.5} />
+              <IconX size={11} color="#6B6B6B" stroke={2} />
             </button>
           )}
         </div>
@@ -364,7 +364,7 @@ function MapSearchHeader({
             <IconRefresh
               size={19}
               color={KEY}
-              stroke={2.2}
+              stroke={2}
               style={{
                 animation: refreshing ? 'lj-map-spin 0.8s linear infinite' : 'none',
               }}
@@ -516,7 +516,7 @@ function MapCategoryFilter({ selected, onChange }) {
               {Icon && (
                 <Icon
                   size={14}
-                  stroke={1.8}
+                  stroke={2}
                   color={isActive ? '#ffffff' : '#1F1F1F'}
                 />
               )}
@@ -654,7 +654,7 @@ function PostPinPreview({
             {cat && (
               <div className="absolute top-2.5 right-2.5 bg-white px-2.5 py-1 rounded-md flex items-center gap-1">
                 {CatIcon && (
-                  <CatIcon size={10} stroke={1.8} color="#1F1F1F" />
+                  <CatIcon size={10} stroke={2} color="#1F1F1F" />
                 )}
                 <span className="text-[10px] font-semibold">{cat.label}</span>
               </div>
@@ -851,7 +851,7 @@ function BundlePinPreview({ bundle, photos, onViewPost, onAuthorClick, onLocatio
             </div>
             {cat && (
               <div className="absolute top-2.5 right-2.5 bg-white px-2.5 py-1 rounded-md flex items-center gap-1 pointer-events-none">
-                {CatIcon && <CatIcon size={10} stroke={1.8} color="#1F1F1F" />}
+                {CatIcon && <CatIcon size={10} stroke={2} color="#1F1F1F" />}
                 <span className="text-[10px] font-semibold">{cat.label}</span>
               </div>
             )}
@@ -1019,7 +1019,7 @@ function SearchedPlaceCard({
             padding: 0,
           }}
         >
-          <IconX size={14} color="#6B6B6B" stroke={2.2} />
+          <IconX size={14} color="#6B6B6B" stroke={2} />
         </button>
 
         <div className="p-4 pb-3">

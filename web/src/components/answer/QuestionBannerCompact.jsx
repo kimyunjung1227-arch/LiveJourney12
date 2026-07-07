@@ -28,7 +28,7 @@ export default function QuestionBannerCompact({ question }) {
           background: 'rgba(255,255,255,0.25)',
         }}
       >
-        <IconHelpCircle size={17} color="white" stroke={2.2} />
+        <IconHelpCircle size={17} color="white" stroke={2} />
       </div>
       <div className="flex-1 min-w-0">
         <p

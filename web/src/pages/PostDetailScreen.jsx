@@ -240,7 +240,7 @@ function PostDetailScreen() {
               justifyContent: 'center',
             }}
           >
-            <IconArrowLeft size={18} stroke={1.8} />
+            <IconArrowLeft size={18} stroke={2} />
           </button>
           <span
             style={{
@@ -445,8 +445,8 @@ function PostDetailScreen() {
         >
           <DetailReactionBtn
             active={false}
-            iconOff={<IconMessageCircle size={20} stroke={1.8} />}
-            iconOn={<IconMessageCircle size={20} stroke={1.8} />}
+            iconOff={<IconMessageCircle size={20} stroke={2} />}
+            iconOn={<IconMessageCircle size={20} stroke={2} />}
             count={commentCount}
             ariaLabel="댓글"
           />

@@ -64,7 +64,7 @@ export default function CategoryHeader({ category }) {
         <IconArrowLeft size={22} color={TEXT_PRIMARY} />
       </button>
       <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5">
-        <Icon size={18} color={TEXT_PRIMARY} stroke={1.8} />
+        <Icon size={18} color={TEXT_PRIMARY} stroke={2} />
         <span style={{ fontSize: 16, fontWeight: 600, color: TEXT_PRIMARY }}>
           {meta.label}
         </span>

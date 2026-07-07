@@ -148,7 +148,7 @@ function PlaceDetailScreen() {
               justifyContent: 'center',
             }}
           >
-            <IconArrowLeft size={18} stroke={1.8} />
+            <IconArrowLeft size={18} stroke={2} />
           </button>
 
           {/* 중앙 장소명 (좌우 버튼 영역만큼 padding 두고 ellipsis 처리) */}
@@ -194,7 +194,7 @@ function PlaceDetailScreen() {
                 justifyContent: 'center',
               }}
             >
-              {bookmarked ? <IconBookmarkFilled size={20} /> : <IconBookmark size={20} stroke={1.8} />}
+              {bookmarked ? <IconBookmarkFilled size={20} /> : <IconBookmark size={20} stroke={2} />}
             </button>
             <button
               type="button"
@@ -214,7 +214,7 @@ function PlaceDetailScreen() {
                 justifyContent: 'center',
               }}
             >
-              <IconShare3 size={20} stroke={1.8} />
+              <IconShare3 size={20} stroke={2} />
             </button>
           </div>
         </div>

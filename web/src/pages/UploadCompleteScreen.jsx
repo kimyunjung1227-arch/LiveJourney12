@@ -47,7 +47,7 @@ function UploadCompleteScreen() {
           justifyContent: 'center',
         }}
       >
-        <IconCheck size={30} stroke={2.2} color={LJ.key} />
+        <IconCheck size={30} stroke={2} color={LJ.key} />
       </div>
       <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: LJ.textPrimary, lineHeight: 1.4 }}>
         완료되었습니다

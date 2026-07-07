@@ -7,7 +7,8 @@ import {
   IconChevronRight,
   IconCalendarTime,
   IconHelpCircle,
-  IconMap2,
+  IconBuildingSkyscraper,
+  IconUserStar,
   IconCategory,
   IconMapPin,
   IconPhoto,
@@ -606,7 +607,7 @@ function TravelersSection({ travelers }) {
 
   return (
     <div className="mb-[22px]">
-      <SectionHeader icon={IconUsers} title="인기 여행자" />
+      <SectionHeader icon={IconUserStar} title="인기 여행자" />
       <div
         onMouseDown={handleDragStart}
         className="flex gap-3 overflow-x-auto scrollbar-hide cursor-grab active:cursor-grabbing"
@@ -644,7 +645,7 @@ function CityGrid({ cities }) {
   if (mergedCities.length === 0) return null;
   return (
     <div className="mb-[22px]">
-      <SectionHeader icon={IconMap2} title="인기 도시" />
+      <SectionHeader icon={IconBuildingSkyscraper} title="인기 도시" />
       <div className="grid grid-cols-2 gap-2">
         {mergedCities.slice(0, 4).map((city) => {
           const [start, end] = CITY_GRADIENTS[city.city] || DEFAULT_CITY_GRADIENT;
@@ -1028,7 +1029,7 @@ function SearchResults({ query, results, loading }) {
     <div className="p-[18px]">
       {users.length > 0 && (
         <div className="mb-[22px]">
-          <SectionHeader icon={IconUsers} title={`여행자 ${users.length}`} />
+          <SectionHeader icon={IconUserStar} title={`여행자 ${users.length}`} />
           <div className="flex flex-col gap-2">
             {users.slice(0, 5).map((u) => (
               <UserResultRow key={u.id} user={u} />

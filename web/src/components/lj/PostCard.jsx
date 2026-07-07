@@ -274,7 +274,7 @@ export function PostCard({
             active={liked}
             iconOff={
               <span key={`off-${likePulseKey}`} className={likePulseKey > 0 ? 'lj-heart-pulse' : ''}>
-                <IconHeart size={19} stroke={1.8} />
+                <IconHeart size={19} stroke={2} />
               </span>
             }
             iconOn={
@@ -288,15 +288,15 @@ export function PostCard({
           />
           <ReactionButton
             active={false}
-            iconOff={<IconMessageCircle size={19} stroke={1.8} />}
-            iconOn={<IconMessageCircle size={19} stroke={1.8} />}
+            iconOff={<IconMessageCircle size={19} stroke={2} />}
+            iconOn={<IconMessageCircle size={19} stroke={2} />}
             count={commentCount}
             onClick={goPostDetail}
             ariaLabel="댓글"
           />
           <ReactionButton
             active={saved}
-            iconOff={<IconBookmark size={19} stroke={1.8} />}
+            iconOff={<IconBookmark size={19} stroke={2} />}
             iconOn={<IconBookmarkFilled size={19} />}
             count={null}
             onClick={(e) => {
@@ -478,7 +478,7 @@ function ExifBadge({ takenAt }) {
         boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
       }}
     >
-      <ExifFreshIcon iso={takenAt} size={15} stroke={2.2} />
+      <ExifFreshIcon iso={takenAt} size={15} stroke={2} />
       <span
         style={{
           color: '#fff',

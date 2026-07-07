@@ -218,7 +218,7 @@ export function CommentItem({
                 fontFamily: LJ.fontStack,
               }}
             >
-              <IconMessageCircle size={15} stroke={1.8} />
+              <IconMessageCircle size={15} stroke={2} />
               답글
             </button>
             <button
@@ -239,7 +239,7 @@ export function CommentItem({
                 fontFamily: LJ.fontStack,
               }}
             >
-              {liked ? <IconHeartFilled size={15} /> : <IconHeart size={15} stroke={1.8} />}
+              {liked ? <IconHeartFilled size={15} /> : <IconHeart size={15} stroke={2} />}
               {(comment.like_count ?? 0) + (liked && !comment.like_count ? 1 : 0)}
             </button>
           </div>
@@ -305,7 +305,7 @@ function CommentMenu({ onEdit, onDelete }) {
           justifyContent: 'center',
         }}
       >
-        <IconDots size={16} stroke={1.8} />
+        <IconDots size={16} stroke={2} />
       </button>
       {open && (
         <div
@@ -324,9 +324,9 @@ function CommentMenu({ onEdit, onDelete }) {
             zIndex: 20,
           }}
         >
-          <MenuItem icon={<IconEdit size={15} stroke={1.8} />} label="수정" onClick={() => pick(onEdit)} />
+          <MenuItem icon={<IconEdit size={15} stroke={2} />} label="수정" onClick={() => pick(onEdit)} />
           <MenuItem
-            icon={<IconTrash size={15} stroke={1.8} />}
+            icon={<IconTrash size={15} stroke={2} />}
             label="삭제"
             onClick={() => pick(onDelete)}
             danger

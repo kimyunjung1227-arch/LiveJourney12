@@ -358,7 +358,7 @@ function QuestionMenu({ onEdit, onDelete }) {
               textAlign: 'left',
             }}
           >
-            <IconEdit size={15} stroke={1.8} />
+            <IconEdit size={15} stroke={2} />
             수정
           </button>
           <button
@@ -378,7 +378,7 @@ function QuestionMenu({ onEdit, onDelete }) {
               textAlign: 'left',
             }}
           >
-            <IconTrash size={15} stroke={1.8} />
+            <IconTrash size={15} stroke={2} />
             삭제
           </button>
         </div>

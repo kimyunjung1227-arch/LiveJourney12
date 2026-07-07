@@ -69,7 +69,7 @@ export default function ProfileHeader({ user, isMe = false, trailingSlot = null,
                 border: '2px solid white',
               }}
             >
-              <IconCrown size={11} color="white" stroke={2.2} />
+              <IconCrown size={11} color="white" stroke={2} />
             </div>
           )}
         </div>
@@ -91,7 +91,7 @@ export default function ProfileHeader({ user, isMe = false, trailingSlot = null,
                   background: GRADIENT,
                 }}
               >
-                <IconCrown size={10} color="white" stroke={2.4} />
+                <IconCrown size={10} color="white" stroke={2} />
                 <span style={{ fontSize: 10, color: 'white', fontWeight: 700 }}>
                   베스트 컷 작가
                 </span>
@@ -114,7 +114,7 @@ export default function ProfileHeader({ user, isMe = false, trailingSlot = null,
                   padding: 0,
                 }}
               >
-                <IconPencil size={15} color={TEXT_SECONDARY} stroke={1.8} />
+                <IconPencil size={15} color={TEXT_SECONDARY} stroke={2} />
               </button>
             ) : trailingSlot ? (
               <div style={{ marginLeft: 'auto' }}>{trailingSlot}</div>

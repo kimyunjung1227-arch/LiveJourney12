@@ -35,7 +35,7 @@ export default function SettingsRow({
         borderBottom: isLast ? 'none' : `1px solid ${DIVIDER}`,
       }}
     >
-      {Icon && <Icon size={19} color={iconStrokeColor} stroke={1.8} />}
+      {Icon && <Icon size={19} color={iconStrokeColor} stroke={2} />}
       <div className="flex-1 min-w-0">
         <p className="m-0" style={{ fontSize: 14, color: labelColor }}>
           {label}

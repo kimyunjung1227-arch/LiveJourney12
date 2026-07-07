@@ -170,7 +170,7 @@ export default function LiveMagazineScreen() {
             justifyContent: 'center',
           }}
         >
-          <IconArrowLeft size={18} color={TEXT_PRIMARY} stroke={1.8} />
+          <IconArrowLeft size={18} color={TEXT_PRIMARY} stroke={2} />
         </button>
         <span style={{ fontSize: 16, fontWeight: 700, color: TEXT_PRIMARY }}>라이브매거진</span>
       </div>
@@ -315,9 +315,9 @@ function NavArrow({ side, disabled, onClick }) {
       }}
     >
       {side === 'left' ? (
-        <IconChevronLeft size={20} color={KEY_DARK} stroke={2.2} />
+        <IconChevronLeft size={20} color={KEY_DARK} stroke={2} />
       ) : (
-        <IconChevronRight size={20} color={KEY_DARK} stroke={2.2} />
+        <IconChevronRight size={20} color={KEY_DARK} stroke={2} />
       )}
     </button>
   );

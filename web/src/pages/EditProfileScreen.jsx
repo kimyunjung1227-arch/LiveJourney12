@@ -250,7 +250,7 @@ const EditProfileScreen = () => {
               }}
             >
               {profileImage === DEFAULT_PROFILE_IMAGE ? (
-                <IconUser size={56} color={KEY_DARK} stroke={1.6} />
+                <IconUser size={56} color={KEY_DARK} stroke={2} />
               ) : (
                 <img
                   src={profileImage}
@@ -360,7 +360,7 @@ const EditProfileScreen = () => {
                 margin: '0 auto 16px',
               }}
             >
-              <IconCheck size={32} color={SUCCESS} stroke={3} />
+              <IconCheck size={32} color={SUCCESS} stroke={2} />
             </div>
             <h3
               className="m-0"

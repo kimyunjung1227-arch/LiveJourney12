@@ -177,7 +177,7 @@ function SavedPlaceCard({ place, onOpen, onShare, onUnsave }) {
             justifyContent: 'center',
           }}
         >
-          <IconMapPin size={30} color="#B6C2CE" stroke={1.6} />
+          <IconMapPin size={30} color="#B6C2CE" stroke={2} />
         </div>
       )}
 
@@ -342,7 +342,7 @@ function Header({ onBack }) {
           padding: 0,
         }}
       >
-        <IconArrowLeft size={18} color={TEXT_PRIMARY} stroke={1.8} />
+        <IconArrowLeft size={18} color={TEXT_PRIMARY} stroke={2} />
       </button>
       <span style={{ fontSize: 14, fontWeight: 600, color: TEXT_PRIMARY }}>저장한 장소</span>
     </div>

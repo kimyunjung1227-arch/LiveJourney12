@@ -103,7 +103,7 @@ export default function SavedPlacesView({ userId }) {
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
               ) : (
-                <IconMapPin size={22} color={TEXT_SECONDARY} stroke={1.6} />
+                <IconMapPin size={22} color={TEXT_SECONDARY} stroke={2} />
               )}
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>

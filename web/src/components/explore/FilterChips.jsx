@@ -50,7 +50,7 @@ export default function FilterChips({ chips, selected, onChange }) {
               }}
             >
               {Icon && (
-                <Icon size={12} stroke={1.8} color={isActive ? '#fff' : TEXT_PRIMARY} />
+                <Icon size={12} stroke={2} color={isActive ? '#fff' : TEXT_PRIMARY} />
               )}
               {chip.label}
             </button>

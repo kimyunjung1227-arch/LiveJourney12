@@ -70,7 +70,7 @@ export function EXIFRejectModal({ open, reason, minutesAgo = 0, isVideo = false,
             justifyContent: 'center',
           }}
         >
-          <IconShieldX size={30} stroke={1.8} color={LJ.error} />
+          <IconShieldX size={30} stroke={2} color={LJ.error} />
         </div>
         <h2
           style={{
@@ -203,7 +203,7 @@ export function EXIFConfirmModal({ open, file, takenAt, location, placeName, onC
             justifyContent: 'center',
           }}
         >
-          <IconShieldCheck size={28} stroke={1.8} color={LJ.key} />
+          <IconShieldCheck size={28} stroke={2} color={LJ.key} />
         </div>
         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: LJ.textPrimary }}>
           EXIF 인증 완료

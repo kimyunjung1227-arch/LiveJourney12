@@ -71,7 +71,7 @@ export function CategoryFilter({ selected = 'all', onChange = () => {} }) {
         return (
           <Chip
             key={c.id}
-            icon={Icon ? <Icon size={14} stroke={1.8} /> : null}
+            icon={Icon ? <Icon size={14} stroke={2} /> : null}
             label={c.label}
             active={selected === c.id}
             onClick={guardedClick(() => onChange(c.id))}

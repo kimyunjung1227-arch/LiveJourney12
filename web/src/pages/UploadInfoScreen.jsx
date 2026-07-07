@@ -464,7 +464,7 @@ function UploadInfoScreen() {
               padding: 0,
             }}
           >
-            <IconArrowLeft size={18} stroke={1.8} />
+            <IconArrowLeft size={18} stroke={2} />
           </button>
           <span
             style={{
@@ -565,7 +565,7 @@ function UploadInfoScreen() {
                         justifyContent: 'center',
                       }}
                     >
-                      <IconX size={11} stroke={2.5} />
+                      <IconX size={11} stroke={2} />
                     </button>
                   )}
                 </div>
@@ -658,7 +658,7 @@ function UploadInfoScreen() {
       <section style={{ padding: '14px 18px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <IconMapPin size={14} stroke={1.8} color={LJ.textSecondary} />
+            <IconMapPin size={14} stroke={2} color={LJ.textSecondary} />
             <span style={{ fontSize: 13, fontWeight: 600, color: LJ.textPrimary }}>위치</span>
             {accuracyLabel && (
               <span
@@ -753,7 +753,7 @@ function UploadInfoScreen() {
                   gap: 4,
                 }}
               >
-                <IconMapPin size={11} stroke={1.8} color={LJ.textTertiary} />
+                <IconMapPin size={11} stroke={2} color={LJ.textTertiary} />
                 <span>{displayRegion}</span>
               </div>
             )}
@@ -943,7 +943,7 @@ function UploadInfoScreen() {
               borderRadius: 10,
             }}
           >
-            <IconInfoCircle size={16} stroke={1.8} color={LJ.key} />
+            <IconInfoCircle size={16} stroke={2} color={LJ.key} />
             <p
               className="m-0"
               style={{

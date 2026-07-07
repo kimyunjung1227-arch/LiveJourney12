@@ -26,7 +26,7 @@ export default function HonorBox({ user }) {
       }}
     >
       <div className="flex items-center gap-1.5" style={{ marginBottom: 12 }}>
-        <IconAward size={13} color={KEY_DARK} stroke={2.2} />
+        <IconAward size={13} color={KEY_DARK} stroke={2} />
         <span style={{ fontSize: 12, fontWeight: 700, color: KEY_DARK, letterSpacing: 0.2 }}>
           영예
         </span>

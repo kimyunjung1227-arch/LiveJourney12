@@ -398,9 +398,9 @@ function PermissionDenied({ unsupported = false, onClose }) {
           }}
         >
           {unsupported ? (
-            <IconAlertTriangle size={34} stroke={1.6} color={WHITE_85} />
+            <IconAlertTriangle size={34} stroke={2} color={WHITE_85} />
           ) : (
-            <IconCameraOff size={34} stroke={1.6} color={WHITE_85} />
+            <IconCameraOff size={34} stroke={2} color={WHITE_85} />
           )}
         </div>
         <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, lineHeight: 1.4 }}>
@@ -667,7 +667,7 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
           <div style={{ width: 44, height: 44, opacity: showGalleryAndSwitch ? 1 : 0 }}>
             {showGalleryAndSwitch && (
               <SquareButton onClick={onOpenGallery} aria-label="갤러리">
-                <IconPhoto size={20} stroke={1.8} />
+                <IconPhoto size={20} stroke={2} />
               </SquareButton>
             )}
           </div>
@@ -682,7 +682,7 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
           <div style={{ width: 44, height: 44, opacity: showGalleryAndSwitch ? 1 : 0 }}>
             {showGalleryAndSwitch && (
               <SquareButton onClick={cam.switchCamera} aria-label="카메라 전환">
-                <IconRotate2 size={20} stroke={1.8} />
+                <IconRotate2 size={20} stroke={2} />
               </SquareButton>
             )}
           </div>

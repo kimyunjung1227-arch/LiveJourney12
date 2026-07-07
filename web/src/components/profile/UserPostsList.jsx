@@ -164,7 +164,7 @@ function PostRow({ post, selectable = false, selected = false, onToggle }) {
           </>
         ) : (
           <div className="flex items-center justify-center w-full h-full">
-            <IconCamera size={22} color={TEXT_TERTIARY} stroke={1.6} />
+            <IconCamera size={22} color={TEXT_TERTIARY} stroke={2} />
           </div>
         )}
         {selectable && (
@@ -188,7 +188,7 @@ function PostRow({ post, selectable = false, selected = false, onToggle }) {
                 boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
               }}
             >
-              {selected && <IconCheck size={14} color="#fff" stroke={3} />}
+              {selected && <IconCheck size={14} color="#fff" stroke={2} />}
             </div>
           </>
         )}

@@ -97,7 +97,7 @@ function MainScreen() {
             }}
           >
             <span>어디로 떠나볼까요?</span>
-            <IconSearch size={18} stroke={1.7} />
+            <IconSearch size={18} stroke={2} />
           </button>
           <button
             type="button"
@@ -118,7 +118,7 @@ function MainScreen() {
               justifyContent: 'center',
             }}
           >
-            <IconBell size={18} stroke={1.7} />
+            <IconBell size={18} stroke={2} />
             {unreadCount > 0 && (
               <span
                 aria-hidden

@@ -37,7 +37,7 @@ export default function BadgesBox({ user }) {
     <div style={{ padding: '0 18px', marginBottom: 16 }}>
       <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
         <div className="flex items-center gap-1.5">
-          <IconAward size={14} color="#1F1F1F" stroke={2.2} />
+          <IconAward size={14} color="#1F1F1F" stroke={2} />
           <span style={{ fontSize: 14, fontWeight: 700, color: '#1F1F1F' }}>
             뱃지
           </span>

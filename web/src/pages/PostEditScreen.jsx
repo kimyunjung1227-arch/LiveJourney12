@@ -342,7 +342,7 @@ function PostEditScreen() {
               padding: 0,
             }}
           >
-            <IconArrowLeft size={18} stroke={1.8} />
+            <IconArrowLeft size={18} stroke={2} />
           </button>
           <span
             style={{
@@ -430,7 +430,7 @@ function PostEditScreen() {
                         justifyContent: 'center',
                       }}
                     >
-                      <IconX size={11} stroke={2.5} />
+                      <IconX size={11} stroke={2} />
                     </button>
                   )}
                 </div>
@@ -511,7 +511,7 @@ function PostEditScreen() {
       <section style={{ padding: '14px 18px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <IconMapPin size={14} stroke={1.8} color={LJ.textSecondary} />
+            <IconMapPin size={14} stroke={2} color={LJ.textSecondary} />
             <span style={{ fontSize: 13, fontWeight: 600, color: LJ.textPrimary }}>위치</span>
           </div>
           <button
@@ -566,7 +566,7 @@ function PostEditScreen() {
                   gap: 4,
                 }}
               >
-                <IconMapPin size={11} stroke={1.8} color={LJ.textTertiary} />
+                <IconMapPin size={11} stroke={2} color={LJ.textTertiary} />
                 <span>{region}</span>
               </div>
             )}
