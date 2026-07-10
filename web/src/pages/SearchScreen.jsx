@@ -636,8 +636,17 @@ function CityGrid({ cities }) {
       const name = normalizeCityName(c.city);
       if (!name) return;
       const prev = map.get(name);
-      if (prev) prev.live_count += c.live_count || 0;
-      else map.set(name, { city: name, live_count: c.live_count || 0 });
+      if (prev) {
+        prev.live_count += c.live_count || 0;
+        // 대표 썸네일이 아직 없으면 채운다 (라이브 수 많은 쪽이 먼저 들어옴)
+        if (!prev.thumbnail_url && c.thumbnail_url) prev.thumbnail_url = c.thumbnail_url;
+      } else {
+        map.set(name, {
+          city: name,
+          live_count: c.live_count || 0,
+          thumbnail_url: c.thumbnail_url || null,
+        });
+      }
     });
     return Array.from(map.values()).sort((a, b) => b.live_count - a.live_count);
   }, [cities]);
@@ -649,7 +658,10 @@ function CityGrid({ cities }) {
       <div className="grid grid-cols-2 gap-2">
         {mergedCities.slice(0, 4).map((city) => {
           const [start, end] = CITY_GRADIENTS[city.city] || DEFAULT_CITY_GRADIENT;
-          const photo = getRegionDefaultImage(city.city);
+          // 지금 올라온 사진(라이브) 우선, 없으면 지역 기본 이미지로 폴백
+          const photo = city.thumbnail_url
+            ? getDisplayImageUrl(city.thumbnail_url)
+            : getRegionDefaultImage(city.city);
           return (
             <button
               key={city.city}
