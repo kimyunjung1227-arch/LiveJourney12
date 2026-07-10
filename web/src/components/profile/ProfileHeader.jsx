@@ -180,8 +180,8 @@ function InlineStat({ value, label, onClick }) {
         cursor: interactive ? 'pointer' : 'default',
       }}
     >
-      <span style={{ fontSize: 16, fontWeight: 700, color: TEXT_PRIMARY }}>{value}</span>
-      <span style={{ fontSize: 12.5, color: TEXT_SECONDARY }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: TEXT_PRIMARY }}>{value}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: TEXT_SECONDARY }}>{label}</span>
     </Tag>
   );
 }
