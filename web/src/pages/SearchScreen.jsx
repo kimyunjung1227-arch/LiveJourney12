@@ -66,20 +66,6 @@ const CATEGORY_META = {
   business: { Icon: IconBuildingStore, label: '영업·운영' },
 };
 
-const CITY_GRADIENTS = {
-  서울: ['#FFB6C1', '#FF8FAB'],
-  부산: ['#87CEEB', '#4DB8E8'],
-  제주: ['#FFD89B', '#FFA07A'],
-  강릉: ['#B0E0E6', '#87CEEB'],
-  경주: ['#FF9FB8', '#E07A99'],
-  전주: ['#FFE0B0', '#FFC78B'],
-  대구: ['#FFC1B6', '#FF8F73'],
-  인천: ['#A0D8EF', '#4DB8E8'],
-  구미: ['#C8E6C9', '#7CB97F'],
-  여수: ['#B3E5FC', '#4DB8E8'],
-};
-const DEFAULT_CITY_GRADIENT = ['#87CEEB', '#4DB8E8'];
-
 // 행정구역 풀네임("경북 구미시 봉곡동", "구미시 봉곡동")을 인기 도시용 '시' 단위 이름("구미")으로 정규화.
 // - 앞의 도(경북/경상북도 등) 접두는 버리고, '시'로 끝나는 토큰을 도시명으로 사용
 // - 광역/특별시는 접미사를 떼고(서울특별시→서울), 시가 없으면 군/구 단위로 폴백
@@ -711,7 +697,12 @@ function CityGrid({ cities }) {
         });
       }
     });
-    return Array.from(map.values()).sort((a, b) => b.live_count - a.live_count);
+    return (
+      Array.from(map.values())
+        // 사용자가 올린 실제 사진이 있는 도시만 노출 (그라데이션 배경 카드 없음)
+        .filter((c) => c.thumbnails.length > 0)
+        .sort((a, b) => b.live_count - a.live_count)
+    );
   }, [cities]);
 
   if (mergedCities.length === 0) return null;
@@ -720,12 +711,10 @@ function CityGrid({ cities }) {
       <SectionHeader icon={IconBuildingSkyscraper} title="인기 도시" />
       <div className="grid grid-cols-2 gap-2">
         {mergedCities.slice(0, 4).map((city, idx) => {
-          const [start, end] = CITY_GRADIENTS[city.city] || DEFAULT_CITY_GRADIENT;
           // 30분마다 지역 사진 풀을 순환(카드별로 시작 위치를 달리해 다양하게).
-          // 사용자가 올린 실제 사진만 사용 — 없으면 그라데이션 배경으로 표시.
-          const pool = city.thumbnails || [];
-          const picked = pool.length ? pool[(bucket + idx) % pool.length] : null;
-          const photo = picked ? getDisplayImageUrl(picked) : null;
+          const pool = city.thumbnails;
+          const picked = pool[(bucket + idx) % pool.length];
+          const photo = getDisplayImageUrl(picked);
           return (
             <button
               key={city.city}
@@ -737,12 +726,9 @@ function CityGrid({ cities }) {
                 borderRadius: 10,
                 border: 'none',
                 padding: 0,
-                backgroundImage: photo ? `url(${photo})` : undefined,
+                backgroundImage: `url(${photo})`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
-                background: photo
-                  ? undefined
-                  : `linear-gradient(135deg, ${start}, ${end})`,
                 cursor: 'pointer',
               }}
             >
