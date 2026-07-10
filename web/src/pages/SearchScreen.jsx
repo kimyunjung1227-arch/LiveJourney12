@@ -26,7 +26,23 @@ import { fetchPublishedMagazines } from '../api/curatedMagazinesSupabase';
 import { logger } from '../utils/logger';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import { getRegionDefaultImage } from '../utils/regionDefaultImages';
+import { getWeatherByRegion } from '../api/weather';
 import BottomNavigation from '../components/BottomNavigation';
+
+// 인기 도시 대표 사진은 30분 단위 시간 버킷으로 순환 노출한다.
+const HALF_HOUR_MS = 30 * 60 * 1000;
+
+// 30분마다 값이 바뀌는 버킷 인덱스 — 지역별 사진 풀을 순환시키는 데 사용.
+function useHalfHourBucket() {
+  const [bucket, setBucket] = useState(() => Math.floor(Date.now() / HALF_HOUR_MS));
+  useEffect(() => {
+    const id = setInterval(() => {
+      setBucket(Math.floor(Date.now() / HALF_HOUR_MS));
+    }, 60 * 1000); // 매 분 확인 → 버킷이 바뀔 때만 리렌더(같은 값이면 React가 무시)
+    return () => clearInterval(id);
+  }, []);
+  return bucket;
+}
 
 // ────────────────────────────────────────────────
 // 디자인 토큰
@@ -627,24 +643,72 @@ function TravelersSection({ travelers }) {
   );
 }
 
+// 도시 카드 우상단 날씨 배지 — 여행자가 지역 날씨를 즉시 인지하도록.
+function CityWeatherBadge({ region }) {
+  const [weather, setWeather] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getWeatherByRegion(region);
+        if (!cancelled && res?.success && res.weather?.temperature && res.weather.temperature !== '-') {
+          setWeather(res.weather);
+        }
+      } catch (_) {
+        /* 날씨 실패는 조용히 무시 — 카드 사진/이름은 그대로 노출 */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [region]);
+
+  if (!weather) return null;
+  return (
+    <div
+      className="absolute top-2 right-2 flex items-center gap-1"
+      style={{
+        background: 'rgba(0,0,0,0.42)',
+        backdropFilter: 'blur(6px)',
+        borderRadius: 999,
+        padding: '3px 8px',
+      }}
+    >
+      <span style={{ fontSize: 11, lineHeight: 1 }}>{weather.icon}</span>
+      <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fff', lineHeight: 1 }}>
+        {weather.temperature}
+      </span>
+    </div>
+  );
+}
+
 function CityGrid({ cities }) {
   const navigate = useNavigate();
-  // 같은 시(예: "경북 구미시 봉곡동" + "구미시 봉곡동")를 '구미' 하나로 합치고 라이브 수 합산
+  const bucket = useHalfHourBucket();
+  // 같은 시(예: "경북 구미시 봉곡동" + "구미시 봉곡동")를 '구미' 하나로 합치고
+  // 라이브 수 합산 + 대표 사진 풀(썸네일 배열)도 중복 없이 병합
   const mergedCities = useMemo(() => {
     const map = new Map();
     (cities || []).forEach((c) => {
       const name = normalizeCityName(c.city);
       if (!name) return;
+      const incoming =
+        Array.isArray(c.thumbnails) && c.thumbnails.length
+          ? c.thumbnails
+          : c.thumbnail_url
+          ? [c.thumbnail_url]
+          : [];
       const prev = map.get(name);
       if (prev) {
         prev.live_count += c.live_count || 0;
-        // 대표 썸네일이 아직 없으면 채운다 (라이브 수 많은 쪽이 먼저 들어옴)
-        if (!prev.thumbnail_url && c.thumbnail_url) prev.thumbnail_url = c.thumbnail_url;
+        incoming.forEach((t) => {
+          if (t && !prev.thumbnails.includes(t)) prev.thumbnails.push(t);
+        });
       } else {
         map.set(name, {
           city: name,
           live_count: c.live_count || 0,
-          thumbnail_url: c.thumbnail_url || null,
+          thumbnails: incoming.filter(Boolean),
         });
       }
     });
@@ -656,12 +720,13 @@ function CityGrid({ cities }) {
     <div className="mb-[22px]">
       <SectionHeader icon={IconBuildingSkyscraper} title="인기 도시" />
       <div className="grid grid-cols-2 gap-2">
-        {mergedCities.slice(0, 4).map((city) => {
+        {mergedCities.slice(0, 4).map((city, idx) => {
           const [start, end] = CITY_GRADIENTS[city.city] || DEFAULT_CITY_GRADIENT;
-          // 지금 올라온 사진(라이브) 우선, 없으면 지역 기본 이미지로 폴백
-          const photo = city.thumbnail_url
-            ? getDisplayImageUrl(city.thumbnail_url)
-            : getRegionDefaultImage(city.city);
+          // 30분마다 지역 사진 풀을 순환(카드별로 시작 위치를 달리해 다양하게).
+          // 지금 올라온 사용자 사진 우선, 하나도 없으면 지역 기본 이미지로 폴백.
+          const pool = city.thumbnails || [];
+          const picked = pool.length ? pool[(bucket + idx) % pool.length] : null;
+          const photo = picked ? getDisplayImageUrl(picked) : getRegionDefaultImage(city.city);
           return (
             <button
               key={city.city}
@@ -690,6 +755,8 @@ function CityGrid({ cities }) {
                     'linear-gradient(180deg, rgba(0,0,0,0.05) 35%, rgba(0,0,0,0.6) 100%)',
                 }}
               />
+              {/* 날씨 — 즉시 인지 */}
+              <CityWeatherBadge region={city.city} />
               <div className="absolute bottom-2 left-2.5">
                 <p
                   className="m-0 mb-0.5"
