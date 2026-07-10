@@ -127,7 +127,7 @@ export default function ProfileHeader({ user, isMe = false, trailingSlot = null,
       </div>
 
       {/* 팔로워 구역 — 별도 구역, 좌측 정렬 */}
-      <div className="flex items-baseline" style={{ gap: 18, marginTop: 12 }}>
+      <div className="flex items-baseline" style={{ gap: 18, marginTop: 18 }}>
         <InlineStat value={user.photo_count || 0} label="게시물" />
         <InlineStat
           value={user.follower_count || 0}
