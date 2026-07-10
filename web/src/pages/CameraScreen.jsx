@@ -571,8 +571,18 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
         }}
       />
 
-      {/* 뷰파인더 가이드 */}
-      <ViewfinderGuide recording={cam.isRecording} />
+      {/* 녹화 중 붉은 테두리 */}
+      {cam.isRecording && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            boxShadow: 'inset 0 0 0 3px rgba(220,38,38,0.4)',
+            pointerEvents: 'none',
+            zIndex: 2,
+          }}
+        />
+      )}
 
       {/* 상단 */}
       <div
@@ -802,49 +812,6 @@ function Pill({ children, background = OVERLAY, style }) {
     >
       {children}
     </div>
-  );
-}
-
-function ViewfinderGuide({ recording }) {
-  const len = 18;
-  const w = 2;
-  const corners = [
-    { top: 80, left: 24, borders: { borderTop: `${w}px solid rgba(255,255,255,0.6)`, borderLeft: `${w}px solid rgba(255,255,255,0.6)` } },
-    { top: 80, right: 24, borders: { borderTop: `${w}px solid rgba(255,255,255,0.6)`, borderRight: `${w}px solid rgba(255,255,255,0.6)` } },
-    { bottom: 220, left: 24, borders: { borderBottom: `${w}px solid rgba(255,255,255,0.6)`, borderLeft: `${w}px solid rgba(255,255,255,0.6)` } },
-    { bottom: 220, right: 24, borders: { borderBottom: `${w}px solid rgba(255,255,255,0.6)`, borderRight: `${w}px solid rgba(255,255,255,0.6)` } },
-  ];
-  return (
-    <>
-      {corners.map((c, i) => (
-        <div
-          key={i}
-          style={{
-            position: 'absolute',
-            width: len,
-            height: len,
-            top: c.top,
-            bottom: c.bottom,
-            left: c.left,
-            right: c.right,
-            ...c.borders,
-            zIndex: 3,
-            pointerEvents: 'none',
-          }}
-        />
-      ))}
-      {recording && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            boxShadow: 'inset 0 0 0 3px rgba(220,38,38,0.4)',
-            pointerEvents: 'none',
-            zIndex: 2,
-          }}
-        />
-      )}
-    </>
   );
 }
 
