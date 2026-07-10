@@ -79,7 +79,7 @@ export default function ProfileHeader({ user, isMe = false, trailingSlot = null,
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="m-0" style={{ fontSize: 16, fontWeight: 700, color: TEXT_PRIMARY, letterSpacing: -0.3 }}>
+            <h2 className="m-0" style={{ fontSize: 14, fontWeight: 700, color: TEXT_PRIMARY, letterSpacing: -0.3 }}>
               {user.name}
             </h2>
             {liveGuide?.isGuide && (
@@ -180,8 +180,8 @@ function InlineStat({ value, label, onClick }) {
         cursor: interactive ? 'pointer' : 'default',
       }}
     >
-      <span style={{ fontSize: 13, fontWeight: 700, color: TEXT_PRIMARY }}>{value}</span>
-      <span style={{ fontSize: 11, color: TEXT_SECONDARY }}>{label}</span>
+      <span style={{ fontSize: 16, fontWeight: 700, color: TEXT_PRIMARY }}>{value}</span>
+      <span style={{ fontSize: 12.5, color: TEXT_SECONDARY }}>{label}</span>
     </Tag>
   );
 }
