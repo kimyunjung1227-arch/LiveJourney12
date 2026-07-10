@@ -25,7 +25,6 @@ import { getDisplayImageUrl } from '../api/upload';
 import { fetchPublishedMagazines } from '../api/curatedMagazinesSupabase';
 import { logger } from '../utils/logger';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
-import { getRegionDefaultImage } from '../utils/regionDefaultImages';
 import { getWeatherByRegion } from '../api/weather';
 import BottomNavigation from '../components/BottomNavigation';
 
@@ -723,10 +722,10 @@ function CityGrid({ cities }) {
         {mergedCities.slice(0, 4).map((city, idx) => {
           const [start, end] = CITY_GRADIENTS[city.city] || DEFAULT_CITY_GRADIENT;
           // 30분마다 지역 사진 풀을 순환(카드별로 시작 위치를 달리해 다양하게).
-          // 지금 올라온 사용자 사진 우선, 하나도 없으면 지역 기본 이미지로 폴백.
+          // 사용자가 올린 실제 사진만 사용 — 없으면 그라데이션 배경으로 표시.
           const pool = city.thumbnails || [];
           const picked = pool.length ? pool[(bucket + idx) % pool.length] : null;
-          const photo = picked ? getDisplayImageUrl(picked) : getRegionDefaultImage(city.city);
+          const photo = picked ? getDisplayImageUrl(picked) : null;
           return (
             <button
               key={city.city}
