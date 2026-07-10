@@ -25,19 +25,22 @@ export default function ProfileHeader({ user, isMe = false, trailingSlot = null,
   const avatarUrl = user.avatar_url ? getDisplayImageUrl(user.avatar_url) : '';
   const isArtist = !!user.is_best_cut_artist;
 
+  const bioText = user.bio ? user.bio : '지금, 당신의 여행을 실시간으로';
+
   return (
     <div style={{ padding: '14px 18px 10px' }}>
-      <div className="flex items-start gap-3">
+      {/* 상단: 아바타(작게) + 이름/뱃지 */}
+      <div className="flex items-center gap-3">
         {/* 아바타 + 왕관 인디케이터 */}
-        <div className="relative flex-shrink-0" style={{ width: 52, height: 52 }}>
+        <div className="relative flex-shrink-0" style={{ width: 44, height: 44 }}>
           <div
             className="flex items-center justify-center rounded-full overflow-hidden"
             style={{
-              width: 52,
-              height: 52,
+              width: 44,
+              height: 44,
               background: user.avatar_color || KEY,
               color: 'white',
-              fontSize: 19,
+              fontSize: 16,
               fontWeight: 700,
             }}
           >
@@ -62,20 +65,20 @@ export default function ProfileHeader({ user, isMe = false, trailingSlot = null,
               style={{
                 right: -2,
                 bottom: -2,
-                width: 20,
-                height: 20,
+                width: 18,
+                height: 18,
                 borderRadius: 999,
                 background: GRADIENT,
                 border: '2px solid white',
               }}
             >
-              <IconCrown size={11} color="white" stroke={2} />
+              <IconCrown size={10} color="white" stroke={2} />
             </div>
           )}
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap" style={{ marginBottom: 4 }}>
+          <div className="flex items-center gap-2 flex-wrap">
             <h2 className="m-0" style={{ fontSize: 16, fontWeight: 700, color: TEXT_PRIMARY, letterSpacing: -0.3 }}>
               {user.name}
             </h2>
@@ -120,56 +123,44 @@ export default function ProfileHeader({ user, isMe = false, trailingSlot = null,
               <div style={{ marginLeft: 'auto' }}>{trailingSlot}</div>
             ) : null}
           </div>
-
-          {user.bio ? (
-            <p
-              className="m-0"
-              style={{
-                fontSize: 12.5,
-                lineHeight: 1.5,
-                color: TEXT_PRIMARY,
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                marginBottom: 8,
-              }}
-            >
-              {user.bio}
-            </p>
-          ) : (
-            <p
-              className="m-0"
-              style={{
-                fontSize: 12,
-                color: TEXT_SECONDARY,
-                marginBottom: 8,
-              }}
-            >
-              지금, 당신의 여행을 실시간으로
-            </p>
-          )}
-
-          {/* 게시물/팔로워/팔로잉 — 정보 컬럼 안쪽(아바타 우측)에 배치 */}
-          <div className="flex items-baseline" style={{ gap: 14 }}>
-            <InlineStat value={user.photo_count || 0} label="게시물" />
-            <InlineStat
-              value={user.follower_count || 0}
-              label="팔로워"
-              onClick={() => {
-                if (isMe) navigate('/profile/follows?tab=followers');
-                else if (user?.id) navigate(`/user/${encodeURIComponent(user.id)}/follows?tab=followers`);
-              }}
-            />
-            <InlineStat
-              value={user.following_count || 0}
-              label="팔로잉"
-              onClick={() => {
-                if (isMe) navigate('/profile/follows?tab=following');
-                else if (user?.id) navigate(`/user/${encodeURIComponent(user.id)}/follows?tab=following`);
-              }}
-            />
-          </div>
         </div>
       </div>
+
+      {/* 팔로워 구역 — 별도 구역, 좌측 정렬 */}
+      <div className="flex items-baseline" style={{ gap: 18, marginTop: 12 }}>
+        <InlineStat value={user.photo_count || 0} label="게시물" />
+        <InlineStat
+          value={user.follower_count || 0}
+          label="팔로워"
+          onClick={() => {
+            if (isMe) navigate('/profile/follows?tab=followers');
+            else if (user?.id) navigate(`/user/${encodeURIComponent(user.id)}/follows?tab=followers`);
+          }}
+        />
+        <InlineStat
+          value={user.following_count || 0}
+          label="팔로잉"
+          onClick={() => {
+            if (isMe) navigate('/profile/follows?tab=following');
+            else if (user?.id) navigate(`/user/${encodeURIComponent(user.id)}/follows?tab=following`);
+          }}
+        />
+      </div>
+
+      {/* 사용자 입력(바이오) 구역 — 팔로워 구역 아래 별도 구역 */}
+      <p
+        className="m-0"
+        style={{
+          fontSize: 12.5,
+          lineHeight: 1.5,
+          color: user.bio ? TEXT_PRIMARY : TEXT_SECONDARY,
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          marginTop: 12,
+        }}
+      >
+        {bioText}
+      </p>
     </div>
   );
 }
