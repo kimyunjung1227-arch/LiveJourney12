@@ -835,7 +835,7 @@ function UploadInfoScreen() {
                   flexShrink: 0,
                 }}
               >
-                이 이름 사용
+                수정하기
               </button>
             </div>
             {locQuery.trim() && (
