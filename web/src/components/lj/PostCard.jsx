@@ -23,8 +23,9 @@ const BODY_PREVIEW_LINES = 4;
 
 /**
  * 홈 피드 게시물 카드.
- * 구조: 위치명(크게)+카테고리+기온 → 사진(크게) → 아바타+이름 → 제목 → 본문(4줄) → 반응
- * - 위치/카테고리/기온은 사진 위 상단 헤더, 작성자 프로필은 사진 아래·제목 위로
+ * 구조: 위치명(크게)+[카테고리·기온] → 사진(크게) → 아바타+이름 → 제목 → 본문(4줄) → 반응
+ * - 위치는 좌측, 카테고리·기온은 우측에 한 줄로 합쳐(예: "노을 · ☀️ 29℃") 표시
+ * - 작성자 프로필은 사진 아래·제목 위로
  * - 사진과 반응 사이 구분선 없음
  * - 댓글 아이콘은 꼬리가 우측으로 가도록 좌우 반전
  */
@@ -144,23 +145,10 @@ export function PostCard({
           ) : (
             <span />
           )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            {(post.category_raw || post.category) && (
-              <span
-                style={{
-                  padding: '3px 9px',
-                  background: LJ.bgSurface,
-                  borderRadius: 6,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: LJ.textSecondary,
-                }}
-              >
-                {post.category_raw || categoryLabel(post.category)}
-              </span>
-            )}
-            <WeatherInlineChip weather={post.weather || post.weatherSnapshot} />
-          </div>
+          <CategoryWeatherChip
+            category={post.category_raw || (post.category ? categoryLabel(post.category) : null)}
+            weather={post.weather || post.weatherSnapshot}
+          />
         </div>
       )}
 
@@ -494,15 +482,18 @@ function ExifBadge({ takenAt }) {
   );
 }
 
-function WeatherInlineChip({ weather }) {
+// 카테고리 · 날씨(아이콘+기온+상태)를 한 줄로 합쳐 표시. 예) "노을 · ☀️ 29℃"
+function CategoryWeatherChip({ category, weather }) {
   const display = pickWeatherDisplay(weather);
-  if (!display) return null;
+  const hasCategory = !!category;
+  const hasWeather = !!display;
+  if (!hasCategory && !hasWeather) return null;
   return (
     <span
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 5,
+        gap: 6,
         padding: 0,
         fontFamily: LJ.fontStack,
         fontSize: 13,
@@ -511,20 +502,30 @@ function WeatherInlineChip({ weather }) {
         whiteSpace: 'nowrap',
       }}
     >
-      {display.icon && <span style={{ fontSize: 14, lineHeight: 1 }}>{display.icon}</span>}
-      {display.temperature && (
-        <span
-          style={{
-            color: LJ.textPrimary,
-            fontWeight: 700,
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          {display.temperature}
-        </span>
+      {hasCategory && (
+        <span style={{ fontWeight: 600, color: LJ.textSecondary }}>{category}</span>
       )}
-      {display.condition && (
-        <span style={{ color: LJ.textSecondary, fontWeight: 500 }}>{display.condition}</span>
+      {hasCategory && hasWeather && (
+        <span style={{ color: LJ.textTertiary }}>·</span>
+      )}
+      {hasWeather && (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          {display.icon && <span style={{ fontSize: 14, lineHeight: 1 }}>{display.icon}</span>}
+          {display.temperature && (
+            <span
+              style={{
+                color: LJ.textPrimary,
+                fontWeight: 700,
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {display.temperature}
+            </span>
+          )}
+          {display.condition && (
+            <span style={{ color: LJ.textSecondary, fontWeight: 500 }}>{display.condition}</span>
+          )}
+        </span>
       )}
     </span>
   );
