@@ -90,6 +90,12 @@ export function PostCard({
     e.stopPropagation();
     navigate(`/user/${author.id || post.author_id}`);
   };
+  const goPlace = (e) => {
+    e.stopPropagation();
+    const key = post.place_id || (post.place_name ? post.place_name.trim().toLowerCase() : '');
+    if (!key) return;
+    navigate(`/place/${encodeURIComponent(key)}`);
+  };
   const goPostDetail = (e) => {
     e.stopPropagation();
     navigate(`/post/${post.id}`);
@@ -118,7 +124,8 @@ export function PostCard({
           {post.place_name ? (
             <button
               type="button"
-              onClick={goPostDetail}
+              onClick={goPlace}
+              aria-label={`${post.place_name} 장소 보기`}
               style={{
                 background: 'transparent',
                 border: 'none',
