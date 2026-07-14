@@ -17,7 +17,7 @@ import {
 import MoreMenuDropdown from './MoreMenuDropdown';
 import PhotoCarousel from './PhotoCarousel';
 import ReportModal from './ReportModal';
-import ExifFreshIcon from './ExifFreshIcon';
+import { exifFreshnessScore } from './ExifFreshIcon';
 
 const BODY_PREVIEW_LINES = 4;
 
@@ -449,9 +449,12 @@ function ReactionButton({ active, iconOff, iconOn, count, onClick, ariaLabel }) 
   );
 }
 
+// 로튼토마토식 정보 신선도 배지: [판정 아이콘] 신선 94% · 5분 전
 function ExifBadge({ takenAt }) {
+  const fresh = exifFreshnessScore(takenAt);
   const relative = formatExifTime(takenAt);
-  if (!relative) return null;
+  if (!fresh) return null;
+  const { score, label, color, Icon } = fresh;
   return (
     <div
       style={{
@@ -463,21 +466,36 @@ function ExifBadge({ takenAt }) {
         borderRadius: 999,
         backdropFilter: 'blur(8px)',
         boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+        lineHeight: 1,
       }}
     >
-      <ExifFreshIcon iso={takenAt} size={15} stroke={2} />
+      <Icon size={15} stroke={2.2} color={color} />
+      <span style={{ color, fontSize: 12, fontWeight: 800, letterSpacing: 0.2 }}>{label}</span>
       <span
         style={{
           color: '#fff',
           fontSize: 13,
           fontWeight: 800,
-          letterSpacing: 0.2,
           fontVariantNumeric: 'tabular-nums',
-          lineHeight: 1,
         }}
       >
-        {relative}
+        {score}%
       </span>
+      {relative && (
+        <>
+          <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>·</span>
+          <span
+            style={{
+              color: 'rgba(255,255,255,0.72)',
+              fontSize: 12,
+              fontWeight: 600,
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {relative}
+          </span>
+        </>
+      )}
     </div>
   );
 }
