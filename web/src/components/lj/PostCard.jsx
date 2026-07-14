@@ -23,8 +23,8 @@ const BODY_PREVIEW_LINES = 4;
 
 /**
  * 홈 피드 게시물 카드.
- * 구조: 위치명+기온 → 사진(크게) → 제목 → 아바타+이름(글수) → 본문(4줄) → 반응
- * - 위치/기온은 사진 위 상단 헤더, 작성자 프로필은 사진 아래로
+ * 구조: 위치명(크게)+카테고리+기온 → 사진(크게) → 아바타+이름 → 제목 → 본문(4줄) → 반응
+ * - 위치/카테고리/기온은 사진 위 상단 헤더, 작성자 프로필은 사진 아래·제목 위로
  * - 사진과 반응 사이 구분선 없음
  * - 댓글 아이콘은 꼬리가 우측으로 가도록 좌우 반전
  */
@@ -103,8 +103,8 @@ export function PostCard({
         color: LJ.textPrimary,
       }}
     >
-      {/* 위치명 (좌) + 기온 (우) — 사진 위 상단 헤더로 이동 */}
-      {(post.place_name || post.weather || post.weatherSnapshot) && (
+      {/* 위치명(좌·크게) + 카테고리 + 기온(우) — 사진 위 상단 헤더 */}
+      {(post.place_name || post.category_raw || post.category || post.weather || post.weatherSnapshot) && (
         <div
           style={{
             display: 'flex',
@@ -124,19 +124,19 @@ export function PostCard({
                 padding: 0,
                 cursor: 'pointer',
                 fontFamily: LJ.fontStack,
-                fontSize: 15,
-                fontWeight: 700,
+                fontSize: 19,
+                fontWeight: 800,
                 color: LJ.textPrimary,
-                letterSpacing: -0.3,
+                letterSpacing: -0.4,
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 3,
+                gap: 4,
                 textAlign: 'left',
                 minWidth: 0,
                 flex: '1 1 auto',
               }}
             >
-              <IconMapPin size={14} stroke={2} color={LJ.textTertiary} style={{ flexShrink: 0 }} />
+              <IconMapPin size={18} stroke={2} color={LJ.textTertiary} style={{ flexShrink: 0 }} />
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {post.place_name}
               </span>
@@ -144,7 +144,23 @@ export function PostCard({
           ) : (
             <span />
           )}
-          <WeatherInlineChip weather={post.weather || post.weatherSnapshot} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            {(post.category_raw || post.category) && (
+              <span
+                style={{
+                  padding: '3px 9px',
+                  background: LJ.bgSurface,
+                  borderRadius: 6,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: LJ.textSecondary,
+                }}
+              >
+                {post.category_raw || categoryLabel(post.category)}
+              </span>
+            )}
+            <WeatherInlineChip weather={post.weather || post.weatherSnapshot} />
+          </div>
         </div>
       )}
 
@@ -177,35 +193,8 @@ export function PostCard({
         </div>
       </div>
 
-      {/* 제목 (작성자가 입력) — 위치명 위 헤드라인 */}
-      {post.title && (
-        <button
-          type="button"
-          onClick={goPostDetail}
-          style={{
-            display: 'block',
-            width: '100%',
-            textAlign: 'left',
-            background: 'transparent',
-            border: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            fontFamily: LJ.fontStack,
-            fontSize: 16.5,
-            fontWeight: 700,
-            color: LJ.textPrimary,
-            letterSpacing: -0.3,
-            lineHeight: 1.35,
-            margin: '12px 0 4px',
-            wordBreak: 'break-word',
-          }}
-        >
-          {post.title}
-        </button>
-      )}
-
-      {/* 작성자 행: 아바타 | 이름(N) | 카테고리 — 사진 아래로 이동 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: post.title ? '10px 0 0' : '12px 0 0' }}>
+      {/* 작성자 행: 아바타 | 이름(N) — 제목 위로 이동 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '10px 0 0' }}>
         <Avatar nickname={author.nickname} avatarUrl={author.avatar_url} size={28} onClick={goAuthor} />
         <div
           style={{
@@ -238,22 +227,34 @@ export function PostCard({
             <span style={{ fontSize: 12, color: LJ.textTertiary }}>({author.post_count})</span>
           )}
         </div>
-        {(post.category_raw || post.category) && (
-          <span
-            style={{
-              padding: '3px 9px',
-              background: LJ.bgSurface,
-              borderRadius: 6,
-              fontSize: 11,
-              fontWeight: 600,
-              color: LJ.textSecondary,
-              flexShrink: 0,
-            }}
-          >
-            {post.category_raw || categoryLabel(post.category)}
-          </span>
-        )}
       </div>
+
+      {/* 제목 (작성자가 입력) — 프로필 아래 헤드라인 */}
+      {post.title && (
+        <button
+          type="button"
+          onClick={goPostDetail}
+          style={{
+            display: 'block',
+            width: '100%',
+            textAlign: 'left',
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            fontFamily: LJ.fontStack,
+            fontSize: 16.5,
+            fontWeight: 700,
+            color: LJ.textPrimary,
+            letterSpacing: -0.3,
+            lineHeight: 1.35,
+            margin: '8px 0 4px',
+            wordBreak: 'break-word',
+          }}
+        >
+          {post.title}
+        </button>
+      )}
 
       {/* 본문 (4줄 클램프) */}
       {post.body && <ClampedBody text={post.body} />}
