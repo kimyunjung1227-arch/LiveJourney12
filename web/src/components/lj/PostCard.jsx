@@ -125,19 +125,20 @@ export function PostCard({
                 padding: 0,
                 cursor: 'pointer',
                 fontFamily: LJ.fontStack,
-                fontSize: 19,
-                fontWeight: 800,
+                fontSize: 17,
+                fontWeight: 700,
                 color: LJ.textPrimary,
-                letterSpacing: -0.4,
+                letterSpacing: -0.3,
+                lineHeight: 1.3,
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 4,
+                gap: 5,
                 textAlign: 'left',
                 minWidth: 0,
                 flex: '1 1 auto',
               }}
             >
-              <IconMapPin size={18} stroke={2} color={LJ.textTertiary} style={{ flexShrink: 0 }} />
+              <IconMapPin size={16} stroke={2} color={LJ.key} style={{ flexShrink: 0 }} />
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {post.place_name}
               </span>
