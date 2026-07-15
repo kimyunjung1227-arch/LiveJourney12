@@ -1,12 +1,13 @@
 import React from 'react';
-import { IconFlame } from '@tabler/icons-react';
+import { IconHeartHandshake } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 
+const KEY = '#4DB8E8';
 const KEY_DARK = '#1A6EA8';
+const KEY_LIGHT_BG = '#EAF5FC';
 const TEXT_PRIMARY = '#1F1F1F';
 const TEXT_SECONDARY = '#6B6B6B';
-const GRADIENT = 'linear-gradient(135deg, #4DB8E8, #1A6EA8)';
-const GRADIENT_LIGHT = 'linear-gradient(135deg, #E8F4FB, #F0F9FE)';
+const BORDER_LIGHT = '#EEEEEE';
 
 function timeAgo(iso) {
   if (!iso) return '';
@@ -22,7 +23,7 @@ function timeAgo(iso) {
 }
 
 /**
- * 마일스톤(100명+) 알림 — 옅은 그라데이션 카드.
+ * 마일스톤(100명+) 알림 — 흰 배경 카드 + 컬러 아이콘.
  */
 export default function MilestoneNotice({ notification }) {
   const navigate = useNavigate();
@@ -34,8 +35,8 @@ export default function MilestoneNotice({ notification }) {
       role="button"
       tabIndex={0}
       style={{
-        background: GRADIENT_LIGHT,
-        border: '1.5px solid rgba(77, 184, 232, 0.3)',
+        background: '#fff',
+        border: `1px solid ${BORDER_LIGHT}`,
         borderRadius: 14,
         padding: 14,
         marginBottom: 14,
@@ -49,10 +50,10 @@ export default function MilestoneNotice({ notification }) {
             width: 44,
             height: 44,
             borderRadius: 999,
-            background: GRADIENT,
+            background: KEY_LIGHT_BG,
           }}
         >
-          <IconFlame size={22} color="white" stroke={2} />
+          <IconHeartHandshake size={24} color={KEY} stroke={2} />
         </div>
         <div className="flex-1 min-w-0">
           <p

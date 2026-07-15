@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   IconHeart,
   IconBookmark,
-  IconFlame,
+  IconHeartHandshake,
   IconPhoto,
   IconBell,
 } from '@tabler/icons-react';
@@ -16,6 +16,8 @@ const TEXT_PRIMARY = '#1F1F1F';
 const TEXT_SECONDARY = '#6B6B6B';
 const SURFACE = '#F5F7FA';
 const BORDER_LIGHT = '#EEEEEE';
+const ICON_GRAY = '#9CA3AF';
+const ICON_GRAY_BG = '#F1F3F5';
 
 function timeAgo(iso) {
   if (!iso) return '';
@@ -44,9 +46,9 @@ export default function ActivityNotice({ notification, onFollowBack }) {
       return (
         <div
           className="flex items-center justify-center flex-shrink-0"
-          style={{ width: 38, height: 38, borderRadius: 999, background: KEY }}
+          style={{ width: 38, height: 38, borderRadius: 999, background: KEY_LIGHT_BG }}
         >
-          <IconHeart size={16} color="white" stroke={2} />
+          <IconHeart size={18} color={KEY} stroke={2} />
         </div>
       );
     }
@@ -54,9 +56,9 @@ export default function ActivityNotice({ notification, onFollowBack }) {
       return (
         <div
           className="flex items-center justify-center flex-shrink-0"
-          style={{ width: 38, height: 38, borderRadius: 999, background: KEY }}
+          style={{ width: 38, height: 38, borderRadius: 999, background: KEY_LIGHT_BG }}
         >
-          <IconBookmark size={16} color="white" stroke={2} />
+          <IconBookmark size={18} color={KEY} stroke={2} />
         </div>
       );
     }
@@ -64,9 +66,9 @@ export default function ActivityNotice({ notification, onFollowBack }) {
       return (
         <div
           className="flex items-center justify-center flex-shrink-0"
-          style={{ width: 38, height: 38, borderRadius: 999, background: KEY }}
+          style={{ width: 38, height: 38, borderRadius: 999, background: KEY_LIGHT_BG }}
         >
-          <IconFlame size={16} color="white" stroke={2} />
+          <IconHeartHandshake size={20} color={KEY} stroke={2} />
         </div>
       );
     }
@@ -74,9 +76,9 @@ export default function ActivityNotice({ notification, onFollowBack }) {
       return (
         <div
           className="flex items-center justify-center flex-shrink-0"
-          style={{ width: 46, height: 46, borderRadius: 999, background: '#9CA3AF' }}
+          style={{ width: 46, height: 46, borderRadius: 999, background: ICON_GRAY_BG }}
         >
-          <IconBell size={16} color="white" stroke={2} />
+          <IconBell size={18} color={ICON_GRAY} stroke={2} />
         </div>
       );
     }
@@ -85,9 +87,9 @@ export default function ActivityNotice({ notification, onFollowBack }) {
       return (
         <div
           className="flex items-center justify-center flex-shrink-0"
-          style={{ width: 38, height: 38, borderRadius: 999, background: KEY }}
+          style={{ width: 38, height: 38, borderRadius: 999, background: KEY_LIGHT_BG }}
         >
-          <IconPhoto size={16} color="white" stroke={2} />
+          <IconPhoto size={18} color={KEY} stroke={2} />
         </div>
       );
     }
@@ -241,15 +243,26 @@ export default function ActivityNotice({ notification, onFollowBack }) {
       tabIndex={0}
       className="flex items-center"
       style={{
-        gap: 10,
+        gap: 8,
         cursor: 'pointer',
         borderRadius: 8,
-        background: is_read ? 'transparent' : KEY_LIGHT_BG,
+        background: '#fff',
         padding: '8px 8px',
         marginBottom: 0,
         borderBottom: `1px solid ${BORDER_LIGHT}`,
       }}
     >
+      {/* 안읽음 표시 — 흰 배경을 유지하고 왼쪽 점으로만 구분 */}
+      <span
+        aria-hidden
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: 999,
+          flexShrink: 0,
+          background: is_read ? 'transparent' : KEY,
+        }}
+      />
       {renderAvatar()}
 
       <div className="flex-1 min-w-0">

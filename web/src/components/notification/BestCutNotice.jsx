@@ -3,8 +3,13 @@ import { IconCrown } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { getDisplayImageUrl } from '../../api/upload';
 
+const KEY = '#4DB8E8';
 const KEY_DARK = '#1A6EA8';
-const GRADIENT = 'linear-gradient(135deg, #4DB8E8, #1A6EA8)';
+const KEY_LIGHT_BG = '#EAF5FC';
+const TEXT_PRIMARY = '#1F1F1F';
+const TEXT_SECONDARY = '#6B6B6B';
+const SURFACE = '#F5F7FA';
+const BORDER_LIGHT = '#EEEEEE';
 
 function timeAgo(iso) {
   if (!iso) return '';
@@ -35,39 +40,40 @@ export default function BestCutNotice({ notification }) {
 
   return (
     <div
-      className="relative overflow-hidden"
+      className="relative"
       style={{
         borderRadius: 14,
         padding: 16,
         marginBottom: 10,
-        background: GRADIENT,
+        background: '#fff',
+        border: `1px solid ${BORDER_LIGHT}`,
       }}
     >
-      {/* 왕관 워터마크 */}
-      <div style={{ position: 'absolute', top: -10, right: -10, opacity: 0.15, pointerEvents: 'none' }}>
-        <IconCrown size={80} color="white" stroke={2} />
-      </div>
-
-      {/* 헤더 */}
-      <div className="flex items-center gap-1.5 relative" style={{ marginBottom: 10 }}>
-        <IconCrown size={16} color="white" stroke={2} />
-        <span style={{ fontSize: 12, color: 'white', fontWeight: 700, letterSpacing: 0.2 }}>
+      {/* 헤더 — 왕관 아이콘에 색을 실어 강조 */}
+      <div className="flex items-center gap-1.5" style={{ marginBottom: 10 }}>
+        <div
+          className="flex items-center justify-center flex-shrink-0"
+          style={{ width: 24, height: 24, borderRadius: 999, background: KEY_LIGHT_BG }}
+        >
+          <IconCrown size={15} color={KEY} stroke={2} />
+        </div>
+        <span style={{ fontSize: 12, color: KEY_DARK, fontWeight: 700, letterSpacing: 0.2 }}>
           베스트 컷 선정
         </span>
       </div>
 
       {/* 메시지 */}
       <p
-        className="m-0 relative"
+        className="m-0"
         style={{
           fontSize: 14.5,
-          color: 'white',
+          color: TEXT_PRIMARY,
           lineHeight: 1.55,
           marginBottom: 14,
         }}
       >
         {place ? `${place} 사진이 ` : '당신의 사진이 '}
-        <span style={{ fontWeight: 700 }}>베스트 컷</span>이 됐어요!
+        <span style={{ fontWeight: 700, color: KEY_DARK }}>베스트 컷</span>이 됐어요!
         {helped > 0 && placeShort
           ? ` ${helped}명이 당신의 사진으로 ${placeShort}을(를) 결정했어요.`
           : helped > 0
@@ -76,15 +82,15 @@ export default function BestCutNotice({ notification }) {
       </p>
 
       {/* 하단: 썸네일 + 시간 + 보기 */}
-      <div className="flex items-center gap-2.5 relative">
+      <div className="flex items-center gap-2.5">
         <div
           className="overflow-hidden flex-shrink-0"
           style={{
             width: 48,
             height: 48,
             borderRadius: 9,
-            background: 'rgba(255,255,255,0.2)',
-            border: '1.5px solid rgba(255,255,255,0.4)',
+            background: SURFACE,
+            border: `1px solid ${BORDER_LIGHT}`,
           }}
         >
           {thumb && (
@@ -92,7 +98,7 @@ export default function BestCutNotice({ notification }) {
           )}
         </div>
         <div className="flex-1">
-          <p className="m-0" style={{ fontSize: 11, color: 'rgba(255,255,255,0.9)' }}>
+          <p className="m-0" style={{ fontSize: 11, color: TEXT_SECONDARY }}>
             {timeAgo(notification.created_at)}
           </p>
         </div>
@@ -100,8 +106,8 @@ export default function BestCutNotice({ notification }) {
           type="button"
           onClick={() => notification.post_id && navigate(`/post/${encodeURIComponent(notification.post_id)}`)}
           style={{
-            background: '#fff',
-            color: KEY_DARK,
+            background: KEY,
+            color: '#fff',
             padding: '8px 16px',
             borderRadius: 9,
             fontSize: 12,
