@@ -425,14 +425,7 @@ function PostDetailScreen() {
           )}
         </div>
 
-        {/* 본문 */}
-        {post.body && (
-          <p style={{ marginTop: 10, fontSize: 14, lineHeight: 1.6, color: LJ.textPrimary }}>
-            {post.body}
-          </p>
-        )}
-
-        {/* 선택한 상황 태그 */}
+        {/* 선택한 상황 태그 — 프로필 바로 아래 */}
         {Array.isArray(post.tags) && post.tags.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
             {post.tags.map((t) => (
@@ -448,10 +441,17 @@ function PostDetailScreen() {
                   lineHeight: 1,
                 }}
               >
-                #{typeof t === 'string' ? t.replace(/^#+/, '') : t}
+                {typeof t === 'string' ? t.replace(/^#+/, '') : t}
               </span>
             ))}
           </div>
+        )}
+
+        {/* 본문 */}
+        {post.body && (
+          <p style={{ marginTop: 10, fontSize: 14, lineHeight: 1.6, color: LJ.textPrimary }}>
+            {post.body}
+          </p>
         )}
 
         {/* 반응 줄 — 좋아요/저장은 홈에서, 여기는 댓글 카운트만 노출 */}
