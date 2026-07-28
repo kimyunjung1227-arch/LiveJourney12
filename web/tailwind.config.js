@@ -73,26 +73,26 @@ export default {
         "placeholder-dark": "#6B7280",
       },
       fontFamily: {
-        // 전 화면 폰트 통일 — 모두 Spoqa Han Sans Neo 스택(index.css --lj-font-sans와 동일).
+        // 전 화면 폰트 통일 — 모두 Pretendard 스택(index.css --lj-font-sans와 동일).
         // display/manrope/inter 별칭도 동일 스택으로 매핑해 기존 클래스 사용처가
         // 자동으로 통일되도록 함.
         "sans": [
-          "Spoqa Han Sans Neo", "-apple-system", "BlinkMacSystemFont",
+          "Pretendard Variable", "Pretendard", "-apple-system", "BlinkMacSystemFont",
           "system-ui", "Apple SD Gothic Neo", "Segoe UI", "Roboto", "Helvetica Neue",
           "Noto Sans KR", "sans-serif",
         ],
         "display": [
-          "Spoqa Han Sans Neo", "-apple-system", "BlinkMacSystemFont",
+          "Pretendard Variable", "Pretendard", "-apple-system", "BlinkMacSystemFont",
           "system-ui", "Apple SD Gothic Neo", "Segoe UI", "Roboto", "Helvetica Neue",
           "Noto Sans KR", "sans-serif",
         ],
         "manrope": [
-          "Spoqa Han Sans Neo", "-apple-system", "BlinkMacSystemFont",
+          "Pretendard Variable", "Pretendard", "-apple-system", "BlinkMacSystemFont",
           "system-ui", "Apple SD Gothic Neo", "Segoe UI", "Roboto", "Helvetica Neue",
           "Noto Sans KR", "sans-serif",
         ],
         "inter": [
-          "Spoqa Han Sans Neo", "-apple-system", "BlinkMacSystemFont",
+          "Pretendard Variable", "Pretendard", "-apple-system", "BlinkMacSystemFont",
           "system-ui", "Apple SD Gothic Neo", "Segoe UI", "Roboto", "Helvetica Neue",
           "Noto Sans KR", "sans-serif",
         ],
