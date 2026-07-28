@@ -984,23 +984,25 @@ function UploadInfoScreen() {
 
         {/* 더보기: 시즌 + 옷차림 + 현장 (기본 접힘 — 화면 칩 12개 이하 유지) */}
         {!moreOpen ? (
-          <button
-            type="button"
-            onClick={() => setMoreOpen(true)}
-            style={{
-              minHeight: 0,
-              background: 'transparent',
-              border: 'none',
-              padding: '2px 0 6px',
-              color: LJ.key,
-              fontFamily: LJ.fontStack,
-              fontSize: 12.5,
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            더보기
-          </button>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={() => setMoreOpen(true)}
+              style={{
+                minHeight: 0,
+                background: 'transparent',
+                border: 'none',
+                padding: '2px 0 6px',
+                color: LJ.key,
+                fontFamily: LJ.fontStack,
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              더보기
+            </button>
+          </div>
         ) : (
           <>
             {seasonOptions.length > 0 && (
@@ -1025,29 +1027,31 @@ function UploadInfoScreen() {
                 renderChip(t, sceneTags.includes(tagStr(t)), () => toggleMulti(setSceneTags)(tagStr(t)))
               )
             )}
-            <button
-              type="button"
-              onClick={() => setMoreOpen(false)}
-              style={{
-                minHeight: 0,
-                background: 'transparent',
-                border: 'none',
-                padding: '0 0 8px',
-                color: LJ.textTertiary,
-                fontFamily: LJ.fontStack,
-                fontSize: 12.5,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              접기
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setMoreOpen(false)}
+                style={{
+                  minHeight: 0,
+                  background: 'transparent',
+                  border: 'none',
+                  padding: '0 0 8px',
+                  color: LJ.textTertiary,
+                  fontFamily: LJ.fontStack,
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                접기
+              </button>
+            </div>
           </>
         )}
 
-        {/* 한마디 — 선택. 태그로 부족한 뉘앙스만 덧붙임 */}
+        {/* 설명 — 선택. 태그로 부족한 뉘앙스만 덧붙임 */}
         <div style={{ marginTop: 6 }}>
-          {groupHeader(isAnswerMode ? '답변 한마디' : '한마디', { hint: '선택' })}
+          {groupHeader(isAnswerMode ? '답변' : '설명')}
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
