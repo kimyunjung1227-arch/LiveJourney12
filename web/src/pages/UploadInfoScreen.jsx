@@ -38,7 +38,7 @@ import { autoCategorize } from '../utils/autoCategorize';
 //  3군 옷차림      — 선택·단일. "뭐 입고 가지" 여행 전 검색 1순위.
 //  4군 현장        — 선택·다중.
 //  시즌 태그       — 시기 한정 노출(수집욕·화제성).
-// 저장/표시는 "이모지 라벨" 한 문자열(예: "☀️ 맑음"). 태그는 posts.tags 배열.
+// 저장/표시는 라벨 텍스트만(예: "맑음"). 이모지는 컬러가 과해 미표시(플랫·미니멀 톤). 태그는 posts.tags 배열.
 const WEATHER_TAGS = [
   { emoji: '☀️', label: '맑음' },
   { emoji: '⛅', label: '구름조금' },
@@ -81,8 +81,8 @@ function getSeasonKey(month) {
   if (month >= 9 && month <= 11) return 'autumn';
   return 'winter';
 }
-/** 태그 객체 → 저장/표시용 문자열 "이모지 라벨" */
-const tagStr = (t) => `${t.emoji} ${t.label}`;
+/** 태그 객체 → 저장/표시용 문자열(라벨만) */
+const tagStr = (t) => t.label;
 
 function UploadInfoScreen() {
   const navigate = useNavigate();
@@ -143,7 +143,6 @@ function UploadInfoScreen() {
   });
   const renderChip = (t, active, onClick) => (
     <button key={t.label} type="button" onClick={onClick} aria-pressed={active} style={chipStyle(active)}>
-      <span style={{ fontSize: 14, lineHeight: 1 }}>{t.emoji}</span>
       {t.label}
     </button>
   );
@@ -1000,7 +999,7 @@ function UploadInfoScreen() {
               cursor: 'pointer',
             }}
           >
-            옷차림 · 현장{seasonOptions.length ? ` · ${SEASON_LABEL[seasonKey]} 시즌` : ''} 더보기 ▾
+            더보기
           </button>
         ) : (
           <>
@@ -1041,7 +1040,7 @@ function UploadInfoScreen() {
                 cursor: 'pointer',
               }}
             >
-              접기 ▴
+              접기
             </button>
           </>
         )}

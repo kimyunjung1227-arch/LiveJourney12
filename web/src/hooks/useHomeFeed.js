@@ -44,6 +44,7 @@ const SELECT_COLUMNS = `
   region,
   category,
   category_name,
+  tags,
   likes_count,
   comments_count,
   captured_at,

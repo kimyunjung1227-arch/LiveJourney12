@@ -255,6 +255,28 @@ export function PostCard({
       {/* 본문 (4줄 클램프) */}
       {post.body && <ClampedBody text={post.body} />}
 
+      {/* 선택한 실시간 태그 */}
+      {Array.isArray(post.tags) && post.tags.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+          {post.tags.map((t) => (
+            <span
+              key={t}
+              style={{
+                fontSize: 11.5,
+                fontWeight: 600,
+                color: LJ.keyTextDark,
+                background: LJ.keyBgLight,
+                padding: '4px 9px',
+                borderRadius: 999,
+                lineHeight: 1,
+              }}
+            >
+              {typeof t === 'string' ? t.replace(/^#+/, '') : t}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* 반응 줄 — 좋아요/댓글은 좌측, 저장+점세개는 우측 */}
       <div
         style={{
