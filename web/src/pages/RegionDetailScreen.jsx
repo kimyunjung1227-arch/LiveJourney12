@@ -307,34 +307,29 @@ const RegionDetailScreen = () => {
             >
               <span className="material-symbols-outlined text-2xl">arrow_back</span>
             </button>
-            <h1 className="flex-1 text-center text-base font-bold leading-tight tracking-[-0.01em] text-black dark:text-white px-1 line-clamp-2">
-              {headerTitle}
-            </h1>
-            <div className="size-11 shrink-0" aria-hidden />
-          </div>
-
-          {/* 날씨 — 은은한 회색 패널로 가독성 확보 */}
-          <div className="flex justify-center px-3 pb-2">
-            <div className="flex h-10 shrink-0 items-center justify-center gap-x-2 rounded-xl border border-slate-300/50 bg-slate-100/90 px-4 shadow-sm backdrop-blur-sm dark:border-slate-600/50 dark:bg-slate-800/85">
+            <div className="flex-1 min-w-0 flex items-center justify-center gap-2 px-1">
+              <h1 className="min-w-0 text-base font-bold leading-tight tracking-[-0.01em] text-black dark:text-white line-clamp-2">
+                {headerTitle}
+              </h1>
+              {/* 지역이름 옆 실시간 기온 칩 — 플랫·둥근·미니멀 */}
               {weatherInfo.loading ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-400 border-t-transparent"></div>
+                <span className="inline-flex shrink-0 items-center">
+                  <span className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-slate-400 border-t-transparent" />
+                </span>
               ) : (
-                <>
-                  <span className="text-base">{weatherInfo.icon}</span>
-                  <p
-                    className="font-semibold leading-normal text-slate-900 dark:text-slate-100"
-                    style={{
-                      fontSize: 13,
-                      letterSpacing: '-0.01em',
-                    }}
+                weatherInfo.temperature && weatherInfo.temperature !== '-' && (
+                  <span
+                    className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5"
+                    style={{ fontSize: 12, fontWeight: 600, letterSpacing: '-0.01em' }}
+                    title={weatherInfo.condition}
                   >
-                    {weatherInfo.condition}
-                    {' · '}
-                    <span style={{ fontSize: 14 }}>{weatherInfo.temperature}</span>
-                  </p>
-                </>
+                    <span style={{ fontSize: 13, lineHeight: 1 }}>{weatherInfo.icon}</span>
+                    <span className="text-slate-700 dark:text-slate-200">{weatherInfo.temperature}</span>
+                  </span>
+                )
               )}
             </div>
+            <div className="size-11 shrink-0" aria-hidden />
           </div>
         </header>
 
