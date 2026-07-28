@@ -22,7 +22,7 @@ export const LJ = {
 
   // 폰트 스택 (전 화면 통일 — index.css의 --lj-font-sans와 동일)
   fontStack:
-    "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans KR', sans-serif",
+    "'Spoqa Han Sans Neo', -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans KR', sans-serif",
 };
 
 export const LJ_CATEGORIES = [
