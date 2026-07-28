@@ -83,6 +83,7 @@ export function useUpload() {
       category,
       title,
       body,
+      tags,
       takenAt,
       lat,
       lng,
@@ -117,6 +118,16 @@ export function useUpload() {
         const categoryName = category ? LJ_CATEGORY_LABEL[category] || category : null;
         const hasCoords = Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
         const cleanTitle = typeof title === 'string' && title.trim() ? title.trim() : null;
+        // 사용자가 고른 상황 태그 — posts.tags(배열)에 저장 (# 접두사 없이 정규화)
+        const cleanTags = Array.isArray(tags)
+          ? Array.from(
+              new Set(
+                tags
+                  .map((t) => (typeof t === 'string' ? t.replace(/^#+/, '').trim() : String(t || '').trim()))
+                  .filter(Boolean)
+              )
+            )
+          : [];
         const exifData = {
           taken_at: capturedIso,
           photoDate: capturedIso,
@@ -136,6 +147,7 @@ export function useUpload() {
         const row = {
           user_id: user.id,
           content: body || '',
+          tags: cleanTags,
           images: imageUrls,
           videos: videoUrls,
           location: placeName || null,

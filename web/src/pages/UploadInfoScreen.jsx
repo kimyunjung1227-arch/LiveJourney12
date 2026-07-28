@@ -32,6 +32,12 @@ import { patchUploadMedia, patchUploadMediaAt } from '../stores/uploadStore';
 import { rotateImageMedia } from '../utils/rotateImageMedia';
 import { autoCategorize } from '../utils/autoCategorize';
 
+// 설명 구역의 상황 태그 프리셋 — 실시간 현장 상황 중심. 여러 개 토글 선택 가능.
+const SITUATION_TAGS = [
+  '만개', '절정', '한산', '보통', '붐빔', '웨이팅',
+  '주차가능', '포토스팟', '노을·야경', '축제·행사', '우천', '맛집',
+];
+
 function UploadInfoScreen() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -46,8 +52,14 @@ function UploadInfoScreen() {
   // (resetUploadStore 로 media=null 이 되면 아래 redirect useEffect 가 /camera 로 덮어쓰는 레이스 방지)
   const uploadCompletedRef = useRef(false);
 
-  const [title, setTitle] = useState('');
+  const [selectedTags, setSelectedTags] = useState([]);
   const [body, setBody] = useState('');
+
+  const toggleTag = (tag) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
   // 화면에 표시할 장소명. 좌표 변경 시 항상 재지오코딩해 최신값을 보여준다.
   const [resolvedPlace, setResolvedPlace] = useState('');
   // 위 장소의 도시/구/동 라벨 (예: "서울 강남구 역삼동")
@@ -174,9 +186,9 @@ function UploadInfoScreen() {
   const mediasArr = Array.isArray(media?.medias) ? media.medias : [];
   const filesArr = mediasArr.map((m) => m?.file).filter(Boolean);
 
-  // 제목·설명은 필수 입력 — 비어 있으면 업로드 불가 (카테고리는 자동이라 조건에서 제외)
-  const canUpload =
-    title.trim().length > 0 && body.trim().length > 0 && filesArr.length > 0 && !isUploading;
+  // 내용 필수 — 상황 태그 선택 또는 입력글 중 하나는 있어야 함 (카테고리는 자동이라 조건에서 제외)
+  const hasContent = selectedTags.length > 0 || body.trim().length > 0;
+  const canUpload = hasContent && filesArr.length > 0 && !isUploading;
 
   const [rotatingIdx, setRotatingIdx] = useState(-1);
   const handleRotate = async (index) => {
@@ -214,15 +226,17 @@ function UploadInfoScreen() {
         resolvedRegion ||
         null;
       // 답변 모드면 질문 카테고리를 우선, 아니면 입력/사진 기반 자동 분류
+      // 선택 태그를 분류 힌트로 함께 넘겨 자동 카테고리 정확도를 높임
+      const tagHint = selectedTags.join(' ');
       const finalCategory =
         isAnswerMode && answerQuestion?.category
           ? answerQuestion.category
-          : autoCategorize({ title, body, placeName: finalPlace, region: finalRegion, capturedAt: media.takenAt });
+          : autoCategorize({ title: tagHint, body, placeName: finalPlace, region: finalRegion, capturedAt: media.takenAt });
       const postId = await upload({
         files: filesArr,
         category: finalCategory,
-        title,
         body,
+        tags: selectedTags,
         takenAt: media.takenAt,
         lat: finalLat,
         lng: finalLng,
@@ -618,42 +632,6 @@ function UploadInfoScreen() {
         </div>
       )}
 
-      {/* 제목 — 위치 위. 한 줄 입력 (선택) */}
-      <section style={{ padding: '16px 18px 0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: LJ.textPrimary }}>제목</span>
-          <span
-            style={{
-              display: 'inline-block',
-              width: 5,
-              height: 5,
-              borderRadius: '50%',
-              background: LJ.error,
-            }}
-          />
-        </div>
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          maxLength={40}
-          placeholder={isAnswerMode ? '예: 윤중로 끝쪽 지금 상황' : '예: 지금 윤중로 벚꽃 절정'}
-          style={{
-            width: '100%',
-            padding: '13px 16px',
-            background: LJ.bgSurface,
-            border: `1px solid ${LJ.borderLight}`,
-            borderRadius: 12,
-            fontFamily: LJ.fontStack,
-            fontSize: 15,
-            fontWeight: 600,
-            color: LJ.textPrimary,
-            outline: 'none',
-            boxSizing: 'border-box',
-          }}
-        />
-      </section>
-
       {/* 위치 편집 */}
       <section style={{ padding: '14px 18px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -885,7 +863,7 @@ function UploadInfoScreen() {
         )}
       </section>
 
-      {/* 설명 (필수) — 화면의 중심. 큼직하게. */}
+      {/* 설명 (필수) — 상황 태그 선택 + 자유 입력글 */}
       <section style={{ padding: '18px 18px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: LJ.textPrimary }}>
@@ -900,19 +878,56 @@ function UploadInfoScreen() {
               background: LJ.error,
             }}
           />
+          <span style={{ fontSize: 11, fontWeight: 500, color: LJ.textTertiary, marginLeft: 2 }}>
+            태그를 고르고, 필요하면 한마디 남겨요
+          </span>
         </div>
+
+        {/* 상황 태그 — 여러 개 토글 선택 */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          {SITUATION_TAGS.map((tag) => {
+            const active = selectedTags.includes(tag);
+            return (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => toggleTag(tag)}
+                aria-pressed={active}
+                style={{
+                  minHeight: 0,
+                  minWidth: 0,
+                  padding: '7px 13px',
+                  borderRadius: 999,
+                  border: `1px solid ${active ? LJ.key : LJ.borderLight}`,
+                  background: active ? LJ.key : LJ.bgSurface,
+                  color: active ? '#fff' : LJ.textSecondary,
+                  fontFamily: LJ.fontStack,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                  transition: 'background 120ms, color 120ms, border-color 120ms',
+                }}
+              >
+                {tag}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 자유 입력글 */}
         <div style={{ position: 'relative' }}>
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
             placeholder={
               isAnswerMode
-                ? '예: 윤중로 끝쪽 100% 만개예요, 사람 적어요'
-                : '예: 윤중로 80% 만개, 주말이 절정일 듯'
+                ? '예: 윤중로 끝쪽 100% 만개예요, 사람 적어요 (선택)'
+                : '예: 윤중로 80% 만개, 주말이 절정일 듯 (선택)'
             }
             style={{
               width: '100%',
-              minHeight: 150,
+              minHeight: 120,
               padding: '14px 16px',
               background: LJ.bgSurface,
               border: `1px solid ${LJ.borderLight}`,
