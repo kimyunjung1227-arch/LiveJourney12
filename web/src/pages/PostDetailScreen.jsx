@@ -432,6 +432,28 @@ function PostDetailScreen() {
           </p>
         )}
 
+        {/* 선택한 상황 태그 */}
+        {Array.isArray(post.tags) && post.tags.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
+            {post.tags.map((t) => (
+              <span
+                key={t}
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: LJ.keyTextDark,
+                  background: LJ.keyBgLight,
+                  padding: '5px 10px',
+                  borderRadius: 999,
+                  lineHeight: 1,
+                }}
+              >
+                #{typeof t === 'string' ? t.replace(/^#+/, '') : t}
+              </span>
+            ))}
+          </div>
+        )}
+
         {/* 반응 줄 — 좋아요/저장은 홈에서, 여기는 댓글 카운트만 노출 */}
         <div
           style={{

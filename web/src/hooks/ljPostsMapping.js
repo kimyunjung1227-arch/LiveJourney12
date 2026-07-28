@@ -158,6 +158,9 @@ export function normalizePostRow(row) {
     place_name: placeName,
     region: row.region || '',
     body: row.content || '',
+    tags: Array.isArray(row.tags)
+      ? row.tags.map((t) => (typeof t === 'string' ? t.replace(/^#+/, '') : String(t || ''))).filter(Boolean)
+      : [],
     exif_taken_at: exifTakenAt,
     expires_at: expiresAt,
     is_on_site: !!row.is_in_app_camera,
