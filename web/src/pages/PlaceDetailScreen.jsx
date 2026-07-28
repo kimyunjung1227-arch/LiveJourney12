@@ -8,6 +8,7 @@ import { usePlaceDetail } from '../hooks/usePlaceDetail';
 import { bestCutScore } from '../hooks/ljPostsMapping';
 import { useAuth } from '../contexts/AuthContext';
 import { isPlaceSaved, toggleSavedPlace } from '../api/savedPlacesSupabase';
+import { getWeatherByRegion } from '../api/weather';
 
 const BEST_CUT_LIMIT = 1;
 
@@ -24,8 +25,29 @@ function PlaceDetailScreen() {
   const [bookmarked, setBookmarked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
+  const [weather, setWeather] = useState({ icon: '☀️', temperature: '', condition: '' });
 
   const placeName = place?.name || '';
+
+  // 헤더 장소명 옆 실시간 기온 — 지역(region) 우선, 없으면 장소명으로 조회
+  useEffect(() => {
+    const regionForWeather = (place?.region || place?.name || '').trim();
+    if (!regionForWeather) return undefined;
+    let alive = true;
+    getWeatherByRegion(regionForWeather)
+      .then((res) => {
+        if (!alive || !res?.weather) return;
+        setWeather({
+          icon: res.weather.icon,
+          temperature: res.weather.temperature,
+          condition: res.weather.condition,
+        });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [place?.region, place?.name]);
 
   // 진입 시 저장 여부 동기화
   useEffect(() => {
@@ -151,7 +173,7 @@ function PlaceDetailScreen() {
             <IconArrowLeft size={18} stroke={2} />
           </button>
 
-          {/* 중앙 장소명 (좌우 버튼 영역만큼 padding 두고 ellipsis 처리) */}
+          {/* 중앙 장소명 + 실시간 기온 칩 (좌우 버튼 영역만큼 여백 두고 ellipsis 처리) */}
           <div
             style={{
               position: 'absolute',
@@ -159,18 +181,47 @@ function PlaceDetailScreen() {
               right: 80,
               top: '50%',
               transform: 'translateY(-50%)',
-              fontSize: 16,
-              fontWeight: 600,
-              color: LJ.textPrimary,
-              lineHeight: 1,
-              textAlign: 'center',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
               pointerEvents: 'none',
             }}
           >
-            {place?.name || '장소'}
+            <span
+              style={{
+                minWidth: 0,
+                fontSize: 16,
+                fontWeight: 600,
+                color: LJ.textPrimary,
+                lineHeight: 1,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {place?.name || '장소'}
+            </span>
+            {weather.temperature && weather.temperature !== '-' && (
+              <span
+                title={weather.condition}
+                style={{
+                  flexShrink: 0,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  background: '#f1f5f9',
+                  borderRadius: 999,
+                  padding: '2px 8px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  lineHeight: 1,
+                }}
+              >
+                <span style={{ fontSize: 13 }}>{weather.icon}</span>
+                <span style={{ color: '#334155' }}>{weather.temperature}</span>
+              </span>
+            )}
           </div>
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
