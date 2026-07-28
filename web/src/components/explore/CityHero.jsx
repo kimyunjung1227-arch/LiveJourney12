@@ -56,43 +56,43 @@ export default function CityHero({ cityName }) {
         <IconArrowLeft size={22} color={TEXT_PRIMARY} />
       </button>
 
-      <div
-        className="flex items-center justify-center"
-        style={{ gap: 8, padding: '0 48px', maxWidth: '100%', minWidth: 0 }}
+      <h1
+        className="m-0 truncate"
+        style={{
+          fontSize: 19,
+          fontWeight: 700,
+          color: TEXT_PRIMARY,
+          letterSpacing: -0.3,
+          padding: '0 92px',
+        }}
       >
-        <h1
-          className="m-0 truncate"
+        {cityName}
+      </h1>
+
+      {/* 실시간 기온 — 헤더 우측 정렬 */}
+      {weather.temperature && weather.temperature !== '-' && (
+        <span
+          title={weather.condition}
           style={{
-            fontSize: 19,
-            fontWeight: 700,
-            color: TEXT_PRIMARY,
-            letterSpacing: -0.3,
-            minWidth: 0,
+            position: 'absolute',
+            right: 12,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            background: '#F1F5F9',
+            borderRadius: 999,
+            padding: '3px 9px',
+            fontSize: 12.5,
+            fontWeight: 600,
+            lineHeight: 1,
           }}
         >
-          {cityName}
-        </h1>
-        {weather.temperature && weather.temperature !== '-' && (
-          <span
-            title={weather.condition}
-            style={{
-              flexShrink: 0,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              background: '#F1F5F9',
-              borderRadius: 999,
-              padding: '3px 9px',
-              fontSize: 12.5,
-              fontWeight: 600,
-              lineHeight: 1,
-            }}
-          >
-            <span style={{ fontSize: 14 }}>{weather.icon}</span>
-            <span style={{ color: '#334155' }}>{weather.temperature}</span>
-          </span>
-        )}
-      </div>
+          <span style={{ fontSize: 14 }}>{weather.icon}</span>
+          <span style={{ color: '#334155' }}>{weather.temperature}</span>
+        </span>
+      )}
     </div>
   );
 }
