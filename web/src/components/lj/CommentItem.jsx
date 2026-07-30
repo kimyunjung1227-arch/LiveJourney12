@@ -37,6 +37,11 @@ export function CommentItem({
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(comment.body || '');
+  // 프로필 사진 로드 실패 시 빈 원이 남지 않도록 이니셜로 되돌린다
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [author.avatar_url]);
 
   const startEdit = () => {
     setDraft(comment.body || '');
@@ -79,15 +84,13 @@ export function CommentItem({
           overflow: 'hidden',
         }}
       >
-        {author.avatar_url ? (
+        {author.avatar_url && !avatarFailed ? (
           <img
             src={author.avatar_url}
             alt=""
             referrerPolicy="no-referrer"
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-            }}
+            onError={() => setAvatarFailed(true)}
           />
         ) : (
           initial

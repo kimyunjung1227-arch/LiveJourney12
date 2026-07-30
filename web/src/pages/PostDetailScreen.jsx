@@ -37,7 +37,7 @@ function PostDetailScreen() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { post, comments, loading, addCommentLocal, updateCommentLocal, removeCommentLocal } =
-    usePostDetail(postId);
+    usePostDetail(postId, user?.id || null);
   const postArr = useMemo(() => (post ? [post] : []), [post]);
   const { state, toggleLike, toggleSave } = useReactions(postArr);
 
@@ -129,6 +129,14 @@ function PostDetailScreen() {
   };
 
   const handleSubmitComment = async ({ body, parent_id }) => {
+    // 내 댓글도 가입 계정 이름이 아니라 프로필에서 설정한 이름/사진으로 표시
+    const myNickname =
+      (typeof user?.username === 'string' && user.username.trim()) ||
+      user?.email?.split('@')[0] ||
+      '나';
+    const myAvatar =
+      user?.profileImage && user.profileImage !== 'default' ? user.profileImage : null;
+
     const optimistic = {
       id: `temp-${Date.now()}`,
       post_id: post.id,
@@ -136,8 +144,8 @@ function PostDetailScreen() {
       author_id: user?.id || 'guest',
       author: {
         id: user?.id || 'guest',
-        nickname: user?.user_metadata?.nickname || user?.email?.split('@')[0] || '나',
-        avatar_url: user?.user_metadata?.avatar_url || null,
+        nickname: myNickname,
+        avatar_url: myAvatar,
       },
       body,
       like_count: 0,

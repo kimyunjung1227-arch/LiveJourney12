@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { normalizePostRow } from './ljPostsMapping';
 import { fetchProfileByIdSupabase } from '../api/profilesSupabase';
+import { fetchCommentsForPostSupabase } from '../api/socialSupabase';
 
 const POST_COLUMNS = `
   id,
@@ -27,18 +28,6 @@ const POST_COLUMNS = `
   is_in_app_camera
 `;
 
-const COMMENT_COLUMNS = `
-  id,
-  post_id,
-  user_id,
-  username,
-  avatar_url,
-  content,
-  parent_comment_id,
-  likes_count,
-  created_at
-`;
-
 function normalizeComment(row) {
   return {
     id: row.id,
@@ -47,11 +36,16 @@ function normalizeComment(row) {
     author_id: row.user_id,
     body: row.content || '',
     like_count: row.likes_count ?? 0,
+    liked_by_me: !!row.liked_by_me,
+    is_author: row.is_author === true,
     created_at: row.created_at,
+    // username/avatar_url 은 fetchCommentsForPostSupabase 가
+    // 실제 프로필(사용자가 설정한 이름/사진) 기준으로 해석해 준 값이다.
     author: {
       id: row.user_id,
       nickname: row.username || '익명',
       avatar_url: row.avatar_url || null,
+      post_count: row.post_count ?? 0,
     },
   };
 }
@@ -71,7 +65,7 @@ function buildCommentTree(rows) {
   return roots;
 }
 
-export function usePostDetail(postId) {
+export function usePostDetail(postId, viewerUserId = null) {
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -83,18 +77,12 @@ export function usePostDetail(postId) {
     setError(null);
 
     try {
-      const [{ data: postRow, error: postError }, { data: commentRows, error: commentError }] =
-        await Promise.all([
-          supabase.from('posts').select(POST_COLUMNS).eq('id', postId).maybeSingle(),
-          supabase
-            .from('post_comments')
-            .select(COMMENT_COLUMNS)
-            .eq('post_id', postId)
-            .order('created_at', { ascending: true }),
-        ]);
+      const [{ data: postRow, error: postError }, commentRows] = await Promise.all([
+        supabase.from('posts').select(POST_COLUMNS).eq('id', postId).maybeSingle(),
+        fetchCommentsForPostSupabase(postId, viewerUserId),
+      ]);
 
       if (postError) throw postError;
-      if (commentError) throw commentError;
 
       const normalized = postRow ? normalizePostRow(postRow) : null;
       // 작성자 표시명은 가입 계정(author_username placeholder) 대신
@@ -121,7 +109,7 @@ export function usePostDetail(postId) {
     } finally {
       setLoading(false);
     }
-  }, [postId]);
+  }, [postId, viewerUserId]);
 
   useEffect(() => {
     fetchAll();

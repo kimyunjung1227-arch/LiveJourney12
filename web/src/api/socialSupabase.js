@@ -1,6 +1,7 @@
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
 import { getSessionOnce } from '../utils/supabaseAuthCache';
+import { fetchProfilesByIdsSupabase } from './profilesSupabase';
 import { bumpLiveSyncTempStyle, bumpLiveSyncPctSupabase } from './liveSyncSupabase';
 
 const isValidUuid = (v) =>
@@ -74,9 +75,48 @@ export const togglePostLikeSupabase = async (userId, postId, opts = {}) => {
   });
 };
 
+const rpcNotAvailable = (err) => {
+  const c = err?.code;
+  const m = String(err?.message || '').toLowerCase();
+  return (
+    c === 'PGRST202' ||
+    c === '42883' ||
+    (m.includes('function') && m.includes('does not exist')) ||
+    m.includes('could not find the function')
+  );
+};
+
+/**
+ * 댓글 목록.
+ * - 기본: `get_post_comments` RPC. 작성자 표시 이름/사진을 서버에서 "실제 프로필" 기준으로 해석해 준다.
+ *   (post_comments.username/avatar_url 은 작성 시점 스냅샷이라 가입 계정 이름이 굳어 있음)
+ * - RPC 미배포 환경: 테이블 직접 조회 + profiles 조인으로 폴백.
+ */
 export const fetchCommentsForPostSupabase = async (postId, viewerUserId = null) => {
   const pid = String(postId || '').trim();
   if (!isValidUuid(pid)) return [];
+
+  try {
+    const { data: rpcRows, error: rpcErr } = await supabase.rpc('get_post_comments', { p_post_id: pid });
+    if (!rpcErr) {
+      const rows = Array.isArray(rpcRows) ? rpcRows : [];
+      return rows.map((c) => ({
+        ...c,
+        liked_by_me: !!c.liked_by_me,
+        post_count: Math.max(0, Number(c.post_count ?? 0) || 0),
+      }));
+    }
+    if (!rpcNotAvailable(rpcErr)) {
+      logger.warn('get_post_comments RPC 실패(폴백 사용):', rpcErr?.message || rpcErr);
+    }
+  } catch (e) {
+    logger.warn('get_post_comments 예외(폴백 사용):', e?.message);
+  }
+
+  return await fetchCommentsForPostFallback(pid, viewerUserId);
+};
+
+const fetchCommentsForPostFallback = async (pid, viewerUserId = null) => {
   try {
     const { data, error } = await supabase
       .from('post_comments')
@@ -126,11 +166,31 @@ export const fetchCommentsForPostSupabase = async (postId, viewerUserId = null) 
       }
     }
 
-    return comments.map((c) => ({
-      ...c,
-      liked_by_me: likedIds.has(String(c.id)),
-      post_count: c.user_id ? (postCounts.get(String(c.user_id)) || 0) : 0,
-    }));
+    // 작성자 표시 정보는 profiles(사용자가 설정한 이름/사진)를 우선 사용
+    const profileById = new Map();
+    if (authorIds.length > 0) {
+      try {
+        const profiles = await fetchProfilesByIdsSupabase(authorIds);
+        profiles.forEach((p) => {
+          if (p?.id) profileById.set(String(p.id), p);
+        });
+      } catch {
+        profileById.clear();
+      }
+    }
+
+    return comments.map((c) => {
+      const prof = c.user_id ? profileById.get(String(c.user_id)) : null;
+      const profName = typeof prof?.username === 'string' ? prof.username.trim() : '';
+      const profAvatar = typeof prof?.avatar_url === 'string' ? prof.avatar_url.trim() : '';
+      return {
+        ...c,
+        username: profName || c.username || null,
+        avatar_url: profAvatar || c.avatar_url || null,
+        liked_by_me: likedIds.has(String(c.id)),
+        post_count: c.user_id ? (postCounts.get(String(c.user_id)) || 0) : 0,
+      };
+    });
   } catch (e) {
     logger.warn('fetchCommentsForPostSupabase 실패:', e?.message);
     return [];
