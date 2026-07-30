@@ -1,7 +1,6 @@
 import React from 'react';
 import { IconCrown } from '@tabler/icons-react';
 import { LJ, formatExifTime } from './tokens';
-import ExifFreshIcon from './ExifFreshIcon';
 
 /**
  * 장소 페이지 베스트 컷 히어로.
@@ -78,7 +77,6 @@ export function BestCutHero({
             pointerEvents: 'none',
           }}
         >
-          <ExifFreshIcon iso={post.exif_taken_at} size={12} stroke={2} />
           <span style={{ color: '#fff', fontSize: 11, fontWeight: 600 }}>
             {formatExifTime(post.exif_taken_at)}
           </span>
