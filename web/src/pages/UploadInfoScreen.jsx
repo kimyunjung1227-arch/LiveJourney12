@@ -146,16 +146,12 @@ function UploadInfoScreen() {
       {t.label}
     </button>
   );
+  // 라벨만 노출 (필수 그룹만 빨간 점). "선택"·설명 문구는 군더더기라 표시하지 않는다.
   const groupHeader = (label, opts = {}) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 5, margin: '0 0 8px' }}>
       <span style={{ fontSize: 12.5, fontWeight: 700, color: LJ.textPrimary }}>{label}</span>
-      {opts.required ? (
+      {opts.required && (
         <span style={{ display: 'inline-block', width: 5, height: 5, borderRadius: '50%', background: LJ.error }} />
-      ) : (
-        <span style={{ fontSize: 10.5, fontWeight: 600, color: LJ.textTertiary }}>선택</span>
-      )}
-      {opts.hint && (
-        <span style={{ fontSize: 10.5, fontWeight: 500, color: LJ.textTertiary, marginLeft: 2 }}>{opts.hint}</span>
       )}
     </div>
   );
@@ -967,7 +963,7 @@ function UploadInfoScreen() {
       {/* 실시간 태그 — 하늘(필수) + 체감/옷차림/현장/시즌(선택) + 한마디(선택) */}
       <section style={{ padding: '18px 18px 0' }}>
         {/* 1군 하늘 — 필수·단일 */}
-        {groupHeader('하늘', { required: true, hint: '지금 하늘 상태' })}
+        {groupHeader('하늘', { required: true })}
         {chipRow(
           weatherOptions.map((t) =>
             renderChip(t, weatherTag === tagStr(t), () => toggleSingle(setWeatherTag)(tagStr(t)))
@@ -975,7 +971,7 @@ function UploadInfoScreen() {
         )}
 
         {/* 2군 체감 — 선택·다중 (사진에 안 찍히는 정보) */}
-        {groupHeader('체감', { hint: '사진에 안 찍히는 것' })}
+        {groupHeader('체감')}
         {chipRow(
           FEEL_TAGS.map((t) =>
             renderChip(t, feelTags.includes(tagStr(t)), () => toggleMulti(setFeelTags)(tagStr(t)))
@@ -1007,7 +1003,7 @@ function UploadInfoScreen() {
           <>
             {seasonOptions.length > 0 && (
               <>
-                {groupHeader(`${SEASON_LABEL[seasonKey]} 시즌`, { hint: '시기 한정' })}
+                {groupHeader(`${SEASON_LABEL[seasonKey]} 시즌`)}
                 {chipRow(
                   seasonOptions.map((t) =>
                     renderChip(t, seasonTags.includes(tagStr(t)), () => toggleMulti(setSeasonTags)(tagStr(t)))
@@ -1015,7 +1011,7 @@ function UploadInfoScreen() {
                 )}
               </>
             )}
-            {groupHeader('옷차림', { hint: '현지인 기준 한 벌' })}
+            {groupHeader('옷차림')}
             {chipRow(
               OUTFIT_TAGS.map((t) =>
                 renderChip(t, outfitTag === tagStr(t), () => toggleSingle(setOutfitTag)(tagStr(t)))
@@ -1057,8 +1053,8 @@ function UploadInfoScreen() {
             onChange={(e) => setBody(e.target.value)}
             placeholder={
               isAnswerMode
-                ? '예: 윤중로 끝쪽 100% 만개예요, 사람 적어요 (선택)'
-                : '예: 지금 딱 반팔, 바람 살짝 불어요 (선택)'
+                ? '예: 윤중로 끝쪽 100% 만개예요, 사람 적어요'
+                : '예: 지금 딱 반팔, 바람 살짝 불어요'
             }
             style={{
               width: '100%',
