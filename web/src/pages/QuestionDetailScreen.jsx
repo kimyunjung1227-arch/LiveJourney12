@@ -531,8 +531,8 @@ function AnswerCard({ answer, questionAuthorName, isMyQuestion, onToggleHelpful,
               style={{
                 padding: '7px 12px',
                 borderRadius: 9,
-                background: GRADIENT,
-                border: 'none',
+                background: KEY,
+                border: `1px solid ${KEY}`,
                 cursor: 'pointer',
               }}
             >
@@ -627,14 +627,14 @@ function AnswerCard({ answer, questionAuthorName, isMyQuestion, onToggleHelpful,
                     padding: '7px 12px',
                     borderRadius: 9,
                     background: KEY_LIGHT,
-                    border: 'none',
+                    border: `1px solid ${KEY}`,
                     cursor: 'pointer',
                   }
                 : {
                     padding: '7px 12px',
                     borderRadius: 9,
                     background: 'white',
-                    border: `1px solid ${BORDER_LIGHT}`,
+                    border: `1px solid ${KEY}`,
                     cursor: 'pointer',
                   }
             }
@@ -642,13 +642,13 @@ function AnswerCard({ answer, questionAuthorName, isMyQuestion, onToggleHelpful,
             {answer.i_marked_helpful ? (
               <IconHeartFilled size={13} color={KEY} />
             ) : (
-              <IconHeart size={13} color={TEXT_SECONDARY} />
+              <IconHeart size={13} color={KEY} />
             )}
             <span
               style={{
                 fontSize: 11,
                 fontWeight: 600,
-                color: answer.i_marked_helpful ? KEY_DARK : TEXT_SECONDARY,
+                color: KEY_DARK,
               }}
             >
               {answer.helpful_count > 0
@@ -684,13 +684,13 @@ function AnswerCard({ answer, questionAuthorName, isMyQuestion, onToggleHelpful,
                 borderRadius: 9,
                 fontSize: 11,
                 fontWeight: 600,
-                color: KEY_DARK,
-                background: 'white',
+                color: 'white',
+                background: KEY,
                 border: `1px solid ${KEY}`,
                 cursor: 'pointer',
               }}
             >
-              <IconCrown size={12} color={KEY} />
+              <IconCrown size={12} color="white" />
               베스트로 선정
             </button>
           )}
