@@ -30,7 +30,6 @@ const TEXT_SECONDARY = '#6B6B6B';
 const TEXT_TERTIARY = '#B8B8B8';
 const SURFACE = '#F5F7FA';
 const BORDER_LIGHT = '#E8E8E8';
-const GRADIENT = 'linear-gradient(135deg, #4DB8E8, #1A6EA8)';
 
 const CATEGORY_LABEL = {
   nature: '개화·자연',
@@ -459,16 +458,15 @@ function AnswerCard({ answer, questionAuthorName, isMyQuestion, onToggleHelpful,
         style={{
           borderRadius: 14,
           marginBottom: 14,
-          border: '2px solid transparent',
-          background:
-            'linear-gradient(white, white) padding-box, linear-gradient(135deg, #4DB8E8, #1A6EA8) border-box',
+          border: `2px solid ${KEY}`,
+          background: 'white',
         }}
       >
         <div
           className="flex items-center gap-1.5"
           style={{
             padding: '7px 14px',
-            background: GRADIENT,
+            background: KEY,
           }}
         >
           <IconCrown size={13} color="white" />
