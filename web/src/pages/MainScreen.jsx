@@ -166,7 +166,8 @@ function MainScreen() {
                 onToggleSave={toggleSave}
                 priority={idx === 0}
               />
-              <div style={{ height: 1, background: LJ.borderLight, margin: '0 18px' }} />
+              {/* 게시물 경계 — 카드가 서로 확실히 구분되게 화면 가로 전체를 쓰는 두께 있는 띠 */}
+              <div style={{ height: 6, background: LJ.bgSurface }} />
             </React.Fragment>
           ))}
 

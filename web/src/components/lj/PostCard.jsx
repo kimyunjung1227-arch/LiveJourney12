@@ -23,10 +23,10 @@ const BODY_PREVIEW_LINES = 4;
 
 /**
  * 홈 피드 게시물 카드.
- * 구조: 위치명(크게)+[도시·기온] → 사진(크게) → 아바타+이름 → 제목 → 본문(4줄) → 카테고리·태그 → 반응
- * - 위치는 좌측, 도시(서울·구미 등)·기온은 우측에 한 줄로 합쳐(예: "구미 · ☀️ 29℃") 표시
+ * 구조: 위치명+지역(좌)·기온(우) → 사진(크게) → 아바타+이름+카테고리 → 제목 → 본문(4줄) → 태그 → 반응
+ * - 위치명 옆에 지역(서울 성동구)을 붙이고 기온은 우측 끝
  *   → 어느 지역 소식인지 사진을 보기 전에 바로 인지되게
- * - 카테고리는 하단 태그 줄 맨 앞으로 (분류는 보조 정보)
+ * - 카테고리는 작성자 이름 우측 (분류는 보조 정보)
  * - 작성자 프로필은 사진 아래·제목 위로
  * - 사진과 반응 사이 구분선 없음
  * - 댓글 아이콘은 꼬리가 우측으로 가도록 좌우 반전
@@ -253,6 +253,24 @@ export function PostCard({
           {typeof author.post_count === 'number' && author.post_count > 0 && (
             <span style={{ fontSize: 12, color: LJ.textTertiary }}>({author.post_count})</span>
           )}
+          {/* 카테고리(노을·야경 등) — 작성자 이름 우측 */}
+          {categoryText && (
+            <span
+              style={{
+                flexShrink: 0,
+                fontSize: 11.5,
+                fontWeight: 600,
+                color: LJ.textSecondary,
+                background: LJ.bgSurface,
+                padding: '4px 9px',
+                borderRadius: 999,
+                lineHeight: 1,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {categoryText}
+            </span>
+          )}
         </div>
       </div>
 
@@ -286,25 +304,10 @@ export function PostCard({
       {/* 본문 (4줄 클램프) */}
       {post.body && <ClampedBody text={post.body} />}
 
-      {/* 카테고리(맨 앞) + 선택한 실시간 태그 — 분류 정보는 하단에 */}
-      {(categoryText || (Array.isArray(post.tags) && post.tags.length > 0)) && (
+      {/* 선택한 실시간 태그 */}
+      {Array.isArray(post.tags) && post.tags.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-          {categoryText && (
-            <span
-              style={{
-                fontSize: 11.5,
-                fontWeight: 600,
-                color: LJ.textSecondary,
-                background: LJ.bgSurface,
-                padding: '4px 9px',
-                borderRadius: 999,
-                lineHeight: 1,
-              }}
-            >
-              {categoryText}
-            </span>
-          )}
-          {(Array.isArray(post.tags) ? post.tags : []).map((t) => (
+          {post.tags.map((t) => (
             <span
               key={t}
               style={{
