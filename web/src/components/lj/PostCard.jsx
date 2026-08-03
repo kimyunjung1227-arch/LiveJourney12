@@ -17,13 +17,16 @@ import {
 import MoreMenuDropdown from './MoreMenuDropdown';
 import PhotoCarousel from './PhotoCarousel';
 import ReportModal from './ReportModal';
+import { postRegionLabel } from '../../utils/postRegionLabel';
 
 const BODY_PREVIEW_LINES = 4;
 
 /**
  * 홈 피드 게시물 카드.
- * 구조: 위치명(크게)+[카테고리·기온] → 사진(크게) → 아바타+이름 → 제목 → 본문(4줄) → 반응
- * - 위치는 좌측, 카테고리·기온은 우측에 한 줄로 합쳐(예: "노을 · ☀️ 29℃") 표시
+ * 구조: 위치명(크게)+[도시·기온] → 사진(크게) → 아바타+이름 → 제목 → 본문(4줄) → 카테고리·태그 → 반응
+ * - 위치는 좌측, 도시(서울·구미 등)·기온은 우측에 한 줄로 합쳐(예: "구미 · ☀️ 29℃") 표시
+ *   → 어느 지역 소식인지 사진을 보기 전에 바로 인지되게
+ * - 카테고리는 하단 태그 줄 맨 앞으로 (분류는 보조 정보)
  * - 작성자 프로필은 사진 아래·제목 위로
  * - 사진과 반응 사이 구분선 없음
  * - 댓글 아이콘은 꼬리가 우측으로 가도록 좌우 반전
@@ -42,6 +45,14 @@ export function PostCard({
   const saved = !!reactionState?.saved;
   const likeCount = reactionState?.likeCount ?? post.like_count ?? 0;
   const commentCount = post.comment_count ?? 0;
+  // 상단: 장소명 + 지역(서울 성동구) + 기온 / 하단: 카테고리
+  // 장소명 자체가 주소라 이미 지역을 품고 있으면(예: "서울 성동구 성수동…") 중복 표기하지 않는다.
+  const regionRaw = postRegionLabel(post);
+  const regionLabel =
+    regionRaw && !String(post.place_name || '').replace(/\s+/g, '').includes(regionRaw.replace(/\s+/g, ''))
+      ? regionRaw
+      : '';
+  const categoryText = post.category_raw || (post.category ? categoryLabel(post.category) : '');
 
   // 좋아요 클릭마다 펄스 재생 (key 증분으로 애니메이션 재시작)
   const [likePulseKey, setLikePulseKey] = useState(0);
@@ -109,8 +120,8 @@ export function PostCard({
         color: LJ.textPrimary,
       }}
     >
-      {/* 위치명(좌·크게) + 카테고리 + 기온(우) — 사진 위 상단 헤더 */}
-      {(post.place_name || post.category_raw || post.category || post.weather || post.weatherSnapshot) && (
+      {/* 위치명(좌·크게) + 지역(서울 성동구) + 기온(우) — 사진 위 상단 헤더 */}
+      {(post.place_name || regionLabel || post.weather || post.weatherSnapshot) && (
         <div
           style={{
             display: 'flex',
@@ -120,42 +131,63 @@ export function PostCard({
             margin: '0 0 10px',
           }}
         >
-          {post.place_name ? (
-            <button
-              type="button"
-              onClick={goPlace}
-              aria-label={`${post.place_name} 장소 보기`}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                padding: 0,
-                cursor: 'pointer',
-                fontFamily: LJ.fontStack,
-                fontSize: 17,
-                fontWeight: 700,
-                color: LJ.textPrimary,
-                letterSpacing: -0.3,
-                lineHeight: 1.3,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                textAlign: 'left',
-                minWidth: 0,
-                flex: '1 1 auto',
-              }}
-            >
-              <IconMapPin size={16} stroke={2} color={LJ.key} style={{ flexShrink: 0 }} />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              minWidth: 0,
+              flex: '1 1 auto',
+            }}
+          >
+            {post.place_name && (
+              <button
+                type="button"
+                onClick={goPlace}
+                aria-label={`${post.place_name} 장소 보기`}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  fontFamily: LJ.fontStack,
+                  fontSize: 17,
+                  fontWeight: 700,
+                  color: LJ.textPrimary,
+                  letterSpacing: -0.3,
+                  lineHeight: 1.3,
+                  textAlign: 'left',
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  display: 'block',
+                }}
+              >
                 {post.place_name}
+              </button>
+            )}
+            {/* 지역 — 어디 소식인지 사진 보기 전에 바로 인지되게 장소명 옆에 노출 */}
+            {regionLabel && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  flexShrink: 0,
+                  fontSize: 12.5,
+                  fontWeight: 500,
+                  color: LJ.textSecondary,
+                  lineHeight: 1.3,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <IconMapPin size={14} stroke={2} color={LJ.key} style={{ flexShrink: 0 }} />
+                {regionLabel}
               </span>
-            </button>
-          ) : (
-            <span />
-          )}
-          <CategoryWeatherChip
-            category={post.category_raw || (post.category ? categoryLabel(post.category) : null)}
-            weather={post.weather || post.weatherSnapshot}
-          />
+            )}
+          </div>
+          <WeatherChip weather={post.weather || post.weatherSnapshot} />
         </div>
       )}
 
@@ -254,10 +286,25 @@ export function PostCard({
       {/* 본문 (4줄 클램프) */}
       {post.body && <ClampedBody text={post.body} />}
 
-      {/* 선택한 실시간 태그 */}
-      {Array.isArray(post.tags) && post.tags.length > 0 && (
+      {/* 카테고리(맨 앞) + 선택한 실시간 태그 — 분류 정보는 하단에 */}
+      {(categoryText || (Array.isArray(post.tags) && post.tags.length > 0)) && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-          {post.tags.map((t) => (
+          {categoryText && (
+            <span
+              style={{
+                fontSize: 11.5,
+                fontWeight: 600,
+                color: LJ.textSecondary,
+                background: LJ.bgSurface,
+                padding: '4px 9px',
+                borderRadius: 999,
+                lineHeight: 1,
+              }}
+            >
+              {categoryText}
+            </span>
+          )}
+          {(Array.isArray(post.tags) ? post.tags : []).map((t) => (
             <span
               key={t}
               style={{
@@ -509,18 +556,16 @@ function ExifBadge({ takenAt }) {
   );
 }
 
-// 카테고리 · 날씨(아이콘+기온+상태)를 한 줄로 합쳐 표시. 예) "노을 · ☀️ 29℃"
-function CategoryWeatherChip({ category, weather }) {
+// 날씨(아이콘+기온+상태) 한 줄. 예) "☀️ 29℃ 맑음"
+function WeatherChip({ weather }) {
   const display = pickWeatherDisplay(weather);
-  const hasCategory = !!category;
-  const hasWeather = !!display;
-  if (!hasCategory && !hasWeather) return null;
+  if (!display) return null;
   return (
     <span
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 6,
+        gap: 4,
         padding: 0,
         fontFamily: LJ.fontStack,
         fontSize: 13,
@@ -529,30 +574,20 @@ function CategoryWeatherChip({ category, weather }) {
         whiteSpace: 'nowrap',
       }}
     >
-      {hasCategory && (
-        <span style={{ fontWeight: 600, color: LJ.textSecondary }}>{category}</span>
-      )}
-      {hasCategory && hasWeather && (
-        <span style={{ color: LJ.textTertiary }}>·</span>
-      )}
-      {hasWeather && (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-          {display.icon && <span style={{ fontSize: 14, lineHeight: 1 }}>{display.icon}</span>}
-          {display.temperature && (
-            <span
-              style={{
-                color: LJ.textPrimary,
-                fontWeight: 700,
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              {display.temperature}
-            </span>
-          )}
-          {display.condition && (
-            <span style={{ color: LJ.textSecondary, fontWeight: 500 }}>{display.condition}</span>
-          )}
+      {display.icon && <span style={{ fontSize: 14, lineHeight: 1 }}>{display.icon}</span>}
+      {display.temperature && (
+        <span
+          style={{
+            color: LJ.textPrimary,
+            fontWeight: 700,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {display.temperature}
         </span>
+      )}
+      {display.condition && (
+        <span style={{ color: LJ.textSecondary, fontWeight: 500 }}>{display.condition}</span>
       )}
     </span>
   );

@@ -157,6 +157,9 @@ export function normalizePostRow(row) {
     place_id: makePlaceId(placeName),
     place_name: placeName,
     region: row.region || '',
+    // 지역 라벨(서울 성동구) 추출 폴백용 — region이 비어도 주소에서 뽑을 수 있게 유지
+    location: row.location || '',
+    detailed_location: row.detailed_location || '',
     body: row.content || '',
     tags: Array.isArray(row.tags)
       ? row.tags.map((t) => (typeof t === 'string' ? t.replace(/^#+/, '') : String(t || ''))).filter(Boolean)
