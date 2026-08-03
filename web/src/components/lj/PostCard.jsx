@@ -253,25 +253,26 @@ export function PostCard({
           {typeof author.post_count === 'number' && author.post_count > 0 && (
             <span style={{ fontSize: 12, color: LJ.textTertiary }}>({author.post_count})</span>
           )}
-          {/* 카테고리(노을·야경 등) — 작성자 이름 우측 */}
-          {categoryText && (
-            <span
-              style={{
-                flexShrink: 0,
-                fontSize: 11.5,
-                fontWeight: 600,
-                color: LJ.textSecondary,
-                background: LJ.bgSurface,
-                padding: '4px 9px',
-                borderRadius: 999,
-                lineHeight: 1,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {categoryText}
-            </span>
-          )}
         </div>
+        {/* 카테고리(노을·야경 등) — 작성자 행 우측 끝 */}
+        {categoryText && (
+          <span
+            style={{
+              flexShrink: 0,
+              marginLeft: 'auto',
+              fontSize: 11.5,
+              fontWeight: 600,
+              color: LJ.textSecondary,
+              background: LJ.bgSurface,
+              padding: '4px 9px',
+              borderRadius: 999,
+              lineHeight: 1,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {categoryText}
+          </span>
+        )}
       </div>
 
       {/* 제목 (작성자가 입력) — 프로필 아래 헤드라인 */}
