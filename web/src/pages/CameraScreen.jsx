@@ -79,9 +79,16 @@ function CameraScreen() {
     // 셔터 시점에 GPS fetch를 기다리지 않음 (블로킹 방지).
     // EXIF/현재 watch 좌표를 즉시 사용하고, UploadInfoScreen 진입 후 정밀 좌표는
     // 백그라운드(useGeolocation watchPosition)가 알아서 갱신.
-    const finalLat = lat ?? geo.coords?.lat ?? null;
-    const finalLng = lng ?? geo.coords?.lng ?? null;
-    const finalAccuracy = geo.accuracy ?? null;
+    //
+    // ⚠️ 갤러리 사진은 "사진이 찍힌 위치(EXIF GPS)"만 쓴다.
+    //    EXIF에 위치가 없을 때 현재 기기 위치로 채우면 집에서 고른 사진이
+    //    "지금 여기"로 둔갑하므로, 좌표를 비워 두고 업로드 화면에서 직접 입력받는다.
+    const isGallery = source === 'gallery';
+    const finalLat = lat ?? (isGallery ? null : geo.coords?.lat ?? null);
+    const finalLng = lng ?? (isGallery ? null : geo.coords?.lng ?? null);
+    const hasCoords = Number.isFinite(finalLat) && Number.isFinite(finalLng);
+    // 갤러리 + EXIF 좌표는 기기 accuracy와 무관 — 현재 위치 정확도를 붙이지 않는다
+    const finalAccuracy = isGallery ? null : geo.accuracy ?? null;
 
     const url = URL.createObjectURL(file);
     setUploadMedia({
@@ -95,7 +102,9 @@ function CameraScreen() {
       lat: finalLat,
       lng: finalLng,
       accuracy: finalAccuracy,
-      placeName: placeName ?? geo.placeName ?? null,
+      placeName: placeName ?? (isGallery ? null : geo.placeName ?? null),
+      // 좌표가 없는 갤러리 사진은 업로드 화면에서 "위치 직접 입력"을 요구
+      needsManualLocation: isGallery && !hasCoords,
       facingMode: cam.facingMode,
       exif: exif || null,
     });
@@ -155,6 +164,7 @@ function CameraScreen() {
     }
 
     // 전체 통과 → 첫 컷은 setUploadMedia 로 묶음 초기화, 나머지는 append
+    // 갤러리 사진의 위치는 EXIF GPS만 사용 (없으면 비워 두고 업로드 화면에서 직접 입력)
     const buildMedia = (file, v) => {
       const url = URL.createObjectURL(file);
       return {
@@ -165,10 +175,11 @@ function CameraScreen() {
         mimeType: file.type,
         size: file.size,
         takenAt: (v.takenAt || new Date()).toISOString(),
-        lat: v.location?.lat ?? geo.coords?.lat ?? null,
-        lng: v.location?.lng ?? geo.coords?.lng ?? null,
-        accuracy: geo.accuracy ?? null,
-        placeName: geo.placeName ?? null,
+        lat: v.location?.lat ?? null,
+        lng: v.location?.lng ?? null,
+        accuracy: null,
+        placeName: null,
+        needsManualLocation: !v.location,
         facingMode: null,
         exif: v.exif || null,
       };
@@ -198,9 +209,9 @@ function CameraScreen() {
       source: 'gallery',
       mode: file.type?.startsWith('video') ? 'video' : 'photo',
       takenAt,
-      // EXIF에 GPS가 있으면 EXIF 우선, 없으면 현재 위치
-      lat: location?.lat ?? geo.coords?.lat ?? null,
-      lng: location?.lng ?? geo.coords?.lng ?? null,
+      // 사진이 찍힌 위치(EXIF GPS)만 사용. 없으면 업로드 화면에서 직접 입력받는다.
+      lat: location?.lat ?? null,
+      lng: location?.lng ?? null,
       exif,
     });
   };
@@ -278,7 +289,8 @@ function CameraScreen() {
         file={galleryModal.file}
         takenAt={galleryModal.takenAt}
         location={galleryModal.location}
-        placeName={geo.placeName}
+        // 현재 위치의 장소명을 붙이면 "사진이 찍힌 곳"으로 오인된다 — EXIF 좌표만 표시
+        placeName={null}
         onContinue={handleConfirmGallery}
         onPickOther={() => {
           setGalleryModal({ type: null });

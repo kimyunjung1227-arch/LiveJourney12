@@ -2,12 +2,13 @@ import React, { useEffect, useMemo, useRef, useState, useSyncExternalStore } fro
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   IconArrowLeft,
-  IconShieldCheck,
+  IconClock,
   IconMapPin,
   IconInfoCircle,
   IconPlus,
   IconX,
   IconRotateClockwise2,
+  IconAlertTriangle,
 } from '@tabler/icons-react';
 import { LJ } from '../components/lj/tokens';
 import {
@@ -27,6 +28,11 @@ import QuestionBanner from '../components/answer/QuestionBanner';
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
 import { reverseGeocodeToPlaceDetail, extractRegionFromAddress } from '../utils/locationFromGeocode';
+import {
+  evaluateUploadLocation,
+  formatGapDistance,
+  GPS_BLOCK_KM,
+} from '../utils/uploadLocationPolicy';
 import { searchPlaceWithKakaoFirst, ensureKakaoMapsServicesReady } from '../utils/kakaoPlacesGeocode';
 import { patchUploadMedia, patchUploadMediaAt } from '../stores/uploadStore';
 import { rotateImageMedia } from '../utils/rotateImageMedia';
@@ -172,14 +178,14 @@ function UploadInfoScreen() {
 
   // 업로드 진입 시 한 번 더 정밀 GPS를 받아 좌표를 보정.
   // - 카메라 사진: 셔터 시점 watchPosition fix가 흔들렸을 수 있으니 무조건 한 번 갱신
-  // - 갤러리 사진: EXIF에 GPS가 있으면 EXIF 우선 (좌표가 이미 정밀). 없으면 현재 위치로 채움
+  // - 갤러리 사진: 위치는 "사진이 찍힌 곳"(EXIF GPS)이 진실이므로 현재 위치로 덮지 않는다.
+  //                EXIF에 위치가 없으면 비워 둔 채 사용자가 직접 입력하게 한다.
   // accuracy 게이트를 80m로 강화 — 더 부정확한 fix는 주변 매칭 위험이 있어 반영하지 않는다.
   const [refreshing, setRefreshing] = useState(false);
   useEffect(() => {
     if (!media?.url) return;
     if (editedLoc) return; // 사용자가 직접 수정했으면 그대로
-    const hasExifGps = media.source === 'gallery' && media.exif?.gps;
-    if (hasExifGps) return; // 갤러리 + EXIF GPS는 좌표가 이미 정확
+    if (media.source === 'gallery') return; // 갤러리는 EXIF 위치 우선 / 없으면 직접 입력
 
     let cancelled = false;
     setRefreshing(true);
@@ -284,8 +290,26 @@ function UploadInfoScreen() {
   const mediasArr = Array.isArray(media?.medias) ? media.medias : [];
   const filesArr = mediasArr.map((m) => m?.file).filter(Boolean);
 
+  // 좌표 보유 여부 — 갤러리 사진은 EXIF GPS가 없으면 여기서 false 로 남는다.
+  const hasCoords = Number.isFinite(media?.lat) && Number.isFinite(media?.lng);
+
+  // 위치 정책 판정
+  //  · 촬영 위치(EXIF GPS)와 현재 위치가 GPS_BLOCK_KM 넘게 벌어지면 업로드 차단
+  //  · 갤러리 사진에 EXIF 위치가 없으면 직접 입력 전까지 업로드 차단
+  const locCheck = useMemo(
+    () =>
+      evaluateUploadLocation({
+        medias: mediasArr,
+        source: media?.source,
+        deviceCoords: geo.coords,
+        hasResolvedLocation: !!editedLoc || hasCoords,
+      }),
+    [mediasArr, media?.source, geo.coords, editedLoc, hasCoords],
+  );
+  const locationBlocked = locCheck.blocked || locCheck.needsManualLocation;
+
   // 하늘(날씨) 1개는 필수 — 데이터 기준축. 나머지 태그·한마디는 모두 선택.
-  const canUpload = !!weatherTag && filesArr.length > 0 && !isUploading;
+  const canUpload = !!weatherTag && filesArr.length > 0 && !isUploading && !locationBlocked;
 
   const [rotatingIdx, setRotatingIdx] = useState(-1);
   const handleRotate = async (index) => {
@@ -510,7 +534,6 @@ function UploadInfoScreen() {
 
   // 사용자가 직접 수정 → 그 값. 없으면 현재 좌표 기준 재지오코딩 결과.
   // 셔터 시점에 박힌 media.placeName은 좌표가 흔들렸을 수 있어 좌표가 없는 경우에만 폴백.
-  const hasCoords = Number.isFinite(media?.lat) && Number.isFinite(media?.lng);
   const displayPlaceName =
     editedLoc?.placeName || resolvedPlace || (hasCoords ? '' : media?.placeName || '');
   const displayRegion =
@@ -751,24 +774,27 @@ function UploadInfoScreen() {
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button
-              type="button"
-              onClick={refreshLocation}
-              disabled={refreshing}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                padding: '4px 6px',
-                color: refreshing ? LJ.textTertiary : LJ.textSecondary,
-                fontFamily: LJ.fontStack,
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: refreshing ? 'default' : 'pointer',
-              }}
-              aria-label="현재 위치 다시 측정"
-            >
-              {refreshing ? '측정 중…' : '다시 측정'}
-            </button>
+            {/* 갤러리 사진은 "사진이 찍힌 위치"가 기준이라 현재 위치로 다시 측정하지 않는다 */}
+            {media?.source !== 'gallery' && (
+              <button
+                type="button"
+                onClick={refreshLocation}
+                disabled={refreshing}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: '4px 6px',
+                  color: refreshing ? LJ.textTertiary : LJ.textSecondary,
+                  fontFamily: LJ.fontStack,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: refreshing ? 'default' : 'pointer',
+                }}
+                aria-label="현재 위치 다시 측정"
+              >
+                {refreshing ? '측정 중…' : '다시 측정'}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setLocOpen((v) => !v)}
@@ -814,7 +840,9 @@ function UploadInfoScreen() {
                   : displayPlaceName ||
                     (hasCoords
                       ? '근처에 알아볼 만한 장소가 없어요 — "위치 수정"으로 직접 검색해 주세요'
-                      : '위치 정보가 없어요 — "다시 측정" 또는 "위치 수정"')}
+                      : media?.source === 'gallery'
+                        ? '사진에 위치 정보가 없어요 — "위치 수정"으로 직접 입력해 주세요'
+                        : '위치 정보가 없어요 — "다시 측정" 또는 "위치 수정"')}
             </div>
             {displayRegion && (
               <div
@@ -861,6 +889,73 @@ function UploadInfoScreen() {
           >
             GPS가 살짝 불안정해요. 야외에서 잠시 후 "다시 측정"을 누르거나, "위치 수정"으로 정확한 장소를 검색해 주세요.
           </p>
+        )}
+
+        {/* 촬영 위치 ↔ 현재 위치 차이 — 많이 벌어지면 업로드 차단 */}
+        {locCheck.blocked && (
+          <div
+            style={{
+              margin: '8px 0 0',
+              padding: '10px 12px',
+              background: 'rgba(216,80,80,0.08)',
+              border: `1px solid ${LJ.error}`,
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 7,
+            }}
+          >
+            <IconAlertTriangle size={14} stroke={2} color={LJ.error} style={{ flexShrink: 0, marginTop: 1 }} />
+            <div style={{ fontSize: 11.5, color: LJ.error, lineHeight: 1.5 }}>
+              <b style={{ fontWeight: 700 }}>
+                사진이 찍힌 곳과 지금 위치가 {formatGapDistance(locCheck.gapKm)} 떨어져 있어요
+              </b>
+              <br />
+              라이브저니는 지금 있는 곳의 사진만 올릴 수 있어요. 현장에서 다시 올려 주세요.
+            </div>
+          </div>
+        )}
+        {locCheck.warn && (
+          <p style={{ margin: '6px 0 0', fontSize: 10.5, color: '#B45309', lineHeight: 1.45 }}>
+            사진이 찍힌 곳에서 {formatGapDistance(locCheck.gapKm)} 떨어진 곳에 있어요. 위치는 사진이 찍힌 곳으로 올라가요.
+          </p>
+        )}
+        {locCheck.needsManualLocation && (
+          <div
+            style={{
+              margin: '8px 0 0',
+              padding: '10px 12px',
+              background: LJ.keyBgLight,
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: LJ.keyTextDark, lineHeight: 1.5 }}>
+              사진에 위치 정보가 없어요. 어디에서 찍었는지 직접 입력해 주세요.
+            </div>
+            <button
+              type="button"
+              onClick={() => setLocOpen(true)}
+              style={{
+                minHeight: 30,
+                height: 30,
+                padding: '0 12px',
+                background: LJ.key,
+                color: '#fff',
+                border: 'none',
+                borderRadius: 999,
+                fontFamily: LJ.fontStack,
+                fontSize: 11.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              직접 입력
+            </button>
+          </div>
         )}
 
         {locOpen && (
@@ -1130,6 +1225,21 @@ function UploadInfoScreen() {
 
       {/* 업로드 버튼 — 화면 하단 고정 */}
       <div style={{ padding: '16px 18px 0' }}>
+        {locationBlocked && (
+          <p
+            style={{
+              margin: '0 0 8px',
+              fontSize: 11.5,
+              color: LJ.error,
+              lineHeight: 1.5,
+              textAlign: 'center',
+            }}
+          >
+            {locCheck.blocked
+              ? `촬영 위치와 ${GPS_BLOCK_KM}km 넘게 떨어져 있어 올릴 수 없어요`
+              : '위치를 입력해야 올릴 수 있어요'}
+          </p>
+        )}
         <button
           type="button"
           onClick={handleUpload}
@@ -1335,30 +1445,29 @@ function UploadPreviewSlider({ medias, displayPlaceName, editedLocLat, editedLoc
         ))}
       </div>
 
-      {/* EXIF */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 10,
-          left: 10,
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 5,
-          padding: '5px 10px',
-          background: 'rgba(0,0,0,0.7)',
-          borderRadius: 6,
-          backdropFilter: 'blur(8px)',
-          pointerEvents: 'none',
-        }}
-      >
-        <IconShieldCheck size={12} stroke={2} color={LJ.key} />
-        <span style={{ color: '#fff', fontSize: 11, fontWeight: 600, lineHeight: 1 }}>
-          EXIF 자동 인증
-        </span>
-        {itemTakenLabel && (
-          <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 10.5 }}>· {itemTakenLabel}</span>
-        )}
-      </div>
+      {/* 촬영 시각 — "언제 찍힌 사진인지"만 담백하게 */}
+      {itemTakenLabel && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 10,
+            left: 10,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '5px 10px',
+            background: 'rgba(0,0,0,0.7)',
+            borderRadius: 6,
+            backdropFilter: 'blur(8px)',
+            pointerEvents: 'none',
+          }}
+        >
+          <IconClock size={12} stroke={2} color={LJ.key} />
+          <span style={{ color: '#fff', fontSize: 11, fontWeight: 600, lineHeight: 1 }}>
+            {itemTakenLabel}
+          </span>
+        </div>
+      )}
 
       {/* N / M */}
       {N > 1 && (
