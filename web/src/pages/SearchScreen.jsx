@@ -26,6 +26,8 @@ import { fetchPublishedMagazines } from '../api/curatedMagazinesSupabase';
 import { logger } from '../utils/logger';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
 import { getWeatherByRegion } from '../api/weather';
+import { useAuth } from '../contexts/AuthContext';
+import { useFollow } from '../hooks/useFollow';
 import BottomNavigation from '../components/BottomNavigation';
 
 // 인기 도시 대표 사진은 30분 단위 시간 버킷으로 순환 노출한다.
@@ -139,6 +141,38 @@ function useSearchHub() {
       cancelled = true;
     };
   }, []);
+
+  return { data, loading };
+}
+
+// 여행자 탭 데이터 — 추천/인기 두 구역을 한 번에 받는다.
+// 로그인 상태가 바뀌면 is_following(팔로우 여부)이 달라지므로 다시 불러온다.
+function useTravelerHub() {
+  const { user } = useAuth();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const { data: result, error } = await supabase.rpc('get_traveler_hub', { p_limit: 12 });
+        if (cancelled) return;
+        if (error) {
+          logger.warn('get_traveler_hub 실패', error?.message || error);
+          setData(null);
+        } else {
+          setData(result || null);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   return { data, loading };
 }
@@ -548,36 +582,55 @@ function QuestionsSection({ questions, showAllAction = true }) {
   );
 }
 
-// 인기 여행자 — 순위/장식 없이 사용자 프로필(아바타+이름)만 담백하게 노출.
-// 섹션 자체가 '인기 여행자'이므로 별도 순위 표기 없이도 인기 있는 여행자로 인식된다.
-function TravelerCard({ traveler }) {
+// ────────────────────────────────────────────────
+// 여행자 탭
+//  · 한 행 = 프로필 사진 + 이름 + 올린 게시물 수, 우측에 팔로우 버튼
+// ────────────────────────────────────────────────
+function TravelerRow({ traveler }) {
   const navigate = useNavigate();
-  const initial =
-    String(traveler?.name || '?').trim().charAt(0).toUpperCase() || '·';
+  const { user } = useAuth();
+  const { isFollowing, pending, toggleFollow } = useFollow({
+    targetUserId: traveler?.id,
+    initialFollowing: !!traveler?.is_following,
+  });
+
+  const isMe = !!user?.id && user.id === traveler?.id;
+  const initial = String(traveler?.name || '?').trim().charAt(0).toUpperCase() || '·';
   const avatar = traveler?.avatar_url ? getDisplayImageUrl(traveler.avatar_url) : '';
+  const postCount = Number(traveler?.post_count) || 0;
+  const liveCount = Number(traveler?.live_count) || 0;
+  const followerCount = Number(traveler?.follower_count) || 0;
+
+  const handleFollow = async (e) => {
+    e.stopPropagation();
+    // 비로그인 상태에서 팔로우를 누르면 로그인 화면으로 유도
+    if (!user?.id) {
+      navigate('/start');
+      return;
+    }
+    await toggleFollow();
+  };
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => navigate(`/user/${encodeURIComponent(traveler.id)}`)}
-      className="flex flex-col items-center flex-shrink-0"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') navigate(`/user/${encodeURIComponent(traveler.id)}`);
+      }}
+      className="flex items-center gap-3 w-full text-left"
       style={{
-        width: 72,
-        padding: 0,
-        border: 'none',
-        background: 'transparent',
+        background: CARD_BG,
+        borderRadius: 10,
+        padding: 10,
+        border: `1px solid ${BORDER_LIGHT}`,
         cursor: 'pointer',
       }}
     >
       <div
-        className="rounded-full overflow-hidden flex items-center justify-center text-white font-bold"
-        style={{
-          width: 60,
-          height: 60,
-          fontSize: 22,
-          marginBottom: 7,
-          background: traveler?.avatar_color || KEY,
-        }}
+        className="flex-shrink-0 rounded-full overflow-hidden flex items-center justify-center text-white font-bold"
+        style={{ width: 44, height: 44, fontSize: 17, background: traveler?.avatar_color || KEY }}
       >
         {avatar ? (
           <img
@@ -585,45 +638,128 @@ function TravelerCard({ traveler }) {
             alt=""
             referrerPolicy="no-referrer"
             className="w-full h-full object-cover"
+            loading="lazy"
+            decoding="async"
             onError={(e) => { e.currentTarget.style.display = 'none'; }}
           />
         ) : (
           initial
         )}
       </div>
-      <span
-        className="truncate w-full text-center"
-        style={{ fontSize: 11.5, fontWeight: 600, color: TEXT_PRIMARY }}
-      >
-        {traveler?.name || '여행자'}
-      </span>
-    </button>
+
+      <div className="flex-1 min-w-0">
+        <p
+          className="m-0 mb-0.5 truncate"
+          style={{ fontSize: 13, fontWeight: 600, color: TEXT_PRIMARY }}
+        >
+          {traveler?.name || '여행자'}
+        </p>
+        <div className="flex items-center gap-1.5" style={{ fontSize: 10 }}>
+          <span style={{ color: TEXT_SECONDARY }}>게시물 {postCount}</span>
+          {followerCount > 0 && (
+            <>
+              <span style={{ color: TEXT_TERTIARY }}>·</span>
+              <span style={{ color: TEXT_SECONDARY }}>팔로워 {followerCount}</span>
+            </>
+          )}
+          {liveCount > 0 && (
+            <>
+              <span style={{ color: TEXT_TERTIARY }}>·</span>
+              <span style={{ color: KEY_DARK, fontWeight: 600 }}>지금 {liveCount}장</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {!isMe && (
+        <button
+          type="button"
+          onClick={handleFollow}
+          disabled={pending}
+          className="flex items-center justify-center flex-shrink-0"
+          style={{
+            // 전역 button{min-height:44px}를 덮어 44px 행에 맞는 작은 알약 버튼 유지
+            minHeight: 30,
+            height: 30,
+            padding: '0 12px',
+            borderRadius: 999,
+            fontSize: 11.5,
+            fontWeight: 700,
+            cursor: pending ? 'not-allowed' : 'pointer',
+            border: isFollowing ? `1px solid ${BORDER_LIGHT}` : 'none',
+            background: isFollowing ? '#fff' : KEY,
+            color: isFollowing ? TEXT_SECONDARY : '#fff',
+          }}
+        >
+          {isFollowing ? '팔로잉' : '팔로우'}
+        </button>
+      )}
+    </div>
   );
 }
 
-function TravelersSection({ travelers }) {
-  const { handleDragStart, hasMovedRef } = useHorizontalDragScroll();
+function TravelerSection({ icon, title, hint, travelers }) {
   const list = Array.isArray(travelers) ? travelers : [];
   if (list.length === 0) return null;
-
   return (
     <div className="mb-[22px]">
-      <SectionHeader icon={IconUserStar} title="인기 여행자" />
-      <div
-        onMouseDown={handleDragStart}
-        className="flex gap-3 overflow-x-auto scrollbar-hide cursor-grab active:cursor-grabbing"
-        style={{ WebkitOverflowScrolling: 'touch' }}
-        onClickCapture={(e) => {
-          if (hasMovedRef.current) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-        }}
-      >
+      <SectionHeader icon={icon} title={title} />
+      {hint && (
+        <p className="m-0" style={{ fontSize: 11, color: TEXT_SECONDARY, marginTop: -6, marginBottom: 10 }}>
+          {hint}
+        </p>
+      )}
+      <div className="flex flex-col gap-2">
         {list.map((t, idx) => (
-          <TravelerCard key={t.id || idx} traveler={t} />
+          <TravelerRow key={t.id || idx} traveler={t} />
         ))}
       </div>
+    </div>
+  );
+}
+
+function TravelersHub() {
+  const { data, loading } = useTravelerHub();
+  const recommended = Array.isArray(data?.recommended) ? data.recommended : [];
+  const popular = Array.isArray(data?.popular) ? data.popular : [];
+
+  if (loading) {
+    return (
+      <div className="p-[18px] text-center" style={{ color: TEXT_SECONDARY, fontSize: 13 }}>
+        여행자를 모으는 중...
+      </div>
+    );
+  }
+
+  if (recommended.length === 0 && popular.length === 0) {
+    return (
+      <div className="p-[18px] text-center" style={{ padding: '60px 18px' }}>
+        <p className="m-0" style={{ fontSize: 14, fontWeight: 700, color: TEXT_PRIMARY }}>
+          아직 소개할 여행자가 없어요
+        </p>
+        <p className="m-0" style={{ fontSize: 12, color: TEXT_SECONDARY, marginTop: 6, lineHeight: 1.6 }}>
+          지금을 올리는 사람이 생기면
+          <br />
+          여기에서 바로 만날 수 있어요
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-[18px]">
+      <TravelerSection
+        icon={IconUserStar}
+        title="추천 여행자"
+        hint="지금 활발하게 올리고 있는 여행자예요"
+        travelers={recommended}
+      />
+      <TravelerSection
+        icon={IconUsers}
+        title="인기 여행자"
+        hint="많은 사람이 팔로우하는 여행자예요"
+        travelers={popular}
+      />
     </div>
   );
 }
@@ -862,7 +998,7 @@ function SearchHub() {
     <div className="p-[18px]">
       <CityGrid cities={data.cities || []} />
       <QuestionsSection questions={data.questions || []} showAllAction />
-      <TravelersSection travelers={data.travelers || []} />
+      {/* 여행자는 상단 "여행자" 탭으로 분리됨 */}
       {/* 매거진 구역 임시 숨김 */}
       {/* <SeasonalCards cards={magazines} /> */}
       <CategoryGrid categories={data.categories || []} />
@@ -1166,8 +1302,51 @@ function SearchResults({ query, results, loading }) {
 // ────────────────────────────────────────────────
 // SearchScreen
 // ────────────────────────────────────────────────
+// 검색어가 없을 때 노출되는 탐색 탭 — 지역 / 여행자
+const HUB_TABS = [
+  { id: 'region', label: '지역', Icon: IconMapPin },
+  { id: 'traveler', label: '여행자', Icon: IconUserStar },
+];
+
+function HubTabs({ tab, onChange }) {
+  return (
+    <div
+      className="flex items-stretch bg-white"
+      style={{ borderBottom: `1px solid ${BORDER_LIGHT}` }}
+    >
+      {HUB_TABS.map((t) => {
+        const active = tab === t.id;
+        const Icon = t.Icon;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => onChange(t.id)}
+            className="flex-1 flex items-center justify-center gap-1.5"
+            style={{
+              padding: '11px 0',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: active ? `2px solid ${KEY}` : '2px solid transparent',
+              marginBottom: -1,
+              color: active ? TEXT_PRIMARY : TEXT_SECONDARY,
+              fontSize: 13,
+              fontWeight: active ? 700 : 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Icon size={15} color={active ? KEY : TEXT_SECONDARY} />
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 const SearchScreen = () => {
   const [query, setQuery] = useState('');
+  const [hubTab, setHubTab] = useState('region');
   const { results, loading } = useSearch(query);
   const isSearching = query.trim().length > 0;
 
@@ -1184,7 +1363,10 @@ const SearchScreen = () => {
       {isSearching ? (
         <SearchResults query={query} results={results} loading={loading} />
       ) : (
-        <SearchHub />
+        <>
+          <HubTabs tab={hubTab} onChange={setHubTab} />
+          {hubTab === 'traveler' ? <TravelersHub /> : <SearchHub />}
+        </>
       )}
       <BottomNavigation />
     </div>
