@@ -168,6 +168,12 @@ export function useHomeFeed(selectedCategory = 'all') {
     }
   }, [fetchPage, hasMore, loading, loadingMore]);
 
+  // 삭제된 게시물을 재조회 없이 목록에서 즉시 제거 (본인 게시물 삭제 후 호출)
+  const removePost = useCallback((postId) => {
+    if (!postId) return;
+    setPosts((prev) => prev.filter((p) => String(p.id) !== String(postId)));
+  }, []);
+
   return {
     posts,
     loading,
@@ -176,6 +182,7 @@ export function useHomeFeed(selectedCategory = 'all') {
     error,
     refresh: () => fetchPage({ reset: true }),
     loadMore,
+    removePost,
   };
 }
 

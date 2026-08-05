@@ -16,7 +16,7 @@ import { useNotifications } from '../hooks/useNotifications';
  */
 function MainScreen() {
   const navigate = useNavigate();
-  const { posts, loading, loadingMore, hasMore, loadMore } = useHomeFeed('all');
+  const { posts, loading, loadingMore, hasMore, loadMore, removePost } = useHomeFeed('all');
   const { state, toggleLike, toggleSave } = useReactions(posts);
   const { notifications } = useNotifications({ limit: 30 });
   const unreadCount = notifications.filter((n) => !n.is_read).length;
@@ -164,6 +164,7 @@ function MainScreen() {
                 reactionState={state[post.id]}
                 onToggleLike={toggleLike}
                 onToggleSave={toggleSave}
+                onDeleted={removePost}
                 priority={idx === 0}
               />
               {/* 게시물 경계 — 카드가 서로 확실히 구분되게 화면 가로 전체를 쓰는 두께 있는 띠 */}

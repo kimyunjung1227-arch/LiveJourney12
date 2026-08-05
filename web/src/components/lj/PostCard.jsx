@@ -18,6 +18,9 @@ import MoreMenuDropdown from './MoreMenuDropdown';
 import PhotoCarousel from './PhotoCarousel';
 import ReportModal from './ReportModal';
 import { postRegionLabel } from '../../utils/postRegionLabel';
+import { useAuth } from '../../contexts/AuthContext';
+import { deletePostSupabase } from '../../api/postsSupabase';
+import { logger } from '../../utils/logger';
 
 const BODY_PREVIEW_LINES = 4;
 
@@ -37,9 +40,11 @@ export function PostCard({
   photoHeight = 427,
   onToggleLike,
   onToggleSave,
+  onDeleted,
   priority = false,
 }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const author = post.author || {};
   const liked = !!reactionState?.liked;
   const saved = !!reactionState?.saved;
@@ -84,6 +89,29 @@ export function PostCard({
     }
   };
   const handleReport = () => setShowReport(true);
+
+  // 본인 게시물만 수정/삭제 노출 (판정은 UI 편의용이고, 실제 권한은 Supabase RLS가 강제)
+  const authorId = author.id || post.author_id || post.user_id || null;
+  const isAuthor = !!user?.id && !!authorId && String(user.id) === String(authorId);
+
+  const [deleting, setDeleting] = useState(false);
+  const handleEdit = () => navigate(`/post/${post.id}/edit`);
+  const handleDelete = async () => {
+    if (deleting) return;
+    if (!window.confirm('이 게시물을 삭제할까요? 되돌릴 수 없어요.')) return;
+    setDeleting(true);
+    try {
+      const { success, error: delErr } = await deletePostSupabase(String(post.id));
+      if (success) {
+        onDeleted?.(post.id);
+        return;
+      }
+      logger.warn('게시물 삭제 실패', delErr);
+      window.alert('삭제하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const photosList =
     post.photos && post.photos.length > 0
@@ -374,7 +402,14 @@ export function PostCard({
           />
         </div>
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <MoreMenuDropdown postId={post.id} onShare={handleShare} onReport={handleReport} />
+          <MoreMenuDropdown
+            postId={post.id}
+            isAuthor={isAuthor}
+            onShare={handleShare}
+            onReport={handleReport}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
         </div>
       </div>
 
