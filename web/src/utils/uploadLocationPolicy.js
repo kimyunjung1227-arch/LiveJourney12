@@ -1,24 +1,19 @@
 /**
- * 업로드 위치 정책 — "지금 여기"를 지키기 위한 GPS 검증.
+ * 업로드 위치 정책.
  *
- * 1) 사진에 기록된 촬영 위치(EXIF GPS)와 업로드 시점의 현재 기기 위치가 크게 다르면 업로드를 막는다.
- *    라이브저니 피드는 현장 정보라, 다른 지역에서 찍어 온 사진이 섞이면 신뢰도가 무너진다.
- *    다만 24시간 이내 사진을 허용하므로 "찍고 조금 이동한 뒤 올리기"는 정상 사용으로 보고 통과시킨다.
- *      · GPS_WARN_KM 초과  → 경고만 (업로드 가능)
- *      · GPS_BLOCK_KM 초과 → 업로드 차단
- *    현재 위치를 못 받는 경우(권한 거부/미지원)에는 비교 자체가 불가하므로 막지 않는다.
- *
- * 2) 갤러리에서 고른 사진은 "사진이 찍힌 위치(EXIF GPS)"를 먼저 쓴다.
+ * 1) 갤러리에서 고른 사진은 "사진이 찍힌 위치(EXIF GPS)"를 먼저 쓴다.
  *    EXIF에 위치가 없으면 현재 기기 위치로 몰래 채우지 않고(= 엉뚱한 장소로 박히는 것 방지),
  *    사용자가 직접 위치를 입력하도록 요구한다.
+ *
+ * 2) 촬영 위치와 현재 위치가 멀어도 업로드를 막지 않는다.
+ *    "여행 다녀와서 집에서 오늘 분위기 공유하기"는 정상적인 사용이다.
+ *    대신 멀리 떨어져 있을 때는 "위치는 사진이 찍힌 곳으로 올라간다"는 사실만 알려준다.
  */
 
 import { haversineKm } from './geoDistance';
 
-/** 이 거리를 넘으면 업로드 차단 (같은 생활권 이동은 허용하는 선) */
-export const GPS_BLOCK_KM = 30;
-/** 이 거리를 넘으면 경고만 (업로드는 가능) */
-export const GPS_WARN_KM = 2;
+/** 이 거리를 넘으면 촬영지 기준으로 올라간다는 안내만 노출 (업로드 제한 없음) */
+export const GPS_FAR_KM = 2;
 
 /**
  * 미디어에 기록된 "촬영 좌표"(EXIF GPS)를 읽는다.
@@ -54,9 +49,8 @@ export function formatGapDistance(km) {
  * }} params
  * @returns {{
  *   gapKm: number|null,
- *   blocked: boolean,
- *   warn: boolean,
- *   needsManualLocation: boolean,
+ *   farFromShot: boolean,            // 촬영지에서 멀리 떨어짐 (안내용, 제한 아님)
+ *   needsManualLocation: boolean,    // 위치를 직접 입력해야 업로드 가능
  * }}
  */
 export function evaluateUploadLocation({
@@ -75,7 +69,7 @@ export function evaluateUploadLocation({
       ? { lat: Number(deviceCoords.lat), lng: Number(deviceCoords.lng) }
       : null;
 
-  // 묶음 업로드는 가장 멀리 떨어진 한 장을 기준으로 판단한다.
+  // 묶음 업로드는 가장 멀리 떨어진 한 장을 기준으로 안내한다.
   let gapKm = null;
   if (device && shots.length > 0) {
     gapKm = Math.max(
@@ -84,12 +78,11 @@ export function evaluateUploadLocation({
     if (!Number.isFinite(gapKm)) gapKm = null;
   }
 
-  const blocked = Number.isFinite(gapKm) && gapKm > GPS_BLOCK_KM;
-  const warn = !blocked && Number.isFinite(gapKm) && gapKm > GPS_WARN_KM;
+  const farFromShot = Number.isFinite(gapKm) && gapKm > GPS_FAR_KM;
 
   // 갤러리 사진인데 EXIF에 위치가 하나도 없고, 아직 위치가 정해지지 않은 상태
   const needsManualLocation =
     source === 'gallery' && shots.length === 0 && !hasResolvedLocation;
 
-  return { gapKm, blocked, warn, needsManualLocation };
+  return { gapKm, farFromShot, needsManualLocation };
 }

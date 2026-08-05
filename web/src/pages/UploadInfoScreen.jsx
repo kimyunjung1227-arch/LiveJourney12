@@ -8,7 +8,6 @@ import {
   IconPlus,
   IconX,
   IconRotateClockwise2,
-  IconAlertTriangle,
 } from '@tabler/icons-react';
 import { LJ } from '../components/lj/tokens';
 import {
@@ -28,11 +27,7 @@ import QuestionBanner from '../components/answer/QuestionBanner';
 import { supabase } from '../utils/supabaseClient';
 import { logger } from '../utils/logger';
 import { reverseGeocodeToPlaceDetail, extractRegionFromAddress } from '../utils/locationFromGeocode';
-import {
-  evaluateUploadLocation,
-  formatGapDistance,
-  GPS_BLOCK_KM,
-} from '../utils/uploadLocationPolicy';
+import { evaluateUploadLocation, formatGapDistance } from '../utils/uploadLocationPolicy';
 import { searchPlaceWithKakaoFirst, ensureKakaoMapsServicesReady } from '../utils/kakaoPlacesGeocode';
 import { patchUploadMedia, patchUploadMediaAt } from '../stores/uploadStore';
 import { rotateImageMedia } from '../utils/rotateImageMedia';
@@ -294,8 +289,8 @@ function UploadInfoScreen() {
   const hasCoords = Number.isFinite(media?.lat) && Number.isFinite(media?.lng);
 
   // 위치 정책 판정
-  //  · 촬영 위치(EXIF GPS)와 현재 위치가 GPS_BLOCK_KM 넘게 벌어지면 업로드 차단
   //  · 갤러리 사진에 EXIF 위치가 없으면 직접 입력 전까지 업로드 차단
+  //  · 촬영지에서 멀리 떨어진 건 막지 않는다 (여행 다녀와 집에서 올리는 경우) — 안내만
   const locCheck = useMemo(
     () =>
       evaluateUploadLocation({
@@ -306,7 +301,7 @@ function UploadInfoScreen() {
       }),
     [mediasArr, media?.source, geo.coords, editedLoc, hasCoords],
   );
-  const locationBlocked = locCheck.blocked || locCheck.needsManualLocation;
+  const locationBlocked = locCheck.needsManualLocation;
 
   // 하늘(날씨) 1개는 필수 — 데이터 기준축. 나머지 태그·한마디는 모두 선택.
   const canUpload = !!weatherTag && filesArr.length > 0 && !isUploading && !locationBlocked;
@@ -891,33 +886,10 @@ function UploadInfoScreen() {
           </p>
         )}
 
-        {/* 촬영 위치 ↔ 현재 위치 차이 — 많이 벌어지면 업로드 차단 */}
-        {locCheck.blocked && (
-          <div
-            style={{
-              margin: '8px 0 0',
-              padding: '10px 12px',
-              background: 'rgba(216,80,80,0.08)',
-              border: `1px solid ${LJ.error}`,
-              borderRadius: 8,
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 7,
-            }}
-          >
-            <IconAlertTriangle size={14} stroke={2} color={LJ.error} style={{ flexShrink: 0, marginTop: 1 }} />
-            <div style={{ fontSize: 11.5, color: LJ.error, lineHeight: 1.5 }}>
-              <b style={{ fontWeight: 700 }}>
-                사진이 찍힌 곳과 지금 위치가 {formatGapDistance(locCheck.gapKm)} 떨어져 있어요
-              </b>
-              <br />
-              라이브저니는 지금 있는 곳의 사진만 올릴 수 있어요. 현장에서 다시 올려 주세요.
-            </div>
-          </div>
-        )}
-        {locCheck.warn && (
-          <p style={{ margin: '6px 0 0', fontSize: 10.5, color: '#B45309', lineHeight: 1.45 }}>
-            사진이 찍힌 곳에서 {formatGapDistance(locCheck.gapKm)} 떨어진 곳에 있어요. 위치는 사진이 찍힌 곳으로 올라가요.
+        {/* 촬영지에서 멀리 있어도 막지 않는다 — 어디 기준으로 올라가는지만 알려준다 */}
+        {locCheck.farFromShot && (
+          <p style={{ margin: '6px 0 0', fontSize: 10.5, color: LJ.textTertiary, lineHeight: 1.45 }}>
+            지금 있는 곳에서 {formatGapDistance(locCheck.gapKm)} 떨어진 사진이에요. 위치는 사진이 찍힌 곳으로 올라가요.
           </p>
         )}
         {locCheck.needsManualLocation && (
@@ -1235,9 +1207,7 @@ function UploadInfoScreen() {
               textAlign: 'center',
             }}
           >
-            {locCheck.blocked
-              ? `촬영 위치와 ${GPS_BLOCK_KM}km 넘게 떨어져 있어 올릴 수 없어요`
-              : '위치를 입력해야 올릴 수 있어요'}
+            위치를 입력해야 올릴 수 있어요
           </p>
         )}
         <button
