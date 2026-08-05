@@ -208,7 +208,17 @@ const RealtimeFeedScreen = () => {
       >
         {realtimeData.length === 0 ? (
           <div className="py-16 text-center text-text-secondary-light dark:text-text-secondary-dark">
-            <p className="text-[15px] font-bold text-gray-800 dark:text-gray-200">아직 게시물이 없어요</p>
+            <p className="text-[15px] font-bold text-gray-800 dark:text-gray-200">아직 올라온 지금이 없어요</p>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              방금 본 풍경을 올리면 여기에 바로 보여요
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/upload')}
+              className="mt-4 bg-primary/10 text-primary px-4 py-2 rounded-full font-semibold text-sm hover:bg-primary/15 transition-colors"
+            >
+              업로드 하기
+            </button>
           </div>
         ) : (
           <div

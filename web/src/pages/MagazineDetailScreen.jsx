@@ -520,8 +520,15 @@ const MagazineDetailScreen = () => {
               </div>
             ) : sectionsToRender.length === 0 ? (
               <div className="py-10 flex flex-col items-center justify-center text-center text-[13px] text-gray-500 px-6">
-                <p className="mb-1">아직 이 매거진에 포함되는 사진이 없어요.</p>
-                <p>지금 여기를 통해 첫 번째 사진을 올려보세요.</p>
+                <p className="mb-1">아직 이 매거진에 담긴 지금이 없어요.</p>
+                <p>지금 이곳을 올리면 여기에 바로 실려요.</p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/upload')}
+                  className="mt-4 bg-primary/10 text-primary px-4 py-2 rounded-full font-semibold text-sm hover:bg-primary/15 transition-colors"
+                >
+                  업로드 하기
+                </button>
               </div>
             ) : (
               <div className="flex flex-col gap-6 pt-4 pb-8">

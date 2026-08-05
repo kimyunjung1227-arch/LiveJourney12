@@ -128,8 +128,16 @@ const RecommendedPlaceScreen = () => {
       <div className="screen-content" style={{ flex: 1, overflow: 'auto', padding: '16px', paddingBottom: '100px' }}>
         {recommendedData.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: '#94a3b8' }}>
-            <p style={{ fontSize: '15px', fontWeight: 700, color: '#475569' }}>아직 추천 여행지가 없어요</p>
-            <p style={{ fontSize: '12px', marginTop: '8px' }}>사진을 올려보세요!</p>
+            <p style={{ fontSize: '15px', fontWeight: 700, color: '#475569' }}>지금 뜨는 여행지를 모으는 중이에요</p>
+            <p style={{ fontSize: '12px', marginTop: '8px' }}>지금 있는 곳을 올리면 추천에 바로 반영돼요</p>
+            <button
+              type="button"
+              onClick={() => navigate('/upload')}
+              className="bg-primary/10 text-primary px-4 py-2 rounded-full font-semibold text-sm hover:bg-primary/15 transition-colors"
+              style={{ marginTop: '16px' }}
+            >
+              업로드 하기
+            </button>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>

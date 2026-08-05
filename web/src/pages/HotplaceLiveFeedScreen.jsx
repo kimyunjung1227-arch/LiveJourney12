@@ -487,7 +487,7 @@ export default function HotplaceLiveFeedScreen() {
             </div>
 
             {postsForPlace.length === 0 ? (
-              <div className="py-12 text-center text-sm text-gray-500 dark:text-zinc-400">표시할 게시물이 없어요.</div>
+              <div className="py-12 text-center text-sm text-gray-500 dark:text-zinc-400">아직 이곳의 지금이 올라오지 않았어요.</div>
             ) : situationPosts.length === 0 ? (
               <p className="py-8 text-center text-sm text-gray-500 dark:text-zinc-400">추가로 표시할 제보가 없어요.</p>
             ) : (

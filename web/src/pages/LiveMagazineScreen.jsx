@@ -865,7 +865,7 @@ function RealtimeTipSection({ placeName, manualTip }) {
         <span style={{ fontSize: 11.5, color: KEY_DARK, opacity: 0.8 }}>실시간 정보 모으는 중...</span>
       ) : isEmpty ? (
         <span style={{ fontSize: 11.5, color: KEY_DARK, opacity: 0.85, lineHeight: 1.5 }}>
-          아직 모인 실시간 정보가 없어요. 첫 현장 사진을 올려보세요.
+          아직 모인 실시간 정보가 없어요. 지금 이곳을 올리면 첫 팁이 돼요.
         </span>
       ) : (
         <ul className="m-0" style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>

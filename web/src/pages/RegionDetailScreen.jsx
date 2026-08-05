@@ -429,16 +429,16 @@ const RegionDetailScreen = () => {
               {realtimePhotos.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 px-4">
                   <p className="text-[15px] font-bold text-gray-800 dark:text-gray-200 mb-2 text-center">
-                    {region.name}의 실시간 정보가 없어요
+                    {region.name}에 올라온 지금이 없어요
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-4">
-                    첫 번째 사진을 공유해보세요!
+                    이 지역의 지금을 가장 먼저 남겨보세요
                   </p>
                   <button
                     onClick={() => navigate('/upload')}
                     className="bg-primary/10 text-primary px-4 py-2 rounded-full font-semibold text-sm hover:bg-primary/15 transition-colors mx-auto"
                   >
-                    첫 사진 올리기
+                    업로드 하기
                   </button>
                 </div>
               ) : (

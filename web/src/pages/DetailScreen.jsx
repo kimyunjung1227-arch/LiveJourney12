@@ -424,8 +424,8 @@ const DetailScreen = () => {
           {displayedItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 px-4">
               <p className="text-[15px] font-bold text-gray-800 dark:text-gray-200 mb-2 text-center">
-                {activeTab === 'realtime' && '아직 지금 이곳의 모습이 올라오지 않았어요'}
-                {activeTab === 'crowded' && '아직 어디가 붐비는지 정보가 없어요'}
+                {activeTab === 'realtime' && '아직 이곳의 지금이 올라오지 않았어요'}
+                {activeTab === 'crowded' && '지금 어디가 붐비는지 아직 몰라요'}
                 {activeTab === 'recommended' && selectedTag && (
                   <>
                     <span className="font-bold text-primary">#{selectedTag}</span> 태그로 추천된 장소가 없어요
@@ -434,10 +434,10 @@ const DetailScreen = () => {
                 {activeTab === 'recommended' && !selectedTag && '추천 장소가 아직 없어요'}
               </p>
               <p className="text-sm text-gray-400 dark:text-gray-500 text-center mb-4 max-w-xs">
-                {activeTab === 'realtime' && '지금 보고 있는 장소와 분위기, 날씨가 보이도록 한 장만 남겨 주세요'}
-                {activeTab === 'crowded' && '지금 있는 곳의 상황과 느낌을 남겨 주면 다른 사람들의 선택에 도움이 돼요'}
+                {activeTab === 'realtime' && '지금 보이는 풍경과 분위기, 날씨를 그대로 남겨 주세요'}
+                {activeTab === 'crowded' && '지금 이곳의 상황을 남기면 다른 사람의 선택에 큰 도움이 돼요'}
                 {activeTab === 'recommended' && selectedTag && '다른 태그를 선택하거나 전체를 확인해보세요'}
-                {activeTab === 'recommended' && !selectedTag && '첫 번째로 추천 장소를 공유해보세요!'}
+                {activeTab === 'recommended' && !selectedTag && '오늘 다녀온 좋은 곳을 가장 먼저 알려 주세요'}
               </p>
               {activeTab === 'recommended' && selectedTag ? (
                 <button
@@ -451,7 +451,7 @@ const DetailScreen = () => {
                   onClick={() => navigate('/upload')}
                   className="bg-primary/10 text-primary px-4 py-2 rounded-full font-semibold text-sm hover:bg-primary/15 transition-colors"
                 >
-                  첫 사진 올리기
+                  업로드 하기
                 </button>
               )}
             </div>

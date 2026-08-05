@@ -438,15 +438,15 @@ function EmptyHotplace({ onUpload }) {
   return (
     <EmptyState
       padding="64px 24px"
-      title="아직 활동 중인 핫플이 없어요"
+      title="지금 활동 중인 핫플이 없어요"
       description={
         <>
-          지금 있는 곳을 한 장 올려보세요.
+          지금 사람이 모인 곳을 올려보세요.
           <br />
-          당신의 한 장이 첫 핫플이 될 수도 있어요.
+          그 자리가 첫 실시간 핫플이 돼요.
         </>
       }
-      actionLabel="사진 한 장 올리기"
+      actionLabel="업로드 하기"
       onAction={onUpload}
     />
   );

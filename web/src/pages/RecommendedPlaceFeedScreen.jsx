@@ -258,13 +258,13 @@ export default function RecommendedPlaceFeedScreen() {
       <div className="flex-1 overflow-y-auto pt-2" style={{ WebkitOverflowScrolling: 'touch' }}>
         {feedPosts.length === 0 ? (
           <div className="py-16 text-center text-slate-500 text-sm">
-            이 장소의 게시물이 아직 없어요.
+            이 장소의 지금이 아직 없어요.
             <button
               type="button"
               className="block mx-auto mt-4 text-primary font-semibold text-sm"
               onClick={() => navigate('/upload')}
             >
-              첫 사진 올리기
+              업로드 하기
             </button>
           </div>
         ) : (

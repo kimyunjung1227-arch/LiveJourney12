@@ -278,19 +278,19 @@ function EmptyFeed({ onUpload }) {
       padding="72px 24px"
       title={
         <>
-          첫 한 장이
+          아직 올라온
           <br />
-          라이브저니의 시작
+          지금이 없어요
         </>
       }
       description={
         <>
-          지금 있는 곳을 사진으로 남기면
+          라이브저니는 48시간 안의 지금만 보여줘요.
           <br />
-          같은 곳을 궁금해하는 누군가에게 닿아요
+          방금 본 풍경을 올려 첫 소식을 남겨보세요.
         </>
       }
-      actionLabel="사진 한 장 올리기"
+      actionLabel="업로드 하기"
       onAction={onUpload}
     />
   );
