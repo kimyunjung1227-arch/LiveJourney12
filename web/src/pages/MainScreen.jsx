@@ -276,13 +276,7 @@ function EmptyFeed({ onUpload }) {
   return (
     <EmptyState
       padding="72px 24px"
-      title={
-        <>
-          아직 올라온
-          <br />
-          지금이 없어요
-        </>
-      }
+      title="아직 올라온 지금이 없어요"
       description={
         <>
           라이브저니는 48시간 안의 지금만 보여줘요.
