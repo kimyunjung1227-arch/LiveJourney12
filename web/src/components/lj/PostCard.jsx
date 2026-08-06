@@ -148,7 +148,7 @@ export function PostCard({
         color: LJ.textPrimary,
       }}
     >
-      {/* 위치명(좌·크게) + 지역(서울 성동구) + 기온(우) — 사진 위 상단 헤더 */}
+      {/* 위치명(좌·크게) + 지역·기온(우) — 사진 위 상단 헤더 */}
       {(post.place_name || regionLabel || post.weather || post.weatherSnapshot) && (
         <div
           style={{
@@ -195,14 +195,22 @@ export function PostCard({
                 {post.place_name}
               </button>
             )}
-            {/* 지역 — 어디 소식인지 사진 보기 전에 바로 인지되게 장소명 옆에 노출 */}
+          </div>
+          {/* 지역(서울 성동구) + 기온 — 우측에 붙여 한 덩어리로 */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              flexShrink: 0,
+            }}
+          >
             {regionLabel && (
               <span
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 2,
-                  flexShrink: 0,
                   fontSize: 12.5,
                   fontWeight: 500,
                   color: LJ.textSecondary,
@@ -214,8 +222,8 @@ export function PostCard({
                 {regionLabel}
               </span>
             )}
+            <WeatherChip weather={post.weather || post.weatherSnapshot} />
           </div>
-          <WeatherChip weather={post.weather || post.weatherSnapshot} />
         </div>
       )}
 
