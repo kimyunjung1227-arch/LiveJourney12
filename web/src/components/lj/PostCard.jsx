@@ -59,11 +59,12 @@ export function PostCard({
       : '';
   const categoryText = post.category_raw || (post.category ? categoryLabel(post.category) : '');
 
-  // 좋아요 클릭마다 펄스 재생 (key 증분으로 애니메이션 재시작)
-  const [likePulseKey, setLikePulseKey] = useState(0);
+  // 좋아요 애니메이션 트리거. "사용자가 눌렀을 때"만 재생한다
+  // (서버 hydrate 로 liked 가 켜지는 건 애니메이션 대상이 아님)
+  const [likeAnim, setLikeAnim] = useState(null); // { phase: 'like' | 'unlike', key: number }
   const handleLike = (e) => {
     e.stopPropagation();
-    setLikePulseKey((k) => k + 1);
+    setLikeAnim((prev) => ({ phase: liked ? 'unlike' : 'like', key: (prev?.key || 0) + 1 }));
     onToggleLike?.(post.id);
   };
 
@@ -375,19 +376,18 @@ export function PostCard({
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <ReactionButton
             active={liked}
-            iconOff={
-              <span key={`off-${likePulseKey}`} className={likePulseKey > 0 ? 'lj-heart-pulse' : ''}>
-                <IconHeart size={19} stroke={2} />
-              </span>
-            }
-            iconOn={
-              <span key={`on-${likePulseKey}`} className={likePulseKey > 0 ? 'lj-heart-pulse' : ''}>
-                <IconHeartFilled size={19} />
-              </span>
+            icon={
+              <LikeHeart
+                liked={liked}
+                anim={likeAnim}
+                size={19}
+                colorOff={LJ.textSecondary}
+                colorOn={LJ.key}
+              />
             }
             count={likeCount}
             onClick={handleLike}
-            ariaLabel="좋아요"
+            ariaLabel={liked ? '좋아요 취소' : '좋아요'}
           />
           <ReactionButton
             active={false}
@@ -546,7 +546,47 @@ function Avatar({ nickname, avatarUrl, size = 28, onClick }) {
   );
 }
 
-function ReactionButton({ active, iconOff, iconOn, count, onClick, ariaLabel }) {
+/**
+ * 좋아요 하트.
+ * - 누르면: 하트가 위에서 떨어져 내려오고(.lj-heart-drop) 색이 위→아래로 차오른다(.lj-heart-pour)
+ * - 취소하면: 색이 아래로 빠지며 사라지고(.lj-heart-drain) 하트가 살짝 눌린다(.lj-heart-sink)
+ * 외곽선 하트를 항상 깔고 채워진 하트를 위에 겹쳐, clip-path 로 "채워지는" 느낌을 만든다.
+ * `anim` 은 사용자가 버튼을 눌렀을 때만 새 객체로 바뀐다 → 목록 재조회/hydrate 로는 재생되지 않는다.
+ */
+function LikeHeart({ liked, anim, size = 19, colorOff, colorOn }) {
+  const [phase, setPhase] = useState('idle'); // 'like' | 'unlike' | 'idle'
+  const lastKeyRef = useRef(0);
+
+  useEffect(() => {
+    if (!anim || anim.key === lastKeyRef.current) return;
+    lastKeyRef.current = anim.key;
+    setPhase(anim.phase);
+    const t = setTimeout(() => setPhase('idle'), anim.phase === 'like' ? 520 : 240);
+    return () => clearTimeout(t);
+  }, [anim]);
+
+  // 취소 애니메이션이 끝날 때까지 채워진 하트를 남겨 둔다
+  const showFill = liked || phase === 'unlike';
+  const wrapperAnim =
+    phase === 'like' ? ' lj-heart-drop' : phase === 'unlike' ? ' lj-heart-sink' : '';
+  const fillAnim =
+    phase === 'like' ? ' lj-heart-pour' : phase === 'unlike' ? ' lj-heart-drain' : '';
+
+  return (
+    <span className={`lj-heart${wrapperAnim}`} style={{ width: size, height: size }}>
+      <span className="lj-heart-outline" style={{ color: colorOff }}>
+        <IconHeart size={size} stroke={2} />
+      </span>
+      {showFill && (
+        <span className={`lj-heart-fill${fillAnim}`} style={{ color: colorOn }}>
+          <IconHeartFilled size={size} />
+        </span>
+      )}
+    </span>
+  );
+}
+
+function ReactionButton({ active, icon, iconOff, iconOn, count, onClick, ariaLabel }) {
   return (
     <button
       type="button"
@@ -566,7 +606,7 @@ function ReactionButton({ active, iconOff, iconOn, count, onClick, ariaLabel }) 
         fontWeight: active ? 700 : 500,
       }}
     >
-      {active ? iconOn : iconOff}
+      {icon ?? (active ? iconOn : iconOff)}
       {count != null && <span style={{ minWidth: 12 }}>{count}</span>}
     </button>
   );

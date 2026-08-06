@@ -2,13 +2,22 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { savePlace, unsavePlace, fetchSavedPlaces } from '../api/savedPlacesSupabase';
+import { toggleLikeForPost } from '../utils/postLikeActions';
 import { makePlaceId } from './ljPostsMapping';
 
 /**
  * 좋아요/저장 낙관적 업데이트.
- * - 좋아요: 기존 post_likes 테이블 (user_id, post_id)
+ * - 좋아요: `set_post_like` RPC (서버가 단일 진실). 응답의 is_liked/likes_count 로 최종 동기화.
  * - 저장: 게시물의 장소를 interest_places 에 저장 (프로필 "저장한 장소" 탭과 연동).
  *   같은 장소를 가진 게시물은 함께 토글된다. 비로그인/장소명 없음은 로컬 토글만.
+ *
+ * 좋아요 취소가 풀리던 원인과 대응:
+ * 1) 클릭 시점의 liked 를 `setState(prev => ...)` 안에서 읽었는데, 이 updater 는 동기 실행이 보장되지
+ *    않아(렌더 단계에서 실행) 뒤따르는 코드가 항상 "안 눌린 상태"로 판단 → 취소가 다시 insert 로 갔다.
+ *    → 사용자의 최신 의도를 `likeIntentRef` 에 동기적으로 기록해서 판단한다.
+ * 2) hydrate 가 liked=true 만 칠하고 false 는 지우지 않아, 응답이 늦게 오면 방금 취소한 하트가 되살아났다.
+ *    → true/false 를 모두 반영하고, 사용자가 건드린(intent 가 있는) 게시물은 건너뛴다.
+ * 3) 연타 시 늦게 도착한 이전 응답이 최신 상태를 덮어썼다. → 요청 시퀀스로 오래된 응답을 버린다.
  */
 export function useReactions(initialPosts = []) {
   const { user } = useAuth();
@@ -20,6 +29,17 @@ export function useReactions(initialPosts = []) {
     postsRef.current = initialPosts;
   }, [initialPosts]);
 
+  // 렌더된 최신 state 스냅샷 (핸들러가 stale closure 없이 현재 값을 읽기 위함)
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  // 좋아요: 사용자가 마지막으로 "의도한" 상태 (클릭 즉시 동기 기록 → 연타/취소 판정의 기준)
+  const likeIntentRef = useRef(new Map());
+  // 좋아요: postId 별 요청 순번 (늦게 도착한 과거 응답 폐기용)
+  const likeSeqRef = useRef(new Map());
+
   useEffect(() => {
     setState((prev) => {
       const next = buildInitial(initialPosts);
@@ -30,7 +50,7 @@ export function useReactions(initialPosts = []) {
     });
   }, [initialPosts]);
 
-  // 내가 누른 좋아요 hydrate
+  // 내가 누른 좋아요 hydrate — 켜기/끄기를 모두 반영하고, 방금 누른 건(intent 보유) 덮지 않는다
   useEffect(() => {
     if (!user || initialPosts.length === 0) return;
     const ids = initialPosts.map((p) => p.id).filter(Boolean);
@@ -43,18 +63,53 @@ export function useReactions(initialPosts = []) {
         .eq('user_id', user.id)
         .in('post_id', ids);
       if (cancelled || error || !data) return;
+      const likedIds = new Set(data.map(({ post_id }) => String(post_id)));
       setState((prev) => {
         const next = { ...prev };
-        data.forEach(({ post_id }) => {
-          if (next[post_id]) next[post_id] = { ...next[post_id], liked: true };
+        let changed = false;
+        ids.forEach((rawId) => {
+          const id = String(rawId);
+          // 사용자가 직접 토글한 게시물은 서버 응답(토글 결과)이 진실 — hydrate 로 덮지 않는다
+          if (likeIntentRef.current.has(id)) return;
+          const cur = next[id];
+          if (!cur) return;
+          const liked = likedIds.has(id);
+          if (cur.liked === liked) return;
+          next[id] = { ...cur, liked };
+          changed = true;
         });
-        return next;
+        return changed ? next : prev;
       });
     })();
     return () => {
       cancelled = true;
     };
   }, [user, initialPosts]);
+
+  // 다른 화면(핫플/추천/지역 피드)에서 같은 게시물을 토글하면 여기도 맞춘다
+  useEffect(() => {
+    const onLikeUpdated = (e) => {
+      const { postId, isLiked, likesCount } = e.detail || {};
+      if (!postId) return;
+      const id = String(postId);
+      likeIntentRef.current.set(id, !!isLiked);
+      setState((prev) => {
+        const cur = prev[id];
+        if (!cur) return prev;
+        return {
+          ...prev,
+          [id]: {
+            ...cur,
+            touched: true,
+            liked: !!isLiked,
+            likeCount: typeof likesCount === 'number' ? Math.max(0, likesCount) : cur.likeCount,
+          },
+        };
+      });
+    };
+    window.addEventListener('postLikeUpdated', onLikeUpdated);
+    return () => window.removeEventListener('postLikeUpdated', onLikeUpdated);
+  }, []);
 
   // 내가 저장한 장소 hydrate — 저장된 장소를 가진 게시물의 북마크를 채움
   useEffect(() => {
@@ -84,98 +139,75 @@ export function useReactions(initialPosts = []) {
   const toggleLike = useCallback(
     async (postId) => {
       if (!postId) return;
-      // 토글 전 상태 캡처 후 낙관 업데이트
-      let wasLiked = false;
+      const id = String(postId);
+
+      // 클릭 시점의 "진짜" 현재 상태 — setState updater 가 아니라 동기 ref 에서 읽는다
+      const wasLiked = likeIntentRef.current.has(id)
+        ? !!likeIntentRef.current.get(id)
+        : !!stateRef.current[id]?.liked;
+      const nextLiked = !wasLiked;
+      likeIntentRef.current.set(id, nextLiked);
+
+      const seq = (likeSeqRef.current.get(id) || 0) + 1;
+      likeSeqRef.current.set(id, seq);
+
+      // 낙관 업데이트
       setState((prev) => {
-        const cur = prev[postId] || { liked: false, saved: false, likeCount: 0, saveCount: 0 };
-        wasLiked = cur.liked;
+        const cur = prev[id] || { liked: false, saved: false, likeCount: 0, saveCount: 0 };
         return {
           ...prev,
-          [postId]: {
+          [id]: {
             ...cur,
             touched: true,
-            liked: !cur.liked,
-            likeCount: Math.max(0, cur.likeCount + (cur.liked ? -1 : 1)),
+            liked: nextLiked,
+            likeCount: Math.max(0, cur.likeCount + (nextLiked ? 1 : -1)),
           },
         };
       });
 
       if (!user) return; // 비로그인은 로컬 토글만
 
-      try {
-        if (wasLiked) {
-          // 삭제: select 옵션으로 실제 지워진 row 받아 검증
-          const { data, error } = await supabase
-            .from('post_likes')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('post_id', postId)
-            .select('post_id');
-          if (error) throw error;
-          // 실제로 지운 게 없으면(이미 없는 좋아요였음) 낙관 -1 보정 → +1 되돌림
-          if (!data || data.length === 0) {
-            setState((prev) => {
-              const cur = prev[postId];
-              if (!cur) return prev;
-              return {
-                ...prev,
-                [postId]: { ...cur, liked: false, likeCount: cur.likeCount + 1 },
-              };
-            });
-          }
-        } else {
-          const { error } = await supabase
-            .from('post_likes')
-            .insert({ user_id: user.id, post_id: postId });
-          if (error) {
-            if (error.code === '23505') {
-              // 이미 좋아요 누른 상태였음 → 낙관 +1 보정 -1 (DB는 변화 없음)
-              setState((prev) => {
-                const cur = prev[postId];
-                if (!cur) return prev;
-                return {
-                  ...prev,
-                  [postId]: {
-                    ...cur,
-                    liked: true,
-                    likeCount: Math.max(0, cur.likeCount - 1),
-                  },
-                };
-              });
-            } else {
-              throw error;
-            }
-          }
-        }
+      const res = await toggleLikeForPost({ postId: id, userId: user.id, likedBefore: wasLiked });
 
-        // 정합성 보강: 트리거가 갱신한 posts.likes_count를 정확히 가져와 동기화
-        const { data: fresh } = await supabase
-          .from('posts')
-          .select('likes_count')
-          .eq('id', postId)
-          .maybeSingle();
-        if (fresh && typeof fresh.likes_count === 'number') {
-          setState((prev) => {
-            const cur = prev[postId];
-            if (!cur) return prev;
-            return { ...prev, [postId]: { ...cur, likeCount: fresh.likes_count } };
-          });
-        }
-      } catch (_) {
-        // 롤백
+      // 그 사이 더 눌렀으면 이 응답은 이미 낡았다 — 마지막 요청의 응답만 반영
+      if (likeSeqRef.current.get(id) !== seq) return;
+
+      if (res?.success) {
+        // 서버 응답이 최종 진실
+        likeIntentRef.current.set(id, !!res.isLiked);
         setState((prev) => {
-          const cur = prev[postId];
+          const cur = prev[id];
           if (!cur) return prev;
           return {
             ...prev,
-            [postId]: {
+            [id]: {
               ...cur,
-              liked: wasLiked,
-              likeCount: Math.max(0, cur.likeCount + (wasLiked ? 1 : -1)),
+              liked: !!res.isLiked,
+              likeCount:
+                typeof res.likesCount === 'number' ? Math.max(0, res.likesCount) : cur.likeCount,
             },
           };
         });
+        return;
       }
+
+      // UUID 가 아닌 목업/로컬 게시물은 서버에 못 쓰므로 로컬 토글을 유지
+      if (res?.reason === 'non_uuid' || res?.reason === 'invalid_ids') return;
+
+      // 서버 실패 → 롤백
+      likeIntentRef.current.set(id, wasLiked);
+      setState((prev) => {
+        const cur = prev[id];
+        if (!cur) return prev;
+        return {
+          ...prev,
+          [id]: {
+            ...cur,
+            liked: wasLiked,
+            likeCount: Math.max(0, cur.likeCount + (nextLiked ? -1 : 1)),
+          },
+        };
+      });
     },
     [user]
   );
@@ -196,10 +228,9 @@ export function useReactions(initialPosts = []) {
             .map((p) => p.id)
         : [postId];
 
-      let wasSaved = false;
+      // 좋아요와 같은 이유로, 클릭 시점 상태는 updater 안이 아니라 ref 에서 동기적으로 읽는다
+      const wasSaved = !!stateRef.current[postId]?.saved;
       setState((prev) => {
-        const cur = prev[postId] || { liked: false, saved: false, likeCount: 0, saveCount: 0 };
-        wasSaved = cur.saved;
         const next = { ...prev };
         affectedIds.forEach((id) => {
           const c = next[id];
