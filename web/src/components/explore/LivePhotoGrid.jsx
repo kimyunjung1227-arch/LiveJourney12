@@ -36,7 +36,7 @@ export default function LivePhotoGrid({ photos, total }) {
       <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
         <div className="flex items-center gap-1.5">
           <IconPhoto size={16} color={KEY} />
-          <p className="m-0" style={{ fontSize: 14, fontWeight: 700, color: TEXT_PRIMARY }}>
+          <p className="m-0" style={{ fontSize: 14, fontWeight: 600, color: TEXT_PRIMARY }}>
             실시간 사진
           </p>
         </div>

@@ -59,10 +59,10 @@ export default function CityHero({ cityName }) {
       <h1
         className="m-0 truncate"
         style={{
-          fontSize: 19,
-          fontWeight: 700,
+          fontSize: 15,
+          fontWeight: 500,
           color: TEXT_PRIMARY,
-          letterSpacing: -0.3,
+          letterSpacing: -0.2,
           padding: '0 92px',
         }}
       >
@@ -84,8 +84,8 @@ export default function CityHero({ cityName }) {
             background: '#F1F5F9',
             borderRadius: 999,
             padding: '3px 9px',
-            fontSize: 12.5,
-            fontWeight: 600,
+            fontSize: 12,
+            fontWeight: 500,
             lineHeight: 1,
           }}
         >
