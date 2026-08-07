@@ -125,6 +125,7 @@ const PostEditScreen = lazyWithRecover(() => import('./pages/PostEditScreen'))
 const MapScreen = lazyWithRecover(() => import('./pages/MapScreen'))
 const MapAskSituationScreen = lazyWithRecover(() => import('./pages/MapAskSituationScreen'))
 const MapPhotoGridScreen = lazyWithRecover(() => import('./pages/MapPhotoGridScreen'))
+const MapPinListScreen = lazyWithRecover(() => import('./pages/MapPinListScreen'))
 const AskSituationListScreen = lazyWithRecover(() => import('./pages/AskSituationListScreen'))
 const AskSituationDetailScreen = lazyWithRecover(() => import('./pages/AskSituationDetailScreen'))
 const AskSituationEditScreen = lazyWithRecover(() => import('./pages/AskSituationEditScreen'))
@@ -258,6 +259,7 @@ function App() {
                 <Route path="/ask-situation/:id" element={<AskSituationDetailScreen />} />
                 <Route path="/ask-situation/:id/edit" element={<AskSituationEditScreen />} />
                 <Route path="/map/photos" element={<MapPhotoGridScreen />} />
+                <Route path="/map/list" element={<MapPinListScreen />} />
                 <Route path="/profile" element={<ProfileScreen />} />
                 <Route path="/profile/posts" element={<ProtectedRoute><UserPostsScreen /></ProtectedRoute>} />
                 <Route path="/profile/saved" element={<ProtectedRoute><SavedPlacesScreen /></ProtectedRoute>} />
