@@ -320,7 +320,7 @@ const RegionDetailScreen = () => {
                 weatherInfo.temperature && weatherInfo.temperature !== '-' && (
                   <span
                     className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5"
-                    style={{ fontSize: 12, fontWeight: 600, letterSpacing: '-0.01em' }}
+                    style={{ fontSize: 12, fontWeight: 500, letterSpacing: '-0.01em' }}
                     title={weatherInfo.condition}
                   >
                     <span style={{ fontSize: 13, lineHeight: 1 }}>{weatherInfo.icon}</span>
@@ -405,7 +405,7 @@ const RegionDetailScreen = () => {
                           if (!filterHasMovedRef.current) setActiveFilter(key);
                         }}
                         style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}
-                        className={`group inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap flex-shrink-0 border transition-colors duration-150 ${
+                        className={`group inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 border transition-colors duration-150 ${
                           isActive
                             ? 'bg-primary text-white border-primary'
                             : 'bg-white dark:bg-card-dark text-text-headings dark:text-gray-100 border-gray-200 dark:border-gray-700 hover:border-primary/40 hover:bg-primary/5'

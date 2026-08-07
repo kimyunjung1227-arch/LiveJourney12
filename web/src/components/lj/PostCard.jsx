@@ -181,7 +181,7 @@ export function PostCard({
                   cursor: 'pointer',
                   fontFamily: LJ.fontStack,
                   fontSize: 17,
-                  fontWeight: 700,
+                  fontWeight: 600,
                   color: LJ.textPrimary,
                   letterSpacing: -0.3,
                   lineHeight: 1.3,
