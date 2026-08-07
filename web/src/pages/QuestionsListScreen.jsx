@@ -123,7 +123,7 @@ const QuestionsListScreen = () => {
         className="bg-white h-[44px] rounded-full flex items-center justify-center gap-1.5"
         style={{
           position: 'fixed',
-          bottom: 'calc(70px + env(safe-area-inset-bottom, 0px))',
+          bottom: 'calc(86px + env(safe-area-inset-bottom, 0px))',
           right: 'max(12px, calc(50vw - 195px))',
           padding: '0 16px',
           border: 'none',
