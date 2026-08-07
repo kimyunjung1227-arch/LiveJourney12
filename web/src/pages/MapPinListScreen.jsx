@@ -292,7 +292,7 @@ const MapPinListScreen = () => {
         </button>
 
         {/* 좌·우 요소 너비와 무관하게 정확히 가운데 오도록 절대배치 */}
-        <h1 className="pointer-events-none absolute left-1/2 max-w-[52%] -translate-x-1/2 truncate text-[13px] font-medium leading-tight tracking-[-0.01em] text-text-primary-light dark:text-text-primary-dark">
+        <h1 className="pointer-events-none absolute left-1/2 max-w-[52%] -translate-x-1/2 truncate text-[15px] font-medium leading-tight tracking-[-0.01em] text-text-primary-light dark:text-text-primary-dark">
           {headerTitle}
         </h1>
 

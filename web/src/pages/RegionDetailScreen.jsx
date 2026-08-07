@@ -308,7 +308,7 @@ const RegionDetailScreen = () => {
               <span className="material-symbols-outlined text-2xl">arrow_back</span>
             </button>
             <div className="flex-1 min-w-0 flex items-center justify-center gap-2 px-1">
-              <h1 className="min-w-0 text-[13px] font-medium leading-tight tracking-[-0.01em] text-black dark:text-white line-clamp-2">
+              <h1 className="min-w-0 text-[13px] font-normal leading-tight tracking-[-0.01em] text-black dark:text-white line-clamp-2">
                 {headerTitle}
               </h1>
               {/* 지역이름 옆 실시간 기온 칩 — 플랫·둥근·미니멀 */}
