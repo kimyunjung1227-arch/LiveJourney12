@@ -132,7 +132,6 @@ const QuestionsListScreen = () => {
           fontSize: 12,
           fontWeight: 700,
           cursor: 'pointer',
-          boxShadow: '0 4px 12px rgba(38, 198, 218, 0.18), 0 1px 3px rgba(0,0,0,0.06)',
           zIndex: 48,
         }}
       >
