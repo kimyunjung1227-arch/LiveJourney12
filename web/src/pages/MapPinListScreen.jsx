@@ -278,7 +278,7 @@ const MapPinListScreen = () => {
 
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col relative">
-      {/* 상단 — 타이틀 중앙정렬, 기온은 지역 화면과 같은 옅은 배경 칩 */}
+      {/* 상단 — 타이틀은 중앙 고정, 기온 칩은 우측 */}
       <header className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-2 border-b border-border-light bg-background-light/95 px-3 py-3 backdrop-blur-md dark:border-border-dark dark:bg-background-dark/95">
         <button
           type="button"
@@ -291,29 +291,29 @@ const MapPinListScreen = () => {
           </span>
         </button>
 
-        <div className="flex min-w-0 flex-1 items-center justify-center gap-2 px-1">
-          <h1 className="min-w-0 truncate text-[13px] font-medium leading-tight tracking-[-0.01em] text-text-primary-light dark:text-text-primary-dark">
-            {headerTitle}
-          </h1>
-          {weather?.temperature && weather.temperature !== '-' && (
-            <span
-              className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-800"
-              style={{ fontSize: 12, fontWeight: 600, letterSpacing: '-0.01em' }}
-              title={weather.condition}
-            >
-              {weather.icon && (
-                <span style={{ fontSize: 13, lineHeight: 1 }}>
-                  {weather.icon}
-                </span>
-              )}
-              <span className="text-slate-700 dark:text-slate-200">
-                {weather.temperature}
-              </span>
-            </span>
-          )}
-        </div>
+        {/* 좌·우 요소 너비와 무관하게 정확히 가운데 오도록 절대배치 */}
+        <h1 className="pointer-events-none absolute left-1/2 max-w-[52%] -translate-x-1/2 truncate text-[13px] font-medium leading-tight tracking-[-0.01em] text-text-primary-light dark:text-text-primary-dark">
+          {headerTitle}
+        </h1>
 
-        <div className="size-10 shrink-0" aria-hidden />
+        {weather?.temperature && weather.temperature !== '-' ? (
+          <span
+            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-800"
+            style={{ fontSize: 12, fontWeight: 600, letterSpacing: '-0.01em' }}
+            title={weather.condition}
+          >
+            {weather.icon && (
+              <span style={{ fontSize: 13, lineHeight: 1 }}>
+                {weather.icon}
+              </span>
+            )}
+            <span className="text-slate-700 dark:text-slate-200">
+              {weather.temperature}
+            </span>
+          </span>
+        ) : (
+          <div className="size-10 shrink-0" aria-hidden />
+        )}
       </header>
 
       <div
