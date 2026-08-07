@@ -278,48 +278,42 @@ const MapPinListScreen = () => {
 
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col relative">
-      {/* 상단 — 실시간 핫플 화면과 동일한 톤 (좌측 정렬 17px 타이틀, 기온은 우측) */}
-      <header className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-2 border-b border-border-light bg-background-light/95 px-4 py-3 backdrop-blur-md dark:border-border-dark dark:bg-background-dark/95">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <button
-            type="button"
-            onClick={handleBack}
-            aria-label="뒤로가기"
-            className="flex size-10 shrink-0 items-center justify-center rounded-full active:bg-black/5 dark:active:bg-white/10"
-          >
-            <span className="material-symbols-outlined text-2xl text-text-primary-light dark:text-text-primary-dark">
-              arrow_back
-            </span>
-          </button>
-          <h1 className="min-w-0 truncate text-[17px] font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark">
+      {/* 상단 — 타이틀 중앙정렬, 기온은 지역 화면과 같은 옅은 배경 칩 */}
+      <header className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-2 border-b border-border-light bg-background-light/95 px-3 py-3 backdrop-blur-md dark:border-border-dark dark:bg-background-dark/95">
+        <button
+          type="button"
+          onClick={handleBack}
+          aria-label="뒤로가기"
+          className="flex size-10 shrink-0 items-center justify-center rounded-full active:bg-black/5 dark:active:bg-white/10"
+        >
+          <span className="material-symbols-outlined text-2xl text-text-primary-light dark:text-text-primary-dark">
+            arrow_back
+          </span>
+        </button>
+
+        <div className="flex min-w-0 flex-1 items-center justify-center gap-2 px-1">
+          <h1 className="min-w-0 truncate text-[13px] font-medium leading-tight tracking-[-0.01em] text-text-primary-light dark:text-text-primary-dark">
             {headerTitle}
           </h1>
-        </div>
-        {weather?.temperature && weather.temperature !== '-' && (
-          <span
-            className="inline-flex shrink-0 items-center"
-            style={{
-              gap: 4,
-              fontSize: 13,
-              color: LJ.textSecondary,
-              whiteSpace: 'nowrap',
-            }}
-            title={weather.condition}
-          >
-            {weather.icon && (
-              <span style={{ fontSize: 14, lineHeight: 1 }}>{weather.icon}</span>
-            )}
+          {weather?.temperature && weather.temperature !== '-' && (
             <span
-              style={{
-                color: LJ.textPrimary,
-                fontWeight: 700,
-                fontVariantNumeric: 'tabular-nums',
-              }}
+              className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 dark:bg-slate-800"
+              style={{ fontSize: 12, fontWeight: 600, letterSpacing: '-0.01em' }}
+              title={weather.condition}
             >
-              {weather.temperature}
+              {weather.icon && (
+                <span style={{ fontSize: 13, lineHeight: 1 }}>
+                  {weather.icon}
+                </span>
+              )}
+              <span className="text-slate-700 dark:text-slate-200">
+                {weather.temperature}
+              </span>
             </span>
-          </span>
-        )}
+          )}
+        </div>
+
+        <div className="size-10 shrink-0" aria-hidden />
       </header>
 
       <div
@@ -518,9 +512,9 @@ const MapPinListScreen = () => {
                           key={t}
                           style={{
                             fontSize: 10.5,
-                            fontWeight: 500,
-                            color: LJ.textSecondary,
-                            background: LJ.bgSurface,
+                            fontWeight: 600,
+                            color: LJ.keyTextDark,
+                            background: LJ.keyBgLight,
                             padding: '2px 7px',
                             borderRadius: 999,
                             lineHeight: 1.3,
@@ -560,10 +554,10 @@ const MapPinListScreen = () => {
           position: 'fixed',
           bottom: 'calc(80px + env(safe-area-inset-bottom, 0px) + 20px)',
           right: 'calc((100vw - 460px) / 2 + 20px)',
-          width: '34px',
-          height: '34px',
-          minWidth: '34px',
-          minHeight: '34px',
+          width: '38px',
+          height: '38px',
+          minWidth: '38px',
+          minHeight: '38px',
           padding: 0,
           borderRadius: '50%',
           background: 'rgba(255,255,255,0.9)',
@@ -579,7 +573,7 @@ const MapPinListScreen = () => {
       >
         <span
           className="material-symbols-outlined"
-          style={{ fontSize: '17px', color: '#111827' }}
+          style={{ fontSize: '19px', color: '#111827' }}
         >
           north
         </span>

@@ -659,7 +659,7 @@ function usePostTags(postId) {
   return tags;
 }
 
-// 기온 칩 — 홈 피드(PostCard)의 WeatherChip 과 동일한 톤. 색 없이 담백하게.
+// 기온 칩 — 지역 화면과 같은 옅은 슬레이트 배경 알약 (색 없이)
 function TempChip({ weather }) {
   if (!weather?.temperature || weather.temperature === '-') return null;
   return (
@@ -667,28 +667,28 @@ function TempChip({ weather }) {
       className="flex-shrink-0 inline-flex items-center"
       style={{
         gap: 4,
-        fontSize: 13,
-        color: '#6B6B6B',
+        background: '#F1F5F9',
+        borderRadius: 999,
+        padding: '2px 8px',
+        fontSize: 12,
+        fontWeight: 600,
+        letterSpacing: '-0.01em',
+        color: '#334155',
         whiteSpace: 'nowrap',
       }}
+      title={weather.condition}
     >
       {weather.icon && (
-        <span style={{ fontSize: 14, lineHeight: 1 }}>{weather.icon}</span>
+        <span style={{ fontSize: 13, lineHeight: 1 }}>{weather.icon}</span>
       )}
-      <span
-        style={{
-          color: '#1F1F1F',
-          fontWeight: 700,
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
+      <span style={{ fontVariantNumeric: 'tabular-nums' }}>
         {weather.temperature}
       </span>
     </span>
   );
 }
 
-// 실시간 태그 — 위치 정보 아래에 가볍게 (회색 · 플랫)
+// 실시간 태그 — 위치 정보 아래에 하늘색 칩으로 (홈 피드 태그와 같은 톤)
 function TagChips({ tags, max = 4 }) {
   if (!Array.isArray(tags) || tags.length === 0) return null;
   return (
@@ -698,9 +698,9 @@ function TagChips({ tags, max = 4 }) {
           key={t}
           style={{
             fontSize: 11,
-            fontWeight: 500,
-            color: '#6B6B6B',
-            background: '#F5F7FA',
+            fontWeight: 600,
+            color: KEY_DARK,
+            background: KEY_LIGHT,
             padding: '3px 8px',
             borderRadius: 999,
             lineHeight: 1.2,
