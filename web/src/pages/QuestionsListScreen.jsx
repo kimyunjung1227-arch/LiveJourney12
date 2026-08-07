@@ -15,6 +15,7 @@ const TEXT_PRIMARY = '#1F1F1F';
 const TEXT_SECONDARY = '#6B6B6B';
 const KEY = '#4DB8E8';
 const KEY_DARK = '#1A6EA8';
+const MAIN = '#26C6DA'; // tailwind primary (메인 키 컬러)
 
 const QuestionsListScreen = () => {
   const navigate = useNavigate();
@@ -126,12 +127,12 @@ const QuestionsListScreen = () => {
           padding: '7px 12px',
           borderRadius: 999,
           background: '#ffffff',
-          border: `1px solid ${KEY}`,
+          border: `1px solid ${MAIN}`,
           color: KEY_DARK,
           fontSize: 12,
           fontWeight: 700,
           cursor: 'pointer',
-          boxShadow: '0 4px 12px rgba(77, 184, 232, 0.18), 0 1px 3px rgba(0,0,0,0.06)',
+          boxShadow: '0 4px 12px rgba(38, 198, 218, 0.18), 0 1px 3px rgba(0,0,0,0.06)',
           zIndex: 48,
         }}
       >
