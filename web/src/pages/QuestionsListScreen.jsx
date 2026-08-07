@@ -120,19 +120,23 @@ const QuestionsListScreen = () => {
         onClick={() => navigate('/question/new')}
         aria-label="질문하기"
         title="질문하기"
-        className="bg-white w-[44px] h-[44px] rounded-full flex items-center justify-center"
+        className="bg-white h-[44px] rounded-full flex items-center justify-center gap-1.5"
         style={{
           position: 'fixed',
           bottom: 'calc(70px + env(safe-area-inset-bottom, 0px))',
           right: 'max(12px, calc(50vw - 195px))',
-          padding: 0,
+          padding: '0 16px',
           border: 'none',
           boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
+          color: MAIN,
+          fontSize: 13,
+          fontWeight: 700,
           cursor: 'pointer',
           zIndex: 48,
         }}
       >
-        <IconPencilPlus size={20} color={MAIN} stroke={2} />
+        <IconPencilPlus size={18} color={MAIN} stroke={2} />
+        질문하기
       </button>
 
       <BottomNavigation />
