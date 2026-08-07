@@ -114,29 +114,25 @@ const QuestionsListScreen = () => {
         )}
       </div>
 
-      {/* 질문하기 FAB — 프로필 탭 위, 가벼운 톤 */}
+      {/* 질문하기 FAB — 지도 화면 컨트롤 버튼과 동일한 톤 (흰 원 + 키컬러 아이콘) */}
       <button
         type="button"
         onClick={() => navigate('/question/new')}
         aria-label="질문하기"
-        className="flex items-center gap-1.5"
+        title="질문하기"
+        className="bg-white w-[44px] h-[44px] rounded-full flex items-center justify-center"
         style={{
           position: 'fixed',
           bottom: 'calc(70px + env(safe-area-inset-bottom, 0px))',
           right: 'max(12px, calc(50vw - 195px))',
-          padding: '7px 12px',
-          borderRadius: 999,
-          background: '#ffffff',
-          border: `1px solid ${MAIN}`,
-          color: KEY_DARK,
-          fontSize: 12,
-          fontWeight: 700,
+          padding: 0,
+          border: 'none',
+          boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
           cursor: 'pointer',
           zIndex: 48,
         }}
       >
-        <IconPencilPlus size={14} stroke={2} />
-        질문하기
+        <IconPencilPlus size={20} color={MAIN} stroke={2} />
       </button>
 
       <BottomNavigation />
