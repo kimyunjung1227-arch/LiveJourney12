@@ -620,19 +620,118 @@ function usePinWeather(lat, lng) {
   return weather;
 }
 
-// 기온 칩 — 색 없이 담백하게 (아이콘 + 온도)
+// 게시물의 실시간 태그 (RPC 가 주지 않아 선택된 핀에서만 가볍게 조회)
+function usePostTags(postId) {
+  const [tags, setTags] = useState([]);
+  useEffect(() => {
+    if (!postId) {
+      setTags([]);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('posts')
+          .select('tags')
+          .eq('id', postId)
+          .maybeSingle();
+        if (cancelled) return;
+        if (error || !data) {
+          setTags([]);
+          return;
+        }
+        setTags(
+          Array.isArray(data.tags)
+            ? data.tags
+                .map((t) => String(t ?? '').replace(/^#+/, '').trim())
+                .filter(Boolean)
+            : [],
+        );
+      } catch {
+        if (!cancelled) setTags([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [postId]);
+  return tags;
+}
+
+// 기온 칩 — 홈 피드(PostCard)의 WeatherChip 과 동일한 톤. 색 없이 담백하게.
 function TempChip({ weather }) {
   if (!weather?.temperature || weather.temperature === '-') return null;
   return (
     <span
-      className="flex-shrink-0 inline-flex items-center gap-1 text-[12px] font-semibold text-[#1F1F1F]"
-      style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}
+      className="flex-shrink-0 inline-flex items-center"
+      style={{
+        gap: 4,
+        fontSize: 13,
+        color: '#6B6B6B',
+        whiteSpace: 'nowrap',
+      }}
     >
       {weather.icon && (
-        <span style={{ fontSize: 13, lineHeight: 1 }}>{weather.icon}</span>
+        <span style={{ fontSize: 14, lineHeight: 1 }}>{weather.icon}</span>
       )}
-      {weather.temperature}
+      <span
+        style={{
+          color: '#1F1F1F',
+          fontWeight: 700,
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {weather.temperature}
+      </span>
     </span>
+  );
+}
+
+// 실시간 태그 — 위치 정보 아래에 가볍게 (회색 · 플랫)
+function TagChips({ tags, max = 4 }) {
+  if (!Array.isArray(tags) || tags.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5 mb-2">
+      {tags.slice(0, max).map((t) => (
+        <span
+          key={t}
+          style={{
+            fontSize: 11,
+            fontWeight: 500,
+            color: '#6B6B6B',
+            background: '#F5F7FA',
+            padding: '3px 8px',
+            borderRadius: 999,
+            lineHeight: 1.2,
+          }}
+        >
+          {t}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// 사진 위 촬영 시각 — "몇 분 전"만 가볍게
+function PhotoTimeChip({ iso, pointerNone = false }) {
+  const label = timeAgo(iso);
+  if (!label) return null;
+  return (
+    <div
+      className={`absolute top-2.5 left-2.5 ${pointerNone ? 'pointer-events-none' : ''}`}
+      style={{
+        background: 'rgba(0,0,0,0.42)',
+        borderRadius: 999,
+        padding: '3px 9px',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
+      }}
+    >
+      <span style={{ fontSize: 11, color: '#ffffff', fontWeight: 500 }}>
+        {label}
+      </span>
+    </div>
   );
 }
 
@@ -661,6 +760,7 @@ function PostPinPreview({
   const cat = CATEGORY_META[bundle.category];
   const CatIcon = cat?.Icon;
   const weather = usePinWeather(bundle.primary_lat, bundle.primary_lng);
+  const tags = usePostTags(bundle.primary_post_id);
   return (
     <motion.div
       initial={{ opacity: 0, y: -10 }}
@@ -688,11 +788,7 @@ function PostPinPreview({
                 decoding="async"
               />
             )}
-            <div className="absolute top-2.5 left-2.5 bg-black/70 px-2.5 py-1 rounded-md">
-              <span className="text-[11px] text-white font-semibold">
-                {timeAgo(bundle.primary_taken_at)}
-              </span>
-            </div>
+            <PhotoTimeChip iso={bundle.primary_taken_at} />
             {cat && (
               <div className="absolute top-2.5 right-2.5 bg-white px-2.5 py-1 rounded-md flex items-center gap-1">
                 {CatIcon && (
@@ -748,6 +844,8 @@ function PostPinPreview({
               <TempChip weather={weather} />
             </div>
 
+            <TagChips tags={tags} />
+
             {bundle.body ? (
               <p className="text-[12px] line-clamp-1 leading-relaxed text-[#1F1F1F] m-0">
                 {bundle.body}
@@ -798,6 +896,7 @@ function BundlePinPreview({ bundle, photos, onViewPost, onAuthorClick, onLocatio
   const cat = CATEGORY_META[bundle.category];
   const CatIcon = cat?.Icon;
   const weather = usePinWeather(bundle.primary_lat, bundle.primary_lng);
+  const tags = usePostTags(cur?.post_id || bundle.primary_post_id);
   const go = React.useCallback(
     (d) => setSlide(([p]) => [(p + d + n) % n, d]),
     [n],
@@ -881,11 +980,7 @@ function BundlePinPreview({ bundle, photos, onViewPost, onAuthorClick, onLocatio
                 />
               )}
             </AnimatePresence>
-            <div className="absolute top-2.5 left-2.5 bg-black/70 px-2.5 py-1 rounded-md pointer-events-none">
-              <span className="text-[11px] text-white font-semibold">
-                {timeAgo(cur?.exif_taken_at)}
-              </span>
-            </div>
+            <PhotoTimeChip iso={cur?.exif_taken_at} pointerNone />
             {cat && (
               <div className="absolute top-2.5 right-2.5 bg-white px-2.5 py-1 rounded-md flex items-center gap-1 pointer-events-none">
                 {CatIcon && <CatIcon size={10} stroke={2} color="#1F1F1F" />}
@@ -994,8 +1089,12 @@ function BundlePinPreview({ bundle, photos, onViewPost, onAuthorClick, onLocatio
               <TempChip weather={weather} />
             </div>
 
+            <div className="mt-2">
+              <TagChips tags={tags} />
+            </div>
+
             {cur?.body ? (
-              <p className="text-[12px] line-clamp-1 leading-relaxed text-[#1F1F1F] mt-2 mb-0">
+              <p className="text-[12px] line-clamp-1 leading-relaxed text-[#1F1F1F] mb-0">
                 {cur.body}
               </p>
             ) : null}

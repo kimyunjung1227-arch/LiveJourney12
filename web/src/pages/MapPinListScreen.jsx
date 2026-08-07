@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom';
 import BottomNavigation from '../components/BottomNavigation';
 import FastImage from '../components/FastImage';
-import StatusBadge from '../components/StatusBadge';
 import { supabase } from '../utils/supabaseClient';
 import { fetchPostsSupabase } from '../api/postsSupabase';
 import { getWeatherByCoords } from '../api/weather';
@@ -13,7 +12,6 @@ import { normalizePostsForFeed } from '../utils/postNormalize';
 import { combinePostsSupabaseAndLocal } from '../utils/mergePostsById';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
 import { getValidWeatherSnapshot } from '../utils/weatherSnapshot';
-import { getPhotoStatusFromPost } from '../utils/photoStatus';
 import { MAIN_FEED_IMAGE_OPTS } from '../utils/mainFeedSnapshot';
 import {
   SCREEN_GRID_EAGER_COUNT,
@@ -159,6 +157,37 @@ const MapPinListScreen = () => {
     return list;
   }, [bundles]);
 
+  // 핀 묶음의 실시간 태그 — RPC 가 주지 않으므로 한 번에 모아서 조회
+  const [tagsByPost, setTagsByPost] = useState({});
+  useEffect(() => {
+    const ids = sortedBundles.map((b) => b.primary_post_id).filter(Boolean);
+    if (ids.length === 0) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('posts')
+          .select('id, tags')
+          .in('id', ids);
+        if (cancelled || error || !Array.isArray(data)) return;
+        const next = {};
+        for (const row of data) {
+          next[String(row.id)] = Array.isArray(row.tags)
+            ? row.tags
+                .map((t) => String(t ?? '').replace(/^#+/, '').trim())
+                .filter(Boolean)
+            : [];
+        }
+        setTagsByPost(next);
+      } catch (e) {
+        logger.warn('태그 조회 실패', e?.message || e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sortedBundles]);
+
   const totalPhotos = useMemo(
     () =>
       sortedBundles.reduce(
@@ -181,8 +210,8 @@ const MapPinListScreen = () => {
           desc: b.body || '',
           timeLabel: timeAgo(b.primary_taken_at),
           metaRight: label ? <span>{label}</span> : null,
+          tags: tagsByPost[String(b.primary_post_id)] || [],
           count,
-          status: 'NONE',
           onClick: () =>
             navigate(
               `/post/${encodeURIComponent(b.primary_post_id)}${
@@ -222,8 +251,12 @@ const MapPinListScreen = () => {
             {w.temperature && <span>{w.temperature}</span>}
           </span>
         ) : null,
+        tags: Array.isArray(post.tags)
+          ? post.tags
+              .map((t) => String(t ?? '').replace(/^#+/, '').trim())
+              .filter(Boolean)
+          : [],
         count: 1,
-        status: getPhotoStatusFromPost(post),
         onClick: () =>
           navigate(`/post/${post.id}`, {
             state: {
@@ -234,7 +267,7 @@ const MapPinListScreen = () => {
           }),
       };
     });
-  }, [hasPins, sortedBundles, livePosts, navigate]);
+  }, [hasPins, sortedBundles, livePosts, tagsByPost, navigate]);
 
   const handleBack = useCallback(() => {
     if (window.history.length > 1) navigate(-1);
@@ -245,54 +278,48 @@ const MapPinListScreen = () => {
 
   return (
     <div className="screen-layout bg-background-light dark:bg-background-dark min-h-screen flex flex-col relative">
-      <header className="screen-header sticky top-0 z-[100] flex shrink-0 items-center justify-between gap-2 border-b border-border-light bg-background-light px-4 py-2.5 dark:border-border-dark dark:bg-background-dark">
-        <button
-          type="button"
-          onClick={handleBack}
-          aria-label="뒤로가기"
-          style={{
-            border: 'none',
-            background: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            padding: 0,
-          }}
-        >
-          <span
-            className="material-symbols-outlined"
-            style={{ color: '#333', fontSize: 24 }}
+      {/* 상단 — 실시간 핫플 화면과 동일한 톤 (좌측 정렬 17px 타이틀, 기온은 우측) */}
+      <header className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-2 border-b border-border-light bg-background-light/95 px-4 py-3 backdrop-blur-md dark:border-border-dark dark:bg-background-dark/95">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <button
+            type="button"
+            onClick={handleBack}
+            aria-label="뒤로가기"
+            className="flex size-10 shrink-0 items-center justify-center rounded-full active:bg-black/5 dark:active:bg-white/10"
           >
-            arrow_back
-          </span>
-        </button>
-
-        <div className="flex flex-1 min-w-0 items-center justify-center gap-1.5">
-          <span className="truncate text-lg font-bold text-text-primary-light dark:text-text-primary-dark">
+            <span className="material-symbols-outlined text-2xl text-text-primary-light dark:text-text-primary-dark">
+              arrow_back
+            </span>
+          </button>
+          <h1 className="min-w-0 truncate text-[17px] font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark">
             {headerTitle}
-          </span>
-          {weather?.temperature && weather.temperature !== '-' && (
+          </h1>
+        </div>
+        {weather?.temperature && weather.temperature !== '-' && (
+          <span
+            className="inline-flex shrink-0 items-center"
+            style={{
+              gap: 4,
+              fontSize: 13,
+              color: LJ.textSecondary,
+              whiteSpace: 'nowrap',
+            }}
+            title={weather.condition}
+          >
+            {weather.icon && (
+              <span style={{ fontSize: 14, lineHeight: 1 }}>{weather.icon}</span>
+            )}
             <span
-              className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5"
               style={{
-                background: LJ.keyBgLight,
-                color: LJ.keyTextDark,
-                fontSize: 12,
+                color: LJ.textPrimary,
                 fontWeight: 700,
+                fontVariantNumeric: 'tabular-nums',
               }}
-              title={weather.condition}
             >
-              {weather.icon && (
-                <span style={{ fontSize: 13, lineHeight: 1 }}>
-                  {weather.icon}
-                </span>
-              )}
               {weather.temperature}
             </span>
-          )}
-        </div>
-
-        <div className="w-10 shrink-0" aria-hidden />
+          </span>
+        )}
       </header>
 
       <div
@@ -433,12 +460,25 @@ const MapPinListScreen = () => {
                       </span>
                     </div>
                   )}
-                  {card.status && card.status !== 'NONE' && (
-                    <div
-                      style={{ position: 'absolute', top: 8, left: 8, zIndex: 3 }}
+                  {card.timeLabel && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: 8,
+                        left: 8,
+                        zIndex: 3,
+                        background: 'rgba(0,0,0,0.42)',
+                        color: '#fff',
+                        fontSize: 11,
+                        fontWeight: 500,
+                        borderRadius: 999,
+                        padding: '3px 9px',
+                        backdropFilter: 'blur(4px)',
+                        WebkitBackdropFilter: 'blur(4px)',
+                      }}
                     >
-                      <StatusBadge status={card.status} />
-                    </div>
+                      {card.timeLabel}
+                    </span>
                   )}
                   {card.count > 1 && (
                     <span
@@ -463,11 +503,41 @@ const MapPinListScreen = () => {
 
                 <div style={feedGridInfoBox}>
                   <div style={feedGridTitleStyle}>{card.title}</div>
+                  {card.tags.length > 0 && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexWrap: 'nowrap',
+                        overflow: 'hidden',
+                        gap: 4,
+                        marginTop: 2,
+                      }}
+                    >
+                      {card.tags.slice(0, 3).map((t) => (
+                        <span
+                          key={t}
+                          style={{
+                            fontSize: 10.5,
+                            fontWeight: 500,
+                            color: LJ.textSecondary,
+                            background: LJ.bgSurface,
+                            padding: '2px 7px',
+                            borderRadius: 999,
+                            lineHeight: 1.3,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {card.desc && <div style={feedGridDescStyle}>{card.desc}</div>}
-                  <div style={feedGridMetaRow}>
-                    <span>{card.timeLabel}</span>
-                    {card.metaRight}
-                  </div>
+                  {card.metaRight && (
+                    <div style={{ ...feedGridMetaRow, justifyContent: 'flex-end' }}>
+                      {card.metaRight}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -490,12 +560,15 @@ const MapPinListScreen = () => {
           position: 'fixed',
           bottom: 'calc(80px + env(safe-area-inset-bottom, 0px) + 20px)',
           right: 'calc((100vw - 460px) / 2 + 20px)',
-          width: '46px',
-          height: '46px',
+          width: '34px',
+          height: '34px',
+          minWidth: '34px',
+          minHeight: '34px',
+          padding: 0,
           borderRadius: '50%',
-          background: 'rgba(255,255,255,0.85)',
-          border: '1px solid rgba(148,163,184,0.5)',
-          boxShadow: '0 4px 14px rgba(15,23,42,0.22)',
+          background: 'rgba(255,255,255,0.9)',
+          border: '1px solid rgba(148,163,184,0.45)',
+          boxShadow: '0 2px 10px rgba(15,23,42,0.16)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -506,7 +579,7 @@ const MapPinListScreen = () => {
       >
         <span
           className="material-symbols-outlined"
-          style={{ fontSize: '22px', color: '#111827' }}
+          style={{ fontSize: '17px', color: '#111827' }}
         >
           north
         </span>
