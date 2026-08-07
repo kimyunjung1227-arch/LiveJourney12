@@ -18,6 +18,7 @@ import {
   IconRefresh,
   IconChevronLeft,
   IconChevronRight,
+  IconList,
 } from '@tabler/icons-react';
 import { supabase } from '../utils/supabaseClient';
 import { getDisplayImageUrl } from '../api/upload';
@@ -529,27 +530,62 @@ function MapCategoryFilter({ selected, onChange }) {
   );
 }
 
-// 8-3. MyLocationButton (하단 우측, 단순한 흰 원형 + 키컬러 아이콘)
-//   - raised: 하단에 검색 장소 카드가 떠 있을 때 카드 위로 올라감
-function MyLocationButton({ onClick, raised }) {
+// 8-3. MapControls — 하단 우측 컨트롤 (목록보기 + 내 위치)
+//   - bottom: 하단에 카드가 떠 있으면 그 위로 올라감
+function MapControls({ onMyLocation, onOpenList, pinCount, bottom }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label="내 위치"
-      className="absolute right-[18px] z-10 bg-white w-[44px] h-[44px] rounded-full flex items-center justify-center"
-      style={{
-        boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
-        bottom: raised ? 196 : 24,
-        transition: 'bottom 0.2s ease',
-      }}
+    <div
+      className="absolute right-[18px] z-20 flex flex-col items-end"
+      style={{ gap: 10, bottom, transition: 'bottom 0.2s ease' }}
     >
-      <IconCurrentLocation size={20} color={KEY} strokeWidth={2} />
-    </button>
+      <button
+        type="button"
+        onClick={onOpenList}
+        aria-label="목록보기"
+        className="bg-white flex items-center"
+        style={{
+          height: 40,
+          minHeight: 40,
+          padding: '0 13px',
+          gap: 6,
+          borderRadius: 999,
+          border: 'none',
+          boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
+          cursor: 'pointer',
+        }}
+      >
+        <IconList size={17} color={KEY} stroke={2} />
+        <span className="text-[13px] font-bold text-[#1F1F1F]">목록보기</span>
+        {pinCount > 0 && (
+          <span
+            className="text-[11px] font-bold"
+            style={{
+              background: KEY_LIGHT,
+              color: KEY_DARK,
+              borderRadius: 999,
+              padding: '1px 6px',
+              lineHeight: 1.5,
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {pinCount}
+          </span>
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={onMyLocation}
+        aria-label="내 위치"
+        className="bg-white w-[44px] h-[44px] rounded-full flex items-center justify-center"
+        style={{ boxShadow: '0 4px 14px rgba(0,0,0,0.18)', border: 'none' }}
+      >
+        <IconCurrentLocation size={20} color={KEY} strokeWidth={2} />
+      </button>
+    </div>
   );
 }
 
-function AuthorAvatar({ name, color, avatarUrl, onClick }) {
+function AuthorAvatar({ name, color, avatarUrl, onClick, size = 30 }) {
   const ch = String(name || '?').trim().charAt(0).toUpperCase() || '·';
   const src = avatarUrl ? getDisplayImageUrl(avatarUrl) : '';
   return (
@@ -558,15 +594,15 @@ function AuthorAvatar({ name, color, avatarUrl, onClick }) {
       onClick={onClick}
       className="flex items-center justify-center text-white font-semibold flex-shrink-0 overflow-hidden"
       style={{
-        width: 30,
-        minWidth: 30,
-        maxWidth: 30,
-        height: 30,
-        minHeight: 30,
-        maxHeight: 30,
+        width: size,
+        minWidth: size,
+        maxWidth: size,
+        height: size,
+        minHeight: size,
+        maxHeight: size,
         borderRadius: '50%',
         background: color || KEY,
-        fontSize: 13,
+        fontSize: Math.round(size * 0.44),
         border: 'none',
         padding: 0,
         boxSizing: 'border-box',
@@ -594,148 +630,17 @@ function AuthorAvatar({ name, color, avatarUrl, onClick }) {
   );
 }
 
-function CardArrowTail() {
-  return (
-    <div
-      className="absolute left-1/2 -translate-x-1/2 rotate-45 bg-white"
-      style={{
-        top: -7,
-        width: 14,
-        height: 14,
-        boxShadow: '-3px -3px 5px rgba(0,0,0,0.04)',
-      }}
-      aria-hidden
-    />
-  );
-}
-
-// 8-8. PostPinPreview
-function PostPinPreview({
+// 8-8. PinInfoCard — 핀 선택 시 하단 컨트롤 아래에 뜨는 "가벼운" 정보 카드.
+//   큰 미리보기 카드 대신 장소 정보 + 실시간 정보(촬영 시각·남은 시간·라이브 장수)만 압축해 보여준다.
+//   묶음 핀이면 썸네일을 좌우로 넘겨 볼 수 있다.
+function PinInfoCard({
   bundle,
-  onViewDetail,
+  photos,
+  onOpenPost,
   onAuthorClick,
   onLocationClick,
+  onClose,
 }) {
-  const cat = CATEGORY_META[bundle.category];
-  const CatIcon = cat?.Icon;
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      className="absolute top-[150px] left-3.5 right-3.5 z-20"
-    >
-      <div className="relative max-w-[414px] mx-auto">
-        <CardArrowTail />
-        <div
-          className="bg-white overflow-hidden"
-          style={{
-            borderRadius: 14,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
-          }}
-        >
-          {/* 사진 */}
-          <div className="relative h-[248px] bg-[#F5F7FA]">
-            {bundle.primary_thumbnail && (
-              <img
-                src={getDisplayImageUrl(bundle.primary_thumbnail)}
-                alt=""
-                className="w-full h-full object-cover"
-                loading="eager"
-                decoding="async"
-              />
-            )}
-            <div className="absolute top-2.5 left-2.5 bg-black/70 px-2.5 py-1 rounded-md flex items-center gap-1.5">
-              <ExifFreshIcon iso={bundle.primary_taken_at} size={11} />
-              <span className="text-[11px] text-white font-semibold">
-                {timeAgo(bundle.primary_taken_at)}
-              </span>
-            </div>
-            {cat && (
-              <div className="absolute top-2.5 right-2.5 bg-white px-2.5 py-1 rounded-md flex items-center gap-1">
-                {CatIcon && (
-                  <CatIcon size={10} stroke={2} color="#1F1F1F" />
-                )}
-                <span className="text-[10px] font-semibold">{cat.label}</span>
-              </div>
-            )}
-          </div>
-
-          {/* 정보 */}
-          <div className="p-2.5 px-3.5">
-            {/* 프로필 섹션 */}
-            <div className="flex items-center gap-2.5 mb-2">
-              <AuthorAvatar
-                name={bundle.author_name}
-                color={bundle.author_avatar_color}
-                avatarUrl={bundle.author_avatar_url}
-                onClick={onAuthorClick}
-              />
-              <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap" style={{ lineHeight: 1.2 }}>
-                <button
-                  type="button"
-                  onClick={onAuthorClick}
-                  className="text-[14px] font-bold text-[#1F1F1F]"
-                  style={{ padding: 0, lineHeight: 1.2, background: 'none', border: 'none' }}
-                >
-                  {bundle.author_name || '이름 없음'}
-                </button>
-              </div>
-            </div>
-
-            {/* 장소 섹션 — 프로필과 분리, 남은시간은 우측 정렬 */}
-            <div className="flex items-center gap-2 mb-2">
-              <IconMapPin size={14} color={KEY} stroke={2} className="flex-shrink-0" />
-              <button
-                type="button"
-                onClick={onLocationClick}
-                className="flex-1 min-w-0 text-left text-[13px] font-semibold text-[#1F1F1F]"
-                style={{
-                  padding: 0,
-                  background: 'none',
-                  border: 'none',
-                  lineHeight: 1.3,
-                  wordBreak: 'keep-all',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {bundle.place_name || '위치 정보 없음'}
-              </button>
-              <span
-                className="flex-shrink-0 text-[11px] font-semibold"
-                style={{ color: KEY_DARK, whiteSpace: 'nowrap' }}
-              >
-                {formatHoursLeft(bundle.primary_taken_at)}
-              </span>
-            </div>
-
-            {bundle.body ? (
-              <p className="text-[12px] line-clamp-1 leading-relaxed text-[#1F1F1F] m-0">
-                {bundle.body}
-              </p>
-            ) : null}
-          </div>
-
-          <button
-            type="button"
-            onClick={onViewDetail}
-            className="w-full text-white py-2.5 text-[13px] font-semibold flex items-center justify-center gap-1.5"
-            style={{ background: KEY }}
-          >
-            게시물 상세 보기
-            <IconArrowRight size={14} />
-          </button>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-// 8-9. BundlePinPreview — 같은 장소의 여러 게시물을 단일 카드 스타일로,
-//      좌우 화살표/스와이프로 한 장씩 넘겨 본다. (single PostPinPreview와 동일한 톤)
-function BundlePinPreview({ bundle, photos, onViewPost, onAuthorClick, onLocationClick }) {
   // photos 로딩 전이면 primary 정보로 1장 폴백 (빈 카드 방지)
   const list = React.useMemo(
     () =>
@@ -752,179 +657,223 @@ function BundlePinPreview({ bundle, photos, onViewPost, onAuthorClick, onLocatio
     [photos, bundle],
   );
   const n = list.length;
-  const [[idx, dir], setSlide] = React.useState([0, 0]);
+  const [idx, setIdx] = React.useState(0);
   React.useEffect(() => {
-    if (idx > n - 1) setSlide([0, 0]);
+    if (idx > n - 1) setIdx(0);
   }, [n, idx]);
   const cur = list[Math.min(idx, n - 1)] || list[0];
 
   const cat = CATEGORY_META[bundle.category];
   const CatIcon = cat?.Icon;
-  const go = React.useCallback(
-    (d) => setSlide(([p]) => [(p + d + n) % n, d]),
-    [n],
-  );
+  const liveCount = Math.max(1, Number(bundle.bundle_count) || 1);
+  const takenAt = cur?.exif_taken_at || bundle.primary_taken_at;
 
-  // 가벼운 슬라이드 — 살짝 밀리며 페이드 (0.18s)
-  const slideVariants = {
-    enter: (d) => ({ opacity: 0, x: d >= 0 ? 22 : -22 }),
-    center: { opacity: 1, x: 0 },
-    exit: (d) => ({ opacity: 0, x: d >= 0 ? -22 : 22 }),
+  const go = (d) => (e) => {
+    e.stopPropagation();
+    setIdx((p) => (p + d + n) % n);
   };
 
-  // 가벼운 스와이프 (좌우)
-  const startXRef = React.useRef(null);
-  const onPointerDown = (e) => {
-    if (n <= 1) return;
-    startXRef.current = e.clientX;
-  };
-  const onPointerUp = (e) => {
-    if (startXRef.current == null) return;
-    const dx = e.clientX - startXRef.current;
-    startXRef.current = null;
-    if (Math.abs(dx) >= 40) go(dx < 0 ? 1 : -1);
-  };
-
-  // 가벼운 화살표 버튼 공통 스타일
-  const arrowStyle = {
-    width: 30,
-    height: 30,
-    minWidth: 30,
-    minHeight: 30,
+  const thumbArrow = {
+    position: 'absolute',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    width: 22,
+    height: 22,
+    minWidth: 22,
+    minHeight: 22,
     padding: 0,
     borderRadius: '50%',
-    background: 'rgba(255,255,255,0.6)',
-    backdropFilter: 'blur(6px)',
-    WebkitBackdropFilter: 'blur(6px)',
+    background: 'rgba(255,255,255,0.82)',
     border: 'none',
     color: '#1F1F1F',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     cursor: 'pointer',
   };
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: -10 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      className="absolute top-[150px] left-3.5 right-3.5 z-20"
+      exit={{ opacity: 0, y: 16 }}
+      transition={{ duration: 0.18, ease: 'easeOut' }}
+      className="absolute left-3.5 right-3.5 bottom-[24px] z-20"
     >
-      <div className="relative max-w-[414px] mx-auto">
-        <CardArrowTail />
-        <div
-          className="bg-white overflow-hidden"
+      <div
+        className="relative max-w-[414px] mx-auto bg-white"
+        style={{ borderRadius: 16, boxShadow: '0 8px 28px rgba(0,0,0,0.16)' }}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="닫기"
+          className="absolute flex items-center justify-center"
           style={{
-            borderRadius: 14,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+            top: 8,
+            right: 8,
+            width: 24,
+            height: 24,
+            minWidth: 24,
+            minHeight: 24,
+            borderRadius: '50%',
+            background: '#F5F7FA',
+            border: 'none',
+            padding: 0,
+            zIndex: 1,
           }}
         >
-          {/* 사진 (좌우로 넘기는 캐러셀) */}
-          <div
-            className="relative h-[248px] bg-[#F5F7FA] overflow-hidden"
-            style={{ touchAction: 'pan-y' }}
-            onPointerDown={onPointerDown}
-            onPointerUp={onPointerUp}
-          >
-            <AnimatePresence initial={false} custom={dir}>
-              {cur?.thumbnail_url && (
-                <motion.img
-                  key={cur.post_id}
-                  custom={dir}
-                  variants={slideVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{ duration: 0.18, ease: 'easeOut' }}
-                  src={getDisplayImageUrl(cur.thumbnail_url)}
-                  alt=""
-                  className="absolute inset-0 w-full h-full object-cover"
-                  loading="eager"
-                  decoding="async"
-                  draggable="false"
-                />
-              )}
-            </AnimatePresence>
-            <div className="absolute top-2.5 left-2.5 bg-black/70 px-2.5 py-1 rounded-md flex items-center gap-1.5 pointer-events-none">
-              <ExifFreshIcon iso={cur?.exif_taken_at} size={11} />
-              <span className="text-[11px] text-white font-semibold">
-                {timeAgo(cur?.exif_taken_at)}
-              </span>
-            </div>
-            {cat && (
-              <div className="absolute top-2.5 right-2.5 bg-white px-2.5 py-1 rounded-md flex items-center gap-1 pointer-events-none">
-                {CatIcon && <CatIcon size={10} stroke={2} color="#1F1F1F" />}
-                <span className="text-[10px] font-semibold">{cat.label}</span>
-              </div>
-            )}
+          <IconX size={12} color="#6B6B6B" stroke={2.2} />
+        </button>
 
-            {/* 좌우 화살표 + 카운터 (2장 이상일 때만) */}
+        <div className="flex items-center gap-3 p-2.5">
+          {/* 썸네일 (탭하면 게시물 상세) */}
+          <button
+            type="button"
+            onClick={() => onOpenPost?.(cur?.post_id)}
+            className="relative flex-shrink-0 overflow-hidden"
+            style={{
+              width: 84,
+              height: 84,
+              minWidth: 84,
+              minHeight: 84,
+              borderRadius: 12,
+              border: 'none',
+              padding: 0,
+              background: '#F5F7FA',
+            }}
+            aria-label="게시물 상세 보기"
+          >
+            {cur?.thumbnail_url && (
+              <img
+                src={getDisplayImageUrl(cur.thumbnail_url)}
+                alt=""
+                className="w-full h-full object-cover"
+                loading="eager"
+                decoding="async"
+                draggable="false"
+              />
+            )}
             {n > 1 && (
               <>
-                <button
-                  type="button"
-                  aria-label="이전 사진"
-                  onClick={() => go(-1)}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center justify-center"
-                  style={arrowStyle}
+                <span
+                  className="absolute text-white text-[10px] font-bold pointer-events-none"
+                  style={{
+                    top: 4,
+                    right: 4,
+                    background: 'rgba(0,0,0,0.62)',
+                    borderRadius: 6,
+                    padding: '1px 5px',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
                 >
-                  <IconChevronLeft size={18} stroke={2} />
-                </button>
-                <button
-                  type="button"
-                  aria-label="다음 사진"
-                  onClick={() => go(1)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center"
-                  style={arrowStyle}
+                  {idx + 1}/{n}
+                </span>
+                <span
+                  role="presentation"
+                  onClick={go(-1)}
+                  style={{ ...thumbArrow, left: 3 }}
                 >
-                  <IconChevronRight size={18} stroke={2} />
-                </button>
-                <div
-                  className="absolute bottom-2.5 right-2.5 bg-black/60 px-2 py-0.5 rounded-md text-white text-[10px] font-bold pointer-events-none"
-                  style={{ fontVariantNumeric: 'tabular-nums' }}
+                  <IconChevronLeft size={13} stroke={2.4} />
+                </span>
+                <span
+                  role="presentation"
+                  onClick={go(1)}
+                  style={{ ...thumbArrow, right: 3 }}
                 >
-                  {idx + 1} / {n}
-                </div>
+                  <IconChevronRight size={13} stroke={2.4} />
+                </span>
               </>
             )}
-          </div>
+          </button>
 
-          {/* 점 인디케이터 (2~6장) */}
-          {n > 1 && n <= 6 && (
-            <div className="flex items-center justify-center gap-1.5 pt-2.5">
-              {list.map((_, i) => (
+          {/* 위치 정보 + 실시간 정보 */}
+          <div className="flex-1 min-w-0 pr-5">
+            {/* 장소명 */}
+            <button
+              type="button"
+              onClick={onLocationClick}
+              className="block w-full text-left text-[15px] font-bold text-[#1F1F1F]"
+              style={{
+                padding: 0,
+                margin: 0,
+                background: 'none',
+                border: 'none',
+                lineHeight: 1.25,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                minHeight: 0,
+              }}
+            >
+              {bundle.place_name || '위치 정보 없음'}
+            </button>
+
+            {/* 실시간 배지 — 촬영 시각 + 남은 시간 */}
+            <div className="flex items-center gap-1.5 mt-1">
+              <span
+                className="inline-flex items-center gap-1 flex-shrink-0"
+                style={{
+                  background: KEY_LIGHT,
+                  color: KEY_DARK,
+                  borderRadius: 999,
+                  padding: '2px 7px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  lineHeight: 1.3,
+                }}
+              >
                 <span
-                  key={i}
                   aria-hidden
                   style={{
-                    width: i === idx ? 14 : 5,
+                    width: 5,
                     height: 5,
-                    borderRadius: 999,
-                    background: i === idx ? KEY : '#D8DEE5',
-                    transition: 'all 160ms ease-out',
+                    borderRadius: '50%',
+                    background: KEY,
+                    animation: 'lj-map-pulse 1.6s ease-in-out infinite',
                   }}
                 />
-              ))}
+                실시간 {timeAgo(takenAt)}
+              </span>
+              <span
+                className="flex-shrink-0 text-[11px] font-semibold"
+                style={{ color: '#6B6B6B', whiteSpace: 'nowrap' }}
+              >
+                {formatHoursLeft(takenAt)}
+              </span>
             </div>
-          )}
 
-          {/* 정보 — 사진 비중을 키우기 위해 컴팩트하게 */}
-          <div className="p-2.5 px-3.5">
-            {/* 프로필 + 장소를 한 줄로 압축 */}
-            <div className="flex items-center gap-2.5 mb-2">
+            {/* 카테고리 · 라이브 장수 */}
+            <div className="flex items-center gap-1.5 mt-1 text-[11px] text-[#6B6B6B]">
+              {cat && (
+                <span className="inline-flex items-center gap-1 flex-shrink-0">
+                  {CatIcon && <CatIcon size={12} stroke={2} color="#6B6B6B" />}
+                  {cat.label}
+                </span>
+              )}
+              {cat && <span className="flex-shrink-0">·</span>}
+              <span className="flex-shrink-0">라이브 {liveCount}장</span>
+            </div>
+
+            {/* 작성자 */}
+            <div className="flex items-center gap-1.5 mt-1.5">
               <AuthorAvatar
                 name={bundle.author_name}
                 color={bundle.author_avatar_color}
                 avatarUrl={bundle.author_avatar_url}
                 onClick={onAuthorClick}
+                size={18}
               />
               <button
                 type="button"
                 onClick={onAuthorClick}
-                className="flex-1 min-w-0 text-left text-[14px] font-bold text-[#1F1F1F]"
+                className="min-w-0 text-left text-[11px] font-semibold text-[#6B6B6B]"
                 style={{
                   padding: 0,
-                  lineHeight: 1.2,
                   background: 'none',
                   border: 'none',
+                  minHeight: 0,
+                  lineHeight: 1.3,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
@@ -932,55 +881,231 @@ function BundlePinPreview({ bundle, photos, onViewPost, onAuthorClick, onLocatio
               >
                 {bundle.author_name || '이름 없음'}
               </button>
-            </div>
-
-            {/* 장소 섹션 — 남은 시간은 현재 사진 기준, 우측 정렬 */}
-            <div className="flex items-center gap-2">
-              <IconMapPin size={14} color={KEY} stroke={2} className="flex-shrink-0" />
               <button
                 type="button"
-                onClick={onLocationClick}
-                className="flex-1 min-w-0 text-left text-[13px] font-semibold text-[#1F1F1F]"
+                onClick={() => onOpenPost?.(cur?.post_id)}
+                className="ml-auto flex-shrink-0 inline-flex items-center gap-0.5 text-[11px] font-bold"
                 style={{
+                  color: KEY_DARK,
                   padding: 0,
                   background: 'none',
                   border: 'none',
-                  lineHeight: 1.3,
-                  wordBreak: 'keep-all',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
+                  minHeight: 0,
                 }}
               >
-                {bundle.place_name || '위치 정보 없음'}
+                상세
+                <IconChevronRight size={12} stroke={2.4} />
               </button>
-              <span
-                className="flex-shrink-0 text-[11px] font-semibold"
-                style={{ color: KEY_DARK, whiteSpace: 'nowrap' }}
-              >
-                {formatHoursLeft(cur?.exif_taken_at)}
-              </span>
             </div>
-
-            {cur?.body ? (
-              <p className="text-[12px] line-clamp-1 leading-relaxed text-[#1F1F1F] mt-2 mb-0">
-                {cur.body}
-              </p>
-            ) : null}
           </div>
-
-          <button
-            type="button"
-            onClick={() => onViewPost?.(cur?.post_id)}
-            className="w-full text-white py-2.5 text-[13px] font-semibold flex items-center justify-center gap-1.5"
-            style={{ background: KEY }}
-          >
-            게시물 상세 보기
-            <IconArrowRight size={14} />
-          </button>
         </div>
       </div>
     </motion.div>
+  );
+}
+
+// 8-9. MapListSheet — 현재 보고 있는 지도 영역의 핀들을 목록으로 (하단 시트)
+function MapListSheet({ bundles, myLocation, onSelect, onClose }) {
+  const rows = React.useMemo(() => {
+    const withDist = (bundles || []).map((b) => ({
+      bundle: b,
+      dist:
+        myLocation &&
+        Number.isFinite(b.primary_lat) &&
+        Number.isFinite(b.primary_lng)
+          ? distMeters(myLocation, { lat: b.primary_lat, lng: b.primary_lng })
+          : null,
+      ts: new Date(b.primary_taken_at || 0).getTime() || 0,
+    }));
+    // 실시간성 우선 — 최신 촬영 순
+    withDist.sort((a, b) => b.ts - a.ts);
+    return withDist;
+  }, [bundles, myLocation]);
+
+  const totalPhotos = rows.reduce(
+    (sum, r) => sum + Math.max(1, Number(r.bundle.bundle_count) || 1),
+    0,
+  );
+
+  const fmtDist = (m) => {
+    if (m == null) return '';
+    if (m < 1000) return `${Math.round(m / 10) * 10}m`;
+    return `${(m / 1000).toFixed(m < 10000 ? 1 : 0)}km`;
+  };
+
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 z-30"
+        style={{ background: 'rgba(0,0,0,0.28)' }}
+      />
+      <motion.div
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 32, stiffness: 320 }}
+        className="absolute left-0 right-0 bottom-0 z-40 bg-white flex flex-col"
+        style={{
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
+          maxHeight: '64%',
+          boxShadow: '0 -8px 32px rgba(0,0,0,0.16)',
+        }}
+      >
+        {/* 손잡이 */}
+        <div className="flex justify-center pt-2.5 pb-1 flex-shrink-0">
+          <div
+            aria-hidden
+            style={{
+              width: 38,
+              height: 4,
+              borderRadius: 999,
+              background: '#E2E8EE',
+            }}
+          />
+        </div>
+
+        {/* 헤더 */}
+        <div className="flex items-center gap-2 px-4 pb-2.5 flex-shrink-0">
+          <div className="flex-1 min-w-0">
+            <p className="text-[15px] font-bold text-[#1F1F1F] m-0">
+              지금 이 지도에서
+            </p>
+            <p className="text-[11px] text-[#6B6B6B] m-0 mt-0.5">
+              {rows.length > 0
+                ? `최근 48시간 라이브 ${totalPhotos}장 · ${rows.length}곳`
+                : '보이는 라이브 사진이 없어요'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="닫기"
+            className="flex-shrink-0 flex items-center justify-center"
+            style={{
+              width: 28,
+              height: 28,
+              minWidth: 28,
+              minHeight: 28,
+              borderRadius: '50%',
+              background: '#F5F7FA',
+              border: 'none',
+              padding: 0,
+            }}
+          >
+            <IconX size={14} color="#6B6B6B" stroke={2} />
+          </button>
+        </div>
+
+        {/* 목록 */}
+        <div
+          className="flex-1 overflow-y-auto"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
+          {rows.length === 0 && (
+            <div className="px-4 py-8 text-center">
+              <p className="text-[12px] text-[#6B6B6B] m-0">
+                지도를 움직이거나 축소해서 다른 지역을 둘러보세요
+              </p>
+            </div>
+          )}
+          {rows.map(({ bundle: b, dist }) => {
+            const cat = CATEGORY_META[b.category];
+            const CatIcon = cat?.Icon;
+            const count = Math.max(1, Number(b.bundle_count) || 1);
+            return (
+              <button
+                key={b.bundle_id}
+                type="button"
+                onClick={() => onSelect(b)}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-left border-b border-[#F5F7FA] active:bg-[#F5F7FA]"
+                style={{ background: 'none', minHeight: 0 }}
+              >
+                <div
+                  className="relative flex-shrink-0 overflow-hidden"
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 10,
+                    background: '#F5F7FA',
+                  }}
+                >
+                  {b.primary_thumbnail && (
+                    <img
+                      src={getDisplayImageUrl(b.primary_thumbnail)}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  )}
+                  {count > 1 && (
+                    <span
+                      className="absolute text-white text-[9px] font-bold"
+                      style={{
+                        top: 3,
+                        right: 3,
+                        background: 'rgba(0,0,0,0.62)',
+                        borderRadius: 5,
+                        padding: '1px 4px',
+                      }}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-bold text-[#1F1F1F] m-0 truncate">
+                    {b.place_name || '위치 정보 없음'}
+                  </p>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <ExifFreshIcon iso={b.primary_taken_at} size={11} />
+                    <span
+                      className="text-[11px] font-semibold"
+                      style={{ color: KEY_DARK }}
+                    >
+                      {timeAgo(b.primary_taken_at)}
+                    </span>
+                    <span className="text-[11px] text-[#B8B8B8]">·</span>
+                    <span className="text-[11px] text-[#6B6B6B] truncate">
+                      {formatHoursLeft(b.primary_taken_at)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 mt-0.5 text-[11px] text-[#6B6B6B]">
+                    {cat && (
+                      <>
+                        {CatIcon && (
+                          <CatIcon size={11} stroke={2} color="#6B6B6B" />
+                        )}
+                        <span className="truncate">{cat.label}</span>
+                        <span className="text-[#B8B8B8]">·</span>
+                      </>
+                    )}
+                    <span className="truncate">
+                      {b.author_name || '이름 없음'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex-shrink-0 flex items-center gap-1">
+                  {dist != null && (
+                    <span className="text-[11px] font-semibold text-[#6B6B6B]">
+                      {fmtDist(dist)}
+                    </span>
+                  )}
+                  <IconChevronRight size={15} color="#B8B8B8" stroke={2} />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </motion.div>
+    </>
   );
 }
 
@@ -1461,6 +1586,7 @@ const MapScreen = () => {
   const [mapLevel, setMapLevel] = useState(5);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedBundleId, setSelectedBundleId] = useState(null);
+  const [listOpen, setListOpen] = useState(false);
 
   // 지도 내 장소 검색 상태
   const [searchQuery, setSearchQuery] = useState('');
@@ -2092,6 +2218,29 @@ const MapScreen = () => {
     }
   }, [requestLocation, myLocation]);
 
+  // 목록보기 — 현재 뷰포트의 핀을 목록에서 고르면 해당 핀을 선택하고 지도를 이동
+  const handleSelectFromList = useCallback((bundle) => {
+    setListOpen(false);
+    setSelectedBundleId(bundle.bundle_id);
+    const map = kakaoMapRef.current;
+    if (map && window.kakao?.maps) {
+      try {
+        map.panTo(
+          new window.kakao.maps.LatLng(bundle.primary_lat, bundle.primary_lng),
+        );
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
+  // 하단 카드 높이에 맞춰 컨트롤을 띄운다
+  const controlsBottom = selectedBundle
+    ? 140
+    : searchedPlace || searchedRegion
+      ? 196
+      : 24;
+
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden font-sans bg-[#EDF3F7]">
       <PageSeo {...PAGE_SEO.map} />
@@ -2129,9 +2278,11 @@ const MapScreen = () => {
         selected={selectedCategory}
         onChange={setSelectedCategory}
       />
-      <MyLocationButton
-        onClick={handleMyLocation}
-        raised={!!(searchedPlace || searchedRegion) && !selectedBundleId}
+      <MapControls
+        onMyLocation={handleMyLocation}
+        onOpenList={() => setListOpen(true)}
+        pinCount={bundles.length}
+        bottom={controlsBottom}
       />
 
       <AnimatePresence>
@@ -2166,37 +2317,20 @@ const MapScreen = () => {
             }
           />
         )}
-        {selectedBundle && !selectedBundle.is_bundle && (
-          <PostPinPreview
-            key={`single-${selectedBundleId}`}
+        {selectedBundle && (
+          <PinInfoCard
+            key={`pin-${selectedBundleId}`}
             bundle={selectedBundle}
-            onViewDetail={() =>
-              navigate(
-                `/post/${encodeURIComponent(selectedBundle.primary_post_id)}`,
-              )
-            }
-            onAuthorClick={() =>
-              navigate(`/user/${encodeURIComponent(selectedBundle.author_id)}`)
-            }
-            onLocationClick={() => {
-              if (selectedBundle.place_name) {
-                navigate(
-                  `/region/${encodeURIComponent(selectedBundle.place_name)}`,
-                );
-              }
-            }}
-          />
-        )}
-        {selectedBundle && selectedBundle.is_bundle && (
-          <BundlePinPreview
-            key={`bundle-${selectedBundleId}`}
-            bundle={selectedBundle}
-            photos={bundlePhotos}
-            onViewPost={(postId) =>
+            photos={selectedBundle.is_bundle ? bundlePhotos : null}
+            onOpenPost={(postId) =>
               navigate(
                 `/post/${encodeURIComponent(
                   postId || selectedBundle.primary_post_id,
-                )}?bundle=${encodeURIComponent(selectedBundle.bundle_id)}`,
+                )}${
+                  selectedBundle.is_bundle
+                    ? `?bundle=${encodeURIComponent(selectedBundle.bundle_id)}`
+                    : ''
+                }`,
               )
             }
             onAuthorClick={() =>
@@ -2209,9 +2343,21 @@ const MapScreen = () => {
                 );
               }
             }}
+            onClose={() => setSelectedBundleId(null)}
+          />
+        )}
+        {listOpen && (
+          <MapListSheet
+            key="map-list"
+            bundles={bundles}
+            myLocation={myLocation}
+            onSelect={handleSelectFromList}
+            onClose={() => setListOpen(false)}
           />
         )}
       </AnimatePresence>
+
+      <style>{`@keyframes lj-map-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.7); } }`}</style>
     </div>
   );
 };
