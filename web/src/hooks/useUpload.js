@@ -3,6 +3,7 @@ import { supabase } from '../utils/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { getWeatherByCoords } from '../api/weather';
 import { logger } from '../utils/logger';
+import { bakeExifOrientation } from '../utils/bakeExifOrientation';
 
 const BUCKET = 'post-images';
 const LJ_CATEGORY_LABEL = {
@@ -36,8 +37,11 @@ function extOf(file) {
 
 /**
  * 단일 파일을 Storage 에 업로드하고 public URL 반환.
+ * 사진은 업로드 직전에 EXIF 방향을 픽셀에 반영해, 어디서 열어도 찍은 방향 그대로 보이게 한다.
+ * (EXIF 는 이 시점 이전에 이미 추출돼 exif_data 로 따로 저장된다)
  */
-async function uploadOneFile(file, userId) {
+async function uploadOneFile(rawFile, userId) {
+  const file = await bakeExifOrientation(rawFile);
   const ext = extOf(file);
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
   const path = `${userId}/${filename}`;

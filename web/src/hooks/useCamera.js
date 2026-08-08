@@ -295,11 +295,29 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
     const sx = (vw - sw) / 2;
     const sy = (vh - sh) / 2;
 
-    // 가로(landscape)로 촬영한 경우 기기 방향만큼 회전해 세로(정방향)로 저장.
-    // 화면 회전 잠금이 켜져 있으면 screen.orientation 은 0이므로 가속도 센서값으로 보완.
+    // 저장 방향 = 사용자가 뷰파인더에서 본 그대로.
+    //
+    // 브라우저 대부분은 화면이 회전하면 프레임도 같이 돌려서 준다(프레임 가로/세로가 화면과 일치).
+    // 이때 화면 각도만큼 또 돌리면 이중 회전이 되어 사진이 옆으로 눕는다 — 그래서 각도를 재지 않고
+    // "프레임 방향이 화면 방향과 어긋날 때"만 보정한다.
+    //
+    // 예외는 OS 화면 회전 잠금: 화면·프레임 모두 세로로 고정되는데 기기는 옆으로 누워 있어서
+    // 어긋남을 감지할 수 없다. 이 경우에만 가속도 센서(기울기)로 보정한다.
     const screenAngle = getScreenOrientationAngle(); // 0 / 90 / 180 / 270
-    const angle =
-      screenAngle !== 0 ? screenAngle : hasTiltRef.current ? tiltAngleRef.current : 0;
+    const frameIsLandscape = vw > vh;
+    const viewIsLandscape =
+      typeof window !== 'undefined' && window.innerHeight > 0
+        ? window.innerWidth > window.innerHeight
+        : frameIsLandscape;
+
+    let angle = 0;
+    if (frameIsLandscape !== viewIsLandscape) {
+      // 프레임이 화면 방향을 따라오지 않은 브라우저 — 화면이 돌아간 각도만큼 보정
+      angle = screenAngle;
+    } else if (screenAngle === 0 && hasTiltRef.current) {
+      // 회전 잠금 상태에서 기기를 옆으로 눕히고 찍은 경우
+      angle = tiltAngleRef.current;
+    }
     const swap = angle === 90 || angle === 270;
 
     const canvas = document.createElement('canvas');

@@ -7,7 +7,6 @@ import {
   IconInfoCircle,
   IconPlus,
   IconX,
-  IconRotateClockwise2,
 } from '@tabler/icons-react';
 import { LJ } from '../components/lj/tokens';
 import {
@@ -29,8 +28,7 @@ import { logger } from '../utils/logger';
 import { reverseGeocodeToPlaceDetail, extractRegionFromAddress } from '../utils/locationFromGeocode';
 import { evaluateUploadLocation, formatGapDistance } from '../utils/uploadLocationPolicy';
 import { searchPlaceWithKakaoFirst, ensureKakaoMapsServicesReady } from '../utils/kakaoPlacesGeocode';
-import { patchUploadMedia, patchUploadMediaAt } from '../stores/uploadStore';
-import { rotateImageMedia } from '../utils/rotateImageMedia';
+import { patchUploadMedia } from '../stores/uploadStore';
 import { autoCategorize } from '../utils/autoCategorize';
 
 // 실시간 태그 설계.
@@ -322,27 +320,6 @@ function UploadInfoScreen() {
 
   // 하늘(날씨) 1개는 필수 — 데이터 기준축. 나머지 태그·한마디는 모두 선택.
   const canUpload = !!weatherTag && filesArr.length > 0 && !isUploading && !locationBlocked;
-
-  const [rotatingIdx, setRotatingIdx] = useState(-1);
-  const handleRotate = async (index) => {
-    const target = mediasArr[index];
-    if (!target || target.mode === 'video' || rotatingIdx !== -1) return;
-    setRotatingIdx(index);
-    const prevUrl = target.url;
-    try {
-      const rotated = await rotateImageMedia(target, 90);
-      patchUploadMediaAt(index, rotated);
-      if (prevUrl) {
-        try {
-          URL.revokeObjectURL(prevUrl);
-        } catch (_) {}
-      }
-    } catch (e) {
-      logger.warn('사진 회전 실패', e?.message || e);
-    } finally {
-      setRotatingIdx(-1);
-    }
-  };
 
   const handleUpload = async () => {
     if (!canUpload) return;
@@ -645,8 +622,6 @@ function UploadInfoScreen() {
             editedLocLat={editedLoc?.lat ?? null}
             editedLocLng={editedLoc?.lng ?? null}
             firstTakenLabel={takenLabel}
-            onRotate={handleRotate}
-            rotatingIdx={rotatingIdx}
           />
 
           {/* 썸네일 스트립 + 추가 버튼 */}
@@ -733,17 +708,12 @@ function UploadInfoScreen() {
                       cursor: 'pointer',
                       color: LJ.key,
                       display: 'inline-flex',
-                      flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: 2,
                       padding: 0,
                     }}
                   >
-                    <IconPlus size={18} stroke={2} />
-                    <span style={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>
-                      {remainingSlots}장
-                    </span>
+                    <IconPlus size={20} stroke={2} />
                   </button>
                   <input
                     ref={addInputRef}
@@ -1263,7 +1233,7 @@ function UploadInfoScreen() {
  * - 선택한 사진/영상 전체를 좌우 스와이프로 미리볼 수 있음
  * - 한 번의 스와이프 = 1장 이동, PointerEvents 기반
  */
-function UploadPreviewSlider({ medias, displayPlaceName, editedLocLat, editedLocLng, firstTakenLabel, onRotate, rotatingIdx = -1 }) {
+function UploadPreviewSlider({ medias, displayPlaceName, editedLocLat, editedLocLng, firstTakenLabel }) {
   const [idx, setIdx] = React.useState(0);
   const [dragOffset, setDragOffset] = React.useState(0);
   const [isDragging, setIsDragging] = React.useState(false);
@@ -1520,39 +1490,6 @@ function UploadPreviewSlider({ medias, displayPlaceName, editedLocLat, editedLoc
                 : '')}
           </span>
         </div>
-      )}
-
-      {/* 회전 버튼 — 가로로 찍혀 누운 사진을 정면으로 돌리기 (이미지에만) */}
-      {current?.mode !== 'video' && typeof onRotate === 'function' && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRotate(idx);
-          }}
-          disabled={rotatingIdx === idx}
-          aria-label="사진 90도 회전"
-          style={{
-            position: 'absolute',
-            top: 10,
-            right: N > 1 ? 56 : 10,
-            width: 34,
-            height: 34,
-            borderRadius: 999,
-            background: 'rgba(0,0,0,0.7)',
-            border: 'none',
-            color: '#fff',
-            cursor: rotatingIdx === idx ? 'wait' : 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backdropFilter: 'blur(8px)',
-            opacity: rotatingIdx === idx ? 0.6 : 1,
-            zIndex: 4,
-          }}
-        >
-          <IconRotateClockwise2 size={18} stroke={2} />
-        </button>
       )}
 
       {/* 페이지 점 인디케이터 (5장 이하) */}
