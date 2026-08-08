@@ -170,6 +170,23 @@ function UploadInfoScreen() {
   const [locQuery, setLocQuery] = useState('');
   const [locResults, setLocResults] = useState([]);
   const [locLoading, setLocLoading] = useState(false);
+  const locPanelRef = useRef(null);
+
+  // 위치 수정 패널이 열리면 입력창과 검색 결과가 키보드에 가리지 않게 화면 위쪽으로 끌어올린다.
+  // (모바일 키보드는 visualViewport 만 줄이기 때문에 올라온 뒤 한 번 더 맞춰준다)
+  useEffect(() => {
+    if (!locOpen) return undefined;
+    const bringIntoView = () => {
+      locPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    const timer = setTimeout(bringIntoView, 260);
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    vv?.addEventListener('resize', bringIntoView);
+    return () => {
+      clearTimeout(timer);
+      vv?.removeEventListener('resize', bringIntoView);
+    };
+  }, [locOpen]);
 
   // 업로드 진입 시 한 번 더 정밀 GPS를 받아 좌표를 보정.
   // - 카메라 사진: 셔터 시점 watchPosition fix가 흔들렸을 수 있으니 무조건 한 번 갱신
@@ -552,7 +569,8 @@ function UploadInfoScreen() {
         minHeight: '100vh',
         fontFamily: LJ.fontStack,
         color: LJ.textPrimary,
-        paddingBottom: 24,
+        // 위치 수정 중에는 패널을 화면 위로 끌어올릴 여백이 필요하다 (키보드 가림 방지)
+        paddingBottom: locOpen ? 360 : 24,
       }}
     >
       {/* 헤더 */}
@@ -931,7 +949,11 @@ function UploadInfoScreen() {
         )}
 
         {locOpen && (
-          <div style={{ marginTop: 8 }}>
+          <div
+            ref={locPanelRef}
+            // 헤더(56px) 아래에 딱 붙게 스크롤되도록 여유를 준다
+            style={{ marginTop: 8, scrollMarginTop: 64, scrollMarginBottom: 24 }}
+          >
             <div style={{ display: 'flex', gap: 6 }}>
               <input
                 type="text"

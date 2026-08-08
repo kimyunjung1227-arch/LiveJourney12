@@ -65,10 +65,11 @@ export function MoreMenuDropdown({
         <div
           role="menu"
           style={{
+            // 카드 헤더에서 열리는 메뉴라 아래로 펼치면 사진에 가려진다 — 위로 펼친다
             position: 'absolute',
-            top: '100%',
+            bottom: '100%',
             right: 0,
-            marginTop: 6,
+            marginBottom: 6,
             minWidth: 140,
             background: '#fff',
             border: `1px solid ${LJ.borderLight}`,

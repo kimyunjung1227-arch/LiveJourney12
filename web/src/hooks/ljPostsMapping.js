@@ -1,5 +1,7 @@
 // posts 테이블 row → HomeScreen/PostCard가 기대하는 모델로 매핑.
 
+import { extractRegionLabel } from '../utils/postRegionLabel';
+
 const KEYWORD_TO_LJ = [
   { kw: ['개화', '꽃', '자연', '단풍', '식물', '추천장소', 'bloom', 'flower', 'nature', 'recommend'], id: 'nature' },
   { kw: ['날씨', '체감', '비', '눈', '바람', '맑음', '흐림', 'weather', 'rain', 'snow', 'sunny', 'cloudy'], id: 'weather' },
@@ -156,7 +158,8 @@ export function normalizePostRow(row) {
     category_raw: row.category_name || row.category || '',
     place_id: makePlaceId(placeName),
     place_name: placeName,
-    region: row.region || '',
+    // 예전 데이터는 "서울 강남구 역삼동" / "봉곡동" 처럼 제각각이라 읽는 쪽에서 표준형으로 맞춘다
+    region: extractRegionLabel(row.region) || row.region || '',
     // 지역 라벨(서울 성동구) 추출 폴백용 — region이 비어도 주소에서 뽑을 수 있게 유지
     location: row.location || '',
     detailed_location: row.detailed_location || '',

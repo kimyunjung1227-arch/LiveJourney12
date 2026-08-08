@@ -9,6 +9,8 @@
  * - 모두 없으면 빈 문자열을 반환 (호출자가 좌표 라벨로 폴백).
  */
 import { findNearestPoiName } from './kakaoPlacesGeocode';
+import { extractRegionLabel } from './postRegionLabel';
+import { toProvinceShort } from './koreanDistricts';
 
 /**
  * 카카오 JS SDK가 services 라이브러리와 함께 준비될 때까지 대기.
@@ -104,8 +106,9 @@ function pickPreciseAddressFromCoordRow(row) {
 }
 
 /**
- * coord2Address row → 도시/구/동 라벨 (예: "서울 강남구 역삼동").
+ * coord2Address row → 지역 라벨 (예: "서울 강남구", "경북 구미시").
  * road_address 가 있으면 road 의 region, 아니면 address(지번) 의 region 사용.
+ * 동/읍/면(3depth)은 붙이지 않는다 — 같은 시·군·구 사진이 동 단위로 쪼개져 묶이면 안 되므로.
  */
 function pickRegionFromCoordRow(row) {
   if (!row || typeof row !== 'object') return '';
@@ -113,9 +116,12 @@ function pickRegionFromCoordRow(row) {
   if (!src) return '';
   const r1 = String(src.region_1depth_name || '').trim(); // 시/도
   const r2 = String(src.region_2depth_name || '').trim(); // 시/군/구
-  const r3 = String(src.region_3depth_name || '').trim(); // 동/읍/면
-  const parts = [r1, r2, r3].filter(Boolean);
-  return parts.join(' ');
+  const head = toProvinceShort(r1) || r1;
+  if (!head) return '';
+  // 카카오는 일반구를 "성남시 분당구"처럼 한 필드에 담아준다 — 상위 시 기준으로 묶는다.
+  const district = r2.split(/\s+/)[0] || '';
+  if (!district) return head;
+  return `${head} ${district}`;
 }
 
 /**
@@ -171,31 +177,15 @@ export async function resolveDisplayLocationFromKakaoCoordResult(firstResult, _l
 }
 
 /**
- * 카카오 Places 검색 결과(r) 또는 임의 주소 문자열에서 도시/구/동 라벨을 뽑는다.
- *  - "서울 강남구 테헤란로 123" → "서울 강남구"
- *  - "경기도 성남시 분당구 …" → "경기도 성남시 분당구"
+ * 카카오 Places 검색 결과(r) 또는 임의 주소 문자열에서 지역 라벨을 뽑는다.
+ * 언제나 "시·도 + 시/군/구" 한 형태로만 나온다.
+ *  - "서울 강남구 테헤란로 123"  → "서울 강남구"
+ *  - "경기도 성남시 분당구 …"    → "경기 성남시"
+ *  - "구미 봉곡동" (직접 입력)   → "경북 구미시"   ← 시·도를 빼고 적어도 표준형으로 복원
+ *
+ * 이 값이 posts.region 에 그대로 들어가고 지역별 사진 묶음의 기준이 되므로,
+ * 동/읍/면까지 내려가지 않고 시·군·구 단위에서 멈춘다.
  */
 export function extractRegionFromAddress(addr) {
-  const s = String(addr || '').trim();
-  if (!s) return '';
-  const toks = s.split(/\s+/);
-  if (toks.length === 0) return '';
-  // 1depth(시/도) + 2depth(시/군/구)까지만. 분당·일산처럼 3depth가 있는 경우 한 단계 더.
-  const out = [];
-  for (let i = 0; i < toks.length && out.length < 3; i += 1) {
-    const t = toks[i];
-    if (/(시|도|특별시|광역시|자치시|자치도|군|구|읍|면|동)$/.test(t)) {
-      out.push(t);
-      // "시/도 + 시/군/구" 두 토큰 모이면 보통 충분
-      if (out.length >= 2 && /(구|군|시)$/.test(t)) {
-        // 분당구·일산서구 처럼 더 잘게 들어가는 케이스는 다음 토큰까지
-        const next = toks[i + 1];
-        if (next && /(구|동|읍|면)$/.test(next)) {
-          out.push(next);
-        }
-        break;
-      }
-    }
-  }
-  return out.join(' ');
+  return extractRegionLabel(addr);
 }
