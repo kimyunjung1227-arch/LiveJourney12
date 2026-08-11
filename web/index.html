@@ -140,12 +140,20 @@
       <div style="text-align:center; padding:24px;">
         <h1 style="margin:0; font-size:clamp(1.75rem,5vw,2.25rem); font-weight:800; letter-spacing:-0.06em; color:#000000;">LiveJourney</h1>
         <p style="margin:8px 0 0 0; font-size:clamp(0.7rem,2.8vw,0.875rem); color:#6b7280;">지금, 당신의 여행을 실시간으로</p>
+        <!-- 크롤러가 스니펫으로 집어갈 유일한 문장이 되는 자리. 경고문 대신 서비스 설명을 둔다
+             ("JavaScript가 필요합니다"가 검색 결과 설명으로 노출되던 문제). -->
+        <noscript>
+          <p style="margin:16px auto 0 auto; max-width:640px; font-size:0.8125rem; line-height:1.6; color:#4b5563;">
+            라이브저니는 지금 날씨, 인파, 분위기까지 현지 실시간 제보로 확인하는 국내여행 서비스입니다.
+          </p>
+          <p style="margin:12px auto 0 auto; max-width:640px; font-size:0.8125rem; line-height:1.8; color:#6b7280;">
+            <a href="/main" style="color:#6b7280;">실시간 현장 LIVE</a> ·
+            <a href="/crowded-place" style="color:#6b7280;">실시간 핫플</a> ·
+            <a href="/magazine" style="color:#6b7280;">라이브매거진</a> ·
+            <a href="/ask-situation" style="color:#6b7280;">실시간 Q&amp;A</a>
+          </p>
+        </noscript>
       </div>
-      <noscript>
-        <p style="position:absolute;left:16px;right:16px;bottom:24px;text-align:center;font-size:12px;color:#6b7280;">
-          이 사이트는 JavaScript가 필요합니다. JavaScript를 켠 뒤 다시 접속해 주세요.
-        </p>
-      </noscript>
     </div>
   </div>
   <script type="module" src="./src/main.jsx"></script>
