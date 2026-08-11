@@ -1500,10 +1500,29 @@ function useBundleDetail(bundleId) {
 }
 
 // ────────────────────────────────────────────────
-// 같은(거의 동일한) 좌표에 묶음이 여러 개면 핀이 겹쳐 보인다.
+// 사진 핀을 그대로 보여줄 수 있는 최대 지도 레벨.
+// (카카오 레벨은 숫자가 클수록 축소 — level 6 이상이 기본 클러스터 구간)
+// 보이는 묶음이 몇 개 안 되면 굳이 숫자 박스로 뭉칠 이유가 없으므로
+// 축소 상태에서도 사진 핀을 그대로 노출한다 → 두세 번만 확대해도 사진이 보인다.
+// ────────────────────────────────────────────────
+function photoPinMaxLevel(count) {
+  if (count <= 0) return 5;
+  if (count <= 5) return 11; // 전국 단위로 봐도 사진 그대로
+  if (count <= 12) return 9; // 도(道) 단위
+  if (count <= 25) return 8;
+  if (count <= 45) return 7;
+  return 5; // 밀집 구간은 기존대로 level>=6 부터 클러스터
+}
+
+// 화면(px) 기준으로 이 거리보다 가까운 핀들은 서로 겹친 것으로 보고 펼친다.
+const FANOUT_MERGE_PX = 46;
+
+// ────────────────────────────────────────────────
+// 같은(또는 화면상 거의 같은) 위치에 묶음이 여러 개면 핀이 겹쳐 보인다.
 // 겹치는 묶음들을 작은 원형으로 펼쳐(spiderfy) 표시 위치를 분리한다.
 //   - 실제 좌표는 그대로 두고 "표시 위치"만 픽셀 단위로 분산 → 클릭 시 원래 위치로 이동.
-//   - 클러스터링(level>=6) 중엔 펼치지 않는다.
+//   - 축소 상태에서는 좌표가 달라도 화면에선 겹치므로 px 거리로 묶는다.
+//   - 클러스터링 중엔 펼치지 않는다.
 // 반환: Map<bundle_id, {lat, lng}>
 // ────────────────────────────────────────────────
 function computeFanoutPositions(kakao, map, bundles, useClustering) {
@@ -1520,13 +1539,42 @@ function computeFanoutPositions(kakao, map, bundles, useClustering) {
     proj = null;
   }
 
-  // 좌표 반올림(약 1m) 키로 그룹화
+  const valid = bundles.filter(
+    (b) => b.primary_lat != null && b.primary_lng != null,
+  );
+
+  // 그룹화 — projection 이 있으면 화면 px 거리로, 없으면 좌표 키(약 1m)로
   const groups = new Map();
-  for (const b of bundles) {
-    if (b.primary_lat == null || b.primary_lng == null) continue;
-    const key = `${Number(b.primary_lat).toFixed(5)},${Number(b.primary_lng).toFixed(5)}`;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(b);
+  if (proj) {
+    const grouped = []; // [{ pt, items }]
+    for (const b of valid) {
+      let pt = null;
+      try {
+        pt = proj.pointFromCoords(
+          new kakao.maps.LatLng(b.primary_lat, b.primary_lng),
+        );
+      } catch {
+        pt = null;
+      }
+      if (!pt) {
+        grouped.push({ pt: null, items: [b] });
+        continue;
+      }
+      const near = grouped.find(
+        (g) =>
+          g.pt &&
+          Math.hypot(g.pt.x - pt.x, g.pt.y - pt.y) <= FANOUT_MERGE_PX,
+      );
+      if (near) near.items.push(b);
+      else grouped.push({ pt, items: [b] });
+    }
+    grouped.forEach((g, i) => groups.set(i, g.items));
+  } else {
+    for (const b of valid) {
+      const key = `${Number(b.primary_lat).toFixed(5)},${Number(b.primary_lng).toFixed(5)}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(b);
+    }
   }
 
   for (const group of groups.values()) {
@@ -1769,7 +1817,9 @@ const MapScreen = () => {
     if (!map || !window.kakao?.maps) return;
     const kakao = window.kakao;
 
-    const useClustering = mapLevel >= 6;
+    // 보이는 묶음 수에 따라 사진 핀을 유지할 레벨을 넓힌다.
+    // (핀이 적으면 축소 상태에서도 숫자 박스 대신 사진을 그대로 노출)
+    const useClustering = mapLevel > photoPinMaxLevel(bundles.length);
     const nextIds = new Set(bundles.map((b) => b.bundle_id));
 
     // 같은 좌표 묶음들을 겹치지 않게 펼친 "표시 위치"
@@ -1919,8 +1969,8 @@ const MapScreen = () => {
               'clusterclick',
               (cluster) => {
                 const curLevel = typeof map.getLevel === 'function' ? map.getLevel() : 7;
-                // 현재 6 이상이면 5 이하로 한 번에 내려가서 사진 핀이 보이도록
-                const nextLevel = curLevel >= 8 ? Math.max(4, curLevel - 3) : Math.max(3, curLevel - 2);
+                // 한 번에 3단계 내려가 대부분의 경우 바로 사진 핀 구간에 들어가도록
+                const nextLevel = Math.max(3, curLevel - 3);
                 try {
                   map.setLevel(nextLevel, {
                     anchor: cluster.getCenter(),
