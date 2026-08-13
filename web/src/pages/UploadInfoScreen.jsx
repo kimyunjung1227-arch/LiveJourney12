@@ -30,58 +30,8 @@ import { evaluateUploadLocation, formatGapDistance } from '../utils/uploadLocati
 import { searchPlaceWithKakaoFirst, ensureKakaoMapsServicesReady } from '../utils/kakaoPlacesGeocode';
 import { patchUploadMedia } from '../stores/uploadStore';
 import { autoCategorize } from '../utils/autoCategorize';
-
-// 실시간 태그 설계.
-//  1군 하늘(날씨)  — 필수·단일. 검색/필터/집계의 기준축. (눈은 겨울 시즌만 노출)
-//  2군 체감        — 선택·다중. 사진에 안 찍히는 정보(라이브캠 대비 차별점).
-//  3군 옷차림      — 선택·단일. "뭐 입고 가지" 여행 전 검색 1순위.
-//  4군 현장        — 선택·다중.
-//  시즌 태그       — 시기 한정 노출(수집욕·화제성).
-// 저장/표시는 라벨 텍스트만(예: "맑음"). 이모지는 컬러가 과해 미표시(플랫·미니멀 톤). 태그는 posts.tags 배열.
-const WEATHER_TAGS = [
-  { emoji: '☀️', label: '맑음' },
-  { emoji: '⛅', label: '구름조금' },
-  { emoji: '☁️', label: '흐림' },
-  { emoji: '🌧️', label: '비' },
-  { emoji: '🌦️', label: '오락가락' },
-];
-const WEATHER_TAG_SNOW = { emoji: '🌨️', label: '눈' }; // 겨울 한정
-const FEEL_TAGS = [
-  { emoji: '💨', label: '바람셈' },
-  { emoji: '🌫️', label: '안개' },
-  { emoji: '🥶', label: '추움' },
-  { emoji: '🥵', label: '더움' },
-  { emoji: '☂️', label: '우산필요' },
-];
-const OUTFIT_TAGS = [
-  { emoji: '👕', label: '반팔' },
-  { emoji: '👔', label: '긴팔' },
-  { emoji: '🧥', label: '겉옷' },
-  { emoji: '🧣', label: '패딩' },
-];
-const SCENE_TAGS = [
-  { emoji: '👥', label: '붐빔' },
-  { emoji: '😌', label: '한산' },
-  { emoji: '🅿️', label: '주차꽉참' },
-  { emoji: '🚧', label: '통제중' },
-];
-const SEASON_TAGS = {
-  spring: [{ emoji: '🌸', label: '벚꽃만개' }, { emoji: '🌼', label: '유채절정' }],
-  summer: [{ emoji: '🌊', label: '파도높음' }, { emoji: '🌴', label: '물놀이가능' }],
-  autumn: [{ emoji: '🍁', label: '단풍절정' }, { emoji: '🌾', label: '억새' }],
-  winter: [{ emoji: '❄️', label: '눈쌓임' }, { emoji: '🧊', label: '빙판' }],
-};
-const SEASON_LABEL = { spring: '봄', summer: '여름', autumn: '가을', winter: '겨울' };
-
-/** month: 1~12 → 계절 키 */
-function getSeasonKey(month) {
-  if (month >= 3 && month <= 5) return 'spring';
-  if (month >= 6 && month <= 8) return 'summer';
-  if (month >= 9 && month <= 11) return 'autumn';
-  return 'winter';
-}
-/** 태그 객체 → 저장/표시용 문자열(라벨만) */
-const tagStr = (t) => t.label;
+import RealtimeTagPicker, { TagGroupHeader } from '../components/lj/RealtimeTagPicker';
+import { emptyTagGroups, flattenTagGroups } from '../utils/realtimeTags';
 
 function UploadInfoScreen() {
   const navigate = useNavigate();
@@ -97,66 +47,13 @@ function UploadInfoScreen() {
   // (resetUploadStore 로 media=null 이 되면 아래 redirect useEffect 가 /camera 로 덮어쓰는 레이스 방지)
   const uploadCompletedRef = useRef(false);
 
-  const [weatherTag, setWeatherTag] = useState(''); // 1군 하늘 — 필수·단일
-  const [feelTags, setFeelTags] = useState([]); // 2군 체감 — 다중
-  const [outfitTag, setOutfitTag] = useState(''); // 3군 옷차림 — 단일
-  const [sceneTags, setSceneTags] = useState([]); // 4군 현장 — 다중
-  const [seasonTags, setSeasonTags] = useState([]); // 시즌 — 다중
-  const [moreOpen, setMoreOpen] = useState(false); // 3·4군·시즌 더보기
+  // 실시간 태그 — 군별 선택값 (하늘/체감/옷차림/현장/시즌)
+  const [tagGroups, setTagGroups] = useState(emptyTagGroups);
   const [body, setBody] = useState('');
 
-  // 이번 계절(브라우저 현재 시각 기준) — 시즌 태그 + 겨울 눈 노출 판단
-  const seasonKey = useMemo(() => getSeasonKey(new Date().getMonth() + 1), []);
-  const weatherOptions = useMemo(
-    () => (seasonKey === 'winter' ? [...WEATHER_TAGS, WEATHER_TAG_SNOW] : WEATHER_TAGS),
-    [seasonKey]
-  );
-  const seasonOptions = SEASON_TAGS[seasonKey] || [];
-
-  const toggleSingle = (setter) => (val) =>
-    setter((prev) => (prev === val ? '' : val));
-  const toggleMulti = (setter) => (val) =>
-    setter((prev) => (prev.includes(val) ? prev.filter((v) => v !== val) : [...prev, val]));
-
+  const weatherTag = tagGroups.weather;
   // 업로드에 실릴 전체 태그(순서: 하늘 → 체감 → 옷차림 → 현장 → 시즌)
-  const allSelectedTags = [weatherTag, ...feelTags, outfitTag, ...sceneTags, ...seasonTags].filter(Boolean);
-
-  // 태그 칩/그룹 헤더 렌더 헬퍼
-  const chipStyle = (active) => ({
-    minHeight: 0,
-    minWidth: 0,
-    padding: '8px 13px',
-    borderRadius: 999,
-    border: `1px solid ${active ? LJ.key : LJ.borderLight}`,
-    background: active ? LJ.key : LJ.bgSurface,
-    color: active ? '#fff' : LJ.textSecondary,
-    fontFamily: LJ.fontStack,
-    fontSize: 13,
-    fontWeight: 600,
-    lineHeight: 1,
-    cursor: 'pointer',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 5,
-    transition: 'background 120ms, color 120ms, border-color 120ms',
-  });
-  const renderChip = (t, active, onClick) => (
-    <button key={t.label} type="button" onClick={onClick} aria-pressed={active} style={chipStyle(active)}>
-      {t.label}
-    </button>
-  );
-  // 라벨만 노출 (필수 그룹만 빨간 점). "선택"·설명 문구는 군더더기라 표시하지 않는다.
-  const groupHeader = (label, opts = {}) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 5, margin: '0 0 8px' }}>
-      <span style={{ fontSize: 12.5, fontWeight: 700, color: LJ.textPrimary }}>{label}</span>
-      {opts.required && (
-        <span style={{ display: 'inline-block', width: 5, height: 5, borderRadius: '50%', background: LJ.error }} />
-      )}
-    </div>
-  );
-  const chipRow = (children) => (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>{children}</div>
-  );
+  const allSelectedTags = flattenTagGroups(tagGroups);
   // 화면에 표시할 장소명. 좌표 변경 시 항상 재지오코딩해 최신값을 보여준다.
   const [resolvedPlace, setResolvedPlace] = useState('');
   // 위 장소의 도시/구/동 라벨 (예: "서울 강남구 역삼동")
@@ -1021,92 +918,11 @@ function UploadInfoScreen() {
 
       {/* 실시간 태그 — 하늘(필수) + 체감/옷차림/현장/시즌(선택) + 한마디(선택) */}
       <section style={{ padding: '18px 18px 0' }}>
-        {/* 1군 하늘 — 필수·단일 */}
-        {groupHeader('하늘', { required: true })}
-        {chipRow(
-          weatherOptions.map((t) =>
-            renderChip(t, weatherTag === tagStr(t), () => toggleSingle(setWeatherTag)(tagStr(t)))
-          )
-        )}
-
-        {/* 2군 체감 — 선택·다중 (사진에 안 찍히는 정보) */}
-        {groupHeader('체감')}
-        {chipRow(
-          FEEL_TAGS.map((t) =>
-            renderChip(t, feelTags.includes(tagStr(t)), () => toggleMulti(setFeelTags)(tagStr(t)))
-          )
-        )}
-
-        {/* 더보기: 시즌 + 옷차림 + 현장 (기본 접힘 — 화면 칩 12개 이하 유지) */}
-        {!moreOpen ? (
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button
-              type="button"
-              onClick={() => setMoreOpen(true)}
-              style={{
-                minHeight: 0,
-                background: 'transparent',
-                border: 'none',
-                padding: '2px 0 6px',
-                color: LJ.key,
-                fontFamily: LJ.fontStack,
-                fontSize: 12.5,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              더보기
-            </button>
-          </div>
-        ) : (
-          <>
-            {seasonOptions.length > 0 && (
-              <>
-                {groupHeader(`${SEASON_LABEL[seasonKey]} 시즌`)}
-                {chipRow(
-                  seasonOptions.map((t) =>
-                    renderChip(t, seasonTags.includes(tagStr(t)), () => toggleMulti(setSeasonTags)(tagStr(t)))
-                  )
-                )}
-              </>
-            )}
-            {groupHeader('옷차림')}
-            {chipRow(
-              OUTFIT_TAGS.map((t) =>
-                renderChip(t, outfitTag === tagStr(t), () => toggleSingle(setOutfitTag)(tagStr(t)))
-              )
-            )}
-            {groupHeader('현장')}
-            {chipRow(
-              SCENE_TAGS.map((t) =>
-                renderChip(t, sceneTags.includes(tagStr(t)), () => toggleMulti(setSceneTags)(tagStr(t)))
-              )
-            )}
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                onClick={() => setMoreOpen(false)}
-                style={{
-                  minHeight: 0,
-                  background: 'transparent',
-                  border: 'none',
-                  padding: '0 0 8px',
-                  color: LJ.textTertiary,
-                  fontFamily: LJ.fontStack,
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                접기
-              </button>
-            </div>
-          </>
-        )}
+        <RealtimeTagPicker value={tagGroups} onChange={setTagGroups} />
 
         {/* 설명 — 선택. 태그로 부족한 뉘앙스만 덧붙임 */}
         <div style={{ marginTop: 6 }}>
-          {groupHeader(isAnswerMode ? '답변' : '설명')}
+          <TagGroupHeader label={isAnswerMode ? '답변' : '설명'} />
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}

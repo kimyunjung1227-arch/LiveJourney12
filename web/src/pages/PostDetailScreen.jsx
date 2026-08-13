@@ -24,6 +24,7 @@ import { useReactions } from '../hooks/useReactions';
 import { useAuth } from '../contexts/AuthContext';
 import { useFollow } from '../hooks/useFollow';
 import { isFollowingSupabase } from '../api/socialSupabase';
+import { deletePostSupabase } from '../api/postsSupabase';
 import { supabase } from '../utils/supabaseClient';
 
 /**
@@ -74,19 +75,25 @@ function PostDetailScreen() {
     navigate(`/post/${post.id}/edit`);
   };
 
+  const [deleting, setDeleting] = useState(false);
   const handleDelete = async () => {
-    if (!post || !user) return;
+    if (!post || !user || deleting) return;
     if (!window.confirm('이 게시물을 삭제할까요? 되돌릴 수 없어요.')) return;
+    setDeleting(true);
     try {
-      const { error } = await supabase
-        .from('posts')
-        .delete()
-        .eq('id', post.id)
-        .eq('user_id', user.id);
-      if (error) throw error;
+      // 카드에서 지울 때와 같은 경로 — 사진/영상 Storage 파일까지 함께 지운다.
+      // 예전처럼 직접 delete 하면 RLS 로 0행이 지워져도 error 가 null 이라
+      // 실패를 성공으로 착각하고 홈으로 나가버린다.
+      const { success } = await deletePostSupabase(String(post.id));
+      if (!success) {
+        window.alert('삭제하지 못했어요. 잠시 후 다시 시도해 주세요.');
+        return;
+      }
       navigate('/', { replace: true });
     } catch (e) {
-      alert('삭제 중 문제가 발생했어요. 다시 시도해주세요.');
+      window.alert('삭제 중 문제가 발생했어요. 다시 시도해주세요.');
+    } finally {
+      setDeleting(false);
     }
   };
 

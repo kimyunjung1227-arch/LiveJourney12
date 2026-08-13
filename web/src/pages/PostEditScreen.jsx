@@ -10,6 +10,8 @@ import { logger } from '../utils/logger';
 import { ensureKakaoMapsServicesReady } from '../utils/kakaoPlacesGeocode';
 import { extractRegionFromAddress, reverseGeocodeToPlaceDetail } from '../utils/locationFromGeocode';
 import { resolveRegionFromLocationInput } from '../utils/regionLocationMapping';
+import RealtimeTagPicker, { TagGroupHeader } from '../components/lj/RealtimeTagPicker';
+import { emptyTagGroups, flattenTagGroups, splitTagsIntoGroups } from '../utils/realtimeTags';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_MEDIAS = 10;
@@ -29,8 +31,11 @@ const nextMediaKey = () => {
 
 /**
  * 게시물 수정 화면.
- * 구조는 업로드 정보 입력창(UploadInfoScreen)과 동일하게:
- * 헤더 → 미디어 미리보기 슬라이더 + 썸네일 → 제목 → 위치 → 설명 → 저장 버튼
+ * 화면 구성은 업로드 정보 입력창(UploadInfoScreen)과 같다:
+ * 헤더 → 미디어 미리보기 슬라이더 + 썸네일 → 위치 → 실시간 태그 + 설명 → 저장 버튼
+ *
+ * 업로드는 제목을 받지 않으므로 수정 화면에도 제목 칸을 두지 않는다.
+ * (예전 게시물의 제목은 저장할 때 건드리지 않고 그대로 둔다)
  */
 function PostEditScreen() {
   const navigate = useNavigate();
@@ -41,7 +46,8 @@ function PostEditScreen() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [title, setTitle] = useState('');
+  // 실시간 태그 — 업로드 화면과 같은 군 구성 (하늘/체감/옷차림/현장/시즌)
+  const [tagGroups, setTagGroups] = useState(emptyTagGroups);
   const [body, setBody] = useState('');
   const [placeName, setPlaceName] = useState('');
   const [region, setRegion] = useState('');
@@ -87,7 +93,7 @@ function PostEditScreen() {
         ];
 
         setMedias(loaded);
-        setTitle(fresh.title || '');
+        setTagGroups(splitTagsIntoGroups(fresh.tags));
         setBody(fresh.note || fresh.content || '');
         setPlaceName(fresh.placeName || fresh.detailedLocation || fresh.location || '');
         setRegion(fresh.region || '');
@@ -213,10 +219,10 @@ function PostEditScreen() {
     });
   };
 
+  // 업로드와 같은 기준 — 하늘 태그 1개는 필수, 설명은 선택
   const canSave =
     !saving &&
-    title.trim().length > 0 &&
-    body.trim().length > 0 &&
+    !!tagGroups.weather &&
     placeName.trim().length > 0 &&
     medias.length > 0;
 
@@ -254,13 +260,15 @@ function PostEditScreen() {
       const finalPlace = placeName.trim();
       const finalRegion = region || resolveRegionFromLocationInput(finalPlace) || '기타';
 
+      // title 은 보내지 않는다 — 업로드에 없는 항목이라 화면에서도 뺐고,
+      // 예전 게시물에 남아 있는 제목은 그대로 보존한다.
       const result = await updatePostSupabase(String(editId || ''), {
-        title: title.trim(),
         content: body,
         location: finalPlace,
         detailed_location: finalPlace,
         place_name: finalPlace,
         region: finalRegion,
+        tags: flattenTagGroups(tagGroups),
         images,
         videos,
       });
@@ -477,36 +485,6 @@ function PostEditScreen() {
         </div>
       )}
 
-      {/* 제목 (필수) */}
-      <section style={{ padding: '16px 18px 0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: LJ.textPrimary }}>제목</span>
-          <span
-            style={{ display: 'inline-block', width: 5, height: 5, borderRadius: '50%', background: LJ.error }}
-          />
-        </div>
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          maxLength={40}
-          placeholder="예: 지금 윤중로 벚꽃 절정"
-          style={{
-            width: '100%',
-            padding: '13px 16px',
-            background: LJ.bgSurface,
-            border: `1px solid ${LJ.borderLight}`,
-            borderRadius: 12,
-            fontFamily: LJ.fontStack,
-            fontSize: 15,
-            fontWeight: 600,
-            color: LJ.textPrimary,
-            outline: 'none',
-            boxSizing: 'border-box',
-          }}
-        />
-      </section>
-
       {/* 위치 */}
       <section style={{ padding: '14px 18px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -669,38 +647,51 @@ function PostEditScreen() {
         )}
       </section>
 
-      {/* 설명 (필수) */}
+      {/* 실시간 태그 — 하늘(필수) + 체감/옷차림/현장/시즌(선택) + 설명(선택) */}
       <section style={{ padding: '18px 18px 0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: LJ.textPrimary }}>설명</span>
-          <span
-            style={{ display: 'inline-block', width: 5, height: 5, borderRadius: '50%', background: LJ.error }}
+        <RealtimeTagPicker value={tagGroups} onChange={setTagGroups} />
+
+        {/* 설명 — 선택. 태그로 부족한 뉘앙스만 덧붙임 */}
+        <div style={{ marginTop: 6 }}>
+          <TagGroupHeader label="설명" />
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="예: 지금 딱 반팔, 바람 살짝 불어요"
+            style={{
+              width: '100%',
+              minHeight: 96,
+              padding: '14px 16px',
+              background: LJ.bgSurface,
+              border: `1px solid ${LJ.borderLight}`,
+              borderRadius: 12,
+              fontFamily: LJ.fontStack,
+              fontSize: 14,
+              color: LJ.textPrimary,
+              resize: 'vertical',
+              outline: 'none',
+              lineHeight: 1.6,
+              boxSizing: 'border-box',
+            }}
           />
         </div>
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="예: 윤중로 80% 만개, 주말이 절정일 듯"
-          style={{
-            width: '100%',
-            minHeight: 150,
-            padding: '14px 16px',
-            background: LJ.bgSurface,
-            border: `1px solid ${LJ.borderLight}`,
-            borderRadius: 12,
-            fontFamily: LJ.fontStack,
-            fontSize: 14,
-            color: LJ.textPrimary,
-            resize: 'vertical',
-            outline: 'none',
-            lineHeight: 1.6,
-            boxSizing: 'border-box',
-          }}
-        />
       </section>
 
       {/* 저장 버튼 */}
       <div style={{ padding: '16px 18px 0' }}>
+        {!tagGroups.weather && (
+          <p
+            style={{
+              margin: '0 0 8px',
+              fontSize: 11.5,
+              color: LJ.error,
+              lineHeight: 1.5,
+              textAlign: 'center',
+            }}
+          >
+            하늘 태그를 하나 골라야 저장할 수 있어요
+          </p>
+        )}
         <button
           type="button"
           onClick={handleSave}

@@ -7,52 +7,93 @@
  *   태그를 무시하는 곳에서는 사진이 옆으로 누워 보인다. 업로드 전에 픽셀을 실제로 돌려두면
  *   어디서 열어도 찍은 방향 그대로 나온다.
  *
- * 주의: 재인코딩하면 파일 안의 EXIF(GPS·촬영시각)가 사라지므로,
- *       EXIF 추출이 끝난 뒤(업로드 직전)에 호출해야 한다.
+ * 주의 1: 재인코딩하면 파일 안의 EXIF(GPS·촬영시각)가 사라지므로,
+ *         EXIF 추출이 끝난 뒤(업로드 직전)에 호출해야 한다.
+ * 주의 2: 브라우저가 디코드할 때 EXIF 를 이미 반영해 주는지 여부가 제각각이다.
+ *         "이미 돌아간 픽셀"을 한 번 더 돌리면 사진이 옆으로 눕기 때문에,
+ *         파일에 인코딩된 원본 크기(SOF)와 디코드 결과를 대조해 판별한 뒤에만 회전한다.
  */
 
-/** JPEG 바이트에서 EXIF Orientation(1~8)을 읽는다. 없으면 1. */
-async function readJpegOrientation(blob) {
-  // EXIF(APP1)는 파일 맨 앞에 있다 — 앞부분만 읽으면 충분하다.
-  const head = blob.slice(0, 256 * 1024);
-  const buf = await head.arrayBuffer();
+/** APP1(Exif) 세그먼트에서 Orientation(1~8)을 읽는다. 없으면 0. */
+function parseExifOrientation(view, segStart) {
+  // "Exif\0\0"
+  if (segStart + 6 > view.byteLength) return 0;
+  if (view.getUint32(segStart, false) !== 0x45786966) return 0;
+  const tiff = segStart + 6;
+  if (tiff + 8 > view.byteLength) return 0;
+  const le = view.getUint16(tiff, false) === 0x4949; // 'II' = little endian
+  if (view.getUint16(tiff + 2, le) !== 42) return 0;
+  const ifd0 = tiff + view.getUint32(tiff + 4, le);
+  if (ifd0 + 2 > view.byteLength) return 0;
+  const count = view.getUint16(ifd0, le);
+  for (let i = 0; i < count; i += 1) {
+    const entry = ifd0 + 2 + i * 12;
+    if (entry + 12 > view.byteLength) return 0;
+    if (view.getUint16(entry, le) === 0x0112) {
+      const value = view.getUint16(entry + 8, le);
+      return value >= 1 && value <= 8 ? value : 0;
+    }
+  }
+  return 0;
+}
+
+/** SOF 마커인지 (DHT/JPG/DAC 는 같은 대역이지만 프레임 헤더가 아니다) */
+function isSofMarker(marker) {
+  return (
+    marker >= 0xc0 &&
+    marker <= 0xcf &&
+    marker !== 0xc4 &&
+    marker !== 0xc8 &&
+    marker !== 0xcc
+  );
+}
+
+/**
+ * JPEG 헤더에서 Orientation 과 "파일에 실제로 인코딩된 픽셀 크기"를 함께 읽는다.
+ * rawWidth/rawHeight 는 EXIF 를 반영하기 전 크기라서,
+ * 브라우저가 디코드해 준 결과와 대조하면 EXIF 가 이미 적용됐는지 알 수 있다.
+ */
+async function readJpegMeta(blob) {
+  const meta = { orientation: 1, rawWidth: 0, rawHeight: 0 };
+  // EXIF(APP1)·SOF 모두 파일 앞쪽에 있다 — 앞부분만 읽으면 충분하다.
+  const buf = await blob.slice(0, 512 * 1024).arrayBuffer();
   const view = new DataView(buf);
-  if (view.byteLength < 4 || view.getUint16(0, false) !== 0xffd8) return 1; // SOI 아님
+  if (view.byteLength < 4 || view.getUint16(0, false) !== 0xffd8) return meta; // SOI 아님
 
   let offset = 2;
   while (offset + 4 <= view.byteLength) {
-    if (view.getUint8(offset) !== 0xff) return 1; // 마커 정렬이 깨짐
-    const marker = view.getUint8(offset + 1);
-    if (marker === 0xda || marker === 0xd9) return 1; // 이미지 데이터 시작 — EXIF 없음
-    const segLength = view.getUint16(offset + 2, false);
-    if (segLength < 2) return 1;
+    if (view.getUint8(offset) !== 0xff) return meta; // 마커 정렬이 깨짐
+    let marker = view.getUint8(offset + 1);
+    // 0xFF 채움 바이트가 이어질 수 있다
+    while (marker === 0xff && offset + 2 < view.byteLength) {
+      offset += 1;
+      marker = view.getUint8(offset + 1);
+    }
+    // 길이 필드가 없는 단독 마커
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd8)) {
+      offset += 2;
+      continue;
+    }
+    if (marker === 0xda || marker === 0xd9) return meta; // 압축 데이터 시작 — 헤더 끝
 
-    if (marker === 0xe1 && offset + 10 <= view.byteLength) {
-      // "Exif\0\0"
-      if (view.getUint32(offset + 4, false) !== 0x45786966) {
-        offset += 2 + segLength;
-        continue;
+    const segLength = view.getUint16(offset + 2, false);
+    if (segLength < 2) return meta;
+    const segStart = offset + 4;
+
+    if (marker === 0xe1 && meta.orientation === 1) {
+      const found = parseExifOrientation(view, segStart);
+      if (found) meta.orientation = found;
+    } else if (isSofMarker(marker)) {
+      // SOF: [precision(1)][height(2)][width(2)]...
+      if (segStart + 5 <= view.byteLength) {
+        meta.rawHeight = view.getUint16(segStart + 1, false);
+        meta.rawWidth = view.getUint16(segStart + 3, false);
       }
-      const tiff = offset + 10;
-      if (tiff + 8 > view.byteLength) return 1;
-      const le = view.getUint16(tiff, false) === 0x4949; // 'II' = little endian
-      if (view.getUint16(tiff + 2, le) !== 42) return 1;
-      const ifd0 = tiff + view.getUint32(tiff + 4, le);
-      if (ifd0 + 2 > view.byteLength) return 1;
-      const count = view.getUint16(ifd0, le);
-      for (let i = 0; i < count; i += 1) {
-        const entry = ifd0 + 2 + i * 12;
-        if (entry + 12 > view.byteLength) return 1;
-        if (view.getUint16(entry, le) === 0x0112) {
-          const value = view.getUint16(entry + 8, le);
-          return value >= 1 && value <= 8 ? value : 1;
-        }
-      }
-      return 1;
+      return meta; // 필요한 정보는 여기까지
     }
     offset += 2 + segLength;
   }
-  return 1;
+  return meta;
 }
 
 /** Orientation 값에 맞춰 캔버스 좌표계를 변환한다. (w, h = 원본 픽셀 크기) */
@@ -86,24 +127,38 @@ export async function bakeExifOrientation(file) {
     if (!isJpeg(file)) return file;
     if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') return file;
 
-    const orientation = await readJpegOrientation(file);
+    const { orientation, rawWidth, rawHeight } = await readJpegMeta(file);
     if (orientation <= 1) return file; // 이미 찍은 방향 그대로 — 손대지 않는다
 
-    // 브라우저마다 EXIF 반영 여부가 달라지지 않도록 '원본 픽셀'로 디코드한 뒤 직접 회전한다.
-    const bitmap = await createImageBitmap(file, { imageOrientation: 'none' });
+    // 'from-image' 는 최신 브라우저의 기본 동작과 같은 값이라,
+    // imageOrientation 옵션을 무시하는 브라우저에서도 결과가 같다.
+    // (예전처럼 'none' 을 쓰면, 옵션을 무시하고 EXIF 를 이미 반영해 주는 브라우저에서
+    //  아래 회전이 한 번 더 걸려 세로 사진이 옆으로 눕는다.)
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
     const w = bitmap.width;
     const h = bitmap.height;
     const swap = orientation >= 5 && orientation <= 8;
 
+    // 브라우저가 정말 EXIF 를 반영했는지 파일에 인코딩된 원본 크기와 대조한다.
+    // 90도 계열(5~8)은 반영되면 가로·세로가 뒤바뀌므로 확실히 구분된다.
+    // 크기가 안 바뀌는 2·3·4 나 정사각 사진은 구분할 수 없어 'from-image' 결과를 믿는다.
+    const needsRotate =
+      swap &&
+      rawWidth > 0 &&
+      rawHeight > 0 &&
+      rawWidth !== rawHeight && // 정사각은 뒤바뀌어도 크기가 같아 판별 불가
+      w === rawWidth &&
+      h === rawHeight;
+
     const canvas = document.createElement('canvas');
-    canvas.width = swap ? h : w;
-    canvas.height = swap ? w : h;
+    canvas.width = needsRotate ? h : w;
+    canvas.height = needsRotate ? w : h;
     const ctx = canvas.getContext('2d');
     if (!ctx) {
       bitmap.close?.();
       return file;
     }
-    applyOrientationTransform(ctx, orientation, w, h);
+    if (needsRotate) applyOrientationTransform(ctx, orientation, w, h);
     ctx.drawImage(bitmap, 0, 0, w, h);
     bitmap.close?.();
 
