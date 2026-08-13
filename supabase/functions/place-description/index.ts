@@ -1,6 +1,7 @@
 // Supabase Edge Function: 장소 설명 생성 (Anthropic Claude)
 // API 키: Supabase 대시보드 → Edge Functions → Secrets 에 ANTHROPIC_API_KEY 설정
-// 모델: 기본 claude-opus-4-8 (CLAUDE_PLACE_MODEL 로 변경 가능)
+//        (키가 없으면 이 함수는 항상 500 을 돌려주고, 화면에는 임시 문구만 보인다)
+// 모델: 기본 claude-opus-5 (CLAUDE_PLACE_MODEL 로 변경 가능)
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -12,11 +13,11 @@ const cors: Record<string, string> = {
 };
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
-// 기본 모델은 가장 성능 좋은 Opus 4.8. 필요 시 Secrets 의 CLAUDE_PLACE_MODEL 로 교체.
-const CLAUDE_MODEL = Deno.env.get('CLAUDE_PLACE_MODEL') || 'claude-opus-4-8';
+// 기본 모델은 Claude Opus 5. 필요 시 Secrets 의 CLAUDE_PLACE_MODEL 로 교체.
+const CLAUDE_MODEL = Deno.env.get('CLAUDE_PLACE_MODEL') || 'claude-opus-5';
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 // 프롬프트/로직이 바뀌면 이 버전을 올린다 → time_bucket 이 달라져 기존 캐시를 무시하고 즉시 재생성.
-const PROMPT_CACHE_VERSION = 'v2';
+const PROMPT_CACHE_VERSION = 'v3';
 
 // 서버 캐시용 Supabase(서비스 롤). SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 는 Edge 런타임이 자동 주입.
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
@@ -290,7 +291,10 @@ function buildLocalFallback(input: { name: string; regionHint: string; tags: str
 }
 
 // Anthropic Messages API 호출.
-// - Opus 4.8 은 temperature/top_p/top_k 를 받지 않으므로(400) 전달하지 않는다.
+// - Opus 5 / 4.8 은 temperature/top_p/top_k 를 받지 않으므로(400) 전달하지 않는다.
+// - Opus 5 는 thinking 이 기본 ON 이고 max_tokens 가 (사고 + 본문)을 함께 덮는다.
+//   짧은 소개글이라 effort 는 low 로 낮추고, max_tokens 는 사고 몫까지 넉넉히 잡는다.
+//   (thinking 을 끄면 <thinking> 태그가 본문에 새는 사례가 있어 끄지 않는다)
 // - 출력은 텍스트 블록만 이어붙여 반환. refusal(안전 거부) 이면 로컬 폴백으로 넘긴다.
 // - 3번째 인자(과거 temperature)는 호환을 위해 받기만 하고 사용하지 않는다.
 async function callClaude(prompt: string, maxTokens: number, _legacyTemperature = 0) {
@@ -304,6 +308,7 @@ async function callClaude(prompt: string, maxTokens: number, _legacyTemperature 
     body: JSON.stringify({
       model: CLAUDE_MODEL,
       max_tokens: maxTokens,
+      output_config: { effort: 'low' },
       system:
         '너는 한국 여행/장소 소개를 잘 쓰는 에디터다. 사용자가 요청한 출력 형식(소개 문단 또는 JSON)만 정확히 출력하고, 서론·부연 설명·코드펜스·따옴표 밖 텍스트는 절대 붙이지 않는다. 확실히 아는 사실만 쓰고 모르면 지어내지 않는다.',
       messages: [{ role: 'user', content: prompt }],
@@ -453,7 +458,7 @@ Deno.serve(async (req) => {
     }
 
     const jsonPrompt = buildJsonPrompt({ name, regionHint, tier, tags, userCaptions });
-    const first = await callClaude(jsonPrompt, 900, 0.35);
+    const first = await callClaude(jsonPrompt, 3000, 0.35);
     if (!first.ok) {
       // 쿼터/레이트리밋은 즉시 로컬 폴백 (프론트에서 "설명 없음" 방지)
       if (shouldUseLocalFallback(first.status, (first as any).error)) {
@@ -463,10 +468,18 @@ Deno.serve(async (req) => {
           { headers: { ...cors, 'Content-Type': 'application/json' } },
         );
       }
-      return new Response(JSON.stringify({ success: false, message: 'Claude API error', detail: String(first.error || '').slice(0, 500) }), {
-        status: 200,
-        headers: { ...cors, 'Content-Type': 'application/json' },
-      });
+      // 그 외 오류(잘못된 키·모델명·요청 형식 등)도 화면이 비지 않게 로컬 폴백을 돌려주되,
+      // 원인 파악용으로 detail 을 함께 실어 보낸다. 폴백은 서버 캐시에 저장하지 않는다.
+      return new Response(
+        JSON.stringify({
+          success: true,
+          description: buildLocalFallback({ name, regionHint, tags }),
+          method: 'fallback-local',
+          reason: 'claude_error',
+          detail: String((first as any).error || '').slice(0, 500),
+        }),
+        { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } },
+      );
     }
 
     type PlaceJson = { one_liner?: string; highlights?: string[]; best_time?: string; tips?: string };
@@ -474,7 +487,7 @@ Deno.serve(async (req) => {
     if (!parsed.ok) {
       const retry = await callClaude(
         jsonPrompt + `\n[재요청]\n- 반드시 JSON만 출력하세요. (코드블록/설명 금지)\n`,
-        900,
+        3000,
         0.2,
       );
       if (!retry.ok && shouldUseLocalFallback(retry.status, (retry as any).error)) {
@@ -493,7 +506,7 @@ Deno.serve(async (req) => {
     } else {
       // JSON이 계속 실패하면 기존 자유서술 프롬프트로 최후 fallback
       const prompt = buildPrompt({ name, regionHint, tier, tags, userCaptions });
-      const fallback = await callClaude(prompt, 1800, 0.25);
+      const fallback = await callClaude(prompt, 4000, 0.25);
       if (!fallback.ok && shouldUseLocalFallback(fallback.status, (fallback as any).error)) {
         cleaned = buildLocalFallback({ name, regionHint, tags });
       } else {
@@ -507,7 +520,7 @@ Deno.serve(async (req) => {
       const second = await callClaude(
         prompt +
           `\n\n[재요청]\n- 너무 짧거나 문장 중간에서 끊겼습니다. 처음부터 완결된 2~3문단 소개문으로 다시 작성하세요.\n- 최소 450자 이상, 마지막은 반드시 마침표로 끝내세요.\n`,
-        2400,
+        4000,
         0.2,
       );
       if (!second.ok && shouldUseLocalFallback(second.status, (second as any).error)) {

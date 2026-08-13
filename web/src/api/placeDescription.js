@@ -2,7 +2,7 @@ import { logger } from '../utils/logger';
 import { supabase } from '../utils/supabaseClient';
 
 // 프롬프트/로직이 바뀌면 버전을 올린다 → 기존 캐시를 폐기하고 새 소개 글을 받는다.
-const CACHE_KEY = 'lj:placeDesc:v2';
+const CACHE_KEY = 'lj:placeDesc:v3';
 const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7d (쿼터 절약: 재방문 시 재호출 최소화)
 const FAIL_BACKOFF_MS = 5 * 60 * 1000; // 5m (연속 실패 시 과호출 방지)
 
@@ -95,6 +95,15 @@ export async function fetchPlaceDescription({
     }
     const desc = String(data?.description || '').trim();
     if (desc) {
+      // fallback-local 은 Claude 호출이 실패했을 때 서버가 만들어 준 임시 문구다.
+      // 7일이나 붙들고 있으면 키를 고쳐도 한참 동안 AI 소개가 안 나오므로,
+      // 짧은 backoff 만 걸고 다음 기회에 다시 시도한다.
+      if (data?.method === 'fallback-local') {
+        logger.warn('장소 설명 폴백 사용:', data?.reason || 'unknown');
+        cache[ck] = { failedAt: now() };
+        saveCache(cache);
+        return desc;
+      }
       cache[ck] = { value: desc, expiresAt: now() + TTL_MS };
       saveCache(cache);
       return desc;
