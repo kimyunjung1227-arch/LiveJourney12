@@ -580,6 +580,13 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
           transformOrigin: 'center center',
           transition: 'transform 160ms ease-out',
           background: DARK,
+          // 영상 레이어를 GPU로 승격한다.
+          // 승격하지 않으면 scale(2)/scale(3) 이 매 프레임 "확대된 크기로 다시 래스터화"되는데,
+          // 2560px 원본 × 3배면 모바일 GPU 텍스처 한계를 넘겨 타일이 깨지고 화면이 지직거린다.
+          // 승격해 두면 원본 해상도로만 그린 뒤 컴포지터가 확대하므로 이 현상이 사라진다.
+          willChange: 'transform',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
         }}
       />
 

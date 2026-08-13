@@ -66,69 +66,108 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
   const zoomRef = useRef(1); // 디지털 줌 폴백 배율
   const zoomCapsRef = useRef(null); // 하드웨어 줌 지원 시 { min, max, step }
   const hardwareZoomRef = useRef(false); // 캡처 시 디지털 크롭 여부 판단용
+  const tunedAdvancedRef = useRef([]); // 트랙 보정값(초점/노출/WB) — 줌·토치와 함께 매번 재전송
+  const torchSupportedRef = useRef(false);
+  const appliedZoomRef = useRef(null); // 트랙에 실제로 적용된 하드웨어 줌 값
+  const appliedTorchRef = useRef(null); // 트랙에 실제로 적용된 토치 상태
   const tiltAngleRef = useRef(0); // 가속도 센서로 추정한 기기 방향(0/90/270)
   const hasTiltRef = useRef(false); // 센서값을 한 번이라도 받았는지
+
+  /**
+   * 트랙에 제약을 적용한다.
+   *
+   * applyConstraints 는 트랙의 제약을 "누적"이 아니라 "교체"한다.
+   * 그래서 줌만 따로 넣으면 앞서 켜둔 연속 초점/노출/화이트밸런스가 통째로 풀리고,
+   * 카메라가 초점·노출을 다시 헤매면서 화면이 지직거린다(플래시도 같은 문제로 줌을 되돌렸다).
+   * → 항상 "보정값 + 현재 줌 + 현재 토치"를 한 번에 실어 보낸다.
+   */
+  const applyTrackState = useCallback(async (overrides = {}) => {
+    const track = streamRef.current?.getVideoTracks?.()[0];
+    if (!track?.applyConstraints) return false;
+
+    const zoom = 'zoom' in overrides ? overrides.zoom : appliedZoomRef.current;
+    const torch = 'torch' in overrides ? overrides.torch : appliedTorchRef.current;
+
+    const advanced = [...tunedAdvancedRef.current];
+    if (typeof zoom === 'number') advanced.push({ zoom });
+    if (typeof torch === 'boolean' && torchSupportedRef.current) advanced.push({ torch });
+    if (!advanced.length) return true;
+
+    await track.applyConstraints({ advanced });
+    appliedZoomRef.current = typeof zoom === 'number' ? zoom : null;
+    appliedTorchRef.current = typeof torch === 'boolean' ? torch : null;
+    return true;
+  }, []);
 
   /**
    * 트랙 화질 보정 — 연속 자동초점/노출/화이트밸런스를 켜고,
    * 하드웨어 줌 지원 범위를 파악해 둔다. (지원하는 항목만 선택적으로 적용)
    */
-  const tuneTrack = useCallback((track) => {
-    if (!track?.getCapabilities) return;
-    let caps = {};
-    try {
-      caps = track.getCapabilities() || {};
-    } catch (_) {
-      caps = {};
-    }
-    const advanced = [];
-    if (Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
-      advanced.push({ focusMode: 'continuous' }); // 연속 자동초점 — 흐릿함 감소
-    }
-    if (Array.isArray(caps.exposureMode) && caps.exposureMode.includes('continuous')) {
-      advanced.push({ exposureMode: 'continuous' });
-    }
-    if (Array.isArray(caps.whiteBalanceMode) && caps.whiteBalanceMode.includes('continuous')) {
-      advanced.push({ whiteBalanceMode: 'continuous' });
-    }
-    if (advanced.length) {
-      track.applyConstraints({ advanced }).catch(() => {});
-    }
-    // 하드웨어 줌 캐파 저장 (max가 min보다 클 때만 의미 있음)
-    const zc = caps.zoom;
-    if (zc && typeof zc.max === 'number' && zc.max > (zc.min ?? 1) + 0.01) {
-      zoomCapsRef.current = { min: zc.min ?? 1, max: zc.max, step: zc.step || 0.1 };
-    } else {
-      zoomCapsRef.current = null;
-    }
-  }, []);
-
-  const setZoom = useCallback(async (level) => {
-    const lvl = Math.max(1, Math.min(3, Number(level) || 1));
-    const caps = zoomCapsRef.current;
-    if (caps) {
-      // 하드웨어(센서) 줌 — 카메라가 실제로 확대해 화질 손실이 없다.
-      const target = Math.min(caps.max, Math.max(caps.min, lvl));
+  const tuneTrack = useCallback(
+    (track) => {
+      if (!track?.getCapabilities) return;
+      let caps = {};
       try {
-        const track = streamRef.current?.getVideoTracks?.()[0];
-        if (track) {
-          await track.applyConstraints({ advanced: [{ zoom: target }] });
-          hardwareZoomRef.current = true;
-          zoomRef.current = 1; // 디지털 크롭은 하지 않음
-          setHardwareZoom(true);
-          setZoomState(lvl);
-          return;
-        }
+        caps = track.getCapabilities() || {};
       } catch (_) {
-        /* 실패 시 아래 디지털 줌으로 폴백 */
+        caps = {};
       }
-    }
-    // 디지털 줌 폴백 — 중앙 크롭 + CSS 확대
-    hardwareZoomRef.current = false;
-    zoomRef.current = lvl;
-    setHardwareZoom(false);
-    setZoomState(lvl);
-  }, []);
+      const advanced = [];
+      if (Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
+        advanced.push({ focusMode: 'continuous' }); // 연속 자동초점 — 흐릿함 감소
+      }
+      if (Array.isArray(caps.exposureMode) && caps.exposureMode.includes('continuous')) {
+        advanced.push({ exposureMode: 'continuous' });
+      }
+      if (Array.isArray(caps.whiteBalanceMode) && caps.whiteBalanceMode.includes('continuous')) {
+        advanced.push({ whiteBalanceMode: 'continuous' });
+      }
+      // 이후 줌/토치를 바꿀 때도 이 보정값을 같이 실어 보내야 하므로 기억해 둔다.
+      tunedAdvancedRef.current = advanced;
+      torchSupportedRef.current = !!caps.torch;
+      appliedZoomRef.current = null;
+      appliedTorchRef.current = null;
+      if (advanced.length) {
+        track.applyConstraints({ advanced }).catch(() => {});
+      }
+      // 하드웨어 줌 캐파 저장 (max가 min보다 클 때만 의미 있음)
+      const zc = caps.zoom;
+      if (zc && typeof zc.max === 'number' && zc.max > (zc.min ?? 1) + 0.01) {
+        zoomCapsRef.current = { min: zc.min ?? 1, max: zc.max, step: zc.step || 0.1 };
+      } else {
+        zoomCapsRef.current = null;
+      }
+    },
+    [],
+  );
+
+  const setZoom = useCallback(
+    async (level) => {
+      const lvl = Math.max(1, Math.min(3, Number(level) || 1));
+      const caps = zoomCapsRef.current;
+      if (caps) {
+        // 하드웨어(센서) 줌 — 카메라가 실제로 확대해 화질 손실이 없다.
+        const target = Math.min(caps.max, Math.max(caps.min, lvl));
+        try {
+          if (await applyTrackState({ zoom: target })) {
+            hardwareZoomRef.current = true;
+            zoomRef.current = 1; // 디지털 크롭은 하지 않음
+            setHardwareZoom(true);
+            setZoomState(lvl);
+            return;
+          }
+        } catch (_) {
+          /* 실패 시 아래 디지털 줌으로 폴백 */
+        }
+      }
+      // 디지털 줌 폴백 — 중앙 크롭 + CSS 확대
+      hardwareZoomRef.current = false;
+      zoomRef.current = lvl;
+      setHardwareZoom(false);
+      setZoomState(lvl);
+    },
+    [applyTrackState],
+  );
 
   // 기기 기울기(가속도) 추적 — 화면 회전 잠금 상태에서도 가로 촬영을 감지하기 위함.
   useEffect(() => {
@@ -209,11 +248,12 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
         const track = s.getVideoTracks?.()[0];
         if (track) tuneTrack(track);
       } catch (_) {}
-      // 스트림이 새로 열리면 줌은 1배로 초기화
+      // 스트림이 새로 열리면 줌·토치는 꺼진 상태로 초기화 (새 트랙은 항상 1배 / 토치 off)
       hardwareZoomRef.current = false;
       zoomRef.current = 1;
       setHardwareZoom(false);
       setZoomState(1);
+      setFlashOn(false);
       setStream(s);
       setPermission('granted');
       return s;
@@ -271,13 +311,14 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
     if (!caps.torch) return false;
     const next = !flashOn;
     try {
-      await track.applyConstraints({ advanced: [{ torch: next }] });
+      // 토치만 따로 넣으면 적용 중인 줌·화질 보정이 함께 풀린다 → 현재 상태와 같이 보낸다
+      await applyTrackState({ torch: next });
       setFlashOn(next);
       return next;
     } catch (_) {
       return false;
     }
-  }, [flashOn]);
+  }, [flashOn, applyTrackState]);
 
   const capturePhoto = useCallback(async () => {
     const video = videoRef.current;
