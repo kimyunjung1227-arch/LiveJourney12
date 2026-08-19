@@ -210,6 +210,21 @@ input, textarea, select, button {
   padding-top: 0;
 }
 
+/* 지도처럼 화면을 꽉 채우는 전체화면 화면 — 하단 흰 여백 제거.
+   .app-container 는 zoom(--app-zoom) 이 걸려 있어 100vh/100dvh 를 그대로 쓰면
+   그 비율만큼(약 3%) 짧아져 아래에 흰 띠가 남는다. 또 기본 min-height 는
+   100vh(주소창 포함 높이) 기준이라 주소창이 보일 때는 화면보다 커져 스크롤 시 흰 영역이 드러난다.
+   → 이 화면에서만 dvh + zoom 보정으로 컨테이너를 정확히 보이는 화면 높이에 맞춘다. */
+html.lj-fullscreen-page,
+html.lj-fullscreen-page body {
+  overflow: hidden;
+}
+
+html.lj-fullscreen-page .app-container {
+  min-height: calc(100dvh / var(--app-zoom, 1));
+  height: calc(100dvh / var(--app-zoom, 1));
+}
+
 /* 표준 화면 레이아웃: 모든 화면에서 동일한 구조 */
 .screen-layout {
   display: flex;

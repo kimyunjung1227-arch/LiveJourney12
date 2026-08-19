@@ -1634,6 +1634,14 @@ const MapScreen = () => {
   const clickListenerRef = useRef(null);
   const didInitialCenterRef = useRef(false); // 첫 진입 시 1회만 내 위치로 이동
 
+  // 지도는 화면을 꽉 채우는 전체화면 — 컨테이너 높이를 보이는 화면에 정확히 맞춰
+  // 하단에 흰 여백이 남거나 스크롤로 흰 영역이 드러나지 않게 한다. (규칙은 index.css)
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add('lj-fullscreen-page');
+    return () => root.classList.remove('lj-fullscreen-page');
+  }, []);
+
   const [sdkReady, setSdkReady] = useState(false);
   const [sdkError, setSdkError] = useState('');
   const [bounds, setBounds] = useState(null);
@@ -2340,7 +2348,11 @@ const MapScreen = () => {
   }, [navigate, selectedCategory]);
 
   return (
-    <div className="relative w-full h-[100dvh] overflow-hidden font-sans bg-[#EDF3F7]">
+    <div
+      className="relative w-full overflow-hidden font-sans bg-[#EDF3F7]"
+      // app-container 의 zoom(0.97) 때문에 100dvh 를 그대로 쓰면 그만큼 짧아져 아래에 흰 띠가 남는다
+      style={{ height: 'calc(100dvh / var(--app-zoom, 1))' }}
+    >
       <PageSeo {...PAGE_SEO.map} />
       <div ref={mapRef} className="absolute inset-0 z-0" />
 
