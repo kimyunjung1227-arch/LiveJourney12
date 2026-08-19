@@ -495,6 +495,22 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
   const [error, setError] = useState('');
   const [recordSeconds, setRecordSeconds] = useState(0);
   const recordIntervalRef = useRef(null);
+  // 터치 초점 — 탭한 지점 { x, y, id }. 링 애니메이션이 끝나면 지운다.
+  const [focusRing, setFocusRing] = useState(null);
+
+  useEffect(() => {
+    if (!focusRing) return undefined;
+    const t = setTimeout(() => setFocusRing(null), 900);
+    return () => clearTimeout(t);
+  }, [focusRing]);
+
+  const handleFocusTap = (e) => {
+    const x = e.clientX;
+    const y = e.clientY;
+    setFocusRing({ x, y, id: `${x}:${y}:${Date.now()}` });
+    // 지원하지 않는 브라우저(iOS Safari 등)에서는 링만 보이고 조용히 넘어간다
+    Promise.resolve(cam.focusAt(x, y)).catch(() => {});
+  };
 
   useEffect(() => {
     if (cam.isRecording) {
@@ -589,6 +605,43 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
           WebkitBackfaceVisibility: 'hidden',
         }}
       />
+
+      {/* 터치 초점 레이어 — 컨트롤(zIndex 5) 아래, 영상 위 */}
+      <div
+        onPointerDown={handleFocusTap}
+        aria-hidden="true"
+        style={{ position: 'absolute', inset: 0, zIndex: 1 }}
+      />
+
+      {/* 초점 링 */}
+      {focusRing && (
+        <div
+          key={focusRing.id}
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            left: focusRing.x - 34,
+            top: focusRing.y - 34,
+            width: 68,
+            height: 68,
+            borderRadius: '50%',
+            border: '2px solid rgba(255,255,255,0.95)',
+            boxShadow: '0 0 0 1px rgba(0,0,0,0.2)',
+            pointerEvents: 'none',
+            zIndex: 4,
+            animation: 'lj-focus-ring 900ms ease-out forwards',
+          }}
+        >
+          <span
+            style={{
+              position: 'absolute',
+              inset: 12,
+              borderRadius: '50%',
+              border: '1px solid rgba(255,255,255,0.5)',
+            }}
+          />
+        </div>
+      )}
 
       {/* 녹화 중 붉은 테두리 */}
       {cam.isRecording && (
@@ -752,6 +805,12 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
         @keyframes lj-pulse-dot {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.35; }
+        }
+        @keyframes lj-focus-ring {
+          0% { transform: scale(1.35); opacity: 0; }
+          18% { transform: scale(1); opacity: 1; }
+          70% { transform: scale(1); opacity: 1; }
+          100% { transform: scale(1); opacity: 0; }
         }
       `}</style>
     </div>

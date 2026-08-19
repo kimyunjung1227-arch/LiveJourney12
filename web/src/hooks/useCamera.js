@@ -17,20 +17,49 @@ function getScreenOrientationAngle() {
 }
 
 /**
- * 가속도(deviceorientation)의 beta/gamma로 기기를 어느 방향으로 들었는지 추정.
- * OS '화면 회전 잠금'이 켜져 있으면 screen.orientation.angle 은 항상 0이라
- * 가로로 들어도 감지가 안 된다 → 센서값으로 보완한다.
- * 반환: 0(세로) / 90(가로) / 270(반대 가로). 애매하면 null.
+ * deviceorientation(beta/gamma) → "화면 평면에서 중력이 향하는 각도"(도, -180~180).
+ *
+ * gamma 만 보면 안 되는 이유: deviceorientation 은 ZXY 오일러각이라
+ * 화면을 세우고 들면(beta≈90°) 짐벌락 구간에 들어가 gamma 가 ±90° 까지 제멋대로 튄다.
+ * 사진 찍을 때 자세가 정확히 그 구간이라, 세로로 들고 찍었는데도 가로로 오판됐다.
+ * → 오일러각을 중력 벡터로 되돌린 뒤 화면 평면 성분만 보면 이 문제가 사라진다.
+ *
+ * 반환: 0=세로 정방향, +90=기기를 시계방향으로 눕힘, -90=반시계방향, ±180=거꾸로.
+ *        화면을 하늘/바닥 쪽으로 눕혀 중력의 화면 평면 성분이 작아지면(방향을 알 수 없으면) null.
  */
-function orientationFromTilt(beta, gamma) {
+function gravityAngleFromOrientation(beta, gamma) {
   if (typeof beta !== 'number' || typeof gamma !== 'number') return null;
-  // 기기를 '확실히' 옆으로 눕혔을 때만 가로로 인정한다.
-  // 세로로 들고 약간 기운 정도(±30° 이내)는 무조건 세로로 보아,
-  // '세로로 찍었는데 정보 입력화면에서 사진이 돌아가는' 오판을 막는다.
-  if (gamma >= 45) return 90; // 기기 우측이 아래로 (landscape)
-  if (gamma <= -45) return 270; // 기기 좌측이 아래로 (반대 landscape)
-  if (Math.abs(gamma) <= 30) return 0; // 명확한 세로
-  return null; // 30~45° 경계 구간은 직전 판단 유지 (떨림으로 인한 오회전 방지)
+  const b = (beta * Math.PI) / 180;
+  const g = (gamma * Math.PI) / 180;
+  // 기기 좌표계(x=화면 오른쪽, y=화면 위쪽)에서 본 중력 방향
+  const gx = Math.cos(b) * Math.sin(g);
+  const gy = -Math.sin(b);
+  const planar = Math.hypot(gx, gy);
+  if (planar < 0.5) return null; // 화면이 거의 수평 — 방향 판단 불가(직전 값 유지)
+  return (Math.atan2(gx, -gy) * 180) / Math.PI;
+}
+
+/**
+ * 연속 각도 → 0/90/180/270 으로 스냅. 단, "확실히 그 방향일 때만" 바꾼다.
+ *
+ * 각 방향의 중심에서 ±25° 안에 들어와야 전환되므로,
+ * 가로로 인정되려면 기기를 65° 이상(= 거의 완전히) 눕혀야 하고,
+ * 세로로 되돌아오려면 25° 안쪽까지 세워야 한다. 경계에서의 떨림으로 방향이 오락가락하지 않는다.
+ */
+const SNAP_TOLERANCE = 25;
+
+function snapDeviceAngle(deg, prev) {
+  let best = prev;
+  let bestDiff = Infinity;
+  for (const center of [0, 90, 180, 270]) {
+    const diff = Math.abs((((deg - center + 540) % 360) - 180));
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = center;
+    }
+  }
+  if (best === prev) return prev;
+  return bestDiff <= SNAP_TOLERANCE ? best : prev;
 }
 
 /**
@@ -66,7 +95,12 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
   const zoomRef = useRef(1); // 디지털 줌 폴백 배율
   const zoomCapsRef = useRef(null); // 하드웨어 줌 지원 시 { min, max, step }
   const hardwareZoomRef = useRef(false); // 캡처 시 디지털 크롭 여부 판단용
-  const tunedAdvancedRef = useRef([]); // 트랙 보정값(초점/노출/WB) — 줌·토치와 함께 매번 재전송
+  const focusModesRef = useRef([]); // 트랙이 지원하는 focusMode 목록
+  const autoExposureRef = useRef(false); // 연속 노출 지원 여부
+  const autoWhiteBalanceRef = useRef(false); // 연속 화이트밸런스 지원 여부
+  const poiSupportedRef = useRef(false); // 초점 지점(pointsOfInterest) 지정 지원 여부
+  const focusPointRef = useRef(null); // 사용자가 탭한 초점 지점 {x, y} (0~1)
+  const focusResetTimerRef = useRef(null);
   const torchSupportedRef = useRef(false);
   const appliedZoomRef = useRef(null); // 트랙에 실제로 적용된 하드웨어 줌 값
   const appliedTorchRef = useRef(null); // 트랙에 실제로 적용된 토치 상태
@@ -81,6 +115,25 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
    * 카메라가 초점·노출을 다시 헤매면서 화면이 지직거린다(플래시도 같은 문제로 줌을 되돌렸다).
    * → 항상 "보정값 + 현재 줌 + 현재 토치"를 한 번에 실어 보낸다.
    */
+  const buildTuneAdvanced = useCallback(() => {
+    const advanced = [];
+    const modes = focusModesRef.current;
+    const poi = focusPointRef.current;
+    if (poi) {
+      // 탭한 지점에 초점을 맞춘다 (single-shot 미지원이면 연속 초점 + 지점만 지정)
+      if (modes.includes('single-shot')) advanced.push({ focusMode: 'single-shot' });
+      else if (modes.includes('continuous')) advanced.push({ focusMode: 'continuous' });
+      if (poiSupportedRef.current) {
+        advanced.push({ pointsOfInterest: [{ x: poi.x, y: poi.y }] });
+      }
+    } else if (modes.includes('continuous')) {
+      advanced.push({ focusMode: 'continuous' }); // 연속 자동초점 — 흐릿함 감소
+    }
+    if (autoExposureRef.current) advanced.push({ exposureMode: 'continuous' });
+    if (autoWhiteBalanceRef.current) advanced.push({ whiteBalanceMode: 'continuous' });
+    return advanced;
+  }, []);
+
   const applyTrackState = useCallback(async (overrides = {}) => {
     const track = streamRef.current?.getVideoTracks?.()[0];
     if (!track?.applyConstraints) return false;
@@ -88,7 +141,7 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
     const zoom = 'zoom' in overrides ? overrides.zoom : appliedZoomRef.current;
     const torch = 'torch' in overrides ? overrides.torch : appliedTorchRef.current;
 
-    const advanced = [...tunedAdvancedRef.current];
+    const advanced = buildTuneAdvanced();
     if (typeof zoom === 'number') advanced.push({ zoom });
     if (typeof torch === 'boolean' && torchSupportedRef.current) advanced.push({ torch });
     if (!advanced.length) return true;
@@ -97,7 +150,7 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
     appliedZoomRef.current = typeof zoom === 'number' ? zoom : null;
     appliedTorchRef.current = typeof torch === 'boolean' ? torch : null;
     return true;
-  }, []);
+  }, [buildTuneAdvanced]);
 
   /**
    * 트랙 화질 보정 — 연속 자동초점/노출/화이트밸런스를 켜고,
@@ -112,21 +165,20 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
       } catch (_) {
         caps = {};
       }
-      const advanced = [];
-      if (Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
-        advanced.push({ focusMode: 'continuous' }); // 연속 자동초점 — 흐릿함 감소
-      }
-      if (Array.isArray(caps.exposureMode) && caps.exposureMode.includes('continuous')) {
-        advanced.push({ exposureMode: 'continuous' });
-      }
-      if (Array.isArray(caps.whiteBalanceMode) && caps.whiteBalanceMode.includes('continuous')) {
-        advanced.push({ whiteBalanceMode: 'continuous' });
-      }
-      // 이후 줌/토치를 바꿀 때도 이 보정값을 같이 실어 보내야 하므로 기억해 둔다.
-      tunedAdvancedRef.current = advanced;
+      // 이후 줌/토치/탭 초점을 바꿀 때도 이 보정값을 같이 실어 보내야 하므로 기억해 둔다.
+      focusModesRef.current = Array.isArray(caps.focusMode) ? caps.focusMode : [];
+      autoExposureRef.current =
+        Array.isArray(caps.exposureMode) && caps.exposureMode.includes('continuous');
+      autoWhiteBalanceRef.current =
+        Array.isArray(caps.whiteBalanceMode) && caps.whiteBalanceMode.includes('continuous');
+      poiSupportedRef.current =
+        'pointsOfInterest' in caps ||
+        !!navigator.mediaDevices?.getSupportedConstraints?.().pointsOfInterest;
       torchSupportedRef.current = !!caps.torch;
+      focusPointRef.current = null; // 새 트랙 — 탭 초점 초기화
       appliedZoomRef.current = null;
       appliedTorchRef.current = null;
+      const advanced = buildTuneAdvanced();
       if (advanced.length) {
         track.applyConstraints({ advanced }).catch(() => {});
       }
@@ -138,7 +190,7 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
         zoomCapsRef.current = null;
       }
     },
-    [],
+    [buildTuneAdvanced],
   );
 
   const setZoom = useCallback(
@@ -169,15 +221,73 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
     [applyTrackState],
   );
 
+  /**
+   * 터치 초점 — 미리보기에서 탭한 지점(clientX/clientY)에 초점·노출을 맞춘다.
+   *
+   * 화면 좌표 → 카메라 프레임 좌표(0~1) 환산이 핵심이다.
+   *   - 미리보기는 object-fit: cover 라 프레임의 일부만 보인다
+   *   - 디지털 줌은 CSS scale 로 확대해 보여준다 (하드웨어 줌이면 스트림 자체가 확대됨)
+   *   - 전면 카메라는 좌우 반전해서 보여준다
+   * 셋을 되돌려야 사용자가 누른 피사체에 실제로 초점이 잡힌다.
+   *
+   * 반환: 카메라에 실제로 적용됐으면 true (iOS Safari 등 미지원 환경이면 false)
+   */
+  const focusAt = useCallback(
+    async (clientX, clientY) => {
+      const video = videoRef.current;
+      if (!video || !video.videoWidth) return false;
+      if (!poiSupportedRef.current && !focusModesRef.current.includes('single-shot')) return false;
+
+      const rect = video.getBoundingClientRect();
+      // CSS scale 은 중심 기준이라 중심 좌표는 그대로지만 rect 크기는 확대된다 → 레이아웃 크기 사용
+      const w = video.offsetWidth || rect.width;
+      const h = video.offsetHeight || rect.height;
+      if (!w || !h) return false;
+
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      const z = hardwareZoomRef.current ? 1 : zoomRef.current || 1;
+      const scale = Math.max(w / vw, h / vh) * z; // object-fit: cover + 디지털 줌
+
+      let dx = clientX - (rect.left + rect.width / 2);
+      const dy = clientY - (rect.top + rect.height / 2);
+      if (facingMode === 'user') dx = -dx;
+
+      const clamp01 = (n) => Math.min(1, Math.max(0, n));
+      focusPointRef.current = {
+        x: clamp01((vw / 2 + dx / scale) / vw),
+        y: clamp01((vh / 2 + dy / scale) / vh),
+      };
+
+      try {
+        await applyTrackState();
+      } catch (_) {
+        // 지점 지정을 거부한 기기 — 원래(연속 초점) 상태로 되돌린다
+        focusPointRef.current = null;
+        applyTrackState().catch(() => {});
+        return false;
+      }
+
+      // 잠시 뒤 연속 자동초점으로 복귀 — 탭 지점에 계속 고정돼 있으면 이후 장면이 흐려진다
+      if (focusResetTimerRef.current) clearTimeout(focusResetTimerRef.current);
+      focusResetTimerRef.current = setTimeout(() => {
+        focusResetTimerRef.current = null;
+        focusPointRef.current = null;
+        applyTrackState().catch(() => {});
+      }, 3500);
+      return true;
+    },
+    [applyTrackState, facingMode],
+  );
+
   // 기기 기울기(가속도) 추적 — 화면 회전 잠금 상태에서도 가로 촬영을 감지하기 위함.
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     const onTilt = (e) => {
-      const next = orientationFromTilt(e.beta, e.gamma);
-      if (next != null) {
-        tiltAngleRef.current = next;
-        hasTiltRef.current = true;
-      }
+      const deg = gravityAngleFromOrientation(e.beta, e.gamma);
+      if (deg == null) return; // 화면이 수평에 가까움 — 직전 판정 유지
+      tiltAngleRef.current = snapDeviceAngle(deg, tiltAngleRef.current);
+      hasTiltRef.current = true;
     };
     window.addEventListener('deviceorientation', onTilt, true);
 
@@ -212,6 +322,11 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
   }, [stream]);
 
   const stopCurrentStream = useCallback(() => {
+    if (focusResetTimerRef.current) {
+      clearTimeout(focusResetTimerRef.current);
+      focusResetTimerRef.current = null;
+    }
+    focusPointRef.current = null;
     const s = streamRef.current;
     if (!s) return;
     try {
@@ -356,7 +471,9 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
       // 프레임이 화면 방향을 따라오지 않은 브라우저 — 화면이 돌아간 각도만큼 보정
       angle = screenAngle;
     } else if (screenAngle === 0 && hasTiltRef.current) {
-      // 회전 잠금 상태에서 기기를 옆으로 눕히고 찍은 경우
+      // 회전 잠금 상태에서 기기를 옆으로 눕히고 찍은 경우.
+      // tiltAngleRef 는 "기기를 65° 이상 완전히 눕혔을 때"만 90/270 이 되므로,
+      // 세로로 들고 앞뒤로 기울인 정도로는 절대 돌아가지 않는다.
       angle = tiltAngleRef.current;
     }
     const swap = angle === 90 || angle === 270;
@@ -452,6 +569,7 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
     switchCamera,
     toggleFlash,
     setMode,
+    focusAt,
     capturePhoto,
     startRecording,
     stopRecording,
