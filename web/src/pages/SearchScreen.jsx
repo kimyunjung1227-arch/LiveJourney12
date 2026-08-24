@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   IconArrowLeft,
@@ -25,6 +25,12 @@ import { getDisplayImageUrl } from '../api/upload';
 import { fetchPublishedMagazines } from '../api/curatedMagazinesSupabase';
 import { logger } from '../utils/logger';
 import { useHorizontalDragScroll } from '../hooks/useHorizontalDragScroll';
+import {
+  getRecentSearches,
+  addRecentSearch,
+  removeRecentSearch,
+  clearRecentSearches,
+} from '../utils/recentSearches';
 import { getWeatherByRegion } from '../api/weather';
 import { useAuth } from '../contexts/AuthContext';
 import { useFollow } from '../hooks/useFollow';
@@ -213,6 +219,28 @@ function useSearch(query) {
   return { results, loading };
 }
 
+// 최근 검색어 — 검색은 입력 즉시 실행되므로 제출 시점이 따로 없다.
+// 타이핑이 멈추고 잠시(RECORD_DELAY) 지난 뒤에야 "검색을 마쳤다"고 보고 기록한다.
+const RECORD_DELAY_MS = 1200;
+
+function useRecentSearches(query) {
+  const [items, setItems] = useState(() => getRecentSearches());
+
+  useEffect(() => {
+    const q = String(query || '').trim();
+    if (!q) return undefined;
+    const timer = setTimeout(() => setItems(addRecentSearch(q)), RECORD_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const remove = useCallback((term) => setItems(removeRecentSearch(term)), []);
+  const clear = useCallback(() => setItems(clearRecentSearches()), []);
+  // 엔터로 검색을 확정했을 때는 기다리지 않고 바로 기록
+  const record = useCallback((term) => setItems(addRecentSearch(term)), []);
+
+  return { items, remove, clear, record };
+}
+
 // ────────────────────────────────────────────────
 // 공통 컴포넌트
 // ────────────────────────────────────────────────
@@ -248,7 +276,7 @@ function SectionHeader({ icon: Icon, title, action }) {
   );
 }
 
-function SearchHeader({ query, onChange, onClear }) {
+function SearchHeader({ query, onChange, onClear, onSubmit }) {
   const navigate = useNavigate();
   const isActive = query.length > 0;
 
@@ -281,6 +309,14 @@ function SearchHeader({ query, onChange, onClear }) {
           type="text"
           value={query}
           onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            // 엔터로 검색을 확정하면 최근 검색어에 바로 남기고 키보드를 내린다
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              onSubmit && onSubmit(query);
+              e.currentTarget.blur();
+            }
+          }}
           placeholder="지금 어디 갈까?"
           autoFocus
           className="flex-1 bg-transparent outline-none"
@@ -302,6 +338,110 @@ function SearchHeader({ query, onChange, onClear }) {
             <IconX size={16} color={TEXT_SECONDARY} />
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 최근 검색어 — 가로 한 줄, 넘치면 옆으로 스크롤(줄바꿈 없음).
+ * 각 검색어는 둥근 알약형 배경 칩이고, 칩 안의 ×로 하나씩 지운다.
+ */
+function RecentSearches({ items, onPick, onRemove, onClear }) {
+  const { handleDragStart, hasMovedRef } = useHorizontalDragScroll();
+  if (!items || items.length === 0) return null;
+
+  return (
+    <div style={{ padding: '12px 16px 2px' }}>
+      <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+        <div className="flex items-center gap-1.5">
+          <IconClock size={14} color={KEY} />
+          <p className="m-0" style={{ fontSize: 13, fontWeight: 700, color: TEXT_PRIMARY }}>
+            최근 검색
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClear}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            minHeight: 0,
+            cursor: 'pointer',
+            fontSize: 11,
+            color: TEXT_TERTIARY,
+            fontWeight: 500,
+          }}
+        >
+          전체 삭제
+        </button>
+      </div>
+
+      <div
+        onMouseDown={handleDragStart}
+        className="flex gap-1.5 overflow-x-auto scrollbar-hide cursor-grab active:cursor-grabbing"
+        style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 2 }}
+      >
+        {items.map((term) => (
+          <div
+            key={term}
+            className="flex items-center flex-shrink-0"
+            style={{
+              gap: 5,
+              height: 30,
+              padding: '0 10px 0 12px',
+              // 알약형(양끝 완전한 원) 배경
+              borderRadius: 999,
+              background: SURFACE,
+              border: `1px solid ${BORDER_LIGHT}`,
+            }}
+          >
+            <button
+              type="button"
+              onClick={(e) => {
+                // 드래그로 스크롤한 경우엔 클릭으로 치지 않는다
+                if (hasMovedRef.current) {
+                  e.preventDefault();
+                  return;
+                }
+                onPick(term);
+              }}
+              className="whitespace-nowrap"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                minHeight: 0,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                fontSize: 12,
+                fontWeight: 600,
+                color: TEXT_PRIMARY,
+              }}
+            >
+              {term}
+            </button>
+            <button
+              type="button"
+              onClick={() => onRemove(term)}
+              aria-label={`${term} 최근 검색에서 삭제`}
+              className="flex items-center justify-center flex-shrink-0"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                minWidth: 0,
+                minHeight: 0,
+                width: 14,
+                height: 14,
+                cursor: 'pointer',
+              }}
+            >
+              <IconX size={12} color={TEXT_TERTIARY} />
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -1349,6 +1489,7 @@ const SearchScreen = () => {
   const [query, setQuery] = useState('');
   const [hubTab, setHubTab] = useState('region');
   const { results, loading } = useSearch(query);
+  const recent = useRecentSearches(query);
   const isSearching = query.trim().length > 0;
 
   return (
@@ -1360,11 +1501,22 @@ const SearchScreen = () => {
         paddingBottom: 80,
       }}
     >
-      <SearchHeader query={query} onChange={setQuery} onClear={() => setQuery('')} />
+      <SearchHeader
+        query={query}
+        onChange={setQuery}
+        onClear={() => setQuery('')}
+        onSubmit={recent.record}
+      />
       {isSearching ? (
         <SearchResults query={query} results={results} loading={loading} />
       ) : (
         <>
+          <RecentSearches
+            items={recent.items}
+            onPick={setQuery}
+            onRemove={recent.remove}
+            onClear={recent.clear}
+          />
           <HubTabs tab={hubTab} onChange={setHubTab} />
           {hubTab === 'traveler' ? <TravelersHub /> : <SearchHub />}
         </>
