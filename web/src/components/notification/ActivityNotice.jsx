@@ -296,8 +296,8 @@ export default function ActivityNotice({ notification, onFollowBack }) {
               color: 'white',
               // 전역 button{min-height:44px} 를 덮어써야 실제로 낮아진다
               minHeight: 0,
-              height: 24,
-              padding: '0 9px',
+              height: 30,
+              padding: '0 11px',
               lineHeight: 1,
               borderRadius: 5,
               fontFamily: 'inherit',
