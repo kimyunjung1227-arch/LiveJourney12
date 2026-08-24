@@ -997,7 +997,8 @@ function SearchHub() {
   return (
     <div className="p-[18px]">
       <CityGrid cities={data.cities || []} />
-      <QuestionsSection questions={data.questions || []} showAllAction />
+      {/* 질문 구역 임시 숨김 — 사용자가 어느 정도 모인 뒤 다시 노출 */}
+      {/* <QuestionsSection questions={data.questions || []} showAllAction /> */}
       {/* 여행자는 상단 "여행자" 탭으로 분리됨 */}
       {/* 매거진 구역 임시 숨김 */}
       {/* <SeasonalCards cards={magazines} /> */}
@@ -1206,14 +1207,13 @@ function SearchResults({ query, results, loading }) {
   const places = Array.isArray(results.places) ? results.places : [];
   const photos = Array.isArray(results.photos) ? results.photos : [];
   const totalPhotos = Number(results.photos_total) || 0;
+  // eslint-disable-next-line no-unused-vars -- 질문 구역 임시 숨김 동안만 미사용
   const questions = Array.isArray(results.questions) ? results.questions : [];
   const users = Array.isArray(results.users) ? results.users : [];
 
+  // 질문 구역은 임시 숨김이라 결과 유무 판정에서도 제외한다
   const noResults =
-    places.length === 0 &&
-    photos.length === 0 &&
-    questions.length === 0 &&
-    users.length === 0;
+    places.length === 0 && photos.length === 0 && users.length === 0;
 
   if (noResults) {
     return (
@@ -1280,6 +1280,7 @@ function SearchResults({ query, results, loading }) {
         </div>
       )}
 
+      {/* 질문 구역 임시 숨김 — 사용자가 어느 정도 모인 뒤 다시 노출
       {questions.length > 0 && (
         <div>
           <SectionHeader icon={IconHelpCircle} title={`질문 ${questions.length}`} />
@@ -1294,7 +1295,7 @@ function SearchResults({ query, results, loading }) {
             ))}
           </div>
         </div>
-      )}
+      )} */}
     </div>
   );
 }
