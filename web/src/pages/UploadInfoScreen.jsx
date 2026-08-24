@@ -81,8 +81,15 @@ function UploadInfoScreen() {
     let settleTimer = null;
     let guardTimer = null;
 
+    // 패널을 화면 최상단에 붙이지 않고, 보이는 영역의 위에서 1/3쯤에 놓는다.
+    // (키보드가 올라오면 visualViewport 가 줄어드므로 그 높이를 기준으로 계산)
     function bringIntoView() {
-      locPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const el = locPanelRef.current;
+      if (!el) return;
+      const viewH = vv?.height || window.innerHeight;
+      const delta = el.getBoundingClientRect().top - viewH * 0.34;
+      if (Math.abs(delta) < 4) return;
+      window.scrollBy({ top: delta, behavior: 'smooth' });
     }
 
     // 자동 정렬 종료 — 이후 스크롤은 온전히 사용자 몫
@@ -852,8 +859,7 @@ function UploadInfoScreen() {
         {locOpen && (
           <div
             ref={locPanelRef}
-            // 헤더(56px) 아래에 딱 붙게 스크롤되도록 여유를 준다
-            style={{ marginTop: 8, scrollMarginTop: 64, scrollMarginBottom: 24 }}
+            style={{ marginTop: 8 }}
           >
             <div style={{ display: 'flex', gap: 6 }}>
               <input
