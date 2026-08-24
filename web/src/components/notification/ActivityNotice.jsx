@@ -294,7 +294,10 @@ export default function ActivityNotice({ notification, onFollowBack }) {
             style={{
               background: KEY,
               color: 'white',
-              padding: '3px 7px',
+              // 전역 button{min-height:44px} 를 덮어써야 실제로 낮아진다
+              minHeight: 0,
+              height: 24,
+              padding: '0 9px',
               lineHeight: 1,
               borderRadius: 5,
               fontFamily: 'inherit',
@@ -303,6 +306,9 @@ export default function ActivityNotice({ notification, onFollowBack }) {
               border: 'none',
               cursor: 'pointer',
               flexShrink: 0,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
             팔로우
