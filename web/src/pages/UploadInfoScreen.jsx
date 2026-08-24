@@ -69,18 +69,52 @@ function UploadInfoScreen() {
 
   // 위치 수정 패널이 열리면 입력창과 검색 결과가 키보드에 가리지 않게 화면 위쪽으로 끌어올린다.
   // (모바일 키보드는 visualViewport 만 줄이기 때문에 올라온 뒤 한 번 더 맞춰준다)
+  //
+  // 단, 자동 정렬은 "처음 한 번"만 한다. 계속 붙잡고 있으면 주소창 접힘 같은
+  // 사소한 뷰포트 변화에도 다시 끌어올려서 사용자가 위아래로 스크롤할 수 없다.
+  // 키보드 대응이 끝나거나 사용자가 먼저 스크롤하면 즉시 손을 뗀다.
   useEffect(() => {
     if (!locOpen) return undefined;
-    const bringIntoView = () => {
-      locPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    };
-    const timer = setTimeout(bringIntoView, 260);
     const vv = typeof window !== 'undefined' ? window.visualViewport : null;
-    vv?.addEventListener('resize', bringIntoView);
-    return () => {
-      clearTimeout(timer);
-      vv?.removeEventListener('resize', bringIntoView);
-    };
+    let settled = false;
+    let openTimer = null;
+    let settleTimer = null;
+    let guardTimer = null;
+
+    function bringIntoView() {
+      locPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // 자동 정렬 종료 — 이후 스크롤은 온전히 사용자 몫
+    function release() {
+      if (settled) return;
+      settled = true;
+      clearTimeout(openTimer);
+      clearTimeout(settleTimer);
+      clearTimeout(guardTimer);
+      vv?.removeEventListener('resize', onViewportResize);
+      window.removeEventListener('touchmove', release);
+      window.removeEventListener('wheel', release);
+    }
+
+    function onViewportResize() {
+      if (settled) return;
+      // 키보드가 올라오며 줄어든 높이에 맞춰 한 번 더 정렬하고,
+      // 스크롤 애니메이션이 끝날 즈음 자동 정렬을 끝낸다.
+      bringIntoView();
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(release, 500);
+    }
+
+    openTimer = setTimeout(bringIntoView, 260);
+    vv?.addEventListener('resize', onViewportResize);
+    // 사용자가 먼저 스크롤하면 자동 정렬보다 우선한다
+    window.addEventListener('touchmove', release, { passive: true });
+    window.addEventListener('wheel', release, { passive: true });
+    // 키보드가 뜨지 않는 환경(데스크톱 등) 대비 — 시간이 지나면 그냥 해제
+    guardTimer = setTimeout(release, 2000);
+
+    return release;
   }, [locOpen]);
 
   // 업로드 진입 시 한 번 더 정밀 GPS를 받아 좌표를 보정.
