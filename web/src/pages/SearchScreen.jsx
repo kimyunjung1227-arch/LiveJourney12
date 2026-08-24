@@ -352,7 +352,7 @@ function RecentSearches({ items, onPick, onRemove, onClear }) {
   if (!items || items.length === 0) return null;
 
   return (
-    <div style={{ padding: '12px 16px 2px' }}>
+    <div className="mb-[22px]">
       <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
         <div className="flex items-center gap-1.5">
           <IconClock size={14} color={KEY} />
@@ -1105,7 +1105,7 @@ function CategoryGrid({ categories }) {
   );
 }
 
-function SearchHub() {
+function SearchHub({ recent, onPickRecent }) {
   const { data, loading } = useSearchHub();
   const [magazines, setMagazines] = useState([]);
   useEffect(() => {
@@ -1119,23 +1119,40 @@ function SearchHub() {
     };
   }, []);
 
+  // 최근 검색은 로컬 기록이라 허브 로딩/실패와 무관하게 항상 먼저 보여준다
+  const recentRow = (
+    <RecentSearches
+      items={recent.items}
+      onPick={onPickRecent}
+      onRemove={recent.remove}
+      onClear={recent.clear}
+    />
+  );
+
   if (loading) {
     return (
-      <div className="p-[18px] text-center" style={{ color: TEXT_SECONDARY, fontSize: 13 }}>
-        로딩 중...
+      <div className="p-[18px]">
+        {recentRow}
+        <p className="m-0 text-center" style={{ color: TEXT_SECONDARY, fontSize: 13 }}>
+          로딩 중...
+        </p>
       </div>
     );
   }
   if (!data) {
     return (
-      <div className="p-[18px] text-center" style={{ color: TEXT_SECONDARY, fontSize: 13 }}>
-        불러오지 못했어요
+      <div className="p-[18px]">
+        {recentRow}
+        <p className="m-0 text-center" style={{ color: TEXT_SECONDARY, fontSize: 13 }}>
+          불러오지 못했어요
+        </p>
       </div>
     );
   }
 
   return (
     <div className="p-[18px]">
+      {recentRow}
       <CityGrid cities={data.cities || []} />
       {/* 질문 구역 임시 숨김 — 사용자가 어느 정도 모인 뒤 다시 노출 */}
       {/* <QuestionsSection questions={data.questions || []} showAllAction /> */}
@@ -1511,14 +1528,12 @@ const SearchScreen = () => {
         <SearchResults query={query} results={results} loading={loading} />
       ) : (
         <>
-          <RecentSearches
-            items={recent.items}
-            onPick={setQuery}
-            onRemove={recent.remove}
-            onClear={recent.clear}
-          />
           <HubTabs tab={hubTab} onChange={setHubTab} />
-          {hubTab === 'traveler' ? <TravelersHub /> : <SearchHub />}
+          {hubTab === 'traveler' ? (
+            <TravelersHub />
+          ) : (
+            <SearchHub recent={recent} onPickRecent={setQuery} />
+          )}
         </>
       )}
       <BottomNavigation />
