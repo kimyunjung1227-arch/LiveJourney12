@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { IconArrowLeft } from '@tabler/icons-react';
 import { getWeatherByRegion } from '../../api/weather';
+import WeatherIcon from '../WeatherIcon';
 
 const TEXT_PRIMARY = '#1F1F1F';
 
@@ -89,7 +90,7 @@ export default function CityHero({ cityName }) {
             lineHeight: 1,
           }}
         >
-          <span style={{ fontSize: 14 }}>{weather.icon}</span>
+          <WeatherIcon icon={weather.icon} condition={weather.condition} size={15} />
           <span style={{ color: '#334155' }}>{weather.temperature}</span>
         </span>
       )}

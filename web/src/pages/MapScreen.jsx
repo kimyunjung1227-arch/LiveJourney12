@@ -31,6 +31,7 @@ import { fetchProfileByIdSupabase, fetchProfilesByIdsSupabase } from '../api/pro
 import { getWeatherByCoords } from '../api/weather';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
+import WeatherIcon from '../components/WeatherIcon';
 
 // 작성자명이 "표시용 닉네임"이 아니라 시스템 식별자/임시값으로 보이면 true
 const isAnonymousName = (v) => {
@@ -679,7 +680,7 @@ function TempChip({ weather }) {
       title={weather.condition}
     >
       {weather.icon && (
-        <span style={{ fontSize: 13, lineHeight: 1 }}>{weather.icon}</span>
+        <WeatherIcon icon={weather.icon} condition={weather.condition} size={14} />
       )}
       <span style={{ fontVariantNumeric: 'tabular-nums' }}>
         {weather.temperature}

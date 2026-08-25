@@ -1,6 +1,7 @@
 import React from 'react';
 import { getDisplayImageUrl } from '../api/upload';
 import { getMapThumbnailUri, toMediaStr } from '../utils/postMedia';
+import WeatherIcon from './WeatherIcon';
 
 /**
  * 메인 실시간 핫플 / 더보기 화면 — 동일 카드 UI (마크업·스타일 통일)
@@ -197,7 +198,7 @@ const HotFeedCard = ({
                     </h4>
                     {hasWeather ? (
                         <div style={{ ...weatherPillStyle, alignSelf: 'flex-start' }}>
-                            {weather?.icon && <span>{weather.icon}</span>}
+                            {weather?.icon && <WeatherIcon icon={weather.icon} condition={weather?.condition} size={14} />}
                             {weather?.temperature && <span>{weather.temperature}</span>}
                         </div>
                     ) : null}

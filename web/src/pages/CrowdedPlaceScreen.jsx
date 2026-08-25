@@ -25,6 +25,7 @@ import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../ut
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
 import { distanceKmBetween } from '../utils/geoDistance';
+import WeatherIcon from '../components/WeatherIcon';
 
 const PRIMARY_HEX = '#26C6DA';
 
@@ -710,7 +711,7 @@ const CrowdedPlaceScreen = () => {
                                                                             title="기온"
                                                                         >
                                                                             {cardProps?.weather?.icon ? (
-                                                                                <span className="shrink-0">{cardProps.weather.icon}</span>
+                                                                                <WeatherIcon icon={cardProps.weather.icon} condition={cardProps.weather.condition} size={14} className="shrink-0" />
                                                                             ) : null}
                                                                             {tempText ? <span className="whitespace-nowrap">{tempText}</span> : null}
                                                                             {cardProps?.weather?.condition &&

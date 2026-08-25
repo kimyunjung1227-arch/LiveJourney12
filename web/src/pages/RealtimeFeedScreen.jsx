@@ -21,6 +21,7 @@ import { MAIN_FEED_IMAGE_OPTS } from '../utils/mainFeedSnapshot';
 import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
+import WeatherIcon from '../components/WeatherIcon';
 import {
   feedGridCardBoxFlat,
   feedGridImageBoxFlat,
@@ -311,7 +312,7 @@ const RealtimeFeedScreen = () => {
                       <span>{post.time}</span>
                       {hasWeather && (weather.icon || weather.temperature) && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          {weather.icon && <span>{weather.icon}</span>}
+                          {weather.icon && <WeatherIcon icon={weather.icon} condition={weather.condition} size={13} />}
                           {weather.temperature && <span>{weather.temperature}</span>}
                         </span>
                       )}

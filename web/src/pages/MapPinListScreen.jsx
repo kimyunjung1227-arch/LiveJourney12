@@ -26,6 +26,7 @@ import {
   feedGridMetaRow,
 } from '../utils/feedGridCardStyles';
 import { useAuth } from '../contexts/AuthContext';
+import WeatherIcon from '../components/WeatherIcon';
 
 function timeAgo(iso) {
   if (!iso) return '';
@@ -303,9 +304,7 @@ const MapPinListScreen = () => {
             title={weather.condition}
           >
             {weather.icon && (
-              <span style={{ fontSize: 13, lineHeight: 1 }}>
-                {weather.icon}
-              </span>
+              <WeatherIcon icon={weather.icon} condition={weather.condition} size={14} />
             )}
             <span className="text-slate-700 dark:text-slate-200">
               {weather.temperature}

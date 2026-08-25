@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getWeatherByRegion } from '../api/weather';
 import { logger } from '../utils/logger';
+import WeatherIcon from './WeatherIcon';
 
 const WeatherWidget = ({ region = '서울' }) => {
     const [weather, setWeather] = useState(null);
@@ -31,7 +32,7 @@ const WeatherWidget = ({ region = '서울' }) => {
 
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#475569', background: '#f1f5f9', padding: '6px 10px', borderRadius: '20px' }}>
-            <span>{weather.icon}</span>
+            <WeatherIcon icon={weather.icon} condition={weather.condition} size={16} />
             <span>{weather.temperature}</span>
             <span style={{ fontSize: '12px', color: '#94a3b8' }}>{weather.condition}</span>
         </div>

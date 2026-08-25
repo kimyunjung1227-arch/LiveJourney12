@@ -9,6 +9,7 @@ import { bestCutScore } from '../hooks/ljPostsMapping';
 import { useAuth } from '../contexts/AuthContext';
 import { isPlaceSaved, toggleSavedPlace } from '../api/savedPlacesSupabase';
 import { getWeatherByRegion } from '../api/weather';
+import WeatherIcon from '../components/WeatherIcon';
 
 const BEST_CUT_LIMIT = 1;
 
@@ -218,7 +219,7 @@ function PlaceDetailScreen() {
                   lineHeight: 1,
                 }}
               >
-                <span style={{ fontSize: 13 }}>{weather.icon}</span>
+                <WeatherIcon icon={weather.icon} condition={weather.condition} size={14} />
                 <span style={{ color: '#334155' }}>{weather.temperature}</span>
               </span>
             )}

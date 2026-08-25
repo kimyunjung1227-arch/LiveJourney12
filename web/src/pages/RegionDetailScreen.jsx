@@ -22,6 +22,7 @@ import { getTimeAgo } from '../utils/timeUtils';
 import { getUploadedPostsSafe } from '../utils/localStorageManager';
 import { useAuth } from '../contexts/AuthContext';
 import { SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
+import WeatherIcon from '../components/WeatherIcon';
 
 const RegionDetailScreen = () => {
   const navigate = useNavigate();
@@ -323,7 +324,7 @@ const RegionDetailScreen = () => {
                     style={{ fontSize: 12, fontWeight: 500, letterSpacing: '-0.01em' }}
                     title={weatherInfo.condition}
                   >
-                    <span style={{ fontSize: 13, lineHeight: 1 }}>{weatherInfo.icon}</span>
+                    <WeatherIcon icon={weatherInfo.icon} condition={weatherInfo.condition} size={14} />
                     <span className="text-slate-700 dark:text-slate-200">{weatherInfo.temperature}</span>
                   </span>
                 )
@@ -527,7 +528,7 @@ const RegionDetailScreen = () => {
                               <span>{photo.time}</span>
                               {hasWeather && (
                                 <span className="inline-flex items-center gap-1">
-                                  {weather.icon && <span>{weather.icon}</span>}
+                                  {weather.icon && <WeatherIcon icon={weather.icon} condition={weather.condition} size={13} />}
                                   {weather.temperature && <span>{weather.temperature}</span>}
                                 </span>
                               )}

@@ -48,6 +48,7 @@ import { supabase } from '../utils/supabaseClient';
 import { mapSupabasePostRowToPost } from '../api/postsSupabase';
 import { logger } from '../utils/logger';
 import { SCREEN_GRID_EAGER_COUNT, SCREEN_IMAGE_HIGH_PRIORITY_COUNT } from '../utils/imgAttrs';
+import WeatherIcon from '../components/WeatherIcon';
 
 const HOTPLACE_PRIMARY = '#1353d8';
 
@@ -599,7 +600,7 @@ export default function HotplaceLiveFeedScreen() {
                           <span>{timeLabel}</span>
                           {hasWeather && (weather.icon || weather.temperature) ? (
                             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              {weather.icon ? <span>{weather.icon}</span> : null}
+                              {weather.icon ? <WeatherIcon icon={weather.icon} condition={weather.condition} size={13} /> : null}
                               {weather.temperature ? <span>{weather.temperature}</span> : null}
                             </span>
                           ) : null}

@@ -35,6 +35,7 @@ import { getWeatherByRegion } from '../api/weather';
 import { useAuth } from '../contexts/AuthContext';
 import { useFollow } from '../hooks/useFollow';
 import BottomNavigation from '../components/BottomNavigation';
+import WeatherIcon from '../components/WeatherIcon';
 
 // 인기 도시 대표 사진은 30분 단위 시간 버킷으로 순환 노출한다.
 const HALF_HOUR_MS = 30 * 60 * 1000;
@@ -935,7 +936,7 @@ function CityWeatherBadge({ region }) {
         padding: '3px 8px',
       }}
     >
-      <span style={{ fontSize: 11, lineHeight: 1 }}>{weather.icon}</span>
+      <WeatherIcon icon={weather.icon} condition={weather.condition} size={13} />
       <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fff', lineHeight: 1 }}>
         {weather.temperature}
       </span>
