@@ -21,6 +21,7 @@ import { postRegionLabel } from '../../utils/postRegionLabel';
 import { useAuth } from '../../contexts/AuthContext';
 import { deletePostSupabase } from '../../api/postsSupabase';
 import { logger } from '../../utils/logger';
+import WeatherIcon from '../WeatherIcon';
 
 const BODY_PREVIEW_LINES = 4;
 
@@ -661,7 +662,9 @@ function WeatherChip({ weather }) {
         whiteSpace: 'nowrap',
       }}
     >
-      {display.icon && <span style={{ fontSize: 14, lineHeight: 1 }}>{display.icon}</span>}
+      {display.icon && (
+        <WeatherIcon icon={display.icon} condition={display.condition} size={15} />
+      )}
       {display.temperature && (
         <span
           style={{

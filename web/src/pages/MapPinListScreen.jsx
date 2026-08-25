@@ -248,7 +248,7 @@ const MapPinListScreen = () => {
           ),
         metaRight: hasWeather ? (
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            {w.icon && <span>{w.icon}</span>}
+            {w.icon && <WeatherIcon icon={w.icon} condition={w.condition} size={14} />}
             {w.temperature && <span>{w.temperature}</span>}
           </span>
         ) : null,

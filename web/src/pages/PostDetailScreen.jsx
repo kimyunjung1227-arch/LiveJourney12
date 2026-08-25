@@ -26,6 +26,7 @@ import { useFollow } from '../hooks/useFollow';
 import { isFollowingSupabase } from '../api/socialSupabase';
 import { deletePostSupabase } from '../api/postsSupabase';
 import { supabase } from '../utils/supabaseClient';
+import WeatherIcon from '../components/WeatherIcon';
 
 /**
  * PostDetailScreen (라우트: /post/:id).
@@ -543,7 +544,9 @@ function DetailWeatherInlineChip({ weather }) {
         whiteSpace: 'nowrap',
       }}
     >
-      {display.icon && <span style={{ fontSize: 15, lineHeight: 1 }}>{display.icon}</span>}
+      {display.icon && (
+        <WeatherIcon icon={display.icon} condition={display.condition} size={15} />
+      )}
       {display.temperature && (
         <span
           style={{
