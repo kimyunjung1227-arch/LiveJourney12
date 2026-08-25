@@ -545,7 +545,7 @@ function DetailWeatherInlineChip({ weather }) {
       }}
     >
       {display.icon && (
-        <WeatherIcon icon={display.icon} condition={display.condition} size={15} />
+        <WeatherIcon icon={display.icon} condition={display.condition} size={14} />
       )}
       {display.temperature && (
         <span

@@ -312,7 +312,7 @@ const RealtimeFeedScreen = () => {
                       <span>{post.time}</span>
                       {hasWeather && (weather.icon || weather.temperature) && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          {weather.icon && <WeatherIcon icon={weather.icon} condition={weather.condition} size={13} />}
+                          {weather.icon && <WeatherIcon icon={weather.icon} condition={weather.condition} size={14} />}
                           {weather.temperature && <span>{weather.temperature}</span>}
                         </span>
                       )}

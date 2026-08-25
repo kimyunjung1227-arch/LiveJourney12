@@ -55,14 +55,14 @@ const CONDITION_MAP = [
 ];
 
 const resolveType = (icon, condition) => {
-  const raw = String(icon ?? '').replace(/[\uFE0F\uFE0E\s]/g, '');
+  const raw = String(icon ?? '').replace(/[\uFE0F\uFE0E\s]/g, '').replace(/^-$/, '');
   if (raw) {
     if (EMOJI_MAP[raw]) return EMOJI_MAP[raw];
     // 이모지가 결합 문자로 들어오는 경우 첫 글자만 다시 확인
     const first = Array.from(raw)[0];
     if (first && EMOJI_MAP[first]) return EMOJI_MAP[first];
   }
-  const cond = String(condition ?? '').trim();
+  const cond = String(condition ?? '').trim().replace(/^-$/, '');
   if (cond) {
     const hit = CONDITION_MAP.find(([key]) => cond.includes(key));
     if (hit) return hit[1];
@@ -172,10 +172,15 @@ const SHAPES = {
   ),
 };
 
+const cond2 = (c) => {
+  const v = String(c ?? "").trim();
+  return v && v !== "-" ? v : "";
+};
+
 export default function WeatherIcon({
   icon,
   condition,
-  size = 16,
+  size = 14,
   title,
   style,
   className,
@@ -183,7 +188,7 @@ export default function WeatherIcon({
   const type = resolveType(icon, condition);
   if (!type) return null;
 
-  const label = title ?? condition ?? '';
+  const label = title ?? (cond2(condition) || '');
 
   return (
     <svg

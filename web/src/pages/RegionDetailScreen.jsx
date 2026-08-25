@@ -528,7 +528,7 @@ const RegionDetailScreen = () => {
                               <span>{photo.time}</span>
                               {hasWeather && (
                                 <span className="inline-flex items-center gap-1">
-                                  {weather.icon && <WeatherIcon icon={weather.icon} condition={weather.condition} size={13} />}
+                                  {weather.icon && <WeatherIcon icon={weather.icon} condition={weather.condition} size={14} />}
                                   {weather.temperature && <span>{weather.temperature}</span>}
                                 </span>
                               )}

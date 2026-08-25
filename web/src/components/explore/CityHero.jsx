@@ -90,7 +90,7 @@ export default function CityHero({ cityName }) {
             lineHeight: 1,
           }}
         >
-          <WeatherIcon icon={weather.icon} condition={weather.condition} size={15} />
+          <WeatherIcon icon={weather.icon} condition={weather.condition} size={14} />
           <span style={{ color: '#334155' }}>{weather.temperature}</span>
         </span>
       )}

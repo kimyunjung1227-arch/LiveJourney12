@@ -936,7 +936,7 @@ function CityWeatherBadge({ region }) {
         padding: '3px 8px',
       }}
     >
-      <WeatherIcon icon={weather.icon} condition={weather.condition} size={13} />
+      <WeatherIcon icon={weather.icon} condition={weather.condition} size={14} />
       <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fff', lineHeight: 1 }}>
         {weather.temperature}
       </span>
