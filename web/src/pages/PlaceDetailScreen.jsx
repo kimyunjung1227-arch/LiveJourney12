@@ -146,6 +146,47 @@ function PlaceDetailScreen() {
     } catch (_) {}
   };
 
+  // 저장·공유 — 상단바가 아니라 베스트 컷 구역 우측에 붙는다
+  const iconButtonStyle = {
+    width: 32,
+    height: 32,
+    minWidth: 32,
+    minHeight: 32,
+    padding: 0,
+    background: 'transparent',
+    border: 'none',
+    borderRadius: 8,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  };
+  const placeActions = (
+    <>
+      <button
+        type="button"
+        onClick={handleToggleSave}
+        disabled={saving}
+        aria-label={bookmarked ? '저장 해제' : '저장하기'}
+        aria-pressed={bookmarked}
+        style={{
+          ...iconButtonStyle,
+          cursor: saving ? 'wait' : 'pointer',
+          color: bookmarked ? LJ.key : LJ.textSecondary,
+        }}
+      >
+        {bookmarked ? <IconBookmarkFilled size={19} /> : <IconBookmark size={19} stroke={2} />}
+      </button>
+      <button
+        type="button"
+        onClick={handleShare}
+        aria-label="공유"
+        style={{ ...iconButtonStyle, cursor: 'pointer', color: LJ.textSecondary }}
+      >
+        <IconShare3 size={19} stroke={2} />
+      </button>
+    </>
+  );
+
   return (
     <div
       style={{
@@ -195,12 +236,12 @@ function PlaceDetailScreen() {
             <IconArrowLeft size={18} stroke={2} />
           </button>
 
-          {/* 중앙 장소명 + 실시간 기온 칩 (좌우 버튼 영역만큼 여백 두고 ellipsis 처리) */}
+          {/* 중앙 장소명 + 실시간 기온 칩 (뒤로가기 영역만큼 여백 두고 ellipsis 처리) */}
           <div
             style={{
               position: 'absolute',
-              left: 80,
-              right: 80,
+              left: 52,
+              right: 52,
               top: '50%',
               transform: 'translateY(-50%)',
               display: 'flex',
@@ -246,60 +287,30 @@ function PlaceDetailScreen() {
             )}
           </div>
 
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button
-              type="button"
-              onClick={handleToggleSave}
-              disabled={saving}
-              aria-label={bookmarked ? '저장 해제' : '저장하기'}
-              aria-pressed={bookmarked}
-              style={{
-                width: 32,
-                height: 32,
-                padding: 0,
-                background: 'transparent',
-                border: 'none',
-                borderRadius: 8,
-                cursor: saving ? 'wait' : 'pointer',
-                color: bookmarked ? LJ.key : LJ.textSecondary,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              {bookmarked ? <IconBookmarkFilled size={20} /> : <IconBookmark size={20} stroke={2} />}
-            </button>
-            <button
-              type="button"
-              onClick={handleShare}
-              aria-label="공유"
-              style={{
-                width: 32,
-                height: 32,
-                padding: 0,
-                background: 'transparent',
-                border: 'none',
-                borderRadius: 8,
-                cursor: 'pointer',
-                color: LJ.textSecondary,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <IconShare3 size={20} stroke={2} />
-            </button>
-          </div>
         </div>
       </header>
 
-      {/* 베스트 컷 — 대표 한 장만 남기고, 아래부터는 정보가 주인공 */}
-      {bestCuts.length > 0 && (
+      {/* 베스트 컷 — 대표 한 장만 남기고, 아래부터는 정보가 주인공.
+          저장·공유는 상단바 대신 이 구역 우측에 둔다. */}
+      {bestCuts.length > 0 ? (
         <BestCutsCarousel
           posts={bestCuts}
           onPostClick={(p) => navigate(`/post/${p.id}`)}
           onAuthorClick={(p) => navigate(`/user/${p.author?.id || p.author_id}`)}
+          actions={placeActions}
         />
+      ) : (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            gap: 2,
+            padding: '12px 16px 0',
+          }}
+        >
+          {placeActions}
+        </div>
       )}
 
       {loading && posts.length === 0 ? (

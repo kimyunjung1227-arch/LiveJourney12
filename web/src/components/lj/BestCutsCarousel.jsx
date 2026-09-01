@@ -9,7 +9,7 @@ import BestCutHero from './BestCutHero';
  * - 한 번의 스와이프 = 1장만 이동
  * - 헤더(왕관 + "베스트 컷")는 캐러셀 외부에서 한 번만 노출
  */
-export function BestCutsCarousel({ posts = [], onPostClick, onAuthorClick }) {
+export function BestCutsCarousel({ posts = [], onPostClick, onAuthorClick, actions = null }) {
   const [index, setIndex] = useState(0);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -79,7 +79,7 @@ export function BestCutsCarousel({ posts = [], onPostClick, onAuthorClick }) {
 
   return (
     <section style={{ padding: '20px 0 0', fontFamily: LJ.fontStack }}>
-      {/* 헤더: 왕관 + 베스트 컷 + 현재/총 */}
+      {/* 헤더: 왕관 + 베스트 컷 + 현재/총 + (우측) 저장·공유 */}
       <div
         style={{
           display: 'flex',
@@ -103,6 +103,18 @@ export function BestCutsCarousel({ posts = [], onPostClick, onAuthorClick }) {
           >
             {index + 1} / {N}
           </span>
+        )}
+        {actions && (
+          <div
+            style={{
+              marginLeft: N > 1 ? 8 : 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+            }}
+          >
+            {actions}
+          </div>
         )}
       </div>
 
