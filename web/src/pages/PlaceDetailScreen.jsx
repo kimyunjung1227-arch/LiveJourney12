@@ -3,7 +3,15 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { IconArrowLeft, IconBookmark, IconBookmarkFilled, IconShare3 } from '@tabler/icons-react';
 import { LJ } from '../components/lj/tokens';
 import BestCutsCarousel from '../components/lj/BestCutsCarousel';
-import PlacePhotoGrid from '../components/lj/PlacePhotoGrid';
+import PlaceLiveStatus from '../components/lj/PlaceLiveStatus';
+import PlaceVisitorReports from '../components/lj/PlaceVisitorReports';
+import PlaceAboutBox from '../components/lj/PlaceAboutBox';
+import PlaceRecentPhotos from '../components/lj/PlaceRecentPhotos';
+import {
+  summarizePlaceLiveStatus,
+  buildLiveStatusView,
+  buildPlaceLiveSentence,
+} from '../utils/placeLiveStatus';
 import { usePlaceDetail } from '../hooks/usePlaceDetail';
 import { bestCutScore } from '../hooks/ljPostsMapping';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,9 +22,11 @@ import WeatherIcon from '../components/WeatherIcon';
 const BEST_CUT_LIMIT = 1;
 
 /**
- * 장소 페이지 (/place/:placeId).
- * 단순화: 헤더 → BestCutHero → 사진 그리드(베스트컷 제외) → CTA
- * (상태박스 / 카테고리 필터 제거)
+ * 장소 페이지 (/place/:placeId) — 실시간 핫플 상세.
+ *
+ * 사진 나열이 아니라 "왜 지금 이곳이 핫플인지"를 정보로 설명하는 순서로 둔다.
+ *   헤더(장소명·기온) → 베스트 컷 1장 → 지금 이곳은(요약 + 하늘/체감/옷차림/사람)
+ *   → 방문자 제보 → 이곳은 어떤 곳인가요 → 최근 사진(접힘)
  */
 function PlaceDetailScreen() {
   const { placeId } = useParams();
@@ -110,6 +120,17 @@ function PlaceDetailScreen() {
     [posts, bestCutIds],
   );
 
+  // 실시간 상태 집계 — 48h 안의 제보만, 최신일수록 크게 반영
+  const liveStatus = useMemo(() => summarizePlaceLiveStatus(posts || []), [posts]);
+  const liveView = useMemo(() => buildLiveStatusView(liveStatus, weather), [liveStatus, weather]);
+  const liveSentence = useMemo(() => buildPlaceLiveSentence(liveView), [liveView]);
+
+  // 장소 소개(Claude) 프롬프트 힌트로 쓸 대표 태그
+  const placeTags = useMemo(
+    () => [...(liveStatus.seasons || []), liveStatus.sky, liveStatus.crowd].filter(Boolean),
+    [liveStatus],
+  );
+
   const handleShare = async () => {
     const url = window.location.href;
     const title = place?.name || 'Live Journey';
@@ -132,7 +153,7 @@ function PlaceDetailScreen() {
         minHeight: '100vh',
         fontFamily: LJ.fontStack,
         color: LJ.textPrimary,
-        paddingBottom: 24,
+        paddingBottom: 48,
       }}
     >
       {/* 헤더: [back] (중앙 장소명) [북마크][공유] */}
@@ -272,41 +293,15 @@ function PlaceDetailScreen() {
         </div>
       </header>
 
-      {/* 베스트 컷 캐러셀 — 게시물 수만큼 좌우 슬라이드 */}
+      {/* 베스트 컷 — 대표 한 장만 남기고, 아래부터는 정보가 주인공 */}
       {bestCuts.length > 0 && (
-        <>
-          <BestCutsCarousel
-            posts={bestCuts}
-            onPostClick={(p) => navigate(`/post/${p.id}`)}
-            onAuthorClick={(p) => navigate(`/user/${p.author?.id || p.author_id}`)}
-          />
-          {/* 베스트 컷 아래 가벼운 캡션 — 좌측 배치, 베스트 컷을 더 강조 */}
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '8px 18px 0',
-              fontSize: 11,
-              fontWeight: 500,
-              color: LJ.textTertiary,
-            }}
-          >
-            <span
-              style={{
-                width: 5,
-                height: 5,
-                borderRadius: '50%',
-                background: LJ.key,
-                opacity: 0.8,
-              }}
-            />
-            실시간 사진
-          </div>
-        </>
+        <BestCutsCarousel
+          posts={bestCuts}
+          onPostClick={(p) => navigate(`/post/${p.id}`)}
+          onAuthorClick={(p) => navigate(`/user/${p.author?.id || p.author_id}`)}
+        />
       )}
 
-      {/* 사진 그리드 */}
       {loading && posts.length === 0 ? (
         <div
           style={{
@@ -316,10 +311,27 @@ function PlaceDetailScreen() {
             fontSize: 12,
           }}
         >
-          사진을 불러오는 중...
+          지금 이곳의 정보를 모으는 중...
         </div>
       ) : (
-        <PlacePhotoGrid posts={gridPosts} onPhotoClick={(id) => navigate(`/post/${id}`)} />
+        <>
+          {/* 지금 이곳은 — 이 장소가 왜 지금 핫플인지 */}
+          <PlaceLiveStatus
+            sentence={liveSentence}
+            view={liveView}
+            reportCount={liveStatus.reportCount}
+            latestMs={liveStatus.latestMs}
+          />
+
+          {/* 방문자 제보 — 사람 말로 확인하는 현장 */}
+          <PlaceVisitorReports posts={posts} onSelect={(p) => navigate(`/post/${p.id}`)} />
+
+          {/* 장소 배경 설명 */}
+          <PlaceAboutBox placeName={placeName} region={place?.region || ''} tags={placeTags} />
+
+          {/* 최근 사진 — 기본 3장, 누르면 펼침 */}
+          <PlaceRecentPhotos posts={gridPosts} onPhotoClick={(id) => navigate(`/post/${id}`)} />
+        </>
       )}
 
       {/* 저장 토스트 */}
