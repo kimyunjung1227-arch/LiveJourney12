@@ -216,11 +216,62 @@ function CameraScreen() {
     });
   };
 
+  // 갤러리 선택에 필요한 요소들 — 카메라를 못 쓰는 화면에서도 함께 렌더해야 동작한다
+  const galleryPicker = (
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,video/*"
+        multiple
+        capture={undefined}
+        style={{ display: 'none' }}
+        onChange={handleGalleryFile}
+      />
+      <EXIFRejectModal
+        open={galleryModal.type === 'reject'}
+        reason={galleryModal.reason}
+        minutesAgo={galleryModal.minutesAgo}
+        isVideo={galleryModal.isVideo}
+        onRetake={() => setGalleryModal({ type: null })}
+        onPickOther={() => {
+          setGalleryModal({ type: null });
+          setTimeout(openGallery, 50);
+        }}
+        onClose={() => setGalleryModal({ type: null })}
+      />
+      <EXIFConfirmModal
+        open={galleryModal.type === 'confirm'}
+        file={galleryModal.file}
+        takenAt={galleryModal.takenAt}
+        location={galleryModal.location}
+        // 현재 위치의 장소명을 붙이면 "사진이 찍힌 곳"으로 오인된다 — EXIF 좌표만 표시
+        placeName={null}
+        onContinue={handleConfirmGallery}
+        onPickOther={() => {
+          setGalleryModal({ type: null });
+          setTimeout(openGallery, 50);
+        }}
+        onClose={() => setGalleryModal({ type: null })}
+      />
+    </>
+  );
+
   if (cam.permission === 'idle' || cam.permission === 'requesting') {
     return <CameraLoading onClose={close} onRetry={cam.requestPermission} />;
   }
-  if (cam.permission === 'denied') return <PermissionDenied onClose={close} />;
-  if (cam.permission === 'unsupported') return <PermissionDenied unsupported onClose={close} />;
+  if (cam.permission === 'denied' || cam.permission === 'unsupported') {
+    return (
+      <>
+        <PermissionDenied
+          unsupported={cam.permission === 'unsupported'}
+          onClose={close}
+          onOpenGallery={openGallery}
+        />
+        {galleryPicker}
+      </>
+    );
+  }
 
   return (
     <>
@@ -263,41 +314,7 @@ function CameraScreen() {
           });
         }}
       />
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*,video/*"
-        multiple
-        capture={undefined}
-        style={{ display: 'none' }}
-        onChange={handleGalleryFile}
-      />
-      <EXIFRejectModal
-        open={galleryModal.type === 'reject'}
-        reason={galleryModal.reason}
-        minutesAgo={galleryModal.minutesAgo}
-        isVideo={galleryModal.isVideo}
-        onRetake={() => setGalleryModal({ type: null })}
-        onPickOther={() => {
-          setGalleryModal({ type: null });
-          setTimeout(openGallery, 50);
-        }}
-        onClose={() => setGalleryModal({ type: null })}
-      />
-      <EXIFConfirmModal
-        open={galleryModal.type === 'confirm'}
-        file={galleryModal.file}
-        takenAt={galleryModal.takenAt}
-        location={galleryModal.location}
-        // 현재 위치의 장소명을 붙이면 "사진이 찍힌 곳"으로 오인된다 — EXIF 좌표만 표시
-        placeName={null}
-        onContinue={handleConfirmGallery}
-        onPickOther={() => {
-          setGalleryModal({ type: null });
-          setTimeout(openGallery, 50);
-        }}
-        onClose={() => setGalleryModal({ type: null })}
-      />
+      {galleryPicker}
     </>
   );
 }
@@ -381,7 +398,7 @@ function CameraLoading({ onClose, onRetry }) {
 }
 
 /* -------------------- 권한 거부 / 미지원 -------------------- */
-function PermissionDenied({ unsupported = false, onClose }) {
+function PermissionDenied({ unsupported = false, onClose, onOpenGallery }) {
   return (
     <DarkFrame onClose={onClose}>
       <div
@@ -443,6 +460,33 @@ function PermissionDenied({ unsupported = false, onClose }) {
         >
           {unsupported ? '다시 시도' : '설정에서 허용하기'}
         </button>
+        {/* 카메라를 못 써도 갤러리로는 올릴 수 있게 */}
+        {typeof onOpenGallery === 'function' && (
+          <button
+            type="button"
+            onClick={onOpenGallery}
+            style={{
+              width: '100%',
+              marginTop: 8,
+              padding: 14,
+              background: 'transparent',
+              color: '#fff',
+              border: '1px solid rgba(255,255,255,0.35)',
+              borderRadius: 12,
+              fontFamily: LJ.fontStack,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+            }}
+          >
+            <IconPhoto size={16} stroke={2} />
+            갤러리에서 고르기
+          </button>
+        )}
       </div>
     </DarkFrame>
   );
@@ -562,7 +606,7 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
     }
   };
 
-  const showGalleryAndSwitch = !cam.isRecording;
+  const showSwitchCamera = !cam.isRecording;
 
   return (
     <div
@@ -734,6 +778,9 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
         {/* 줌(확대) 토글 — 1배 / 2배 / 3배 */}
         {!cam.isRecording && <ZoomToggle zoom={cam.zoom} onChange={cam.setZoom} />}
 
+        {/* 소스 선택 — 카메라로 찍을지, 갤러리에서 고를지 */}
+        <SourceToggle onOpenGallery={onOpenGallery} disabled={cam.isRecording} />
+
         {/* 모드 토글 */}
         <ModeToggle mode={cam.mode} onChange={cam.setMode} disabled={cam.isRecording} />
 
@@ -746,13 +793,8 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
             paddingTop: 4,
           }}
         >
-          <div style={{ width: 44, height: 44, opacity: showGalleryAndSwitch ? 1 : 0 }}>
-            {showGalleryAndSwitch && (
-              <SquareButton onClick={onOpenGallery} aria-label="갤러리">
-                <IconPhoto size={20} stroke={2} />
-              </SquareButton>
-            )}
-          </div>
+          {/* 셔터를 가운데 두기 위한 좌측 자리 — 갤러리는 위 소스 선택으로 옮겼다 */}
+          <div style={{ width: 44, height: 44 }} aria-hidden />
 
           <ShutterButton
             mode={cam.mode}
@@ -761,8 +803,8 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
             onClick={handleShutter}
           />
 
-          <div style={{ width: 44, height: 44, opacity: showGalleryAndSwitch ? 1 : 0 }}>
-            {showGalleryAndSwitch && (
+          <div style={{ width: 44, height: 44, opacity: showSwitchCamera ? 1 : 0 }}>
+            {showSwitchCamera && (
               <SquareButton onClick={cam.switchCamera} aria-label="카메라 전환">
                 <IconRotate2 size={20} stroke={2} />
               </SquareButton>
@@ -969,6 +1011,65 @@ function ZoomToggle({ zoom, onChange }) {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * 업로드 소스 선택 — 지금 화면(카메라)과 갤러리 중 고른다.
+ * 갤러리는 화면 전환이 아니라 파일 선택창을 여는 동작이라, 선택 상태는 항상 "카메라"에 머문다.
+ */
+function SourceToggle({ onOpenGallery, disabled }) {
+  const base = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    padding: '10px 18px',
+    minHeight: 0,
+    borderRadius: 999,
+    border: 'none',
+    fontFamily: LJ.fontStack,
+    fontSize: 13,
+    fontWeight: 700,
+    lineHeight: 1,
+  };
+  return (
+    <div
+      style={{
+        alignSelf: 'center',
+        display: 'inline-flex',
+        gap: 4,
+        padding: 4,
+        background: OVERLAY,
+        borderRadius: 999,
+        backdropFilter: 'blur(8px)',
+        opacity: disabled ? 0.4 : 1,
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => {}}
+        aria-current="true"
+        style={{ ...base, background: '#fff', color: DARK, cursor: 'default' }}
+      >
+        <IconCamera size={15} stroke={2} />
+        카메라
+      </button>
+      <button
+        type="button"
+        onClick={() => !disabled && onOpenGallery()}
+        disabled={disabled}
+        style={{
+          ...base,
+          background: 'transparent',
+          color: '#fff',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+        }}
+      >
+        <IconPhoto size={15} stroke={2} />
+        갤러리
+      </button>
     </div>
   );
 }
