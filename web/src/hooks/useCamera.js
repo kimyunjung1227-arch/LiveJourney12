@@ -63,6 +63,27 @@ function snapDeviceAngle(deg, prev) {
 }
 
 /**
+ * 동영상 녹화용 오디오 제약.
+ *
+ * `audio: true` 로 받으면 브라우저가 "통화용" 오디오 파이프라인을 태운다.
+ * (에코 제거 + 노이즈 억제 + 자동 게인 → 보통 16kHz 모노로 다운샘플)
+ * 사람 목소리 통화에는 좋지만, 현장 소리(파도·빗소리·거리 소음·공연)를 담는
+ * 라이브저니 영상에서는 먹먹하고 지직거리는 소리가 되는 원인이다.
+ * → 처리를 끄고 48kHz 스테레오 원음을 요청한다.
+ */
+const HIFI_AUDIO_CONSTRAINTS = {
+  echoCancellation: false,
+  noiseSuppression: false,
+  autoGainControl: false,
+  channelCount: { ideal: 2 },
+  sampleRate: { ideal: 48000 },
+  sampleSize: { ideal: 16 },
+};
+
+/** 녹음 비트레이트 — Opus 128kbps (스테레오에서 사실상 원음에 가깝다) */
+const RECORD_AUDIO_BPS = 128000;
+
+/**
  * 웹 인앱 카메라 훅 — getUserMedia + Canvas + MediaRecorder.
  *
  * UI 사용 패턴:
@@ -348,16 +369,41 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
     }
     setPermission((p) => (p === 'granted' ? 'granted' : 'requesting'));
     try {
-      const s = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode,
-          // 더 높은 해상도를 요청해 선명도 확보 (브라우저가 지원 최대치로 클램프)
-          width: { ideal: 2560 },
-          height: { ideal: 1440 },
-          frameRate: { ideal: 30 },
-        },
-        audio: mode === 'video',
-      });
+      const videoConstraints = {
+        facingMode,
+        // 더 높은 해상도를 요청해 선명도 확보 (브라우저가 지원 최대치로 클램프)
+        width: { ideal: 2560 },
+        height: { ideal: 1440 },
+        frameRate: { ideal: 30 },
+      };
+      const wantAudio = mode === 'video';
+      let s = null;
+      try {
+        s = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraints,
+          audio: wantAudio ? HIFI_AUDIO_CONSTRAINTS : false,
+        });
+      } catch (e) {
+        // 고음질 제약을 못 맞추는 기기 → 기본 오디오로 다시 시도 (녹화 자체는 되게).
+        // 권한 거부는 다시 물어봐야 소용없으므로 그대로 올린다.
+        const constraintIssue =
+          e?.name === 'OverconstrainedError' ||
+          e?.name === 'ConstraintNotSatisfiedError' ||
+          e?.name === 'TypeError' ||
+          e?.name === 'NotFoundError';
+        if (!wantAudio || !constraintIssue) throw e;
+        s = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraints,
+          audio: true,
+        });
+        try {
+          const at = s.getAudioTracks?.()[0];
+          // 받은 뒤에라도 처리 옵션만 꺼 본다 (지원하면 적용, 아니면 무시)
+          if (at) await at.applyConstraints(HIFI_AUDIO_CONSTRAINTS);
+        } catch (_) {
+          /* 기기가 지원하지 않으면 그대로 사용 */
+        }
+      }
       // 트랙 보정: 연속 자동초점/노출/화이트밸런스 + 하드웨어 줌 캐파 파악
       try {
         const track = s.getVideoTracks?.()[0];
@@ -519,7 +565,16 @@ export function useCamera({ initialFacingMode = 'environment', initialMode = 'ph
       }
     }
     try {
-      const rec = mimeType ? new MediaRecorder(s, { mimeType }) : new MediaRecorder(s);
+      // 오디오 비트레이트를 명시하지 않으면 브라우저 기본값(꽤 낮음)으로 인코딩된다.
+      const recOptions = { audioBitsPerSecond: RECORD_AUDIO_BPS };
+      if (mimeType) recOptions.mimeType = mimeType;
+      let rec;
+      try {
+        rec = new MediaRecorder(s, recOptions);
+      } catch (_) {
+        // 비트레이트 옵션을 거부하는 구형 브라우저 폴백
+        rec = mimeType ? new MediaRecorder(s, { mimeType }) : new MediaRecorder(s);
+      }
       rec.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
       };
