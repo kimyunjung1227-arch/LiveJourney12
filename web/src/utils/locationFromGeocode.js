@@ -8,7 +8,11 @@
  * - POI를 못 찾으면 건물명 → 도로명 주소 → 지번 주소 순으로 폴백한다.
  * - 모두 없으면 빈 문자열을 반환 (호출자가 좌표 라벨로 폴백).
  */
-import { findNearestPoiName } from './kakaoPlacesGeocode';
+import {
+  findNearestPoiName,
+  findNearestPoi,
+  searchPlacesKakao,
+} from './kakaoPlacesGeocode';
 import { extractRegionLabel } from './postRegionLabel';
 import { toProvinceShort } from './koreanDistricts';
 
@@ -166,6 +170,72 @@ export async function reverseGeocodeToPlaceDetail(lat, lng) {
     const address =
       String(row?.road_address?.address_name || row?.address?.address_name || '').trim();
     return { name, region, address };
+  } catch (_) {
+    return empty;
+  }
+}
+
+/**
+ * 지도에서 사용자가 직접 찍은 "그 지점"의 장소 정보.
+ *
+ * reverseGeocodeToPlaceDetail 과 달리, 주변 상호로 대충 채우지 않고
+ * 핀이 실제로 올라가 있는 대상을 우선한다.
+ *   1) 핀 바로 위(25m 이내)의 지점 — 사용자가 정확히 찍은 가게/시설
+ *   2) 그 좌표 건물의 이름 (예: "구미시립중앙도서관") — 좌표 자체의 정보라 가장 확실
+ *   3) 조금 떨어진(60m 이내) 지점 — 넓은 부지(도서관·공원·학교)에서 대표점이 안쪽에 있는 경우
+ *   4) 도로명/지번 주소
+ *
+ * @returns {Promise<{ name: string, region: string, address: string,
+ *                     source: 'poi'|'building'|'address'|'', distance: number|null }>}
+ */
+export async function reverseGeocodeToPointPlace(lat, lng) {
+  const empty = { name: '', region: '', address: '', source: '', distance: null };
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return empty;
+  try {
+    const [poi, row] = await Promise.all([
+      // 넓은 부지 안쪽에 대표점이 찍힌 시설(도서관·학교·공원)도 잡히도록 조회 반경은 넉넉히,
+      // 채택 여부는 아래에서 거리로 판단한다.
+      findNearestPoi(lat, lng, { radius: 150, acceptWithin: 150 }),
+      fetchCoord2Address(lat, lng),
+    ]);
+
+    const road = row?.road_address || null;
+    const building = road?.building_name ? String(road.building_name).trim() : '';
+    const address =
+      String(road?.address_name || row?.address?.address_name || '').trim();
+    const region = pickRegionFromCoordRow(row) || '';
+    const dist = Number(poi?.dist);
+    const hasPoi = !!poi?.name && Number.isFinite(dist);
+
+    if (hasPoi && dist <= 25) {
+      return { name: poi.name, region, address, source: 'poi', distance: dist };
+    }
+    if (building) {
+      return { name: building, region, address, source: 'building', distance: null };
+    }
+    if (hasPoi && dist <= 60) {
+      return { name: poi.name, region, address, source: 'poi', distance: dist };
+    }
+    if (address) {
+      // 카테고리 코드가 없어 categorySearch 에 안 잡히는 시설(도서관·관공서 등)이 있다.
+      // 주소 자체로 한 번 더 검색해 그 자리에 등록된 이름이 있으면 그것을 쓴다.
+      const byAddress = await searchPlacesKakao(address, 5, { lat, lng, radius: 500 });
+      const atPoint = byAddress.find((p) => {
+        const d = Number(p?.distance);
+        return p?.place_name && Number.isFinite(d) && d <= 60;
+      });
+      if (atPoint) {
+        return {
+          name: String(atPoint.place_name).trim(),
+          region,
+          address,
+          source: 'poi',
+          distance: Number(atPoint.distance),
+        };
+      }
+      return { name: address, region, address, source: 'address', distance: null };
+    }
+    return { name: '', region, address: '', source: '', distance: null };
   } catch (_) {
     return empty;
   }

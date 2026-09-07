@@ -7,7 +7,7 @@ import {
   searchPlacesKakao,
   searchNearbyPlacesKakao,
 } from '../../utils/kakaoPlacesGeocode';
-import { reverseGeocodeToPlaceDetail } from '../../utils/locationFromGeocode';
+import { reverseGeocodeToPointPlace } from '../../utils/locationFromGeocode';
 
 const SEOUL = { lat: 37.5665, lng: 126.978 };
 
@@ -64,9 +64,14 @@ export default function LocationMapPicker({
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [coords, setCoords] = useState(null); // { lat, lng }
+  // 검색을 핀 기준으로 편향시키기 위한 최신 좌표 (검색 effect 를 좌표마다 재실행하지 않으려고 ref)
+  const coordsRef = useRef(null);
   const [placeName, setPlaceName] = useState('');
   const [region, setRegion] = useState('');
   const [address, setAddress] = useState('');
+  // 이름을 어디서 얻었는지 — 'poi'(핀 위 지점) | 'building'(건물명) | 'address'(주소)
+  const [nameSource, setNameSource] = useState('');
+  const [nameDistance, setNameDistance] = useState(null); // poi 일 때 핀과의 거리(m)
   const [geocoding, setGeocoding] = useState(false);
   // 이 근처 장소 후보 — 탭하면 그 장소 이름·좌표로 확정한다
   const [nearby, setNearby] = useState([]);
@@ -90,7 +95,7 @@ export default function LocationMapPicker({
     };
   }, [open]);
 
-  // 좌표 → 장소명/지역/주소 + 근처 장소 후보. 마지막 요청 결과만 반영한다.
+  // 핀이 찍힌 "그 지점"의 장소 정보 + (직접 고를 수 있게) 핀 주변 후보.
   // keepName=true 면 이름은 사용자가 고른 값을 유지하고 주소·지역·후보만 갱신.
   const resolvePlace = useCallback(async (lat, lng, { keepName = false } = {}) => {
     const seq = ++geocodeSeqRef.current;
@@ -98,17 +103,25 @@ export default function LocationMapPicker({
     setNearbyLoading(true);
     try {
       const [detail, list] = await Promise.all([
-        reverseGeocodeToPlaceDetail(lat, lng),
-        searchNearbyPlacesKakao(lat, lng, { radius: 300, limit: 10 }),
+        reverseGeocodeToPointPlace(lat, lng),
+        searchNearbyPlacesKakao(lat, lng, { radius: 200, limit: 10 }),
       ]);
       if (seq !== geocodeSeqRef.current) return;
-      if (!keepName) setPlaceName(detail?.name || '');
+      if (!keepName) {
+        setPlaceName(detail?.name || '');
+        setNameSource(detail?.source || '');
+        setNameDistance(Number.isFinite(detail?.distance) ? detail.distance : null);
+      }
       setRegion(detail?.region || '');
       setAddress(detail?.address || '');
       setNearby(Array.isArray(list) ? list : []);
     } catch (_) {
       if (seq !== geocodeSeqRef.current) return;
-      if (!keepName) setPlaceName('');
+      if (!keepName) {
+        setPlaceName('');
+        setNameSource('');
+        setNameDistance(null);
+      }
       setRegion('');
       setAddress('');
       setNearby([]);
@@ -129,9 +142,14 @@ export default function LocationMapPicker({
         markerRef.current.setPosition(new window.kakao.maps.LatLng(lat, lng));
       }
       setCoords({ lat, lng });
+      coordsRef.current = { lat, lng };
       setPickedPlaceKey(placeKey);
       const keepName = typeof name === 'string' && name.trim().length > 0;
-      if (keepName) setPlaceName(name.trim());
+      if (keepName) {
+        setPlaceName(name.trim());
+        setNameSource('picked');
+        setNameDistance(null);
+      }
       if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
       geocodeTimerRef.current = window.setTimeout(
         () => resolvePlace(lat, lng, { keepName }),
@@ -181,6 +199,7 @@ export default function LocationMapPicker({
 
         setReady(true);
         setCoords(start);
+        coordsRef.current = start;
         void resolvePlace(start.lat, start.lng);
 
         // 지도를 탭하면 그 지점으로 핀 이동
@@ -231,7 +250,13 @@ export default function LocationMapPicker({
     setSearching(true);
     const t = window.setTimeout(async () => {
       try {
-        const list = await searchPlacesKakao(q, 8);
+        // 핀 기준 가까운 순으로 — "도서관"처럼 흔한 이름도 지금 보는 곳부터 나온다
+        const near = coordsRef.current;
+        const list = await searchPlacesKakao(q, 8, {
+          lat: near?.lat,
+          lng: near?.lng,
+          radius: 20000,
+        });
         if (!cancelled) setResults(Array.isArray(list) ? list : []);
       } catch (_) {
         if (!cancelled) setResults([]);
@@ -307,6 +332,20 @@ export default function LocationMapPicker({
   }, [coords, placeName, address, region, onConfirm]);
 
   if (!open) return null;
+
+  // 이 이름이 "핀 위의 것"인지 한눈에 알려 준다
+  const nameSourceLabel = (() => {
+    if (!placeName) return '';
+    if (nameSource === 'picked') return '직접 선택';
+    if (nameSource === 'building') return '핀 위 건물';
+    if (nameSource === 'poi') {
+      return Number.isFinite(nameDistance) && nameDistance > 0
+        ? `핀에서 ${Math.round(nameDistance)}m`
+        : '핀 위 장소';
+    }
+    if (nameSource === 'address') return '주소';
+    return '';
+  })();
 
   const roundBtn = {
     width: 40,
@@ -580,16 +619,40 @@ export default function LocationMapPicker({
         >
           <div
             style={{
-              fontSize: 15,
-              fontWeight: 700,
-              color: placeName ? LJ.textPrimary : LJ.textTertiary,
-              lineHeight: 1.35,
-              wordBreak: 'keep-all',
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: 6,
+              flexWrap: 'wrap',
             }}
           >
-            {geocoding && !placeName
-              ? '장소 확인 중…'
-              : placeName || '아래에서 장소를 골라 주세요'}
+            <span
+              style={{
+                fontSize: 15,
+                fontWeight: 700,
+                color: placeName ? LJ.textPrimary : LJ.textTertiary,
+                lineHeight: 1.35,
+                wordBreak: 'keep-all',
+              }}
+            >
+              {geocoding && !placeName
+                ? '장소 확인 중…'
+                : placeName || '아래에서 장소를 골라 주세요'}
+            </span>
+            {nameSourceLabel && (
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: LJ.keyTextDark,
+                  background: LJ.keyBgLight,
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                  flexShrink: 0,
+                }}
+              >
+                {nameSourceLabel}
+              </span>
+            )}
           </div>
           {(address || region) && (
             <div
@@ -617,7 +680,7 @@ export default function LocationMapPicker({
           )}
         </div>
 
-        {/* 이 근처 장소 — 탭하면 그 장소 이름으로 확정되고 핀도 그 자리로 */}
+        {/* 자동 인식이 어긋났을 때만 쓰는 보조 선택지 — 고르면 핀도 그 장소로 옮겨 간다 */}
         <div style={{ marginBottom: 10 }}>
           <div
             style={{
@@ -627,7 +690,7 @@ export default function LocationMapPicker({
               marginBottom: 6,
             }}
           >
-            이 근처 장소
+            다른 곳이라면 — 핀 주변에서 고르기
           </div>
           {nearbyLoading && nearby.length === 0 ? (
             <div style={{ fontSize: 11.5, color: LJ.textTertiary, padding: '4px 0' }}>
