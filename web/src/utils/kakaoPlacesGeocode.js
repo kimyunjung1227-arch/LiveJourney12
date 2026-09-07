@@ -119,6 +119,38 @@ export async function findNearestPoiName(lat, lng, { radius = 150, acceptWithin 
   }
 }
 
+/**
+ * 키워드로 카카오 장소 목록 검색 (Promise 버전).
+ * SDK 미로드/실패 시 빈 배열을 돌려주므로 호출부에서 별도 방어가 필요 없다.
+ * @param {string} query
+ * @param {number} size 최대 결과 수
+ * @returns {Promise<Array<object>>} 카카오 Places 결과 원본 (place_name, x, y, address_name …)
+ */
+export async function searchPlacesKakao(query, size = 8) {
+  const q = String(query || '').trim();
+  if (!q) return [];
+  try {
+    await ensureKakaoMapsServicesReady();
+    if (!window.kakao?.maps?.services) return [];
+    const places = new window.kakao.maps.services.Places();
+    return await new Promise((resolve) => {
+      places.keywordSearch(
+        q,
+        (data, status) => {
+          if (status !== window.kakao.maps.services.Status.OK || !Array.isArray(data)) {
+            resolve([]);
+            return;
+          }
+          resolve(data.slice(0, size));
+        },
+        { size: Math.min(15, Math.max(size, 5)) },
+      );
+    });
+  } catch (_) {
+    return [];
+  }
+}
+
 export function searchPlaceWithKakaoFirst(query) {
   return new Promise((resolve) => {
     const q = String(query || '').trim();

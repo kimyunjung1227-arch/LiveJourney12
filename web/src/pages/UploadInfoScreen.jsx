@@ -4,6 +4,7 @@ import {
   IconArrowLeft,
   IconClock,
   IconMapPin,
+  IconMap,
   IconInfoCircle,
   IconPlus,
   IconX,
@@ -31,6 +32,7 @@ import { searchPlaceWithKakaoFirst, ensureKakaoMapsServicesReady } from '../util
 import { patchUploadMedia } from '../stores/uploadStore';
 import { autoCategorize } from '../utils/autoCategorize';
 import RealtimeTagPicker, { TagGroupHeader } from '../components/lj/RealtimeTagPicker';
+import LocationMapPicker from '../components/lj/LocationMapPicker';
 import { emptyTagGroups, flattenTagGroups } from '../utils/realtimeTags';
 
 function UploadInfoScreen() {
@@ -62,6 +64,8 @@ function UploadInfoScreen() {
   // 사용자가 위치를 직접 편집한 경우의 좌표/장소 (있으면 media 값을 덮어씀)
   const [editedLoc, setEditedLoc] = useState(null); // { lat, lng, placeName, region? } | null
   const [locOpen, setLocOpen] = useState(false);
+  // 지도에서 위치 고르기 시트
+  const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const [locQuery, setLocQuery] = useState('');
   const [locResults, setLocResults] = useState([]);
   const [locLoading, setLocLoading] = useState(false);
@@ -141,7 +145,12 @@ function UploadInfoScreen() {
       try {
         const fix = await geo.getPreciseLocation(9000);
         if (cancelled || !fix) return;
-        if (typeof fix.accuracy === 'number' && fix.accuracy > 80) return; // 80m 초과는 반영 안 함
+        // 이미 셔터 시점 좌표가 있으면 80m 초과 fix 로는 덮지 않는다.
+        // 좌표가 아예 없으면 정확도가 낮아도 일단 채워서 "처음부터 위치가 보이게" 한다.
+        //   (정확도 칩이 경고를 띄우고, 사용자는 "지도"에서 바로 고칠 수 있다)
+        const hadCoords =
+          Number.isFinite(media?.lat) && Number.isFinite(media?.lng);
+        if (hadCoords && typeof fix.accuracy === 'number' && fix.accuracy > 80) return;
         patchUploadMedia({
           lat: fix.lat,
           lng: fix.lng,
@@ -159,22 +168,47 @@ function UploadInfoScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [media?.url, media?.source]);
 
-  const refreshLocation = async () => {
-    if (refreshing) return;
-    setRefreshing(true);
-    setEditedLoc(null);
+  // 지도 시트가 열릴 때 처음 보여줄 좌표 — 편집값 > 사진 좌표 > 기기 현재 위치
+  const pickerInitialCoords = useMemo(() => {
+    if (Number.isFinite(editedLoc?.lat) && Number.isFinite(editedLoc?.lng)) {
+      return { lat: editedLoc.lat, lng: editedLoc.lng };
+    }
+    if (Number.isFinite(media?.lat) && Number.isFinite(media?.lng)) {
+      return { lat: media.lat, lng: media.lng };
+    }
+    if (Number.isFinite(geo.coords?.lat) && Number.isFinite(geo.coords?.lng)) {
+      return { lat: geo.coords.lat, lng: geo.coords.lng };
+    }
+    return null;
+  }, [editedLoc, media?.lat, media?.lng, geo.coords]);
+
+  // 지도 시트의 "현재 위치" 버튼
+  const getCurrentFixForPicker = async () => {
     try {
       const fix = await geo.getPreciseLocation(10000);
-      if (!fix) return;
-      patchUploadMedia({
-        lat: fix.lat,
-        lng: fix.lng,
-        accuracy: fix.accuracy ?? null,
-        placeName: null,
-      });
-    } finally {
-      setRefreshing(false);
+      if (fix && Number.isFinite(fix.lat) && Number.isFinite(fix.lng)) {
+        return { lat: fix.lat, lng: fix.lng };
+      }
+    } catch (_) {
+      /* ignore */
     }
+    return Number.isFinite(geo.coords?.lat) && Number.isFinite(geo.coords?.lng)
+      ? { lat: geo.coords.lat, lng: geo.coords.lng }
+      : null;
+  };
+
+  // 지도에서 고른 위치를 확정 — 검색으로 고른 것과 같은 "직접 입력" 취급
+  const applyPickedLocation = ({ lat, lng, placeName, region }) => {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const name = String(placeName || '').trim() || String(region || '').trim();
+    const reg = String(region || '').trim();
+    setEditedLoc({ lat, lng, placeName: name, region: reg });
+    setResolvedPlace(name);
+    setResolvedRegion(reg);
+    setMapPickerOpen(false);
+    setLocOpen(false);
+    setLocQuery('');
+    setLocResults([]);
   };
 
   // 좌표가 잡혀 있으면 항상 좌표 기반으로 장소명+지역을 재지오코딩한다.
@@ -695,27 +729,28 @@ function UploadInfoScreen() {
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            {/* 갤러리 사진은 "사진이 찍힌 위치"가 기준이라 현재 위치로 다시 측정하지 않는다 */}
-            {media?.source !== 'gallery' && (
-              <button
-                type="button"
-                onClick={refreshLocation}
-                disabled={refreshing}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  padding: '4px 6px',
-                  color: refreshing ? LJ.textTertiary : LJ.textSecondary,
-                  fontFamily: LJ.fontStack,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: refreshing ? 'default' : 'pointer',
-                }}
-                aria-label="현재 위치 다시 측정"
-              >
-                {refreshing ? '측정 중…' : '다시 측정'}
-              </button>
-            )}
+            {/* 위치는 진입 즉시 자동으로 잡히므로 "다시 측정" 대신 지도에서 직접 고르는 길을 준다 */}
+            <button
+              type="button"
+              onClick={() => setMapPickerOpen(true)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                padding: '4px 6px',
+                color: LJ.textSecondary,
+                fontFamily: LJ.fontStack,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 3,
+              }}
+              aria-label="지도에서 위치 선택"
+            >
+              <IconMap size={13} stroke={2} />
+              지도
+            </button>
             <button
               type="button"
               onClick={() => setLocOpen((v) => !v)}
@@ -763,7 +798,7 @@ function UploadInfoScreen() {
                       ? '근처에 알아볼 만한 장소가 없어요 — "위치 수정"으로 직접 검색해 주세요'
                       : media?.source === 'gallery'
                         ? '사진에 위치 정보가 없어요 — "위치 수정"으로 직접 입력해 주세요'
-                        : '위치 정보가 없어요 — "다시 측정" 또는 "위치 수정"')}
+                        : '위치를 찾지 못했어요 — "지도"에서 직접 찍거나 "위치 수정"으로 검색해 주세요')}
             </div>
             {displayRegion && (
               <div
@@ -808,7 +843,7 @@ function UploadInfoScreen() {
               lineHeight: 1.45,
             }}
           >
-            GPS가 살짝 불안정해요. 야외에서 잠시 후 "다시 측정"을 누르거나, "위치 수정"으로 정확한 장소를 검색해 주세요.
+            GPS가 살짝 불안정해요. "지도"에서 정확한 지점을 직접 찍거나, "위치 수정"으로 장소를 검색해 주세요.
           </p>
         )}
 
@@ -1080,6 +1115,15 @@ function UploadInfoScreen() {
             : (isAnswerMode ? '답변 올리기' : '업로드')}
         </button>
       </div>
+
+      {/* 지도에서 위치 선택 */}
+      <LocationMapPicker
+        open={mapPickerOpen}
+        initial={pickerInitialCoords}
+        onClose={() => setMapPickerOpen(false)}
+        onConfirm={applyPickedLocation}
+        onRequestCurrentLocation={getCurrentFixForPicker}
+      />
     </div>
   );
 }
