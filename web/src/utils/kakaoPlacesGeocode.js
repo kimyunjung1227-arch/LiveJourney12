@@ -119,6 +119,66 @@ export async function findNearestPoiName(lat, lng, { radius = 150, acceptWithin 
   }
 }
 
+// 지도에서 위치를 고를 때 보여줄 "이 근처 장소" 후보 카테고리.
+// 사진을 찍을 만한 곳 + 길찾기 기준이 되는 역/문화시설까지 조금 넓게 잡는다.
+const NEARBY_PICK_CATEGORY_CODES = ['FD6', 'CE7', 'AT4', 'CT1', 'AD5', 'MT1', 'CS2', 'SW8'];
+
+function categoryNearbyList(places, code, latlng, radius, size) {
+  return new Promise((resolve) => {
+    try {
+      places.categorySearch(
+        code,
+        (data, status) => {
+          if (status !== window.kakao.maps.services.Status.OK || !Array.isArray(data)) {
+            resolve([]);
+            return;
+          }
+          resolve(data);
+        },
+        { location: latlng, radius, sort: 'distance', size },
+      );
+    } catch (_) {
+      resolve([]);
+    }
+  });
+}
+
+/**
+ * 좌표 주변의 장소 후보를 거리순으로 반환. (지도에서 위치 고를 때 "이 근처 장소" 목록용)
+ * @param {number} lat
+ * @param {number} lng
+ * @param {{ radius?: number, limit?: number }} [opts]
+ * @returns {Promise<Array<object>>} 카카오 Places 결과 + distance(m) 오름차순
+ */
+export async function searchNearbyPlacesKakao(lat, lng, { radius = 250, limit = 10 } = {}) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return [];
+  try {
+    await ensureKakaoMapsServicesReady();
+    if (!window.kakao?.maps?.services) return [];
+    const latlng = new window.kakao.maps.LatLng(lat, lng);
+    const places = new window.kakao.maps.services.Places();
+    const lists = await Promise.all(
+      NEARBY_PICK_CATEGORY_CODES.map((code) =>
+        categoryNearbyList(places, code, latlng, radius, 5),
+      ),
+    );
+    const seen = new Set();
+    return lists
+      .flat()
+      .filter((r) => {
+        const key = r?.id || `${r?.x}|${r?.y}|${r?.place_name}`;
+        if (!r?.place_name || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((r) => ({ ...r, distance: Number(r.distance) }))
+      .sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity))
+      .slice(0, limit);
+  } catch (_) {
+    return [];
+  }
+}
+
 /**
  * 키워드로 카카오 장소 목록 검색 (Promise 버전).
  * SDK 미로드/실패 시 빈 배열을 돌려주므로 호출부에서 별도 방어가 필요 없다.

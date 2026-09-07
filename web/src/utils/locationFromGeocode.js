@@ -146,12 +146,13 @@ export async function reverseGeocodeToPlace(lat, lng) {
 }
 
 /**
- * 좌표 → 상세 정보 ({name, region}).
- *  - name: 건물명 / 도로명 / 지번 중 우선순위 1개 (없으면 '')
- *  - region: "시 구 동" 형태의 도시 라벨 (예: "서울 강남구 역삼동")
+ * 좌표 → 상세 정보 ({name, region, address}).
+ *  - name: 지점명 / 건물명 / 도로명 / 지번 중 우선순위 1개 (없으면 '')
+ *  - region: "시 구" 형태의 도시 라벨 (예: "서울 강남구")
+ *  - address: 도로명 주소(없으면 지번 주소) — 이름만으로 애매할 때 함께 보여주는 용도
  */
 export async function reverseGeocodeToPlaceDetail(lat, lng) {
-  const empty = { name: '', region: '' };
+  const empty = { name: '', region: '', address: '' };
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return empty;
   try {
     // 지점명 조회와 주소 조회를 동시에 — 지역 라벨은 주소(coord2Address)에서만 얻을 수 있다.
@@ -162,7 +163,9 @@ export async function reverseGeocodeToPlaceDetail(lat, lng) {
     const region = pickRegionFromCoordRow(row) || '';
     // 1) 지점명(가게/시설) 우선 → 2) 건물명/도로명/지번 폴백
     const name = poi || pickPreciseAddressFromCoordRow(row) || '';
-    return { name, region };
+    const address =
+      String(row?.road_address?.address_name || row?.address?.address_name || '').trim();
+    return { name, region, address };
   } catch (_) {
     return empty;
   }

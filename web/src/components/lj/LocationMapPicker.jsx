@@ -2,7 +2,11 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { IconX, IconCurrentLocation, IconMapPin, IconSearch } from '@tabler/icons-react';
 import { LJ } from './tokens';
 import { logger } from '../../utils/logger';
-import { ensureKakaoMapsServicesReady, searchPlacesKakao } from '../../utils/kakaoPlacesGeocode';
+import {
+  ensureKakaoMapsServicesReady,
+  searchPlacesKakao,
+  searchNearbyPlacesKakao,
+} from '../../utils/kakaoPlacesGeocode';
 import { reverseGeocodeToPlaceDetail } from '../../utils/locationFromGeocode';
 
 const SEOUL = { lat: 37.5665, lng: 126.978 };
@@ -17,6 +21,16 @@ const PIN_SVG =
   'fill="#4DB8E8" stroke="#ffffff" stroke-width="3"/>' +
   '<circle cx="17" cy="16.5" r="4.8" fill="#ffffff"/></svg>';
 const PIN_IMAGE_URL = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(PIN_SVG)}`;
+
+/** 카카오 장소 결과의 고유 키 (선택 표시용) */
+const placeKeyOf = (r) => String(r?.id || `${r?.x}|${r?.y}|${r?.place_name}`);
+
+/** 거리(m) 표기 */
+const formatDistance = (m) => {
+  const n = Number(m);
+  if (!Number.isFinite(n) || n < 0) return '';
+  return n < 1000 ? `${Math.round(n)}m` : `${(n / 1000).toFixed(1)}km`;
+};
 
 /**
  * 지도에서 업로드 위치를 직접 고르는 시트 (업로드 화면과 같은 앱 프레임 폭).
@@ -52,7 +66,12 @@ export default function LocationMapPicker({
   const [coords, setCoords] = useState(null); // { lat, lng }
   const [placeName, setPlaceName] = useState('');
   const [region, setRegion] = useState('');
+  const [address, setAddress] = useState('');
   const [geocoding, setGeocoding] = useState(false);
+  // 이 근처 장소 후보 — 탭하면 그 장소 이름·좌표로 확정한다
+  const [nearby, setNearby] = useState([]);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [pickedPlaceKey, setPickedPlaceKey] = useState('');
   const [locating, setLocating] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -71,34 +90,53 @@ export default function LocationMapPicker({
     };
   }, [open]);
 
-  // 좌표 → 장소명/지역 (지도가 멈출 때마다, 마지막 요청만 반영)
-  const resolvePlace = useCallback(async (lat, lng) => {
+  // 좌표 → 장소명/지역/주소 + 근처 장소 후보. 마지막 요청 결과만 반영한다.
+  // keepName=true 면 이름은 사용자가 고른 값을 유지하고 주소·지역·후보만 갱신.
+  const resolvePlace = useCallback(async (lat, lng, { keepName = false } = {}) => {
     const seq = ++geocodeSeqRef.current;
     setGeocoding(true);
+    setNearbyLoading(true);
     try {
-      const detail = await reverseGeocodeToPlaceDetail(lat, lng);
+      const [detail, list] = await Promise.all([
+        reverseGeocodeToPlaceDetail(lat, lng),
+        searchNearbyPlacesKakao(lat, lng, { radius: 300, limit: 10 }),
+      ]);
       if (seq !== geocodeSeqRef.current) return;
-      setPlaceName(detail?.name || '');
+      if (!keepName) setPlaceName(detail?.name || '');
       setRegion(detail?.region || '');
-    } catch (e) {
+      setAddress(detail?.address || '');
+      setNearby(Array.isArray(list) ? list : []);
+    } catch (_) {
       if (seq !== geocodeSeqRef.current) return;
-      setPlaceName('');
+      if (!keepName) setPlaceName('');
       setRegion('');
+      setAddress('');
+      setNearby([]);
     } finally {
-      if (seq === geocodeSeqRef.current) setGeocoding(false);
+      if (seq === geocodeSeqRef.current) {
+        setGeocoding(false);
+        setNearbyLoading(false);
+      }
     }
   }, []);
 
   // 선택 위치 갱신 — 핀 이동 + 좌표 상태 + (디바운스) 역지오코딩
+  // name 을 넘기면 그 이름을 그대로 쓰고(사용자가 고른 장소), 주소·지역만 좌표로 보강한다.
   const selectPoint = useCallback(
-    (lat, lng, { movePin = true } = {}) => {
+    (lat, lng, { movePin = true, name = null, placeKey = '' } = {}) => {
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
       if (movePin && markerRef.current && window.kakao?.maps) {
         markerRef.current.setPosition(new window.kakao.maps.LatLng(lat, lng));
       }
       setCoords({ lat, lng });
+      setPickedPlaceKey(placeKey);
+      const keepName = typeof name === 'string' && name.trim().length > 0;
+      if (keepName) setPlaceName(name.trim());
       if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
-      geocodeTimerRef.current = window.setTimeout(() => resolvePlace(lat, lng), 200);
+      geocodeTimerRef.current = window.setTimeout(
+        () => resolvePlace(lat, lng, { keepName }),
+        200,
+      );
     },
     [resolvePlace],
   );
@@ -209,13 +247,13 @@ export default function LocationMapPicker({
 
   // 지도를 그 좌표로 옮기고 핀도 함께 꽂는다 (검색 결과·현재 위치)
   const moveTo = useCallback(
-    (lat, lng, level) => {
+    (lat, lng, level, opts) => {
       const map = mapRef.current;
       if (!map || !window.kakao?.maps) return;
       const pos = new window.kakao.maps.LatLng(lat, lng);
       if (Number.isFinite(level)) map.setLevel(level);
       map.setCenter(pos);
-      selectPoint(lat, lng);
+      selectPoint(lat, lng, opts);
     },
     [selectPoint],
   );
@@ -233,6 +271,7 @@ export default function LocationMapPicker({
     }
   }, [locating, moveTo, onRequestCurrentLocation]);
 
+  // 검색 결과 선택 — 그 장소 이름을 그대로 쓰고 핀도 그 지점에 꽂는다
   const handleSelectResult = useCallback(
     (r) => {
       const lat = Number(r.y);
@@ -240,7 +279,18 @@ export default function LocationMapPicker({
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
       setQuery('');
       setResults([]);
-      moveTo(lat, lng, 3);
+      moveTo(lat, lng, 3, { name: r.place_name || '', placeKey: placeKeyOf(r) });
+    },
+    [moveTo],
+  );
+
+  // "이 근처 장소" 선택 — 핀을 그 장소 좌표로 옮기고 이름을 확정
+  const handleSelectNearby = useCallback(
+    (r) => {
+      const lat = Number(r.y);
+      const lng = Number(r.x);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      moveTo(lat, lng, undefined, { name: r.place_name || '', placeKey: placeKeyOf(r) });
     },
     [moveTo],
   );
@@ -250,10 +300,11 @@ export default function LocationMapPicker({
     onConfirm({
       lat: coords.lat,
       lng: coords.lng,
-      placeName: placeName || '',
+      // 장소명이 없으면 주소라도 이름으로 — 업로드 후 "이름 없음"이 되지 않게
+      placeName: placeName || address || region || '',
       region: region || '',
     });
-  }, [coords, placeName, region, onConfirm]);
+  }, [coords, placeName, address, region, onConfirm]);
 
   if (!open) return null;
 
@@ -518,6 +569,7 @@ export default function LocationMapPicker({
           background: '#fff',
         }}
       >
+        {/* 선택된 장소 — 이름 + 주소로 어디인지 분명히 */}
         <div
           style={{
             background: LJ.bgSurface,
@@ -528,28 +580,124 @@ export default function LocationMapPicker({
         >
           <div
             style={{
-              fontSize: 14,
-              fontWeight: 600,
+              fontSize: 15,
+              fontWeight: 700,
               color: placeName ? LJ.textPrimary : LJ.textTertiary,
               lineHeight: 1.35,
               wordBreak: 'keep-all',
             }}
           >
-            {geocoding ? '장소 확인 중…' : placeName || '이 지점에는 알려진 장소명이 없어요'}
+            {geocoding && !placeName
+              ? '장소 확인 중…'
+              : placeName || '아래에서 장소를 골라 주세요'}
           </div>
-          {region && (
+          {(address || region) && (
             <div
               style={{
                 marginTop: 3,
                 fontSize: 11.5,
                 color: LJ.textSecondary,
-                display: 'inline-flex',
+                display: 'flex',
                 alignItems: 'center',
                 gap: 4,
+                lineHeight: 1.35,
               }}
             >
               <IconMapPin size={11} stroke={2} color={LJ.textTertiary} />
-              <span>{region}</span>
+              <span
+                style={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {address || region}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* 이 근처 장소 — 탭하면 그 장소 이름으로 확정되고 핀도 그 자리로 */}
+        <div style={{ marginBottom: 10 }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: LJ.textTertiary,
+              marginBottom: 6,
+            }}
+          >
+            이 근처 장소
+          </div>
+          {nearbyLoading && nearby.length === 0 ? (
+            <div style={{ fontSize: 11.5, color: LJ.textTertiary, padding: '4px 0' }}>
+              주변 장소 찾는 중…
+            </div>
+          ) : nearby.length === 0 ? (
+            <div style={{ fontSize: 11.5, color: LJ.textTertiary, padding: '4px 0' }}>
+              주변에 등록된 장소가 없어요 — 주소로 올라가요
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                gap: 6,
+                overflowX: 'auto',
+                paddingBottom: 2,
+                WebkitOverflowScrolling: 'touch',
+              }}
+            >
+              {nearby.map((r) => {
+                const key = placeKeyOf(r);
+                const active = key === pickedPlaceKey || r.place_name === placeName;
+                const dist = formatDistance(r.distance);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => handleSelectNearby(r)}
+                    style={{
+                      flex: '0 0 auto',
+                      maxWidth: 190,
+                      minHeight: 0,
+                      padding: '7px 11px',
+                      borderRadius: 999,
+                      border: `1px solid ${active ? LJ.key : LJ.borderLight}`,
+                      background: active ? LJ.keyBgLight : '#fff',
+                      color: active ? LJ.keyTextDark : LJ.textPrimary,
+                      fontFamily: LJ.fontStack,
+                      fontSize: 12,
+                      fontWeight: active ? 700 : 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <span
+                      style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        maxWidth: 130,
+                      }}
+                    >
+                      {r.place_name}
+                    </span>
+                    {dist && (
+                      <span
+                        style={{
+                          fontSize: 10.5,
+                          fontWeight: 600,
+                          color: active ? LJ.keyTextDark : LJ.textTertiary,
+                        }}
+                      >
+                        {dist}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
