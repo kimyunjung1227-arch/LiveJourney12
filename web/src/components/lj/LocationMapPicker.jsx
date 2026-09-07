@@ -7,13 +7,24 @@ import { reverseGeocodeToPlaceDetail } from '../../utils/locationFromGeocode';
 
 const SEOUL = { lat: 37.5665, lng: 126.978 };
 
+// 앱 프레임 폭 (.app-container 와 동일) — 업로드 화면과 같은 크기로 뜨게 한다
+const APP_FRAME_MAX_WIDTH = 414;
+
+// 선택 위치 표시 핀 — 지도 화면 검색 핀과 같은 티어드롭(키컬러, 플랫)
+const PIN_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="44" viewBox="0 0 34 44">' +
+  '<path d="M17 42.5S30.5 27.6 30.5 17A13.5 13.5 0 1 0 3.5 17C3.5 27.6 17 42.5 17 42.5z" ' +
+  'fill="#4DB8E8" stroke="#ffffff" stroke-width="3"/>' +
+  '<circle cx="17" cy="16.5" r="4.8" fill="#ffffff"/></svg>';
+const PIN_IMAGE_URL = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(PIN_SVG)}`;
+
 /**
- * 지도에서 업로드 위치를 직접 고르는 전체화면 시트.
+ * 지도에서 업로드 위치를 직접 고르는 시트 (업로드 화면과 같은 앱 프레임 폭).
  *
- * - 지도를 움직이면 화면 중앙 핀이 가리키는 좌표가 선택 위치가 된다(모바일에서 가장 정확한 방식).
- * - 멈출 때마다 좌표를 역지오코딩해 장소명·지역을 아래 카드에 보여준다.
+ * - 선택한 위치에 표시 핀이 꽂힌다. 지도를 탭하거나 핀을 끌면 그 지점이 선택 위치가 된다.
+ * - 위치가 바뀔 때마다 역지오코딩해 장소명·지역을 아래 카드에 보여준다.
  * - "현재 위치" 버튼으로 기기 GPS 위치로 한 번에 이동.
- * - 상단 검색으로 장소를 찾아 그 지점으로 이동할 수도 있다.
+ * - 상단 검색으로 장소를 찾아 그 지점에 핀을 놓을 수도 있다.
  *
  * @param {{
  *   open: boolean,
@@ -32,7 +43,8 @@ export default function LocationMapPicker({
 }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
-  const idleTimerRef = useRef(0);
+  const markerRef = useRef(null);
+  const geocodeTimerRef = useRef(0);
   const geocodeSeqRef = useRef(0);
 
   const [ready, setReady] = useState(false);
@@ -77,10 +89,25 @@ export default function LocationMapPicker({
     }
   }, []);
 
+  // 선택 위치 갱신 — 핀 이동 + 좌표 상태 + (디바운스) 역지오코딩
+  const selectPoint = useCallback(
+    (lat, lng, { movePin = true } = {}) => {
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      if (movePin && markerRef.current && window.kakao?.maps) {
+        markerRef.current.setPosition(new window.kakao.maps.LatLng(lat, lng));
+      }
+      setCoords({ lat, lng });
+      if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
+      geocodeTimerRef.current = window.setTimeout(() => resolvePlace(lat, lng), 200);
+    },
+    [resolvePlace],
+  );
+
   // 지도 생성 (열릴 때 1회)
   useEffect(() => {
     if (!open) {
       mapRef.current = null;
+      markerRef.current = null;
       setReady(false);
       return undefined;
     }
@@ -94,37 +121,47 @@ export default function LocationMapPicker({
         await ensureKakaoMapsServicesReady();
         if (cancelled || !containerRef.current) return;
         const kakao = window.kakao;
+        const startPos = new kakao.maps.LatLng(start.lat, start.lng);
         const map = new kakao.maps.Map(containerRef.current, {
-          center: new kakao.maps.LatLng(start.lat, start.lng),
+          center: startPos,
           level: hasInitialCoords ? 3 : 6,
         });
         mapRef.current = map;
+
+        // 선택 위치 표시 핀 — 끌어서 미세 조정 가능
+        const marker = new kakao.maps.Marker({
+          position: startPos,
+          draggable: true,
+          image: new kakao.maps.MarkerImage(
+            PIN_IMAGE_URL,
+            new kakao.maps.Size(34, 44),
+            { offset: new kakao.maps.Point(17, 43) },
+          ),
+        });
+        marker.setMap(map);
+        markerRef.current = marker;
+
         setReady(true);
         setCoords(start);
         void resolvePlace(start.lat, start.lng);
 
-        // 지도가 멈추면 중앙 좌표를 선택 위치로 확정
-        kakao.maps.event.addListener(map, 'idle', () => {
-          const c = map.getCenter();
-          const next = { lat: c.getLat(), lng: c.getLng() };
-          setCoords(next);
-          if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-          idleTimerRef.current = window.setTimeout(
-            () => resolvePlace(next.lat, next.lng),
-            250,
-          );
+        // 지도를 탭하면 그 지점으로 핀 이동
+        kakao.maps.event.addListener(map, 'click', (e) => {
+          const pos = e.latLng;
+          selectPoint(pos.getLat(), pos.getLng());
         });
 
-        // 지도를 탭하면 그 지점을 가운데로
-        kakao.maps.event.addListener(map, 'click', (e) => {
-          map.panTo(e.latLng);
+        // 핀을 끌어 놓으면 그 지점이 선택 위치
+        kakao.maps.event.addListener(marker, 'dragend', () => {
+          const pos = marker.getPosition();
+          selectPoint(pos.getLat(), pos.getLng(), { movePin: false });
         });
 
         // 시트가 열리면서 컨테이너 크기가 확정되므로 한 번 다시 그린다
         window.setTimeout(() => {
           try {
             map.relayout();
-            map.setCenter(new kakao.maps.LatLng(start.lat, start.lng));
+            map.setCenter(startPos);
           } catch (_) {
             /* ignore */
           }
@@ -139,7 +176,7 @@ export default function LocationMapPicker({
 
     return () => {
       cancelled = true;
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -170,13 +207,18 @@ export default function LocationMapPicker({
     };
   }, [query, open]);
 
-  const moveTo = useCallback((lat, lng, level) => {
-    const map = mapRef.current;
-    if (!map || !window.kakao?.maps) return;
-    const pos = new window.kakao.maps.LatLng(lat, lng);
-    if (Number.isFinite(level)) map.setLevel(level);
-    map.setCenter(pos); // idle 이벤트가 좌표·장소명을 갱신
-  }, []);
+  // 지도를 그 좌표로 옮기고 핀도 함께 꽂는다 (검색 결과·현재 위치)
+  const moveTo = useCallback(
+    (lat, lng, level) => {
+      const map = mapRef.current;
+      if (!map || !window.kakao?.maps) return;
+      const pos = new window.kakao.maps.LatLng(lat, lng);
+      if (Number.isFinite(level)) map.setLevel(level);
+      map.setCenter(pos);
+      selectPoint(lat, lng);
+    },
+    [selectPoint],
+  );
 
   const handleCurrentLocation = useCallback(async () => {
     if (locating || typeof onRequestCurrentLocation !== 'function') return;
@@ -232,14 +274,33 @@ export default function LocationMapPicker({
   };
 
   return (
-    <div
+    <>
+      {/* 프레임 밖(데스크톱 여백) 어둡게 — 모달로 읽히게 */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 999,
+          background: 'rgba(0,0,0,0.35)',
+        }}
+      />
+      <div
       style={{
+        // 업로드 화면과 같은 앱 프레임 폭(414px)으로 가운데 정렬.
+        // (.app-container 가 zoom 을 걸고 있어 fixed 도 같은 스케일로 렌더된다)
         position: 'fixed',
-        inset: 0,
+        top: 0,
+        bottom: 0,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '100%',
+        maxWidth: APP_FRAME_MAX_WIDTH,
         zIndex: 1000,
         background: '#fff',
         display: 'flex',
         flexDirection: 'column',
+        overflow: 'hidden',
         fontFamily: LJ.fontStack,
       }}
       role="dialog"
@@ -398,53 +459,33 @@ export default function LocationMapPicker({
           </div>
         )}
 
-        {/* 중앙 고정 핀 — 지도를 움직여 이 핀 아래를 맞춘다 */}
+        {/* 조작 안내 — 핀은 지도 위 마커로 표시된다 */}
         {ready && !loadError && (
           <div
             style={{
               position: 'absolute',
-              left: '50%',
-              top: '50%',
-              transform: 'translate(-50%, -100%)',
-              pointerEvents: 'none',
+              left: 12,
+              right: 12,
+              top: 10,
               display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
+              justifyContent: 'center',
+              pointerEvents: 'none',
             }}
           >
-            <div
+            <span
               style={{
-                width: 34,
-                height: 34,
-                background: LJ.key,
-                border: '3px solid #fff',
-                borderRadius: '50% 50% 50% 6px',
-                transform: 'rotate(-45deg)',
-                boxShadow: '0 6px 18px rgba(77,184,232,0.45)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                background: 'rgba(0,0,0,0.55)',
+                color: '#fff',
+                fontSize: 11,
+                fontWeight: 600,
+                padding: '5px 10px',
+                borderRadius: 999,
+                backdropFilter: 'blur(4px)',
+                WebkitBackdropFilter: 'blur(4px)',
               }}
             >
-              <div
-                style={{
-                  width: 10,
-                  height: 10,
-                  background: '#fff',
-                  borderRadius: '50%',
-                  transform: 'rotate(45deg)',
-                }}
-              />
-            </div>
-            <div
-              style={{
-                width: 8,
-                height: 4,
-                marginTop: 3,
-                borderRadius: '50%',
-                background: 'rgba(0,0,0,0.22)',
-              }}
-            />
+              지도를 탭하거나 핀을 끌어 위치를 지정하세요
+            </span>
           </div>
         )}
 
@@ -516,24 +557,25 @@ export default function LocationMapPicker({
         <button
           type="button"
           onClick={handleConfirm}
-          disabled={!coords || geocoding}
+          disabled={!coords}
           style={{
             width: '100%',
             height: 48,
             minHeight: 48,
-            background: !coords || geocoding ? LJ.borderLight : LJ.key,
-            color: !coords || geocoding ? LJ.textTertiary : '#fff',
+            background: coords ? LJ.key : LJ.borderLight,
+            color: coords ? '#fff' : LJ.textTertiary,
             border: 'none',
             borderRadius: 12,
             fontFamily: LJ.fontStack,
             fontSize: 14.5,
             fontWeight: 700,
-            cursor: !coords || geocoding ? 'default' : 'pointer',
+            cursor: coords ? 'pointer' : 'default',
           }}
         >
           이 위치로 설정
         </button>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
