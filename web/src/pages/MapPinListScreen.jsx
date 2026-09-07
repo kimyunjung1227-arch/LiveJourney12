@@ -27,6 +27,8 @@ import {
 } from '../utils/feedGridCardStyles';
 import { useAuth } from '../contexts/AuthContext';
 import WeatherIcon from '../components/WeatherIcon';
+import { isVideoUri, getFirstVideoUriFromPost } from '../utils/postMedia';
+import { getDisplayImageUrl } from '../api/upload';
 
 function timeAgo(iso) {
   if (!iso) return '';
@@ -228,7 +230,9 @@ const MapPinListScreen = () => {
       const rawImage =
         (Array.isArray(post.images) && post.images.length > 0
           ? post.images[0]
-          : post.image || post.thumbnail || '') || '';
+          : post.image || post.thumbnail || '') ||
+        getFirstVideoUriFromPost(post) ||
+        '';
       const snap = getValidWeatherSnapshot(post);
       const w = snap || post.weatherSnapshot || post.weather || null;
       const hasWeather = w && (w.icon || w.temperature);
@@ -410,7 +414,27 @@ const MapPinListScreen = () => {
                 }}
               >
                 <div style={feedGridImageBoxFlat}>
-                  {card.rawImage ? (
+                  {card.rawImage && isVideoUri(card.rawImage) ? (
+                    // 동영상 게시물 — 이미지 변환 URL 이 없으므로 첫 프레임을 <video> 로 표시
+                    <video
+                      src={`${getDisplayImageUrl(card.rawImage)}#t=0.1`}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      disablePictureInPicture
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        display: 'block',
+                        background: '#000',
+                        pointerEvents: 'none',
+                      }}
+                    />
+                  ) : card.rawImage ? (
                     <FastImage
                       rawUrl={card.rawImage}
                       opts={MAIN_FEED_IMAGE_OPTS}

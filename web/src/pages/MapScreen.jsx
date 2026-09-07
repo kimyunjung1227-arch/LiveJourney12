@@ -32,6 +32,8 @@ import { getWeatherByCoords } from '../api/weather';
 import PageSeo from '../components/PageSeo';
 import { PAGE_SEO } from '../config/seo';
 import WeatherIcon from '../components/WeatherIcon';
+import { isVideoUri } from '../utils/postMedia';
+import FeedVideo from '../components/lj/FeedVideo';
 
 // 작성자명이 "표시용 닉네임"이 아니라 시스템 식별자/임시값으로 보이면 true
 const isAnonymousName = (v) => {
@@ -124,6 +126,30 @@ const esc = (v) =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
+// posts row 의 images / videos(jsonb: 문자열·{url} 객체 혼재) → 대표 미디어 URL 1개.
+// get_map_bundles RPC 의 lj_post_cover_url 과 같은 규칙 — 사진 우선, 없으면 동영상.
+const firstMediaUrl = (value) => {
+  const pick = (el) => {
+    if (!el) return '';
+    if (typeof el === 'string') return el.trim();
+    if (typeof el === 'object') {
+      return String(el.url || el.src || el.public_url || el.publicUrl || '').trim();
+    }
+    return '';
+  };
+  if (Array.isArray(value)) {
+    for (const el of value) {
+      const u = pick(el);
+      if (u) return u;
+    }
+    return '';
+  }
+  return pick(value);
+};
+
+const getMapBundleCoverUrl = (row) =>
+  firstMediaUrl(row?.images) || firstMediaUrl(row?.videos) || '';
+
 // ────────────────────────────────────────────────
 // Kakao SDK 로더 (clusterer + services 포함)
 // ────────────────────────────────────────────────
@@ -190,7 +216,9 @@ const ensureKakaoMapsReady = async () => {
 // 핀 HTML 빌더 (CustomOverlay content)
 // ────────────────────────────────────────────────
 function buildPinHTML(bundle, { isSelected, isOtherSelected }) {
-  const thumb = esc(getDisplayImageUrl(bundle.primary_thumbnail || ''));
+  const rawThumb = bundle.primary_thumbnail || '';
+  const isVideo = isVideoUri(rawThumb);
+  const thumb = esc(getDisplayImageUrl(rawThumb));
   const size = isSelected ? 76 : isOtherSelected ? 44 : 54;
   const borderW = isSelected ? 4 : 3;
   const radius = isSelected ? 16 : 12;
@@ -227,12 +255,28 @@ function buildPinHTML(bundle, { isSelected, isOtherSelected }) {
       </div>`
     : '';
 
-  const imgFallbackBg = thumb
-    ? ''
-    : 'background-image:linear-gradient(135deg,#e0f7fa,#b2ebf2);';
+  // 동영상 게시물 핀: background-image 로는 프레임이 안 나오므로 <video> 로 첫 프레임을 띄운다.
+  //  - 미선택 핀은 preload=metadata + #t=0.1 로 정지 프레임만 (트래픽·배터리 절약)
+  //  - 선택된 핀만 음소거 자동재생 → 핀을 누르면 지도 위에서도 바로 움직인다
+  const hasVideo = isVideo && !!thumb;
+  const imgFallbackBg =
+    thumb && !isVideo ? '' : 'background-image:linear-gradient(135deg,#e0f7fa,#b2ebf2);';
+  const playBadgeSize = isSelected ? 22 : 17;
+  const videoBadge = hasVideo
+    ? `<div style="position:absolute;right:3px;bottom:3px;width:${playBadgeSize}px;height:${playBadgeSize}px;border-radius:50%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;pointer-events:none;">
+        <svg width="${playBadgeSize - 8}" height="${playBadgeSize - 8}" viewBox="0 0 24 24" fill="white"><path d="M8 5.5v13l11-6.5L8 5.5z"/></svg>
+      </div>`
+    : '';
+  const mediaLayer = hasVideo
+    ? `<video src="${thumb}#t=0.1" ${
+        isSelected ? 'autoplay loop' : ''
+      } muted playsinline preload="metadata" disablepictureinpicture style="width:100%;height:100%;object-fit:cover;display:block;background:#000;pointer-events:none;"></video>`
+    : '';
 
   return `<div style="position:relative;opacity:${opacity};transition:all 0.15s ease;cursor:pointer;">
-    <div style="width:${size}px;height:${size}px;background-image:url('${thumb}');${imgFallbackBg}background-size:cover;background-position:center;border:${borderW}px solid white;border-radius:${radius}px;box-shadow:${shadow};${outline}background-color:#f3f4f6;"></div>
+    <div style="position:relative;overflow:hidden;width:${size}px;height:${size}px;background-image:url('${
+      hasVideo ? '' : thumb
+    }');${imgFallbackBg}background-size:cover;background-position:center;border:${borderW}px solid white;border-radius:${radius}px;box-shadow:${shadow};${outline}background-color:#f3f4f6;">${mediaLayer}${videoBadge}</div>
     <div style="position:absolute;bottom:${arrowBottom}px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:${arrowW}px solid transparent;border-right:${arrowW}px solid transparent;border-top:${arrowH}px solid ${arrowColor};filter:drop-shadow(0 2px 2px rgba(0,0,0,0.12));pointer-events:none;"></div>
     ${bundleBadge}
   </div>`;
@@ -778,17 +822,20 @@ function PostPinPreview({
             boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
           }}
         >
-          {/* 사진 */}
+          {/* 사진 · 동영상 (동영상이면 카드가 열리는 즉시 음소거 재생, 탭하면 소리와 함께 전체화면) */}
           <div className="relative h-[248px] bg-[#F5F7FA]">
-            {bundle.primary_thumbnail && (
-              <img
-                src={getDisplayImageUrl(bundle.primary_thumbnail)}
-                alt=""
-                className="w-full h-full object-cover"
-                loading="eager"
-                decoding="async"
-              />
-            )}
+            {bundle.primary_thumbnail &&
+              (isVideoUri(bundle.primary_thumbnail) ? (
+                <FeedVideo src={getDisplayImageUrl(bundle.primary_thumbnail)} autoPlayAlways />
+              ) : (
+                <img
+                  src={getDisplayImageUrl(bundle.primary_thumbnail)}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  loading="eager"
+                  decoding="async"
+                />
+              ))}
             <PhotoTimeChip iso={bundle.primary_taken_at} />
             {cat && (
               <div className="absolute top-2.5 right-2.5 bg-white px-2.5 py-1 rounded-md flex items-center gap-1">
@@ -963,23 +1010,37 @@ function BundlePinPreview({ bundle, photos, onViewPost, onAuthorClick, onLocatio
             onPointerUp={onPointerUp}
           >
             <AnimatePresence initial={false} custom={dir}>
-              {cur?.thumbnail_url && (
-                <motion.img
-                  key={cur.post_id}
-                  custom={dir}
-                  variants={slideVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{ duration: 0.18, ease: 'easeOut' }}
-                  src={getDisplayImageUrl(cur.thumbnail_url)}
-                  alt=""
-                  className="absolute inset-0 w-full h-full object-cover"
-                  loading="eager"
-                  decoding="async"
-                  draggable="false"
-                />
-              )}
+              {cur?.thumbnail_url &&
+                (isVideoUri(cur.thumbnail_url) ? (
+                  <motion.div
+                    key={cur.post_id}
+                    custom={dir}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.18, ease: 'easeOut' }}
+                    className="absolute inset-0 w-full h-full"
+                  >
+                    <FeedVideo src={getDisplayImageUrl(cur.thumbnail_url)} autoPlayAlways />
+                  </motion.div>
+                ) : (
+                  <motion.img
+                    key={cur.post_id}
+                    custom={dir}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.18, ease: 'easeOut' }}
+                    src={getDisplayImageUrl(cur.thumbnail_url)}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover"
+                    loading="eager"
+                    decoding="async"
+                    draggable="false"
+                  />
+                ))}
             </AnimatePresence>
             <PhotoTimeChip iso={cur?.exif_taken_at} pointerNone />
             {cat && (
@@ -1356,7 +1417,7 @@ function useGeocodedPosts(bounds, category) {
         let q = supabase
           .from('posts')
           .select(
-            'id, user_id, content, place_name, region, category, captured_at, created_at, exif_data, images, author_username, likes_count, comments_count',
+            'id, user_id, content, place_name, region, category, captured_at, created_at, exif_data, images, videos, author_username, likes_count, comments_count',
           )
           .gte('created_at', cutoff)
           .order('created_at', { ascending: false })
@@ -1400,12 +1461,8 @@ function useGeocodedPosts(bounds, category) {
             continue;
           }
 
-          // 합성 bundle (단일)
-          const thumb = Array.isArray(p.images)
-            ? typeof p.images[0] === 'string'
-              ? p.images[0]
-              : ''
-            : '';
+          // 합성 bundle (단일) — 사진이 없으면 동영상 URL 을 대표 미디어로
+          const thumb = getMapBundleCoverUrl(p);
           synth.push({
             bundle_id: `geo_${p.id}`,
             primary_post_id: p.id,

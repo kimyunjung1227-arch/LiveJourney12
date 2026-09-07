@@ -6,13 +6,25 @@ import React, { useEffect, useRef } from 'react';
  * - 인라인에서는 컨트롤 바(소리/전체화면 버튼)를 숨김.
  * - 영상을 클릭하면 전체화면으로 진입하며 거기서 네이티브 컨트롤(소리·전체화면 종료)이 나옴.
  *
- * @param {{ src: string, poster?: string, objectFit?: string, style?: object }} props
+ * - autoPlayAlways=true 면 뷰포트 감지 없이 마운트 즉시 재생 (지도 핀 미리보기처럼 항상 보이는 카드용).
+ *
+ * @param {{ src: string, poster?: string, objectFit?: string, style?: object, autoPlayAlways?: boolean }} props
  */
-export function FeedVideo({ src, poster, objectFit = 'cover', style }) {
+export function FeedVideo({ src, poster, objectFit = 'cover', style, autoPlayAlways = false }) {
   const videoRef = useRef(null);
+
+  // 항상 재생 모드 — 마운트/소스 변경 즉시 음소거 재생
+  useEffect(() => {
+    if (!autoPlayAlways) return;
+    const el = videoRef.current;
+    if (!el) return;
+    el.muted = true;
+    el.play?.().catch(() => {});
+  }, [src, autoPlayAlways]);
 
   // 뷰포트 중앙 밴드 감지 → 자동재생/일시정지
   useEffect(() => {
+    if (autoPlayAlways) return;
     const el = videoRef.current;
     if (!el || typeof IntersectionObserver === 'undefined') return;
     let io;
@@ -36,7 +48,7 @@ export function FeedVideo({ src, poster, objectFit = 'cover', style }) {
     return () => {
       try { io?.disconnect(); } catch (_) {}
     };
-  }, [src]);
+  }, [src, autoPlayAlways]);
 
   // 전체화면 종료 시 음소거·컨트롤 원복 후 인라인 자동재생 복귀
   useEffect(() => {
