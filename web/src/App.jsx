@@ -156,7 +156,6 @@ const YouthPolicyScreen = lazyWithRecover(() => import('./pages/YouthPolicyScree
 const MarketingConsentScreen = lazyWithRecover(() => import('./pages/MarketingConsentScreen'))
 const OpenSourceLicensesScreen = lazyWithRecover(() => import('./pages/OpenSourceLicensesScreen'))
 const BusinessInfoScreen = lazyWithRecover(() => import('./pages/BusinessInfoScreen'))
-const TermsOfServiceScreen = lazyWithRecover(() => import('./pages/TermsOfServiceScreen'))
 const UploadGuideScreen = lazyWithRecover(() => import('./pages/UploadGuideScreen'))
 const NotificationsScreen = lazyWithRecover(() => import('./pages/NotificationsScreen'))
 const RealtimeFeedScreen = lazyWithRecover(() => import('./pages/RealtimeFeedScreen'))
@@ -299,7 +298,6 @@ function App() {
                 <Route path="/opensource-licenses" element={<OpenSourceLicensesScreen />} />
                 <Route path="/business-info" element={<BusinessInfoScreen />} />
                 <Route path="/terms-and-policies" element={<TermsAndPoliciesScreen />} />
-                <Route path="/terms-of-service" element={<TermsOfServiceScreen />} />
                 {/* 로그인 필수 페이지 */}
                 <Route path="/profile/edit" element={<ProtectedRoute><EditProfileScreen /></ProtectedRoute>} />
                 <Route path="/personal-info-edit" element={<ProtectedRoute><PersonalInfoEditScreen /></ProtectedRoute>} />

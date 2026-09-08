@@ -7,9 +7,6 @@ const TermsAndPoliciesScreen = () => {
 
   const handleTermClick = (termType) => {
     switch (termType) {
-      case '서비스 이용약관':
-        navigate('/terms-of-service');
-        break;
       case '개인정보 처리방침':
         navigate('/privacy-policy');
         break;
@@ -55,18 +52,6 @@ const TermsAndPoliciesScreen = () => {
                 <h2 className="text-lg font-bold leading-normal text-black dark:text-white">핵심 약관</h2>
               </div>
               <div className="flex flex-col divide-y divide-border-light dark:divide-border-dark">
-                <button
-                  onClick={() => handleTermClick('서비스 이용약관')}
-                  className="flex items-center justify-between gap-4 py-4 px-4 hover:bg-surface-subtle-light dark:hover:bg-surface-subtle-dark transition-colors"
-                >
-                  <div className="flex flex-col text-left">
-                    <p className="text-base font-semibold leading-normal text-black dark:text-white">서비스 이용약관</p>
-                    <p className="text-sm font-normal leading-normal text-black/70 dark:text-white/70">서비스의 기본적인 이용 규칙과 조건</p>
-                  </div>
-                  <span className="material-symbols-outlined text-black/70 dark:text-white/70" style={{ fontSize: '20px' }}>
-                    chevron_right
-                  </span>
-                </button>
                 <button
                   onClick={() => handleTermClick('개인정보 처리방침')}
                   className="flex items-center justify-between gap-4 py-4 px-4 hover:bg-surface-subtle-light dark:hover:bg-surface-subtle-dark transition-colors"

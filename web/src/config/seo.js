@@ -89,10 +89,4 @@ export const PAGE_SEO = {
       "내 여행 기록·인증·팔로우와 라이브저니 활동을 관리하는 프로필 화면입니다.",
     path: "/profile",
   },
-  termsOfService: {
-    title: "서비스 이용약관 · 라이브저니",
-    description:
-      "라이브저니(LiveJourney) 서비스 이용약관 전문. 회원·비회원의 권리·의무 및 서비스 제공 조건을 규정합니다.",
-    path: "/terms-of-service",
-  },
 }
