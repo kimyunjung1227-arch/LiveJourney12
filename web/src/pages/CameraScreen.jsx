@@ -33,6 +33,9 @@ const WHITE_70 = 'rgba(255,255,255,0.7)';
 
 const MAX_RECORD_SECONDS = 30;
 
+// 셔터 좌우 자리 폭 — 갤러리/카메라 전환 버튼이 여기에 들어간다
+const SIDE_SLOT = 54;
+
 function CameraScreen() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -774,20 +777,10 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
           zIndex: 5,
         }}
       >
-        {/* 모드 토글 + 갤러리 — 영상 버튼 오른쪽에 갤러리 아이콘 */}
-        <div
-          style={{
-            alignSelf: 'center',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <ModeToggle mode={cam.mode} onChange={cam.setMode} disabled={cam.isRecording} />
-          <GalleryButton onClick={onOpenGallery} disabled={cam.isRecording} />
-        </div>
+        {/* 모드 토글 */}
+        <ModeToggle mode={cam.mode} onChange={cam.setMode} disabled={cam.isRecording} />
 
-        {/* 컨트롤 행 */}
+        {/* 컨트롤 행 — [갤러리] [셔터] [카메라 전환], 좌우 자리 폭을 같게 두어 셔터가 정중앙 */}
         <div
           style={{
             display: 'flex',
@@ -796,8 +789,17 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
             paddingTop: 4,
           }}
         >
-          {/* 셔터를 가운데 두기 위한 좌측 자리 — 갤러리는 위 소스 선택으로 옮겼다 */}
-          <div style={{ width: 44, height: 44 }} aria-hidden />
+          <div
+            style={{
+              width: SIDE_SLOT,
+              height: SIDE_SLOT,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+            }}
+          >
+            <GalleryButton onClick={onOpenGallery} disabled={cam.isRecording} />
+          </div>
 
           <ShutterButton
             mode={cam.mode}
@@ -806,7 +808,16 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
             onClick={handleShutter}
           />
 
-          <div style={{ width: 44, height: 44, opacity: showSwitchCamera ? 1 : 0 }}>
+          <div
+            style={{
+              width: SIDE_SLOT,
+              height: SIDE_SLOT,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              opacity: showSwitchCamera ? 1 : 0,
+            }}
+          >
             {showSwitchCamera && (
               <SquareButton onClick={cam.switchCamera} aria-label="카메라 전환">
                 <IconRotate2 size={20} stroke={2} />
@@ -985,7 +996,7 @@ function ModeToggle({ mode, onChange, disabled }) {
 
 /**
  * 갤러리 열기 — 화면 전환이 아니라 파일 선택창을 여는 동작이라
- * 모드 토글(사진/영상) 안이 아닌 바로 오른쪽에 아이콘 버튼으로 둔다.
+ * 셔터 왼쪽 자리에 아이콘 버튼으로 둔다(기본 카메라 앱과 같은 위치).
  */
 function GalleryButton({ onClick, disabled }) {
   return (
@@ -996,14 +1007,14 @@ function GalleryButton({ onClick, disabled }) {
       aria-label="갤러리에서 고르기"
       title="갤러리"
       style={{
-        // 전역 button min-height:44px 무력화 → 모드 토글과 같은 높이 유지
+        // 전역 button min-height:44px 무력화 → 정원 유지
         minWidth: 0,
         minHeight: 0,
-        width: 34,
-        height: 34,
+        width: SIDE_SLOT,
+        height: SIDE_SLOT,
         padding: 0,
         borderRadius: '50%',
-        border: 'none',
+        border: '1.5px solid rgba(255,255,255,0.35)',
         background: OVERLAY,
         backdropFilter: 'blur(8px)',
         color: '#fff',
@@ -1014,7 +1025,7 @@ function GalleryButton({ onClick, disabled }) {
         opacity: disabled ? 0.4 : 1,
       }}
     >
-      <IconPhoto size={17} stroke={2} />
+      <IconPhoto size={26} stroke={1.8} />
     </button>
   );
 }
