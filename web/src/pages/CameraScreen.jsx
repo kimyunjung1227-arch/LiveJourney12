@@ -5,7 +5,6 @@ import {
   IconBolt,
   IconBoltOff,
   IconRotate2,
-  IconCamera,
   IconAlertTriangle,
   IconCameraOff,
   IconPlayerStopFilled,
@@ -775,14 +774,18 @@ function CameraView({ cam, onClose, onOpenGallery, onCapturedPhoto, onCapturedVi
           zIndex: 5,
         }}
       >
-        {/* 줌(확대) 토글 — 1배 / 2배 / 3배 */}
-        {!cam.isRecording && <ZoomToggle zoom={cam.zoom} onChange={cam.setZoom} />}
-
-        {/* 소스 선택 — 카메라로 찍을지, 갤러리에서 고를지 */}
-        <SourceToggle onOpenGallery={onOpenGallery} disabled={cam.isRecording} />
-
-        {/* 모드 토글 */}
-        <ModeToggle mode={cam.mode} onChange={cam.setMode} disabled={cam.isRecording} />
+        {/* 모드 토글 + 갤러리 — 영상 버튼 오른쪽에 갤러리 아이콘 */}
+        <div
+          style={{
+            alignSelf: 'center',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <ModeToggle mode={cam.mode} onChange={cam.setMode} disabled={cam.isRecording} />
+          <GalleryButton onClick={onOpenGallery} disabled={cam.isRecording} />
+        </div>
 
         {/* 컨트롤 행 */}
         <div
@@ -935,145 +938,6 @@ function Pill({ children, background = OVERLAY, style }) {
   );
 }
 
-function ZoomToggle({ zoom, onChange }) {
-  const LEVELS = [1, 2, 3];
-  const SLOT = 34; // 각 버튼(원) 지름
-  const GAP = 2; // 버튼 사이 간격
-  const PAD = 4; // 컨테이너 안쪽 여백
-  const activeIndex = Math.max(0, LEVELS.indexOf(zoom || 1));
-  return (
-    <div
-      style={{
-        alignSelf: 'center',
-        position: 'relative',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: GAP,
-        padding: PAD,
-        background: 'rgba(0,0,0,0.45)',
-        borderRadius: 999,
-        backdropFilter: 'blur(8px)',
-      }}
-    >
-      {/* 선택 자리로 좌우로 미끄러지는 흰 원 인디케이터 */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          top: PAD,
-          left: PAD,
-          width: SLOT,
-          height: SLOT,
-          borderRadius: '50%',
-          background: '#fff',
-          transform: `translateX(${activeIndex * (SLOT + GAP)}px)`,
-          transition: 'transform 220ms cubic-bezier(0.22, 0.7, 0.2, 1)',
-          zIndex: 0,
-        }}
-      />
-      {LEVELS.map((z) => {
-        const active = (zoom || 1) === z;
-        return (
-          <button
-            key={z}
-            type="button"
-            onClick={() => onChange(z)}
-            aria-label={`${z}배 확대`}
-            aria-pressed={active}
-            style={{
-              position: 'relative',
-              zIndex: 1,
-              flex: '0 0 auto',
-              boxSizing: 'border-box',
-              // 전역 button min-height:44px 무력화 → 완전한 원 유지
-              minWidth: 0,
-              minHeight: 0,
-              width: SLOT,
-              height: SLOT,
-              padding: 0,
-              borderRadius: '50%',
-              border: 'none',
-              background: 'transparent',
-              color: active ? DARK : 'rgba(255,255,255,0.92)',
-              fontFamily: LJ.fontStack,
-              fontSize: 12,
-              fontWeight: active ? 800 : 700,
-              cursor: 'pointer',
-              lineHeight: 1,
-              letterSpacing: 0.2,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'color 160ms ease-out',
-            }}
-          >
-            {z}×
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/**
- * 업로드 소스 선택 — 지금 화면(카메라)과 갤러리 중 고른다.
- * 갤러리는 화면 전환이 아니라 파일 선택창을 여는 동작이라, 선택 상태는 항상 "카메라"에 머문다.
- */
-function SourceToggle({ onOpenGallery, disabled }) {
-  const base = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    padding: '10px 18px',
-    minHeight: 0,
-    borderRadius: 999,
-    border: 'none',
-    fontFamily: LJ.fontStack,
-    fontSize: 13,
-    fontWeight: 700,
-    lineHeight: 1,
-  };
-  return (
-    <div
-      style={{
-        alignSelf: 'center',
-        display: 'inline-flex',
-        gap: 4,
-        padding: 4,
-        background: OVERLAY,
-        borderRadius: 999,
-        backdropFilter: 'blur(8px)',
-        opacity: disabled ? 0.4 : 1,
-      }}
-    >
-      <button
-        type="button"
-        onClick={() => {}}
-        aria-current="true"
-        style={{ ...base, background: '#fff', color: DARK, cursor: 'default' }}
-      >
-        <IconCamera size={15} stroke={2} />
-        카메라
-      </button>
-      <button
-        type="button"
-        onClick={() => !disabled && onOpenGallery()}
-        disabled={disabled}
-        style={{
-          ...base,
-          background: 'transparent',
-          color: '#fff',
-          cursor: disabled ? 'not-allowed' : 'pointer',
-        }}
-      >
-        <IconPhoto size={15} stroke={2} />
-        갤러리
-      </button>
-    </div>
-  );
-}
-
 function ModeToggle({ mode, onChange, disabled }) {
   return (
     <div
@@ -1116,6 +980,42 @@ function ModeToggle({ mode, onChange, disabled }) {
         );
       })}
     </div>
+  );
+}
+
+/**
+ * 갤러리 열기 — 화면 전환이 아니라 파일 선택창을 여는 동작이라
+ * 모드 토글(사진/영상) 안이 아닌 바로 오른쪽에 아이콘 버튼으로 둔다.
+ */
+function GalleryButton({ onClick, disabled }) {
+  return (
+    <button
+      type="button"
+      onClick={() => !disabled && onClick()}
+      disabled={disabled}
+      aria-label="갤러리에서 고르기"
+      title="갤러리"
+      style={{
+        // 전역 button min-height:44px 무력화 → 모드 토글과 같은 높이 유지
+        minWidth: 0,
+        minHeight: 0,
+        width: 34,
+        height: 34,
+        padding: 0,
+        borderRadius: '50%',
+        border: 'none',
+        background: OVERLAY,
+        backdropFilter: 'blur(8px)',
+        color: '#fff',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.4 : 1,
+      }}
+    >
+      <IconPhoto size={17} stroke={2} />
+    </button>
   );
 }
 
