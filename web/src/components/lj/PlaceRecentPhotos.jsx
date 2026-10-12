@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import { IconPlayerPlayFilled } from '@tabler/icons-react';
 import { LJ, formatExifTime } from './tokens';
+import { isVideoUri } from '../../utils/postMedia';
 
 const COLLAPSED_COUNT = 3;
 const EXPANDED_MAX = 24;
@@ -10,6 +12,8 @@ const EXPANDED_MAX = 24;
  */
 function Thumb({ post, overlayCount, onClick }) {
   const src = post.photo_url || post.cover_url || '';
+  // 사진 없는 영상 게시물 — <img>로는 깨지므로 영상 첫 프레임을 썸네일로
+  const isVideo = isVideoUri(src);
   return (
     <button
       type="button"
@@ -27,7 +31,35 @@ function Thumb({ post, overlayCount, onClick }) {
         minHeight: 0,
       }}
     >
-      {src ? (
+      {src && isVideo ? (
+        <>
+          <video
+            src={`${src}#t=0.1`}
+            muted
+            playsInline
+            preload="metadata"
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: '#000' }}
+          />
+          {!overlayCount && (
+            <span
+              style={{
+                position: 'absolute',
+                right: 5,
+                top: 5,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 18,
+                height: 18,
+                borderRadius: '50%',
+                background: 'rgba(0,0,0,0.62)',
+              }}
+            >
+              <IconPlayerPlayFilled size={9} color="#fff" />
+            </span>
+          )}
+        </>
+      ) : src ? (
         <img
           src={src}
           alt=""

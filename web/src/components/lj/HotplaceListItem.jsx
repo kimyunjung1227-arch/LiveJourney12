@@ -110,12 +110,23 @@ export function HotplaceListItem({
                 background: LJ.bgSurface,
               }}
             >
-              <img
-                src={p.photo_url}
-                alt=""
-                loading="lazy"
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
+              {p.photo_url ? (
+                <img
+                  src={p.photo_url}
+                  alt=""
+                  loading="lazy"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : p.cover_url ? (
+                // 사진 없는 영상 게시물 — 첫 프레임을 썸네일로
+                <video
+                  src={`${p.cover_url}#t=0.1`}
+                  muted
+                  playsInline
+                  preload="metadata"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#000' }}
+                />
+              ) : null}
             </div>
           ))}
         </div>

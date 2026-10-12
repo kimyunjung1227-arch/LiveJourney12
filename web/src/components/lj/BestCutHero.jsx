@@ -1,11 +1,14 @@
 import React from 'react';
 import { IconCrown } from '@tabler/icons-react';
 import { LJ, formatExifTime } from './tokens';
+import FeedVideo from './FeedVideo';
+import { isVideoUri } from '../../utils/postMedia';
 
 /**
  * 장소 페이지 베스트 컷 히어로.
  * 1) 헤더 — 왕관 + 베스트 컷
- * 2) 사진 340px — 좌상단 EXIF, 하단에 작성자(아바타+이름) 오버레이
+ * 2) 사진·영상 340px — 좌상단 EXIF, 하단에 작성자(아바타+이름) 오버레이
+ *    영상 게시물이면 FeedVideo로 자동재생(음소거·반복), 탭하면 전체화면·소리
  * 3) 본문 (반응 박스 없음)
  */
 export function BestCutHero({
@@ -17,6 +20,22 @@ export function BestCutHero({
   if (!post) return null;
   const author = post.author || {};
 
+  // PostCard와 동일한 규칙 — post.media(영상 우선)가 있으면 그 첫 칸을 히어로로,
+  // 없으면 photo_url/cover_url 하나를 확장자로 판별해 폴백.
+  const mediaList =
+    Array.isArray(post.media) && post.media.length > 0
+      ? post.media
+      : [post.photo_url || post.cover_url]
+          .filter(Boolean)
+          .map((url) => ({ type: isVideoUri(url) ? 'video' : 'image', url }));
+  const hero = mediaList[0] || null;
+  const heroUrl = hero?.url || '';
+  const isVideo = hero?.type === 'video';
+  // 영상 poster — 같은 게시물의 정지 사진이 있으면 첫 프레임 로딩 전 검은 화면 방지
+  const posterUrl = isVideo
+    ? (post.photos || []).find((u) => u && !isVideoUri(u)) || undefined
+    : undefined;
+
   return (
     <section style={{ padding: showHeader ? '20px 18px 0' : '0 18px', fontFamily: LJ.fontStack }}>
       {/* 1) 헤더 — showHeader=false 일 때는 캐러셀 외부에서 한 번만 그림 */}
@@ -27,7 +46,7 @@ export function BestCutHero({
         </div>
       )}
 
-      {/* 2) 메인 사진 — 작성자 정보를 사진 위에 오버레이 */}
+      {/* 2) 메인 사진·영상 — 작성자 정보를 미디어 위에 오버레이 */}
       <div
         style={{
           position: 'relative',
@@ -35,31 +54,67 @@ export function BestCutHero({
           height: 340,
           borderRadius: 12,
           overflow: 'hidden',
-          background: LJ.bgSurface,
+          background: isVideo ? '#000' : LJ.bgSurface,
         }}
       >
-        <img
-          src={post.photo_url}
-          alt={post.place_name}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-        />
+        {isVideo ? (
+          <FeedVideo src={heroUrl} poster={posterUrl} />
+        ) : (
+          <img
+            src={heroUrl}
+            alt={post.place_name}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+        )}
 
-        {/* 사진 전체 클릭 → 게시물 이동 */}
-        <button
-          type="button"
-          onClick={onPostClick}
-          aria-label="베스트 컷 게시물 보기"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            width: '100%',
-            height: '100%',
-            border: 'none',
-            background: 'transparent',
-            cursor: 'pointer',
-            padding: 0,
-          }}
-        />
+        {/* 사진 전체 클릭 → 게시물 이동. 영상은 탭=전체화면 재생이라 전체 오버레이를
+            두지 않고, 아래 "게시물 보기" 칩으로만 이동시킨다. */}
+        {!isVideo && (
+          <button
+            type="button"
+            onClick={onPostClick}
+            aria-label="베스트 컷 게시물 보기"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          />
+        )}
+
+        {/* 영상일 때만: 우하단 게시물 이동 칩 (EXIF 칩과 같은 톤) */}
+        {isVideo && (
+          <button
+            type="button"
+            onClick={onPostClick}
+            style={{
+              position: 'absolute',
+              right: 10,
+              bottom: 12,
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '5px 10px',
+              minHeight: 0,
+              border: 'none',
+              borderRadius: 6,
+              background: 'rgba(0,0,0,0.7)',
+              backdropFilter: 'blur(8px)',
+              color: '#fff',
+              fontFamily: LJ.fontStack,
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: 'pointer',
+              zIndex: 2,
+            }}
+          >
+            게시물 보기
+          </button>
+        )}
 
         {/* 좌상단 EXIF */}
         <div
